@@ -211,7 +211,7 @@ class LLMReasoner:
                 
         # Tool documentation with exact parameter names
         tool_docs = {
-            "tap": "tap(x: int, y: int) - Tap at coordinates (x,y) on the device",
+            "tap": "tap(index: int) - Tap on the element with the given index on the device",
             
             "swipe": "swipe(start_x: int, start_y: int, end_x: int, end_y: int, duration_ms: int = 300) - Swipe from (start_x,start_y) to (end_x,end_y) over duration_ms milliseconds",
             

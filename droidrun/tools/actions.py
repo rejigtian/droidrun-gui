@@ -11,6 +11,9 @@ import contextlib
 from typing import Optional, Dict, Tuple, List, Any
 from droidrun.adb import Device, DeviceManager
 
+# Global variable to store clickable elements for index-based tapping
+CLICKABLE_ELEMENTS_CACHE = []
+
 # Default device serial will be read from environment variable
 def get_device_serial() -> str:
     """Get the device serial from environment variable.
@@ -156,6 +159,8 @@ async def get_clickables(serial: Optional[str] = None) -> Dict[str, Any]:
     Returns:
         Dictionary containing clickable UI elements extracted from the device screen
     """
+    global CLICKABLE_ELEMENTS_CACHE
+    
     try:
         # Get the device
         if serial:
@@ -175,7 +180,7 @@ async def get_clickables(serial: Optional[str] = None) -> Dict[str, Any]:
             await device._adb.shell(device._serial, "logcat -c")
             
             # Trigger the custom service via broadcast to get only interactive elements
-            await device._adb.shell(device._serial, "am broadcast -a com.example.droidrun.GET_INTERACTIVE_ELEMENTS")
+            await device._adb.shell(device._serial, "am broadcast -a com.example.droidrun.GET_ELEMENTS")
             
             # Poll for the JSON file path
             start_time = asyncio.get_event_loop().time()
@@ -206,6 +211,10 @@ async def get_clickables(serial: Optional[str] = None) -> Dict[str, Any]:
             # Read the JSON file
             async with aiofiles.open(local_path, "r", encoding="utf-8") as f:
                 json_content = await f.read()
+                
+            # Add logging of raw JSON content
+            print("Raw JSON response from device:")
+            print(json_content)
             
             # Clean up the temporary file
             with contextlib.suppress(OSError):
@@ -215,6 +224,11 @@ async def get_clickables(serial: Optional[str] = None) -> Dict[str, Any]:
             import json
             try:
                 ui_data = json.loads(json_content)
+                
+                # Add logging of parsed data
+                print("\nParsed JSON data:")
+                print(json.dumps(ui_data, indent=2))
+                
                 # Handle both possible response formats
                 if isinstance(ui_data, list):
                     # If the response is a list, it's already the clickable elements
@@ -223,6 +237,9 @@ async def get_clickables(serial: Optional[str] = None) -> Dict[str, Any]:
                     # If it's a dictionary, extract the clickable_elements field
                     clickable_elements = ui_data.get("clickable_elements", [])
 
+                # Update the global cache with the new elements
+                CLICKABLE_ELEMENTS_CACHE = clickable_elements
+                
                 return {
                     "clickable_elements": clickable_elements,
                     "count": len(clickable_elements),
@@ -240,7 +257,72 @@ async def get_clickables(serial: Optional[str] = None) -> Dict[str, Any]:
     except Exception as e:
         raise ValueError(f"Error getting clickable elements: {e}")
 
-async def tap(x: int, y: int, serial: Optional[str] = None) -> str:
+async def tap_by_index(index: int, serial: Optional[str] = None) -> str:
+    """
+    Tap on a UI element by its index.
+    
+    This function uses the cached clickable elements from the last get_clickables call
+    to find the element with the given index and tap on its center coordinates.
+    
+    Args:
+        index: Index of the element to tap
+        serial: Optional device serial (for backward compatibility)
+    
+    Returns:
+        Result message
+    """
+    global CLICKABLE_ELEMENTS_CACHE
+    
+    try:
+        # Check if we have cached elements
+        if not CLICKABLE_ELEMENTS_CACHE:
+            return "Error: No UI elements cached. Call get_clickables first."
+        
+        # Find the element with the given index
+        element = None
+        for item in CLICKABLE_ELEMENTS_CACHE:
+            if item.get('index') == index:
+                element = item
+                break
+        
+        if not element:
+            return f"Error: No element found with index {index}"
+        
+        # Get the bounds of the element
+        bounds_str = element.get('bounds')
+        if not bounds_str:
+            return f"Error: Element with index {index} has no bounds"
+        
+        # Parse the bounds (format: "left,top,right,bottom")
+        try:
+            left, top, right, bottom = map(int, bounds_str.split(','))
+        except ValueError:
+            return f"Error: Invalid bounds format for element with index {index}: {bounds_str}"
+        
+        # Calculate the center of the element
+        x = (left + right) // 2
+        y = (top + bottom) // 2
+        
+        # Get the device and tap at the coordinates
+        if serial:
+            device_manager = DeviceManager()
+            device = await device_manager.get_device(serial)
+            if not device:
+                return f"Error: Device {serial} not found"
+        else:
+            device = await get_device()
+        
+        await device.tap(x, y)
+        
+        element_text = element.get('text', 'No text')
+        element_class = element.get('className', 'Unknown class')
+        
+        return f"Tapped element with index {index} ({element_text}, {element_class}) at ({x}, {y})"
+    except ValueError as e:
+        return f"Error: {str(e)}"
+
+# Rename the old tap function to tap_by_coordinates for backward compatibility
+async def tap_by_coordinates(x: int, y: int, serial: Optional[str] = None) -> str:
     """
     Tap on the device screen at specific coordinates.
     
@@ -262,6 +344,23 @@ async def tap(x: int, y: int, serial: Optional[str] = None) -> str:
         return f"Tapped at ({x}, {y})"
     except ValueError as e:
         return f"Error: {str(e)}"
+
+# Replace the old tap function with the new one
+async def tap(index: int, serial: Optional[str] = None) -> str:
+    """
+    Tap on a UI element by its index.
+    
+    This function uses the cached clickable elements from the last get_clickables call
+    to find the element with the given index and tap on its center coordinates.
+    
+    Args:
+        index: Index of the element to tap
+        serial: Optional device serial (for backward compatibility)
+    
+    Returns:
+        Result message
+    """
+    return await tap_by_index(index, serial)
 
 async def swipe(
     start_x: int,
