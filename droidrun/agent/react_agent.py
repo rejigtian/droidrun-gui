@@ -257,7 +257,12 @@ class ReActAgent:
         from typing import get_type_hints
         
         if tool_name not in self.tools:
-            raise ValueError(f"Tool {tool_name} not found")
+            # Clean up tool name by removing extra parentheses
+            cleaned_tool_name = tool_name.replace("()", "")
+            if cleaned_tool_name in self.tools:
+                tool_name = cleaned_tool_name
+            else:
+                raise ValueError(f"Tool {tool_name} not found")
         
         tool_func = self.tools[tool_name]
         
@@ -323,14 +328,12 @@ class ReActAgent:
                         summary += f"\n... and {len(text) - 5} more text elements"
                 
                 return summary
-            elif tool_name == "take_screenshot":
+            elif tool_name == "take_screenshot" and isinstance(result, tuple) and len(result) >= 2:
                 # For screenshots, store the image data for the LLM and return the path
-                if isinstance(result, tuple) and len(result) >= 2:
-                    path, image_data = result
-                    # Store the screenshot data for the next LLM call
-                    self._last_screenshot = image_data
-                    return f"Screenshot captured and available for analysis"
-                return str(result)
+                path, image_data = result
+                # Store the screenshot data for the next LLM call
+                self._last_screenshot = image_data
+                return f"Screenshot captured and available for analysis"
             else:
                 return result
                 
@@ -408,6 +411,18 @@ class ReActAgent:
                             # Check if the complete tool was called
                             if action == "complete":
                                 goal_achieved = True
+                                # Get token usage stats
+                                stats = self.reasoner.get_token_usage_stats()
+                                total_tokens = stats['total_tokens']
+                                cost = (total_tokens / 1_000_000) * 0.10  # $0.10 per 1M tokens
+                                
+                                print("\n===== Final Token Usage and Cost =====")
+                                print(f"Total Tokens Used: {total_tokens:,}")
+                                print(f"Total API Calls: {stats['api_calls']}")
+                                print(f"Estimated Cost: ${cost:.4f}")
+                                print("===================================\n")
+
+                                print(f"Summary: {result}")
                             
                             if isinstance(result, bytes):
                                 result = f"Binary data ({len(result)} bytes)"
@@ -487,14 +502,5 @@ async def run_agent(
     )
     
     steps = await agent.run()
-    
-    # Print summary
-    print("\n--------- Execution Summary ---------")
-    print(f"Goal: {goal}")
-    print(f"Steps taken: {len(steps)}")
-    
-    # Print steps
-    for i, step in enumerate(steps):
-        print(f"\nStep {i+1}: {str(step)}")
-    
+
     return steps 

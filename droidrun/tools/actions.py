@@ -220,6 +220,8 @@ async def get_clickables(serial: Optional[str] = None) -> Dict[str, Any]:
             import json
             try:
                 ui_data = json.loads(json_content)
+
+                print(ui_data)
                 
                 # Handle both possible response formats
                 if isinstance(ui_data, list):

@@ -218,8 +218,17 @@ class LLMReasoner:
         3. Choose the most appropriate tool for each step
         4. Return your response in JSON format with the following fields:
         - thought: Your detailed reasoning about the current state and what to do next
-        - action: The name of the tool to execute
+        - action: The name of the tool to execute (use EXACT tool name without any parentheses)
         - parameters: A dictionary of parameters to pass to the tool
+
+        IMPORTANT: When specifying the action field:
+        - Use the exact tool name as provided (e.g., "take_screenshot" not "take_screenshot()")
+        - Never add parentheses to the tool name
+        - Common mistakes to avoid:
+          ❌ "take_screenshot()"
+          ❌ "get_clickables()"
+          ✅ "take_screenshot"
+          ✅ "get_clickables"
 
         You have two very important tools for your observations.
         1. You can take a screenshot to get a better understanding of the current screen including all texts and images on the screen. Use this to to analyze the current ui context.
@@ -245,7 +254,7 @@ class LLMReasoner:
             
             "get_clickables": "get_clickables() - Get only the clickable UI elements from the device screen. Returns a dictionary containing interactive elements with their properties",
             
-            "complete": "complete(result: str) - IMPORTANT: This tool should ONLY be called after you have ACTUALLY completed all necessary actions for the goal. It does not perform any actions itself - it only signals that you have already achieved the goal through other actions. ALWAYS MAKE SURE YOU REACHED YOUR GOAL BY TAKING A SCREENSHOT BEFORE CALLIN COMPLETE. Include a summary of what was accomplished as the result parameter.",
+            "complete": "complete(result: str) - IMPORTANT: This tool should ONLY be called after you have ACTUALLY completed all necessary actions for the goal. It does not perform any actions itself - it only signals that you have already achieved the goal through other actions. Include a summary of what was accomplished as the result parameter.",
         }
         
         # Add available tools information if provided
