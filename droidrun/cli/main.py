@@ -28,7 +28,7 @@ def cli():
 @cli.command()
 @click.argument('command', type=str)
 @click.option('--device', '-d', help='Device serial number or IP address', default=None)
-@click.option('--provider', '-p', help='LLM provider (openai or anthropic)', default='openai')
+@click.option('--provider', '-p', help='LLM provider (openai, anthropic, or gemini)', default='openai')
 @click.option('--model', '-m', help='LLM model name', default=None)
 @click.option('--debug', is_flag=True, help='Enable debug logging')
 @click.option('--steps', type=int, help='Maximum number of steps', default=15)
@@ -36,6 +36,10 @@ def cli():
 async def run(command: str, device: str | None, provider: str, model: str, debug: bool, steps: int):
     """Run a command on your Android device using natural language."""
     console.print(f"[bold blue]Executing command:[/] {command}")
+    
+    # Auto-detect Gemini if model starts with "gemini-"
+    if model and model.startswith("gemini-"):
+        provider = "gemini"
     
     # Get API keys from environment variables
     api_key = None
@@ -53,6 +57,13 @@ async def run(command: str, device: str | None, provider: str, model: str, debug
             return
         if not model:
             model = "claude-3-sonnet-20240229"
+    elif provider.lower() == 'gemini':
+        api_key = os.environ.get('GEMINI_API_KEY')
+        if not api_key:
+            console.print("[bold red]Error:[/] GEMINI_API_KEY environment variable not set")
+            return
+        if not model:
+            model = "gemini-2.0-flash"
     else:
         console.print(f"[bold red]Error:[/] Unsupported provider: {provider}")
         return

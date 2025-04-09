@@ -59,12 +59,17 @@ class LLMReasoner:
         """Initialize the LLM reasoner.
         
         Args:
-            llm_provider: LLM provider ('openai' or 'anthropic')
+            llm_provider: LLM provider ('openai', 'anthropic', or 'gemini'). 
+                         If model_name starts with 'gemini-', provider will be set to 'gemini' automatically.
             model_name: Model name to use
             api_key: API key for the LLM provider
             temperature: Temperature for generation
             max_tokens: Maximum tokens to generate
         """
+        # Auto-detect Gemini models
+        if model_name and model_name.startswith("gemini-"):
+            llm_provider = "gemini"
+            
         self.llm_provider = llm_provider.lower()
         self.temperature = temperature
         self.max_tokens = max_tokens
@@ -76,7 +81,27 @@ class LLMReasoner:
         self.api_calls = 0
         
         # Set up model and client based on provider
-        if self.llm_provider == "openai":
+        if self.llm_provider == "gemini":
+            if not OPENAI_AVAILABLE:
+                raise ImportError("OpenAI package not installed. Install with 'pip install openai'")
+            
+            # Set default model if not specified
+            self.model_name = model_name or "gemini-2.0-flash"
+            
+            # Get API key from env var if not provided
+            self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
+            if not self.api_key:
+                raise ValueError("Gemini API key not provided and not found in environment (GEMINI_API_KEY)")
+            
+            print("APIKEY: ", self.api_key)
+            # Initialize client with Gemini configuration
+            self.client = OpenAI(
+                api_key=self.api_key,
+                base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
+            )
+            logger.info(f"Initialized Gemini client with model {self.model_name}")
+            
+        elif self.llm_provider == "openai":
             if not OPENAI_AVAILABLE:
                 raise ImportError("OpenAI package not installed. Install with 'pip install openai'")
             
@@ -150,7 +175,7 @@ class LLMReasoner:
         
         try:
             # Call the LLM based on provider
-            if self.llm_provider == "openai":
+            if self.llm_provider in ["openai", "gemini"]:  # Handle both OpenAI and Gemini with OpenAI client
                 response = await self._call_openai(system_prompt, user_prompt, screenshot_data)
             elif self.llm_provider == "anthropic":
                 response = await self._call_anthropic(system_prompt, user_prompt, screenshot_data)
@@ -185,7 +210,7 @@ class LLMReasoner:
         """
         # Base system prompt
         prompt = """
-        You are an Android automation ReAct agent. Your task is to control an Android device to achieve a specified goal.
+        You are an user assitant for an Android phone. Your task is to control an Android device to achieve a specified goal the user is asking for.
         Follow these guidelines:
 
         1. Analyze the current screen state from the UI state by taking a screenshot
@@ -196,17 +221,10 @@ class LLMReasoner:
         - action: The name of the tool to execute
         - parameters: A dictionary of parameters to pass to the tool
 
-        AFTER EVERY ACTION - MAKE A SCREENSHOT to be sure you did the right thing
-        When analyzing UI elements, pay attention to:
-        - Text content
-        - Coordinates of elements
-        - Whether elements are clickable
-        
-        It is very important to know for the ui state, that each element has a weight and an age.
-        The higher the weight the more fresh is the element and more likely the element is visible right now.
-        Always pay the most attention to the elements with the highest weight and lowest age
+        You have two very important tools for your observations.
+        1. You can take a screenshot to get a better understanding of the current screen including all texts and images on the screen. Use this to to analyze the current ui context.
+        2. If you want to take action, after you analyzed the context, you can get all the clickable elements for your next interactive step. Only use this tool if you know about your current ui context.
 
-        Always look at the current screen state to determine your next action.
         """
                 
         # Tool documentation with exact parameter names
@@ -220,16 +238,10 @@ class LLMReasoner:
             "press_key": "press_key(keycode: int) - Press a key on the device using keycode",
             
             "start_app": "start_app(package: str, activity: str = '') - Start an app using its package name (e.g., 'com.android.settings')",
-            
-            "install_app": "install_app(apk_path: str, reinstall: bool = False, grant_permissions: bool = True) - Install an APK file on the device",
-            
-            "uninstall_app": "uninstall_app(package: str, keep_data: bool = False) - Uninstall an app from the device",
-            
+
             "take_screenshot": "take_screenshot() - Take a screenshot of the device",
             
             "list_packages": "list_packages(include_system_apps: bool = False) - List installed packages on the device, returns detailed package information",
-            
-            "get_ui_elements": "get_ui_elements() - Get the current UI elements from the device screen. Returns a dictionary containing both clickable and text elements with their properties",
             
             "get_clickables": "get_clickables() - Get only the clickable UI elements from the device screen. Returns a dictionary containing interactive elements with their properties",
             
@@ -318,7 +330,7 @@ class LLMReasoner:
         return prompt
     
     async def _call_openai(self, system_prompt: str, user_prompt: str, screenshot_data: Optional[bytes] = None) -> str:
-        """Call OpenAI API to generate a response.
+        """Call OpenAI or Gemini API to generate a response.
         
         Args:
             system_prompt: System prompt string
@@ -336,9 +348,25 @@ class LLMReasoner:
             # If we have a screenshot, add it as a message with the image
             if screenshot_data:
                 import base64
-                # Convert the image bytes to base64
                 base64_image = base64.b64encode(screenshot_data).decode('utf-8')
-                # Add the image message
+                
+                # Different image format for Gemini vs OpenAI
+                if self.llm_provider != "gemini":
+                    image_content = {
+                        "type": "image",
+                        "image_url": {
+                            "data": base64_image,
+                            "format": "jpeg"
+                        }
+                    }
+                else:
+                    image_content = {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{base64_image}"
+                        }
+                    }
+                
                 messages.append({
                     "role": "user",
                     "content": [
@@ -346,12 +374,7 @@ class LLMReasoner:
                             "type": "text",
                             "text": "Here's the current screenshot of the device. Please analyze it to help with the next action."
                         },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/png;base64,{base64_image}"
-                            }
-                        }
+                        image_content
                     ]
                 })
 
@@ -388,7 +411,7 @@ class LLMReasoner:
             
             return response.choices[0].message.content
         except Exception as e:
-            logger.error(f"Error calling OpenAI API: {e}")
+            logger.error(f"Error calling {'Gemini' if self.llm_provider == 'gemini' else 'OpenAI'} API: {e}")
             raise
     
     async def _call_anthropic(self, system_prompt: str, user_prompt: str, screenshot_data: Optional[bytes] = None) -> str:

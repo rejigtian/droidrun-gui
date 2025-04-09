@@ -212,10 +212,6 @@ async def get_clickables(serial: Optional[str] = None) -> Dict[str, Any]:
             async with aiofiles.open(local_path, "r", encoding="utf-8") as f:
                 json_content = await f.read()
                 
-            # Add logging of raw JSON content
-            print("Raw JSON response from device:")
-            print(json_content)
-            
             # Clean up the temporary file
             with contextlib.suppress(OSError):
                 os.unlink(local_path)
@@ -224,10 +220,6 @@ async def get_clickables(serial: Optional[str] = None) -> Dict[str, Any]:
             import json
             try:
                 ui_data = json.loads(json_content)
-                
-                # Add logging of parsed data
-                print("\nParsed JSON data:")
-                print(json.dumps(ui_data, indent=2))
                 
                 # Handle both possible response formats
                 if isinstance(ui_data, list):
@@ -240,10 +232,24 @@ async def get_clickables(serial: Optional[str] = None) -> Dict[str, Any]:
                 # Update the global cache with the new elements
                 CLICKABLE_ELEMENTS_CACHE = clickable_elements
                 
+                # Process the clickable elements:
+                # 1. Remove 'isClickable' attribute (no longer needed)
+                # 2. Filter out elements with index -1
+                # 3. Sort by weight
+                processed_elements = []
+                for element in clickable_elements:
+                    if element.get('index', -1) != -1:
+                        # Create a copy without the isClickable attribute
+                        element_copy = {k: v for k, v in element.items() if k != 'isClickable'}
+                        processed_elements.append(element_copy)
+                
+                # Sort by weight
+                processed_elements.sort(key=lambda x: x.get('weight', 0))
+                
                 return {
-                    "clickable_elements": clickable_elements,
-                    "count": len(clickable_elements),
-                    "message": f"Found {len(clickable_elements)} clickable elements on screen"
+                    "clickable_elements": processed_elements,
+                    "count": len(processed_elements),
+                    "message": f"Found {len(processed_elements)} clickable elements on screen"
                 }
             except json.JSONDecodeError:
                 raise ValueError("Failed to parse UI elements JSON data")

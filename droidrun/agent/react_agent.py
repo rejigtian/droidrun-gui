@@ -146,8 +146,8 @@ class ReActAgent:
             
             # App management
             "start_app": start_app,
-            "install_app": install_app,
-            "uninstall_app": uninstall_app,
+            #"install_app": install_app,
+            #"uninstall_app": uninstall_app,
             "list_packages": list_packages,
             
             # UI analysis
@@ -465,7 +465,7 @@ async def run_agent(
     Args:
         goal: The automation goal
         device_serial: Optional device serial number
-        llm_provider: LLM provider ('openai' or 'anthropic')
+        llm_provider: LLM provider ('openai', 'anthropic', or 'gemini')
         model_name: Model name to use
         api_key: API key for the LLM provider
         debug: Whether to enable debug logging
@@ -473,6 +473,10 @@ async def run_agent(
     Returns:
         List of steps taken by the agent
     """
+    # Auto-detect Gemini if model starts with "gemini-"
+    if model_name and model_name.startswith("gemini-"):
+        llm_provider = "gemini"
+        
     agent = ReActAgent(
         device_serial=device_serial, 
         goal=goal,
