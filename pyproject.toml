@@ -3,16 +3,61 @@ name = "droidrun"
 version = "0.1.0"
 description = "A framework for controlling Android devices through LLM agents"
 authors = [
-    {name = "Your Name", email = "your.email@example.com"},
+    {name = "Niels Schmidt", email = "niels.schmidt@bonny.network"},
 ]
 dependencies = [
     "click>=8.1.0",
     "rich>=13.0.0",
     "pydantic>=2.0.0",
+    "aiofiles>=23.0.0",
+    "openai>=1.0.0",
+    "anthropic>=0.7.0",
+    "pillow>=10.0.0"
 ]
 requires-python = ">=3.10"
 readme = "README.md"
 license = {text = "MIT"}
+
+# Added project URLs
+urls = {
+    "Homepage" = "https://github.com/yourusername/droidrun",
+    "Bug Tracker" = "https://github.com/yourusername/droidrun/issues",
+    "Documentation" = "https://droidrun.readthedocs.io/",
+}
+
+# Added classifiers
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Topic :: Communications :: Chat",
+    "Topic :: Software Development :: Testing :: Acceptance",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: System :: Emulators",
+    "Topic :: Utilities",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+]
+dev = [
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+]
+
 
 [build-system]
 requires = ["hatchling"]

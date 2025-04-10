@@ -1,0 +1,66 @@
+---
+title: 'Introduction'
+description: 'Welcome to DroidRun - Control Android devices with LLM agents'
+---
+
+# Welcome to DroidRun
+
+DroidRun is a powerful framework that enables you to control Android devices through LLM agents. It provides a simple and intuitive way to automate Android device interactions using natural language commands.
+
+## Features
+
+<CardGroup cols={2}>
+  <Card title="Natural Language Control" icon="wand-magic-sparkles">
+    Control your Android device using natural language commands
+  </Card>
+  <Card title="Multiple Device Support" icon="mobile-screen">
+    Support for multiple connected Android devices
+  </Card>
+  <Card title="LLM Integration" icon="brain">
+    Extensible LLM provider support (OpenAI, Anthropic, etc.)
+  </Card>
+  <Card title="Rich API" icon="code">
+    Comprehensive API for custom automation tasks
+  </Card>
+</CardGroup>
+
+## Quick Example
+
+```python
+from droidrun import Agent
+from droidrun.llm import OpenAILLM
+
+# Initialize the agent
+agent = Agent(
+    task="Open WhatsApp and send a message to John",
+    llm=OpenAILLM(model="gpt-4"),
+)
+
+# Run the agent
+agent.run()
+```
+
+## Getting Started
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get up and running with DroidRun in minutes
+  </Card>
+  <Card title="Installation" icon="download" href="/installation">
+    Step-by-step installation guide
+  </Card>
+</CardGroup>
+
+## Core Concepts
+
+<CardGroup cols={2}>
+  <Card title="Agent" icon="robot" href="/concepts/agent">
+    Learn about the Agent system
+  </Card>
+  <Card title="LLM Providers" icon="brain" href="/concepts/llm-providers">
+    Understand LLM integration
+  </Card>
+  <Card title="Android Control" icon="mobile" href="/concepts/android-control">
+    Explore Android device control
+  </Card>
+</CardGroup> 

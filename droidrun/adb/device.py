@@ -7,7 +7,6 @@ import tempfile
 import time
 import random
 import string
-import asyncio
 from typing import Dict, Optional, Tuple, List
 from .wrapper import ADBWrapper
 
