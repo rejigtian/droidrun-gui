@@ -1,0 +1,131 @@
+---
+title: 'Quickstart'
+description: 'Get up and running with DroidRun in minutes'
+---
+
+# 🚀 Quickstart
+
+This guide will help you get started with DroidRun quickly. You'll be controlling your Android device using natural language in just a few minutes.
+
+## 📦 Installation
+
+Install DroidRun using pip:
+
+```bash
+pip install droidrun
+```
+
+## 🔑 Set Up API Keys
+
+DroidRun supports multiple LLM providers. Choose at least one:
+
+```bash
+# Create a .env file with your API key(s)
+echo 'export OPENAI_API_KEY="your_openai_api_key_here"' > .env
+# OR
+echo 'export ANTHROPIC_API_KEY="your_anthropic_api_key_here"' > .env
+# OR
+echo 'export GEMINI_API_KEY="your_gemini_api_key_here"' > .env
+
+# Load the environment variables
+source .env
+```
+
+## 📱 Connect Your Device
+
+Connect your Android device via USB or Wi-Fi:
+
+```bash
+# List connected devices
+droidrun devices
+
+# Connect to a device over Wi-Fi (optional)
+droidrun connect 192.168.1.100
+```
+
+Make sure:
+- USB debugging is enabled on your device
+- Your device appears in the list when running `droidrun devices`
+
+## 💻 Run Your First Command
+
+Let's run a simple command to test everything:
+
+```bash
+# Using OpenAI (default)
+droidrun "Open the settings app"
+
+# Using Gemini
+droidrun "Open the calculator app" --provider gemini --model gemini-2.0-flash
+
+# Using Anthropic
+droidrun "Check the battery level" --provider anthropic --model claude-3-sonnet-20240229
+```
+
+## 📝 Create a Simple Script
+
+For more complex automation, create a Python script:
+
+```python
+#!/usr/bin/env python3
+import asyncio
+import os
+from droidrun.agent.react_agent import ReActAgent
+from droidrun.agent.llm_reasoning import LLMReasoner
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+async def main():
+    # Create an LLM instance with your preferred provider
+    llm = LLMReasoner(
+        llm_provider="gemini",  # "openai", "anthropic", or "gemini"
+        model_name="gemini-2.0-flash",
+        api_key=os.environ.get("GEMINI_API_KEY"),
+        temperature=0.2
+    )
+    
+    # Create and run the agent
+    agent = ReActAgent(
+        task="Open the Settings app and check the Android version",
+        llm=llm,
+        debug=True
+    )
+    
+    steps = await agent.run()
+    print(f"Execution completed with {len(steps)} steps")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+Save this as `test_droidrun.py` and run:
+
+```bash
+python test_droidrun.py
+```
+
+## ⚙️ Command Options
+
+DroidRun CLI supports several options:
+
+```bash
+# Specify a device
+droidrun "Open Chrome" --device your_device_serial
+
+# Enable debug mode
+droidrun "Take a screenshot" --debug
+
+# Set maximum steps
+droidrun "Open settings" --steps 20
+```
+
+## 🎉 Next Steps
+
+Now that you've got DroidRun running, you can:
+
+- Explore more [complex examples](/examples)
+- Learn about the [ReAct agent system](/concepts/agent)
+- Understand [LLM provider options](/concepts/llm-providers)
+- Discover all [Android interactions](/concepts/android-control) 

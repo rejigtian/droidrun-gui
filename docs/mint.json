@@ -27,11 +27,6 @@
   },
   "anchors": [
     {
-      "name": "API Reference",
-      "icon": "code",
-      "url": "api-reference"
-    },
-    {
       "name": "Examples",
       "icon": "book-open",
       "url": "examples"
@@ -52,14 +47,6 @@
         "concepts/agent",
         "concepts/llm-providers",
         "concepts/android-control"
-      ]
-    },
-    {
-      "group": "API Reference",
-      "pages": [
-        "api-reference/agent",
-        "api-reference/llm",
-        "api-reference/android"
       ]
     }
   ],

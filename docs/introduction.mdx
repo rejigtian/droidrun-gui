@@ -13,32 +13,62 @@ DroidRun is a powerful framework that enables you to control Android devices thr
   <Card title="Natural Language Control" icon="wand-magic-sparkles">
     Control your Android device using natural language commands
   </Card>
-  <Card title="Multiple Device Support" icon="mobile-screen">
-    Support for multiple connected Android devices
+  <Card title="Multiple LLM Support" icon="brain">
+    Support for OpenAI, Anthropic, and Google Gemini
   </Card>
-  <Card title="LLM Integration" icon="brain">
-    Extensible LLM provider support (OpenAI, Anthropic, etc.)
+  <Card title="Simple CLI" icon="terminal">
+    Easy-to-use command line interface
   </Card>
-  <Card title="Rich API" icon="code">
+  <Card title="Python API" icon="code">
     Comprehensive API for custom automation tasks
   </Card>
 </CardGroup>
 
 ## Quick Example
 
-```python
-from droidrun import Agent
-from droidrun.llm import OpenAILLM
+```bash
+# Simple CLI usage
+droidrun "Open the settings app"
 
-# Initialize the agent
-agent = Agent(
-    task="Open WhatsApp and send a message to John",
-    llm=OpenAILLM(model="gpt-4"),
-)
-
-# Run the agent
-agent.run()
+# With specific provider
+droidrun "Open calculator app" --provider gemini --model gemini-2.0-flash
 ```
+
+Or with Python:
+
+```python
+import asyncio
+import os
+from droidrun.agent.react_agent import ReActAgent
+from droidrun.agent.llm_reasoning import LLMReasoner
+
+async def main():
+    # Create an LLM instance
+    llm = LLMReasoner(
+        llm_provider="gemini",  # "openai", "anthropic", or "gemini"
+        model_name="gemini-2.0-flash",
+        api_key=os.environ.get("GEMINI_API_KEY"),
+        temperature=0.2
+    )
+    
+    # Create and run the agent
+    agent = ReActAgent(
+        task="Open the Settings app",
+        llm=llm,
+        debug=True
+    )
+    
+    await agent.run()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+## Prerequisites
+
+- Android device connected via USB or ADB over TCP/IP
+- ADB (Android Debug Bridge) installed
+- API key for at least one LLM provider (OpenAI, Anthropic, or Google Gemini)
 
 ## Getting Started
 
@@ -55,12 +85,12 @@ agent.run()
 
 <CardGroup cols={2}>
   <Card title="Agent" icon="robot" href="/concepts/agent">
-    Learn about the Agent system
+    Learn about the ReAct agent system
   </Card>
   <Card title="LLM Providers" icon="brain" href="/concepts/llm-providers">
-    Understand LLM integration
+    Understand LLM integration options
   </Card>
   <Card title="Android Control" icon="mobile" href="/concepts/android-control">
-    Explore Android device control
+    Explore Android device interactions
   </Card>
 </CardGroup> 

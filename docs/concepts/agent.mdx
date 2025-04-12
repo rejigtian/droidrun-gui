@@ -1,0 +1,129 @@
+---
+title: 'ReAct Agent'
+description: 'Understanding the ReAct Agent system in DroidRun'
+---
+
+# 🤖 ReAct Agent
+
+DroidRun uses a ReAct (Reasoning + Acting) agent to control Android devices. This powerful approach combines LLM reasoning with concrete actions to achieve complex automation tasks.
+
+## 📚 What is ReAct?
+
+ReAct is a framework that combines:
+
+- **Reasoning**: Using an LLM to interpret tasks, make decisions, and plan steps
+- **Acting**: Executing concrete actions on an Android device
+- **Observing**: Getting feedback from actions to inform future reasoning
+
+This loop of reasoning, acting, and observing allows the agent to handle complex, multi-step tasks on Android devices.
+
+## 🔄 The ReAct Loop
+
+<Steps>
+  <Step title="Goal Setting">
+    The user provides a natural language task like "Open settings and enable dark mode"
+  </Step>
+  <Step title="Reasoning">
+    The LLM analyzes the task and determines what steps are needed
+  </Step>
+  <Step title="Action Selection">
+    The agent selects an appropriate action (e.g., tapping a UI element)
+  </Step>
+  <Step title="Execution">
+    The action is executed on the Android device
+  </Step>
+  <Step title="Observation">
+    The agent observes the result (e.g., a new screen appears)
+  </Step>
+  <Step title="Further Reasoning">
+    The agent evaluates progress and decides on the next action
+  </Step>
+</Steps>
+
+This cycle repeats until the task is completed or the maximum number of steps is reached.
+
+## 🛠️ Available Actions
+
+The ReAct agent can perform various actions on Android devices:
+
+<AccordionGroup>
+  <Accordion title="UI Interaction">
+    - `tap(x, y)` - Tap at specific coordinates
+    - `swipe(start_x, start_y, end_x, end_y)` - Swipe from one point to another
+    - `input_text(text)` - Type text into the current field
+    - `press_key(key)` - Press a specific key (e.g., HOME, BACK)
+  </Accordion>
+
+  <Accordion title="App Management">
+    - `start_app(package_name)` - Launch an app by package name
+    - `list_packages()` - List installed packages
+  </Accordion>
+
+  <Accordion title="Analysis">
+    - `take_screenshot()` - Capture the current screen
+    - `get_clickables()` - Identify clickable elements on screen
+  </Accordion>
+
+  <Accordion title="Task Management">
+    - `complete(summary)` - Mark the task as complete with a summary
+  </Accordion>
+</AccordionGroup>
+
+## 🧠 Agent Parameters
+
+When creating a ReAct agent, you can configure several parameters:
+
+```python
+agent = ReActAgent(
+    task="Open settings and enable dark mode",  # The goal to achieve
+    llm=llm_instance,                           # LLM to use for reasoning
+    device_serial="DEVICE123",                  # Optional specific device
+    max_steps=15,                               # Maximum steps to attempt
+    debug=True                                  # Enable debug logging
+)
+```
+
+## 📊 Step Types
+
+The agent records its progress using different step types:
+
+- **Thought**: Internal reasoning about what to do
+- **Action**: An action to be executed on the device
+- **Observation**: Result of an action
+- **Plan**: A sequence of steps to achieve the goal
+- **Goal**: The target state to achieve
+
+## 💡 Best Practices
+
+1. **Clear Goals**: Provide specific, clear instructions
+2. **Realistic Tasks**: Break complex automation into manageable tasks
+3. **Debug Mode**: Enable debug mode to see the agent's reasoning
+4. **Step Limits**: Set reasonable max_steps to prevent infinite loops
+5. **Device Connectivity**: Ensure stable connection to your device
+
+## 🔧 Advanced Usage
+
+### Custom Prompting
+
+The ReAct agent uses carefully designed prompts to guide the LLM. You can fine-tune these by modifying the LLMReasoner class:
+
+```python
+# Custom temperature for more/less deterministic behavior
+llm = LLMReasoner(
+    llm_provider="openai",
+    model_name="gpt-4",
+    temperature=0.1,  # Lower for more deterministic behavior
+)
+```
+
+### Screenshot Analysis
+
+The agent can analyze screenshots to understand the current state:
+
+```python
+# This happens automatically when using take_screenshot()
+result = await agent.execute_tool("take_screenshot")
+# Later reasoning steps will have access to the screenshot
+```
+
+This visual understanding is crucial for complex UI navigation tasks. 

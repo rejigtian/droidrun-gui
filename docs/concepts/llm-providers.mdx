@@ -1,0 +1,138 @@
+---
+title: 'LLM Providers'
+description: 'Understanding LLM provider options in DroidRun'
+---
+
+# 🧠 LLM Providers
+
+DroidRun supports multiple Large Language Model (LLM) providers to power its reasoning capabilities. This page explains the options and how to configure them.
+
+## 🔄 Supported Providers
+
+DroidRun currently supports three major LLM providers:
+
+### OpenAI
+
+<AccordionGroup>
+  <Accordion title="Models">
+    - **GPT-4 Turbo** (gpt-4-turbo) - Most capable model, recommended for complex tasks
+    - **GPT-4** (gpt-4) - Powerful model with strong reasoning
+    - **GPT-3.5 Turbo** (gpt-3.5-turbo) - Faster and more cost-effective
+  </Accordion>
+  
+  <Accordion title="Configuration">
+    ```python
+    # CLI usage
+    droidrun "Open settings" --provider openai --model gpt-4-turbo
+    
+    # Python usage
+    llm = LLMReasoner(
+        llm_provider="openai",
+        model_name="gpt-4-turbo",
+        api_key=os.environ.get("OPENAI_API_KEY"),
+        temperature=0.2
+    )
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Anthropic
+
+<AccordionGroup>
+  <Accordion title="Models">
+    - **Claude 3 Opus** (claude-3-opus-20240229) - Most capable Claude model
+    - **Claude 3 Sonnet** (claude-3-sonnet-20240229) - Balance of capability and cost
+    - **Claude 3 Haiku** (claude-3-haiku-20240307) - Fastest and most cost-effective
+  </Accordion>
+  
+  <Accordion title="Configuration">
+    ```python
+    # CLI usage
+    droidrun "Open settings" --provider anthropic --model claude-3-sonnet-20240229
+    
+    # Python usage
+    llm = LLMReasoner(
+        llm_provider="anthropic",
+        model_name="claude-3-sonnet-20240229",
+        api_key=os.environ.get("ANTHROPIC_API_KEY"),
+        temperature=0.2
+    )
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Google Gemini
+
+<AccordionGroup>
+  <Accordion title="Models">
+    - **Gemini 2.0 Flash** (gemini-2.0-flash) - Fast and efficient
+    - **Gemini 1.5 Pro** (gemini-1.5-pro-latest) - Previous generation with strong reasoning
+  </Accordion>
+  
+  <Accordion title="Configuration">
+    ```python
+    # CLI usage
+    droidrun "Open settings" --provider gemini --model gemini-2.0-flash
+    
+    # Python usage
+    llm = LLMReasoner(
+        llm_provider="gemini",
+        model_name="gemini-2.0-flash",
+        api_key=os.environ.get("GEMINI_API_KEY"),
+        temperature=0.2
+    )
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## 🔐 API Key Management
+
+For security, DroidRun uses environment variables to manage API keys:
+
+```bash
+# Set in your shell or .env file
+export OPENAI_API_KEY="your_key_here"
+export ANTHROPIC_API_KEY="your_key_here"
+export GEMINI_API_KEY="your_key_here"
+```
+
+If you're using a `.env` file, load it with:
+
+```bash
+source .env
+```
+
+## 🌡️ Temperature Setting
+
+The `temperature` parameter controls the randomness of the LLM's responses:
+
+- **Lower values (0.0-0.3)**: More deterministic, focused responses
+- **Higher values (0.7-1.0)**: More creative, varied responses
+
+For Android automation tasks, we recommend a lower temperature (0.1-0.3) for consistent results.
+
+## ⚖️ Choosing the Right Provider
+
+Each provider has strengths and considerations:
+
+<CardGroup cols={3}>
+  <Card title="OpenAI" icon="square-o">
+    **Pros**: Strong reasoning, good for complex tasks  
+    **Cons**: Can be more expensive
+  </Card>
+  <Card title="Anthropic" icon="square-a">
+    **Pros**: Excellent instruction following, good UI understanding  
+    **Cons**: API may have limited availability
+  </Card>
+  <Card title="Gemini" icon="square-g">
+    **Pros**: Good performance/cost ratio  
+    **Cons**: May require more explicit instructions
+  </Card>
+</CardGroup>
+
+## 🚀 Best Practices
+
+1. **Start with defaults**: Use OpenAI's GPT-4 or Gemini 2.0 Flash as a starting point
+2. **Explicit instructions**: Be clear and specific in your task descriptions
+3. **Debug mode**: Use the `--debug` flag to see what's happening behind the scenes
+4. **Provider switching**: Test the same task with different providers to find the best fit 
