@@ -10,7 +10,7 @@ import json
 import time
 import logging
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Callable
+from typing import Any, Dict, List, Optional, Tuple, Callable, Union
 
 # Import tools
 from droidrun.tools import (
@@ -100,29 +100,26 @@ class ReActAgent:
     
     def __init__(
         self, 
+        task: Optional[str] = None,
+        llm: Any = None,
         device_serial: Optional[str] = None,
-        goal: Optional[str] = None,
         max_steps: int = 100,
-        llm_provider: str = "openai",
-        model_name: Optional[str] = None,
-        api_key: Optional[str] = None,
         debug: bool = False
     ):
         """Initialize the ReAct agent.
         
         Args:
+            task: The automation task to perform (same as goal)
+            llm: LLM instance to use for reasoning (can be from langchain or any provider)
             device_serial: Serial number of the Android device to control
-            goal: Initial automation goal
             max_steps: Maximum number of steps to take
-            llm_provider: LLM provider ('openai' or 'anthropic')
-            model_name: Model name to use
-            api_key: API key for the LLM provider
             debug: Whether to enable debug logging
         """
         self.device_serial = device_serial
-        self.goal = goal
+        self.goal = task  # Store task as goal for backward compatibility
         self.max_steps = max_steps
         self.debug = debug
+        self.llm_instance = llm
         
         # Initialize steps list
         self.steps: List[ReActStep] = []
@@ -164,20 +161,101 @@ class ReActAgent:
         # Initialize device manager
         self.device_manager = DeviceManager()
         
-        # Initialize LLM reasoner
+        # Initialize LLM reasoner based on provided LLM or defaults
         try:
-            self.reasoner = LLMReasoner(
-                llm_provider=llm_provider,
-                model_name=model_name,
-                api_key=api_key,
-                temperature=0.2,
-                max_tokens=2000
-            )
+            # If an llm instance is provided, use it or adapt it
+            if llm is not None:
+                # Check if the llm is already an LLMReasoner instance
+                if hasattr(llm, "reason") and callable(getattr(llm, "reason")):
+                    # If it's already an LLMReasoner or compatible, use it directly
+                    self.reasoner = llm
+                    logger.info(f"Using provided LLM reasoner: provider={getattr(llm, 'llm_provider', 'unknown')}, model={getattr(llm, 'model_name', 'unknown')}")
+                else:
+                    # Detect the type of LLM and use appropriate initialization
+                    llm_provider, model_name, api_key = self._detect_llm_type(llm)
+                    
+                    self.reasoner = LLMReasoner(
+                        llm_provider=llm_provider,
+                        model_name=model_name,
+                        api_key=api_key,
+                        temperature=0.2,
+                        max_tokens=2000
+                    )
+            else:
+                # Use default OpenAI if no LLM provided
+                self.reasoner = LLMReasoner(
+                    llm_provider="openai",
+                    temperature=0.2,
+                    max_tokens=2000
+                )
+            
             self.use_llm = True
         except (ImportError, ValueError) as e:
             logger.warning(f"LLM reasoning not available: {e}")
             self.reasoner = None
             self.use_llm = False
+    
+    def _detect_llm_type(self, llm_instance: Any) -> Tuple[str, Optional[str], Optional[str]]:
+        """Detect the type of LLM instance and return appropriate configuration.
+        
+        Args:
+            llm_instance: The LLM instance provided
+            
+        Returns:
+            Tuple of (provider_name, model_name, api_key)
+        """
+        # First check if it's our own LLMReasoner
+        if hasattr(llm_instance, "llm_provider") and hasattr(llm_instance, "model_name"):
+            # It's likely our own LLMReasoner, use its attributes directly
+            return (
+                llm_instance.llm_provider,
+                llm_instance.model_name,
+                llm_instance.api_key if hasattr(llm_instance, "api_key") else None
+            )
+            
+        # Default values if not a recognized type
+        provider = "openai"
+        model = None
+        api_key = None
+        
+        # Check for common attributes to determine provider
+        instance_type = str(type(llm_instance))
+        
+        if "openai" in instance_type.lower():
+            provider = "openai"
+            if hasattr(llm_instance, "model_name"):
+                model = llm_instance.model_name
+            elif hasattr(llm_instance, "model"):
+                model = llm_instance.model
+                
+            # Try to extract API key if available
+            if hasattr(llm_instance, "api_key"):
+                api_key = llm_instance.api_key
+        
+        elif "anthropic" in instance_type.lower() or "claude" in instance_type.lower():
+            provider = "anthropic"
+            if hasattr(llm_instance, "model_name"):
+                model = llm_instance.model_name
+            elif hasattr(llm_instance, "model"):
+                model = llm_instance.model
+                
+            # Try to extract API key if available
+            if hasattr(llm_instance, "api_key"):
+                api_key = llm_instance.api_key
+        
+        elif "gemini" in instance_type.lower():
+            provider = "gemini"
+            if hasattr(llm_instance, "model_name"):
+                model = llm_instance.model_name
+            elif hasattr(llm_instance, "model"):
+                model = llm_instance.model
+                
+            # Try to extract API key if available
+            if hasattr(llm_instance, "api_key"):
+                api_key = llm_instance.api_key
+        
+        logger.info(f"Detected LLM type: {provider}, model: {model}")
+        return provider, model, api_key
     
     async def connect(self) -> bool:
         """Connect to the specified device.
@@ -468,39 +546,46 @@ class ReActAgent:
         return self.steps
 
 async def run_agent(
-    goal: str, 
+    task: str, 
+    llm: Any = None,
     device_serial: Optional[str] = None,
-    llm_provider: str = "openai",
+    debug: bool = False,
+    llm_provider: Optional[str] = None,
     model_name: Optional[str] = None,
-    api_key: Optional[str] = None,
-    debug: bool = False
+    api_key: Optional[str] = None
 ) -> List[ReActStep]:
     """Run the ReAct agent with the given goal.
     
     Args:
-        goal: The automation goal
-        device_serial: Optional device serial number
-        llm_provider: LLM provider ('openai', 'anthropic', or 'gemini')
-        model_name: Model name to use
-        api_key: API key for the LLM provider
+        task: The automation task to perform
+        llm: LLM instance to use for reasoning
+        device_serial: Serial number of the Android device
         debug: Whether to enable debug logging
-        
+        llm_provider: LLM provider name (openai, anthropic, or gemini)
+        model_name: Name of the LLM model to use
+        api_key: API key for accessing the LLM service
+    
     Returns:
-        List of steps taken by the agent
+        List of ReAct steps taken
     """
-    # Auto-detect Gemini if model starts with "gemini-"
-    if model_name and model_name.startswith("gemini-"):
-        llm_provider = "gemini"
-        
+    # If llm_provider, model_name, and api_key are provided, create an LLMReasoner
+    if llm is None and llm_provider and model_name and api_key:
+        from .llm_reasoning import LLMReasoner
+        logger.info(f"Creating LLMReasoner with provider={llm_provider}, model={model_name}")
+        llm = LLMReasoner(
+            llm_provider=llm_provider,
+            model_name=model_name, 
+            api_key=api_key,
+            temperature=0.2,
+            max_tokens=2000
+        )
+    
     agent = ReActAgent(
-        device_serial=device_serial, 
-        goal=goal,
-        llm_provider=llm_provider,
-        model_name=model_name,
-        api_key=api_key,
+        task=task,
+        llm=llm,
+        device_serial=device_serial,
         debug=debug
     )
     
     steps = await agent.run()
-
     return steps 

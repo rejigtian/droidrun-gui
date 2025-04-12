@@ -93,7 +93,6 @@ class LLMReasoner:
             if not self.api_key:
                 raise ValueError("Gemini API key not provided and not found in environment (GEMINI_API_KEY)")
             
-            print("APIKEY: ", self.api_key)
             # Initialize client with Gemini configuration
             self.client = OpenAI(
                 api_key=self.api_key,

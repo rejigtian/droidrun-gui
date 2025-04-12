@@ -20,20 +20,9 @@ def coro(f):
         return asyncio.run(f(*args, **kwargs))
     return wrapper
 
-@click.group()
-def cli():
-    """DroidRun - Control your Android device through LLM agents."""
-    pass
-
-@cli.command()
-@click.argument('command', type=str)
-@click.option('--device', '-d', help='Device serial number or IP address', default=None)
-@click.option('--provider', '-p', help='LLM provider (openai, anthropic, or gemini)', default='openai')
-@click.option('--model', '-m', help='LLM model name', default=None)
-@click.option('--debug', is_flag=True, help='Enable debug logging')
-@click.option('--steps', type=int, help='Maximum number of steps', default=15)
+# Define the run command as a standalone function to be used as both a command and default
 @coro
-async def run(command: str, device: str | None, provider: str, model: str, debug: bool, steps: int):
+async def run_command(command: str, device: str | None, provider: str, model: str, debug: bool, steps: int):
     """Run a command on your Android device using natural language."""
     console.print(f"[bold blue]Executing command:[/] {command}")
     
@@ -88,7 +77,7 @@ async def run(command: str, device: str | None, provider: str, model: str, debug
         console.print("[yellow]Press Ctrl+C to stop execution[/]")
         
         steps = await run_agent(
-            goal=command,
+            task=command,
             device_serial=device,  # Still pass for backward compatibility
             llm_provider=provider,
             model_name=model,
@@ -104,6 +93,32 @@ async def run(command: str, device: str | None, provider: str, model: str, debug
         if debug:
             import traceback
             traceback.print_exc()
+
+# Custom Click multi-command class to handle both subcommands and default behavior
+class DroidRunCLI(click.Group):
+    def parse_args(self, ctx, args):
+        # Check if the first argument might be a task rather than a command
+        if args and not args[0].startswith('-') and args[0] not in self.commands:
+            # Insert the 'run' command before the first argument if it's not a known command
+            args.insert(0, 'run')
+        return super().parse_args(ctx, args)
+
+@click.group(cls=DroidRunCLI)
+def cli():
+    """DroidRun - Control your Android device through LLM agents."""
+    pass
+
+@cli.command()
+@click.argument('command', type=str)
+@click.option('--device', '-d', help='Device serial number or IP address', default=None)
+@click.option('--provider', '-p', help='LLM provider (openai, anthropic, or gemini)', default='openai')
+@click.option('--model', '-m', help='LLM model name', default=None)
+@click.option('--debug', is_flag=True, help='Enable debug logging')
+@click.option('--steps', type=int, help='Maximum number of steps', default=15)
+def run(command: str, device: str | None, provider: str, model: str, debug: bool, steps: int):
+    """Run a command on your Android device using natural language."""
+    # Call our standalone function
+    return run_command(command, device, provider, model, debug, steps)
 
 @cli.command()
 @coro
