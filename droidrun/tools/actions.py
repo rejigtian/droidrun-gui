@@ -92,7 +92,7 @@ async def get_ui_elements(serial: Optional[str] = None) -> Dict[str, Any]:
             await device._adb.shell(device._serial, "logcat -c")
             
             # Trigger the custom service via broadcast
-            await device._adb.shell(device._serial, "am broadcast -a com.example.droidrun.GET_ELEMENTS")
+            await device._adb.shell(device._serial, "am broadcast -a com.droidrun.portal.GET_ELEMENTS")
             
             # Poll for the JSON file path
             start_time = asyncio.get_event_loop().time()
@@ -180,7 +180,7 @@ async def get_clickables(serial: Optional[str] = None) -> Dict[str, Any]:
             await device._adb.shell(device._serial, "logcat -c")
             
             # Trigger the custom service via broadcast to get only interactive elements
-            await device._adb.shell(device._serial, "am broadcast -a com.example.droidrun.GET_ELEMENTS")
+            await device._adb.shell(device._serial, "am broadcast -a com.droidrun.portal.GET_ELEMENTS")
             
             # Poll for the JSON file path
             start_time = asyncio.get_event_loop().time()
