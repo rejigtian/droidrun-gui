@@ -30,14 +30,57 @@ pip install -e .
 
 1. An Android device connected via USB or ADB over TCP/IP
 2. ADB (Android Debug Bridge) installed and configured
-3. API key for at least one of the supported LLM providers:
+3. DroidRun Portal app installed on your Android device
+4. API key for at least one of the supported LLM providers:
    - OpenAI
    - Anthropic
    - Google Gemini
 
+### 🔧 Setting up ADB
+
+ADB (Android Debug Bridge) is required for DroidRun to communicate with your Android device:
+
+1. **Install ADB**:
+   - **Windows**: Download [Android SDK Platform Tools](https://developer.android.com/studio/releases/platform-tools) and extract the ZIP file
+   - **macOS**: `brew install android-platform-tools`
+   - **Linux**: `sudo apt install adb` (Ubuntu/Debian) or `sudo pacman -S android-tools` (Arch)
+
+2. **Add ADB to your PATH**:
+   - **Windows**: Add the path to the extracted platform-tools folder to your system's PATH environment variable
+   - **macOS/Linux**: Add the following to your ~/.bashrc or ~/.zshrc:
+     ```bash
+     export PATH=$PATH:/path/to/platform-tools
+     ```
+
+3. **Verify ADB installation**:
+   ```bash
+   adb version
+   ```
+
+4. **Enable USB debugging on your Android device**:
+   - Go to **Settings → About phone**
+   - Tap **Build number** 7 times to enable Developer options
+   - Go to **Settings → System → Developer options** (location may vary by device)
+   - Enable **USB debugging**
+
 ## 🛠️ Setup
 
-### 🔑 1. Set up API keys
+### 📱 1. Install DroidRun Portal App
+
+DroidRun requires the DroidRun Portal app to be installed on your Android device:
+
+1. Download the DroidRun Portal APK from the [DroidRun Portal repository](https://github.com/droidrun/droidrun-portal)
+2. Use DroidRun to install the portal app:
+   ```bash
+   droidrun setup --path=/path/to/droidrun-portal.apk
+   ```
+
+Alternatively, you can use ADB to install it manually:
+```bash
+adb install -r /path/to/droidrun-portal.apk
+```
+
+### 🔑 2. Set up API keys
 
 Create a `.env` file in your working directory or set environment variables:
 
@@ -54,7 +97,7 @@ To load the environment variables from the `.env` file:
 source .env
 ```
 
-### 📱 2. Connect to an Android device
+### 📱 3. Connect to an Android device
 
 Connect your device via USB or set up wireless ADB:
 
@@ -64,6 +107,15 @@ droidrun devices
 
 # Connect to a device over Wi-Fi
 droidrun connect 192.168.1.100
+```
+
+### 🔄 4. Verify the setup
+
+Verify that everything is set up correctly:
+
+```bash
+# Should list your connected device and show portal status
+droidrun status
 ```
 
 ## 💻 Using the CLI
@@ -81,7 +133,7 @@ droidrun "Open the settings app"
 
 ```bash
 # Using OpenAI
-droidrun "Open the calculator app" --provider openai --model gpt-4
+droidrun "Open the calculator app" --provider openai --model gpt-4o-mini
 
 # Using Anthropic
 droidrun "Check the battery level" --provider anthropic --model claude-3-sonnet-20240229
@@ -95,9 +147,6 @@ droidrun "Install and open Instagram" --provider gemini --model gemini-2.0-flash
 ```bash
 # Specify a particular device
 droidrun "Open Chrome and search for weather" --device abc123
-
-# Enable debug logging
-droidrun "Take a screenshot" --debug
 
 # Set maximum number of steps
 droidrun "Open settings and enable dark mode" --steps 20
@@ -130,8 +179,7 @@ async def main():
     # Create and run the agent
     agent = ReActAgent(
         task="Open the Settings app and check the Android version",
-        llm=llm,
-        debug=True
+        llm=llm
     )
     
     steps = await agent.run()
