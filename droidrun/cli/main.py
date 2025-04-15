@@ -11,6 +11,9 @@ from droidrun.tools import DeviceManager
 from droidrun.agent import run_agent
 from functools import wraps
 
+# Import the install_app function directly for the setup command
+from droidrun.tools.actions import install_app, get_device_serial
+
 console = Console()
 device_manager = DeviceManager()
 
@@ -184,6 +187,65 @@ async def disconnect(serial: str):
             console.print(f"[yellow]Device {serial} was not connected[/]")
     except Exception as e:
         console.print(f"[red]Error disconnecting from device: {e}[/]")
+
+@cli.command()
+@click.option('--path', required=True, help='Path to the APK file to install')
+@click.option('--device', '-d', help='Device serial number or IP address', default=None)
+@coro
+async def setup(path: str, device: str | None):
+    """Install an APK file and enable it as an accessibility service."""
+    try:
+        # Check if APK file exists
+        if not os.path.exists(path):
+            console.print(f"[bold red]Error:[/] APK file not found at {path}")
+            return
+            
+        # Try to find a device if none specified
+        if not device:
+            devices = await device_manager.list_devices()
+            if not devices:
+                console.print("[yellow]No devices connected.[/]")
+                return
+            
+            device = devices[0].serial
+            console.print(f"[blue]Using device:[/] {device}")
+        
+        # Set the device serial in the environment variable
+        os.environ["DROIDRUN_DEVICE_SERIAL"] = device
+        console.print(f"[blue]Set DROIDRUN_DEVICE_SERIAL to:[/] {device}")
+        
+        # Get a device object for ADB commands
+        device_obj = await device_manager.get_device(device)
+        if not device_obj:
+            console.print(f"[bold red]Error:[/] Could not get device object for {device}")
+            return
+        
+        # Step 1: Install the APK file
+        console.print(f"[bold blue]Step 1/2: Installing APK:[/] {path}")
+        result = await install_app(path, False, True, device)
+        
+        if "Error" in result:
+            console.print(f"[bold red]Installation failed:[/] {result}")
+            return
+        else:
+            console.print(f"[bold green]Installation successful![/]")
+        
+        # Step 2: Enable the accessibility service with the specific command
+        console.print(f"[bold blue]Step 2/2: Enabling accessibility service[/]")
+        
+        # Use the exact command provided
+        await device_obj._adb.shell(device, "settings put secure enabled_accessibility_services com.droidrun.portal/com.droidrun.portal.DroidrunPortalService")
+        
+        # Also enable accessibility services globally
+        await device_obj._adb.shell(device, "settings put secure accessibility_enabled 1")
+        
+        console.print("[green]Accessibility service enabled successfully![/]")
+        console.print("\n[bold green]Setup complete![/] The DroidRun Portal is now installed and ready to use.")
+            
+    except Exception as e:
+        console.print(f"[bold red]Error:[/] {e}")
+        import traceback
+        traceback.print_exc()
 
 if __name__ == '__main__':
     cli() 
