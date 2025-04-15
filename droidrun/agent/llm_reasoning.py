@@ -54,7 +54,8 @@ class LLMReasoner:
         model_name: Optional[str] = None,
         api_key: Optional[str] = None,
         temperature: float = 0.2,
-        max_tokens: int = 2000
+        max_tokens: int = 2000,
+        vision: bool = False
     ):
         """Initialize the LLM reasoner.
         
@@ -65,6 +66,7 @@ class LLMReasoner:
             api_key: API key for the LLM provider
             temperature: Temperature for generation
             max_tokens: Maximum tokens to generate
+            vision: Whether vision capabilities (screenshot) are enabled
         """
         # Auto-detect Gemini models
         if model_name and model_name.startswith("gemini-"):
@@ -73,6 +75,7 @@ class LLMReasoner:
         self.llm_provider = llm_provider.lower()
         self.temperature = temperature
         self.max_tokens = max_tokens
+        self.vision = vision
         
         # Token usage tracking
         self.total_prompt_tokens = 0
@@ -104,6 +107,16 @@ class LLMReasoner:
             if not OPENAI_AVAILABLE:
                 raise ImportError("OpenAI package not installed. Install with 'pip install openai'")
             
+            # If vision is enabled, verify we're using a vision-capable model without auto-switching
+            if vision:
+                if model_name and not (model_name.startswith("gpt-4-vision") or model_name.startswith("gpt-4o") or model_name.endswith("-vision")):
+                    # Instead of auto-switching, raise an error
+                    raise ValueError(f"The selected model '{model_name}' does not support vision. Please manually specify a vision-capable model like gpt-4o or gpt-4-vision.")
+                elif not model_name:
+                    # Only set default model if none was specified
+                    model_name = "gpt-4o"  # Default vision model
+                logger.info(f"Using vision-capable model: {model_name}")
+            
             # Set default model if not specified
             self.model_name = model_name or "gpt-4o-mini"
             
@@ -118,6 +131,16 @@ class LLMReasoner:
         elif self.llm_provider == "anthropic":
             if not ANTHROPIC_AVAILABLE:
                 raise ImportError("Anthropic package not installed. Install with 'pip install anthropic'")
+            
+            # If vision is enabled, verify we're using a vision-capable model without auto-switching
+            if vision:
+                if model_name and not ("claude-3" in model_name):
+                    # Instead of auto-switching, raise an error
+                    raise ValueError(f"The selected model '{model_name}' does not support vision. Please manually specify a Claude 3 model which supports vision capabilities.")
+                elif not model_name:
+                    # Only set default model if none was specified
+                    model_name = "claude-3-opus-20240229"  # Default vision model
+                logger.info(f"Using vision-capable Claude model: {model_name}")
             
             # Set default model if not specified
             self.model_name = model_name or "claude-3-opus-20240229"
@@ -190,13 +213,23 @@ class LLMReasoner:
             return result
             
         except Exception as e:
-            logger.error(f"Error in LLM reasoning: {e}")
-            # Return a fallback response
-            return {
-                "thought": f"LLM reasoning error: {e}",
-                "action": "error",
-                "parameters": {}
-            }
+            error_str = str(e)
+            if "content[1].type" in error_str and "image" in error_str and self.vision:
+                logger.error(f"Vision error with {self.llm_provider} API: {e}")
+                logger.error("The selected model does not support image inputs. Please use a vision-capable model like gpt-4o or gpt-4-vision.")
+                return {
+                    "thought": f"Error: The selected model '{self.model_name}' does not support vision. Please use a vision-capable model like gpt-4o.",
+                    "action": "error",
+                    "parameters": {}
+                }
+            else:
+                logger.error(f"Error in LLM reasoning: {e}")
+                # Return a fallback response
+                return {
+                    "thought": f"LLM reasoning error: {e}",
+                    "action": "error",
+                    "parameters": {}
+                }
     
     def _create_system_prompt(self, available_tools: Optional[List[str]] = None) -> str:
         """Create the system prompt for the LLM.
@@ -212,7 +245,7 @@ class LLMReasoner:
         You are an user assitant for an Android phone. Your task is to control an Android device to achieve a specified goal the user is asking for.
         Follow these guidelines:
 
-        1. Analyze the current screen state from the UI state by taking a screenshot
+        1. Analyze the current screen state from the UI state getting all UI elements
         2. Think step-by-step to plan your actions
         3. Choose the most appropriate tool for each step
         4. Return your response in JSON format with the following fields:
@@ -221,19 +254,26 @@ class LLMReasoner:
         - parameters: A dictionary of parameters to pass to the tool
 
         IMPORTANT: When specifying the action field:
-        - Use the exact tool name as provided (e.g., "take_screenshot" not "take_screenshot()")
         - Never add parentheses to the tool name
         - Common mistakes to avoid:
-          ❌ "take_screenshot()"
           ❌ "get_clickables()"
-          ✅ "take_screenshot"
           ✅ "get_clickables"
 
         You have two very important tools for your observations.
-        1. You can take a screenshot to get a better understanding of the current screen including all texts and images on the screen. Use this to to analyze the current ui context.
+        1. You can get all UI elements to get a better understanding of the current screen including all texts container on the screen. Use this to to analyze the current ui context.
         2. If you want to take action, after you analyzed the context, you can get all the clickable elements for your next interactive step. Only use this tool if you know about your current ui context.
 
         """
+        
+        # Add vision-specific instructions if vision is enabled
+        if self.vision:
+            prompt += """
+            You have access to screenshots through the take_screenshot tool. Use it when visual context is needed.
+            """
+        else:
+            prompt += """
+            Vision is disabled. Rely solely on text-based UI element data from get_clickables.
+            """
                 
         # Tool documentation with exact parameter names
         tool_docs = {
@@ -246,15 +286,17 @@ class LLMReasoner:
             "press_key": "press_key(keycode: int) - Press a key on the device using keycode",
             
             "start_app": "start_app(package: str, activity: str = '') - Start an app using its package name (e.g., 'com.android.settings')",
-
-            "take_screenshot": "take_screenshot() - Take a screenshot of the device",
             
             "list_packages": "list_packages(include_system_apps: bool = False) - List installed packages on the device, returns detailed package information",
             
             "get_clickables": "get_clickables() - Get only the clickable UI elements from the device screen. Returns a dictionary containing interactive elements with their properties",
-            
+
             "complete": "complete(result: str) - IMPORTANT: This tool should ONLY be called after you have ACTUALLY completed all necessary actions for the goal. It does not perform any actions itself - it only signals that you have already achieved the goal through other actions. Include a summary of what was accomplished as the result parameter.",
         }
+        
+        # Add take_screenshot tool only if vision is enabled
+        if self.vision:
+            tool_docs["take_screenshot"] = "take_screenshot() - Take a screenshot to better understand the current UI. Use when you need visual context."
         
         # Add available tools information if provided
         if available_tools:
@@ -358,16 +400,17 @@ class LLMReasoner:
                 import base64
                 base64_image = base64.b64encode(screenshot_data).decode('utf-8')
                 
-                # Different image format for Gemini vs OpenAI
-                if self.llm_provider != "gemini":
+                # Different image format for different providers
+                if self.llm_provider == "gemini":
+                    # Gemini format
                     image_content = {
-                        "type": "image",
+                        "type": "image_url",
                         "image_url": {
-                            "data": base64_image,
-                            "format": "jpeg"
+                            "url": f"data:image/jpeg;base64,{base64_image}"
                         }
                     }
                 else:
+                    # OpenAI and others format
                     image_content = {
                         "type": "image_url",
                         "image_url": {
@@ -448,7 +491,7 @@ class LLMReasoner:
                             "type": "image",
                             "source": {
                                 "type": "base64",
-                                "media_type": "image/png",
+                                "media_type": "image/jpeg",
                                 "data": base64_image
                             }
                         },

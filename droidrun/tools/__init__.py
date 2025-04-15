@@ -13,9 +13,9 @@ from .actions import (
     uninstall_app,
     take_screenshot,
     list_packages,
-    get_ui_elements,
     get_clickables,
     complete,
+    extract,
 )
 
 __all__ = [
@@ -29,7 +29,7 @@ __all__ = [
     'uninstall_app',
     'take_screenshot',
     'list_packages',
-    'get_ui_elements',
     'get_clickables',
     'complete',
-] 
+    'extract',
+]

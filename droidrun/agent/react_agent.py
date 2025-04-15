@@ -5,8 +5,6 @@ This module implements a ReAct agent that can control Android devices through
 reasoning about the current state and taking appropriate actions.
 """
 
-import asyncio
-import json
 import time
 import logging
 from enum import Enum
@@ -24,9 +22,9 @@ from droidrun.tools import (
     uninstall_app,
     take_screenshot,
     list_packages,
-    get_ui_elements,
     get_clickables,
     complete,
+    extract,
 )
 
 # Import LLM reasoning
@@ -49,7 +47,7 @@ class ReActStep:
     def __init__(
         self, 
         step_type: ReActStepType, 
-        content: str, 
+        content: str,
     ):
         """Initialize a ReAct step.
         
@@ -104,7 +102,8 @@ class ReActAgent:
         llm: Any = None,
         device_serial: Optional[str] = None,
         max_steps: int = 100,
-        debug: bool = False
+        debug: bool = False,
+        vision: bool = False
     ):
         """Initialize the ReAct agent.
         
@@ -114,12 +113,14 @@ class ReActAgent:
             device_serial: Serial number of the Android device to control
             max_steps: Maximum number of steps to take
             debug: Whether to enable debug logging
+            vision: Whether to enable vision capabilities (screenshot tool)
         """
         self.device_serial = device_serial
         self.goal = task  # Store task as goal for backward compatibility
         self.max_steps = max_steps
         self.debug = debug
         self.llm_instance = llm
+        self.vision = vision
         
         # Initialize steps list
         self.steps: List[ReActStep] = []
@@ -143,20 +144,26 @@ class ReActAgent:
             
             # App management
             "start_app": start_app,
-            #"install_app": install_app,
-            #"uninstall_app": uninstall_app,
+            "install_app": install_app,
+            "uninstall_app": uninstall_app,
             "list_packages": list_packages,
             
             # UI analysis
-            #"get_ui_elements": get_ui_elements,
             "get_clickables": get_clickables,
             
-            # Media
-            "take_screenshot": take_screenshot,
+            # Data extraction
+            "extract": extract,
             
             # Goal management
             "complete": complete,
         }
+        
+        # Add screenshot tool only if vision is enabled
+        if vision:
+            self.tools["take_screenshot"] = take_screenshot
+            logger.info("Vision capabilities enabled: screenshot tool available")
+        else:
+            logger.info("Vision capabilities disabled: screenshot tool not available")
         
         # Initialize device manager
         self.device_manager = DeviceManager()
@@ -179,14 +186,16 @@ class ReActAgent:
                         model_name=model_name,
                         api_key=api_key,
                         temperature=0.2,
-                        max_tokens=2000
+                        max_tokens=2000,
+                        vision=self.vision
                     )
             else:
                 # Use default OpenAI if no LLM provided
                 self.reasoner = LLMReasoner(
                     llm_provider="openai",
                     temperature=0.2,
-                    max_tokens=2000
+                    max_tokens=2000,
+                    vision=self.vision
                 )
             
             self.use_llm = True
@@ -332,7 +341,6 @@ class ReActAgent:
             ValueError: If tool not found or parameter validation fails
         """
         import inspect
-        from typing import get_type_hints
         
         if tool_name not in self.tools:
             # Clean up tool name by removing extra parentheses
@@ -367,45 +375,7 @@ class ReActAgent:
                 clickable = result.get("clickable_elements", [])
                 return clickable
                 
-                summary = message
-                if clickable:
-                    summary += "\n\nClickable elements:"
-                    for elem in clickable:
-                        elem_text = elem.get("text", "") or elem.get("content_desc", "") or "no text"
-                        elem_class = elem.get("class", "").split(".")[-1]
-                        elem_bounds = elem.get("bounds", "")
-                        summary += f"\n- {elem_text} ({elem_class}) at {elem_bounds}"
-                
-                return summary
-            elif tool_name == "get_ui_elements" and isinstance(result, dict):
-                # Summarize UI elements for better readability
-                clickable = result.get("clickable_elements", [])
-                text = result.get("text_elements", [])
-                summary = f"Found {len(clickable)} clickable elements and {len(text)} text elements on screen."
-                
-                # Include a limited list of elements (to avoid overwhelming output)
-                if clickable:
-                    summary += "\n\nClickable elements:"
-                    for i, elem in enumerate(clickable[:5]):
-                        elem_text = elem.get("text", "") or elem.get("content_desc", "") or "no text"
-                        elem_class = elem.get("class", "").split(".")[-1]
-                        elem_bounds = elem.get("bounds", "")
-                        summary += f"\n- {elem_text} ({elem_class}) at {elem_bounds}"
-                    
-                    if len(clickable) > 5:
-                        summary += f"\n... and {len(clickable) - 5} more clickable elements"
-                        
-                if text:
-                    summary += "\n\nText elements:"
-                    for i, elem in enumerate(text[:5]):
-                        elem_text = elem.get("text", "") or "no text"
-                        elem_class = elem.get("class", "").split(".")[-1]
-                        summary += f"\n- {elem_text} ({elem_class})"
-                    
-                    if len(text) > 5:
-                        summary += f"\n... and {len(text) - 5} more text elements"
-                
-                return summary
+
             elif tool_name == "take_screenshot" and isinstance(result, tuple) and len(result) >= 2:
                 # For screenshots, store the image data for the LLM and return the path
                 path, image_data = result
@@ -552,7 +522,8 @@ async def run_agent(
     debug: bool = False,
     llm_provider: Optional[str] = None,
     model_name: Optional[str] = None,
-    api_key: Optional[str] = None
+    api_key: Optional[str] = None,
+    vision: bool = False
 ) -> List[ReActStep]:
     """Run the ReAct agent with the given goal.
     
@@ -564,6 +535,7 @@ async def run_agent(
         llm_provider: LLM provider name (openai, anthropic, or gemini)
         model_name: Name of the LLM model to use
         api_key: API key for accessing the LLM service
+        vision: Whether to enable vision capabilities (screenshot tool)
     
     Returns:
         List of ReAct steps taken
@@ -577,14 +549,16 @@ async def run_agent(
             model_name=model_name, 
             api_key=api_key,
             temperature=0.2,
-            max_tokens=2000
+            max_tokens=2000,
+            vision=vision
         )
     
     agent = ReActAgent(
         task=task,
         llm=llm,
         device_serial=device_serial,
-        debug=debug
+        debug=debug,
+        vision=vision
     )
     
     steps = await agent.run()

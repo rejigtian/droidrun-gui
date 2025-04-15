@@ -22,13 +22,19 @@ def coro(f):
 
 # Define the run command as a standalone function to be used as both a command and default
 @coro
-async def run_command(command: str, device: str | None, provider: str, model: str, debug: bool, steps: int):
+async def run_command(command: str, device: str | None, provider: str, model: str, debug: bool, steps: int, vision: bool):
     """Run a command on your Android device using natural language."""
     console.print(f"[bold blue]Executing command:[/] {command}")
     
     # Auto-detect Gemini if model starts with "gemini-"
     if model and model.startswith("gemini-"):
         provider = "gemini"
+    
+    # Print vision status
+    if vision:
+        console.print("[blue]Vision capabilities are enabled.[/]")
+    else:
+        console.print("[blue]Vision capabilities are disabled.[/]")
     
     # Get API keys from environment variables
     api_key = None
@@ -76,17 +82,30 @@ async def run_command(command: str, device: str | None, provider: str, model: st
         console.print("[bold blue]Running ReAct agent...[/]")
         console.print("[yellow]Press Ctrl+C to stop execution[/]")
         
-        steps = await run_agent(
-            task=command,
-            device_serial=device,  # Still pass for backward compatibility
-            llm_provider=provider,
-            model_name=model,
-            api_key=api_key,
-            debug=debug
-        )
-        
-        # Final message
-        console.print(f"[bold green]Execution completed with {len(steps)} steps[/]")
+        try:
+            steps = await run_agent(
+                task=command,
+                device_serial=device,  # Still pass for backward compatibility
+                llm_provider=provider,
+                model_name=model,
+                api_key=api_key,
+                debug=debug,
+                vision=vision
+            )
+            
+            # Final message
+            console.print(f"[bold green]Execution completed with {len(steps)} steps[/]")
+        except ValueError as e:
+            if "does not support vision" in str(e):
+                console.print(f"[bold red]Vision Error:[/] {e}")
+                console.print("[yellow]Please specify a vision-capable model with the --model flag.[/]")
+                console.print("[blue]Recommended models:[/]")
+                console.print("  - OpenAI: gpt-4o or gpt-4-vision")
+                console.print("  - Anthropic: claude-3-opus-20240229 or claude-3-sonnet-20240229")
+                console.print("  - Gemini: gemini-pro-vision")
+                return
+            else:
+                raise  # Re-raise other ValueError exceptions
         
     except Exception as e:
         console.print(f"[bold red]Error:[/] {e}")
@@ -115,10 +134,11 @@ def cli():
 @click.option('--model', '-m', help='LLM model name', default=None)
 @click.option('--debug', is_flag=True, help='Enable debug logging')
 @click.option('--steps', type=int, help='Maximum number of steps', default=15)
-def run(command: str, device: str | None, provider: str, model: str, debug: bool, steps: int):
+@click.option('--vision', is_flag=True, help='Enable vision capabilities')
+def run(command: str, device: str | None, provider: str, model: str, debug: bool, steps: int, vision: bool):
     """Run a command on your Android device using natural language."""
     # Call our standalone function
-    return run_command(command, device, provider, model, debug, steps)
+    return run_command(command, device, provider, model, debug, steps, vision)
 
 @cli.command()
 @coro
