@@ -48,26 +48,64 @@ The ReAct agent can perform various actions on Android devices:
 
 <AccordionGroup>
   <Accordion title="UI Interaction">
-    - `tap(x, y)` - Tap at specific coordinates
+    - `tap(index)` - Tap on a UI element by its index
     - `swipe(start_x, start_y, end_x, end_y)` - Swipe from one point to another
     - `input_text(text)` - Type text into the current field
-    - `press_key(key)` - Press a specific key (e.g., HOME, BACK)
+    - `press_key(keycode)` - Press a specific key (e.g., HOME, BACK)
   </Accordion>
 
   <Accordion title="App Management">
-    - `start_app(package_name)` - Launch an app by package name
+    - `start_app(package)` - Launch an app by package name
     - `list_packages()` - List installed packages
+    - `install_app(apk_path)` - Install an app from APK
+    - `uninstall_app(package)` - Uninstall an app
   </Accordion>
 
-  <Accordion title="Analysis">
-    - `take_screenshot()` - Capture the current screen
+  <Accordion title="UI Analysis">
+    - `take_screenshot()` - Capture the current screen (vision mode only)
     - `get_clickables()` - Identify clickable elements on screen
+    - `extract(filename)` - Save complete UI state to a JSON file
   </Accordion>
 
   <Accordion title="Task Management">
-    - `complete(summary)` - Mark the task as complete with a summary
+    - `complete(result)` - Mark the task as complete with a summary
   </Accordion>
 </AccordionGroup>
+
+## 📸 Vision Capabilities
+
+When vision mode is enabled, the ReAct agent can analyze screenshots to better understand the UI:
+
+```python
+agent = ReActAgent(
+    task="Open settings and enable dark mode",
+    llm=llm_instance,
+    vision=True  # Enable vision capabilities
+)
+```
+
+This provides several benefits:
+
+- **Visual Context**: The LLM can see exactly what's on screen
+- **Better UI Understanding**: Recognizes UI elements even if text detection is imperfect
+- **Complex Navigation**: Handles apps with unusual or complex interfaces more effectively
+
+## 📊 Token Usage Tracking
+
+The ReAct agent now tracks token usage for all LLM interactions:
+
+```python
+# After running the agent
+stats = llm.get_token_usage_stats()
+print(f"Total tokens: {stats['total_tokens']}")
+print(f"API calls: {stats['api_calls']}")
+```
+
+This information is useful for:
+
+- **Cost Management**: Track and optimize your API usage costs
+- **Performance Tuning**: Identify steps that require the most tokens
+- **Troubleshooting**: Debug issues with prompt sizes or response lengths
 
 ## 🧠 Agent Parameters
 
@@ -79,7 +117,7 @@ agent = ReActAgent(
     llm=llm_instance,                           # LLM to use for reasoning
     device_serial="DEVICE123",                  # Optional specific device
     max_steps=15,                               # Maximum steps to attempt
-    debug=True                                  # Enable debug logging
+    vision=False                                # Whether to enable vision capabilities
 )
 ```
 
@@ -97,33 +135,7 @@ The agent records its progress using different step types:
 
 1. **Clear Goals**: Provide specific, clear instructions
 2. **Realistic Tasks**: Break complex automation into manageable tasks
-3. **Debug Mode**: Enable debug mode to see the agent's reasoning
+3. **Vision for Complex UIs**: Enable vision mode for complex UI navigation
 4. **Step Limits**: Set reasonable max_steps to prevent infinite loops
 5. **Device Connectivity**: Ensure stable connection to your device
-
-## 🔧 Advanced Usage
-
-### Custom Prompting
-
-The ReAct agent uses carefully designed prompts to guide the LLM. You can fine-tune these by modifying the LLMReasoner class:
-
-```python
-# Custom temperature for more/less deterministic behavior
-llm = LLMReasoner(
-    llm_provider="openai",
-    model_name="gpt-4",
-    temperature=0.1,  # Lower for more deterministic behavior
-)
-```
-
-### Screenshot Analysis
-
-The agent can analyze screenshots to understand the current state:
-
-```python
-# This happens automatically when using take_screenshot()
-result = await agent.execute_tool("take_screenshot")
-# Later reasoning steps will have access to the screenshot
-```
-
-This visual understanding is crucial for complex UI navigation tasks. 
+6. **Token Optimization**: Monitor token usage for cost-effective automation

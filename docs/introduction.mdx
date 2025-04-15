@@ -19,8 +19,8 @@ DroidRun is a powerful framework that enables you to control Android devices thr
   <Card title="Simple CLI" icon="terminal">
     Easy-to-use command line interface
   </Card>
-  <Card title="Python API" icon="code">
-    Comprehensive API for custom automation tasks
+  <Card title="Python SDK" icon="code">
+    Comprehensive SDK for custom automation tasks
   </Card>
 </CardGroup>
 
@@ -32,6 +32,9 @@ droidrun "Open the settings app"
 
 # With specific provider
 droidrun "Open calculator app" --provider gemini --model gemini-2.0-flash
+
+# With vision capabilities
+droidrun "Open Calculator and take a screenshot" --vision
 ```
 
 Or with Python:
@@ -48,17 +51,22 @@ async def main():
         llm_provider="gemini",  # "openai", "anthropic", or "gemini"
         model_name="gemini-2.0-flash",
         api_key=os.environ.get("GEMINI_API_KEY"),
-        temperature=0.2
+        temperature=0.2,
+        vision=True  # Enable vision capabilities
     )
     
     # Create and run the agent
     agent = ReActAgent(
         task="Open the Settings app",
         llm=llm,
-        debug=True
+        vision=True  # Enable screenshot analysis
     )
     
-    await agent.run()
+    steps = await agent.run()
+    
+    # Get token usage statistics
+    stats = llm.get_token_usage_stats()
+    print(f"Total tokens used: {stats['total_tokens']}")
 
 if __name__ == "__main__":
     asyncio.run(main())
@@ -72,7 +80,7 @@ if __name__ == "__main__":
 
 ## Getting Started
 
-<CardGroup cols={2}>
+<CardGroup cols={3}>
   <Card title="Quickstart" icon="rocket" href="/quickstart">
     Get up and running with DroidRun in minutes
   </Card>
@@ -86,9 +94,6 @@ if __name__ == "__main__":
 <CardGroup cols={2}>
   <Card title="Agent" icon="robot" href="/concepts/agent">
     Learn about the ReAct agent system
-  </Card>
-  <Card title="LLM Providers" icon="brain" href="/concepts/llm-providers">
-    Understand LLM integration options
   </Card>
   <Card title="Android Control" icon="mobile" href="/concepts/android-control">
     Explore Android device interactions

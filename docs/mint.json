@@ -25,13 +25,6 @@
     "name": "Get Started",
     "url": "https://github.com/yourusername/droidrun"
   },
-  "anchors": [
-    {
-      "name": "Examples",
-      "icon": "book-open",
-      "url": "examples"
-    }
-  ],
   "navigation": [
     {
       "group": "Getting Started",
@@ -45,7 +38,6 @@
       "group": "Core Concepts",
       "pages": [
         "concepts/agent",
-        "concepts/llm-providers",
         "concepts/android-control"
       ]
     }

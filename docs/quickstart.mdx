@@ -60,6 +60,9 @@ droidrun "Open the calculator app" --provider gemini --model gemini-2.0-flash
 
 # Using Anthropic
 droidrun "Check the battery level" --provider anthropic --model claude-3-sonnet-20240229
+
+# With vision capabilities enabled
+droidrun "Take a screenshot and describe what's on the screen" --vision
 ```
 
 ## 📝 Create a Simple Script
@@ -83,18 +86,23 @@ async def main():
         llm_provider="gemini",  # "openai", "anthropic", or "gemini"
         model_name="gemini-2.0-flash",
         api_key=os.environ.get("GEMINI_API_KEY"),
-        temperature=0.2
+        temperature=0.2,
     )
     
     # Create and run the agent
     agent = ReActAgent(
-        task="Open the Settings app and check the Android version",
+        task="Open the Settings app and search for the wifi settings",
         llm=llm,
-        debug=True
+        max_steps=20  # Set maximum number of steps
     )
     
     steps = await agent.run()
     print(f"Execution completed with {len(steps)} steps")
+    
+    # Get token usage statistics
+    stats = llm.get_token_usage_stats()
+    print(f"Total tokens used: {stats['total_tokens']}")
+    print(f"Estimated cost: ${(stats['total_tokens'] / 1_000_000) * 0.10:.4f}")  # $0.10 per 1M tokens example
 
 if __name__ == "__main__":
     asyncio.run(main())
@@ -114,18 +122,34 @@ DroidRun CLI supports several options:
 # Specify a device
 droidrun "Open Chrome" --device your_device_serial
 
-# Enable debug mode
-droidrun "Take a screenshot" --debug
-
 # Set maximum steps
 droidrun "Open settings" --steps 20
+
+# Enable vision capabilities
+droidrun "Analyze the current screen" --vision
+
 ```
+
+## 🔎 Vision Capabilities
+
+When vision is enabled:
+
+- The agent can take and analyze screenshots
+- Ideal for UI-based tasks that require visual context
+
+## 📊 Token Usage Tracking
+
+DroidRun tracks token usage for all LLM calls:
+
+- Total prompt tokens
+- Total completion tokens
+- Number of API calls
+
+This helps you optimize your automation tasks and manage costs effectively.
 
 ## 🎉 Next Steps
 
 Now that you've got DroidRun running, you can:
 
-- Explore more [complex examples](/examples)
 - Learn about the [ReAct agent system](/concepts/agent)
-- Understand [LLM provider options](/concepts/llm-providers)
-- Discover all [Android interactions](/concepts/android-control) 
+- Discover all [Android interactions](/concepts/android-control)
