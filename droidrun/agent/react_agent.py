@@ -108,7 +108,7 @@ class ReActAgent:
         
         Args:
             task: The automation task to perform (same as goal)
-            llm: LLM instance to use for reasoning (can be from langchain or any provider)
+            llm: LLM instance to use for reasoning
             device_serial: Serial number of the Android device to control
             max_steps: Maximum number of steps to take
             vision: Whether to enable vision capabilities (screenshot tool)

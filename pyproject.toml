@@ -3,7 +3,7 @@ name = "droidrun"
 version = "0.1.0"
 description = "A framework for controlling Android devices through LLM agents"
 authors = [
-    {name = "Niels Schmidt", email = "niels.schmidt@bonny.network"},
+    {name = "Niels Schmidt", email = "niels.schmidt@droidrun.ai"},
 ]
 dependencies = [
     "click>=8.1.0",
@@ -39,28 +39,16 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/droidrun"
-"Bug Tracker" = "https://github.com/yourusername/droidrun/issues"
-Documentation = "https://droidrun.readthedocs.io/"
+Homepage = "https://github.com/droidrun/droidrun"
+"Bug Tracker" = "https://github.com/droidrun/droidrun/issues"
+Documentation = "https://docs.droidrun.ai/"
 
 [project.optional-dependencies]
-test = [
-    "pytest>=7.0.0",
-    "pytest-asyncio>=0.21.0",
-    "pytest-cov>=4.1.0",
-]
 dev = [
     "black>=23.0.0",
     "ruff>=0.1.0",
     "mypy>=1.0.0",
 ]
-llm = [
-    "langchain>=0.1.0",
-    "langchain-openai>=0.0.5",
-    "langchain-anthropic>=0.1.0",
-    "langchain-community>=0.0.15",
-]
-
 
 [build-system]
 requires = ["hatchling"]
