@@ -469,9 +469,53 @@ async def input_text(text: str, serial: Optional[str] = None) -> str:
         else:
             device = await get_device()
         
-        # Ensure text is properly escaped for shell command
-        escaped_text = text.replace('"', '\\"')  # Escape double quotes
-        await device._adb.shell(device._serial, f'input text "{escaped_text}"')
+        # Function to escape special characters
+        def escape_text(s: str) -> str:
+            # Escape special characters that need shell escaping, excluding space
+            special_chars = '[]()|&;$<>\\`"\'{}#!?^~'  # Removed space from special chars
+            escaped = ''
+            for c in s:
+                if c == ' ':
+                    escaped += ' '  # Just add space without escaping
+                elif c in special_chars:
+                    escaped += '\\' + c
+                else:
+                    escaped += c
+            return escaped
+        
+        # Split text into smaller chunks (max 500 chars)
+        chunk_size = 500
+        chunks = [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
+        
+        for chunk in chunks:
+            # Escape the text chunk
+            escaped_chunk = escape_text(chunk)
+            
+            # Try different input methods if one fails
+            methods = [
+                f'input text "{escaped_chunk}"',  # Standard method
+                f'am broadcast -a ADB_INPUT_TEXT --es msg "{escaped_chunk}"',  # Broadcast intent method
+                f'input keyboard text "{escaped_chunk}"'  # Keyboard method
+            ]
+            
+            success = False
+            last_error = None
+            
+            for method in methods:
+                try:
+                    await device._adb.shell(device._serial, method)
+                    success = True
+                    break
+                except Exception as e:
+                    last_error = str(e)
+                    continue
+            
+            if not success:
+                return f"Error: Failed to input text chunk. Last error: {last_error}"
+            
+            # Small delay between chunks
+            await asyncio.sleep(0.1)
+        
         return f"Text input completed: {text}"
     except ValueError as e:
         return f"Error: {str(e)}"

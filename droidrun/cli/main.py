@@ -12,7 +12,7 @@ from droidrun.agent import run_agent
 from functools import wraps
 
 # Import the install_app function directly for the setup command
-from droidrun.tools.actions import install_app, get_device_serial
+from droidrun.tools.actions import install_app
 
 console = Console()
 device_manager = DeviceManager()
@@ -25,7 +25,7 @@ def coro(f):
 
 # Define the run command as a standalone function to be used as both a command and default
 @coro
-async def run_command(command: str, device: str | None, provider: str, model: str, debug: bool, steps: int, vision: bool):
+async def run_command(command: str, device: str | None, provider: str, model: str, steps: int, vision: bool):
     """Run a command on your Android device using natural language."""
     console.print(f"[bold blue]Executing command:[/] {command}")
     
@@ -47,7 +47,7 @@ async def run_command(command: str, device: str | None, provider: str, model: st
             console.print("[bold red]Error:[/] OPENAI_API_KEY environment variable not set")
             return
         if not model:
-            model = "gpt-4-turbo"
+            model = "gpt-4o-mini"
     elif provider.lower() == 'anthropic':
         api_key = os.environ.get('ANTHROPIC_API_KEY')
         if not api_key:
@@ -92,7 +92,6 @@ async def run_command(command: str, device: str | None, provider: str, model: st
                 llm_provider=provider,
                 model_name=model,
                 api_key=api_key,
-                debug=debug,
                 vision=vision
             )
             
@@ -112,9 +111,6 @@ async def run_command(command: str, device: str | None, provider: str, model: st
         
     except Exception as e:
         console.print(f"[bold red]Error:[/] {e}")
-        if debug:
-            import traceback
-            traceback.print_exc()
 
 # Custom Click multi-command class to handle both subcommands and default behavior
 class DroidRunCLI(click.Group):
@@ -135,13 +131,12 @@ def cli():
 @click.option('--device', '-d', help='Device serial number or IP address', default=None)
 @click.option('--provider', '-p', help='LLM provider (openai, anthropic, or gemini)', default='openai')
 @click.option('--model', '-m', help='LLM model name', default=None)
-@click.option('--debug', is_flag=True, help='Enable debug logging')
 @click.option('--steps', type=int, help='Maximum number of steps', default=15)
 @click.option('--vision', is_flag=True, help='Enable vision capabilities')
-def run(command: str, device: str | None, provider: str, model: str, debug: bool, steps: int, vision: bool):
+def run(command: str, device: str | None, provider: str, model: str, steps: int, vision: bool):
     """Run a command on your Android device using natural language."""
     # Call our standalone function
-    return run_command(command, device, provider, model, debug, steps, vision)
+    return run_command(command, device, provider, model, steps, vision)
 
 @cli.command()
 @coro
@@ -233,14 +228,33 @@ async def setup(path: str, device: str | None):
         # Step 2: Enable the accessibility service with the specific command
         console.print(f"[bold blue]Step 2/2: Enabling accessibility service[/]")
         
-        # Use the exact command provided
-        await device_obj._adb.shell(device, "settings put secure enabled_accessibility_services com.droidrun.portal/com.droidrun.portal.DroidrunPortalService")
+        # Package name for reference in error message
+        package = "com.droidrun.portal"
         
-        # Also enable accessibility services globally
-        await device_obj._adb.shell(device, "settings put secure accessibility_enabled 1")
-        
-        console.print("[green]Accessibility service enabled successfully![/]")
-        console.print("\n[bold green]Setup complete![/] The DroidRun Portal is now installed and ready to use.")
+        try:
+            # Use the exact command provided
+            await device_obj._adb.shell(device, "settings put secure enabled_accessibility_services com.droidrun.portal/com.droidrun.portal.DroidrunPortalService")
+            
+            # Also enable accessibility services globally
+            await device_obj._adb.shell(device, "settings put secure accessibility_enabled 1")
+            
+            console.print("[green]Accessibility service enabled successfully![/]")
+            console.print("\n[bold green]Setup complete![/] The DroidRun Portal is now installed and ready to use.")
+            
+        except Exception as e:
+            console.print(f"[yellow]Could not automatically enable accessibility service: {e}[/]")
+            console.print("[yellow]Opening accessibility settings for manual configuration...[/]")
+            
+            # Fallback: Open the accessibility settings page
+            await device_obj._adb.shell(device, "am start -a android.settings.ACCESSIBILITY_SETTINGS")
+            
+            console.print("\n[yellow]Please complete the following steps on your device:[/]")
+            console.print(f"1. Find [bold]{package}[/] in the accessibility services list")
+            console.print("2. Tap on the service name")
+            console.print("3. Toggle the switch to [bold]ON[/] to enable the service")
+            console.print("4. Accept any permission dialogs that appear")
+            
+            console.print("\n[bold green]APK installation complete![/] Please manually enable the accessibility service using the steps above.")
             
     except Exception as e:
         console.print(f"[bold red]Error:[/] {e}")

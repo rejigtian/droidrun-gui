@@ -102,7 +102,6 @@ class ReActAgent:
         llm: Any = None,
         device_serial: Optional[str] = None,
         max_steps: int = 100,
-        debug: bool = False,
         vision: bool = False
     ):
         """Initialize the ReAct agent.
@@ -112,13 +111,11 @@ class ReActAgent:
             llm: LLM instance to use for reasoning (can be from langchain or any provider)
             device_serial: Serial number of the Android device to control
             max_steps: Maximum number of steps to take
-            debug: Whether to enable debug logging
             vision: Whether to enable vision capabilities (screenshot tool)
         """
         self.device_serial = device_serial
         self.goal = task  # Store task as goal for backward compatibility
         self.max_steps = max_steps
-        self.debug = debug
         self.llm_instance = llm
         self.vision = vision
         
@@ -129,10 +126,7 @@ class ReActAgent:
         self._last_screenshot: Optional[bytes] = None
         
         # Configure logging
-        if debug:
-            logging.basicConfig(level=logging.DEBUG)
-        else:
-            logging.basicConfig(level=logging.INFO)
+        logging.basicConfig(level=logging.INFO)
         
         # Define available tools and their functions
         self.tools: Dict[str, Callable] = {
@@ -519,7 +513,6 @@ async def run_agent(
     task: str, 
     llm: Any = None,
     device_serial: Optional[str] = None,
-    debug: bool = False,
     llm_provider: Optional[str] = None,
     model_name: Optional[str] = None,
     api_key: Optional[str] = None,
@@ -531,7 +524,6 @@ async def run_agent(
         task: The automation task to perform
         llm: LLM instance to use for reasoning
         device_serial: Serial number of the Android device
-        debug: Whether to enable debug logging
         llm_provider: LLM provider name (openai, anthropic, or gemini)
         model_name: Name of the LLM model to use
         api_key: API key for accessing the LLM service
@@ -557,7 +549,6 @@ async def run_agent(
         task=task,
         llm=llm,
         device_serial=device_serial,
-        debug=debug,
         vision=vision
     )
     
