@@ -55,7 +55,8 @@ class LLMReasoner:
         api_key: Optional[str] = None,
         temperature: float = 0.2,
         max_tokens: int = 2000,
-        vision: bool = False
+        vision: bool = False,
+        base_url: Optional[str] = None
     ):
         """Initialize the LLM reasoner.
         
@@ -102,7 +103,30 @@ class LLMReasoner:
                 base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
             )
             logger.info(f"Initialized Gemini client with model {self.model_name}")
+
+        elif self.llm_provider == "ollama":
+            if not OPENAI_AVAILABLE:
+                raise ImportError("OpenAI package not installed. Install with 'pip install openai'")
             
+            # Set default model if not specified
+            self.model_name = model_name or "llama3.1:8b"
+            
+            # Get API key from env var if not provided
+            self.api_key = api_key or "ollama"
+            if base_url is None:
+                base_url = "http://localhost:11434/v1"
+            if not base_url.startswith('http://'):
+                base_url = "http://" + base_url
+            if not base_url.endswith('/v1'):
+                base_url += "/v1"
+            # Initialize client with Ollama configuration
+            print(base_url)
+            self.client = OpenAI(
+                api_key=self.api_key,
+                base_url=base_url
+            )
+            logger.info(f"Initialized Ollama client with model {self.model_name}")
+                
         elif self.llm_provider == "openai":
             if not OPENAI_AVAILABLE:
                 raise ImportError("OpenAI package not installed. Install with 'pip install openai'")
@@ -197,7 +221,7 @@ class LLMReasoner:
         
         try:
             # Call the LLM based on provider
-            if self.llm_provider in ["openai", "gemini"]:  # Handle both OpenAI and Gemini with OpenAI client
+            if self.llm_provider in ["openai", "gemini", "ollama"]:  # Handle both OpenAI, Ollama and Gemini with OpenAI client
                 response = await self._call_openai(system_prompt, user_prompt, screenshot_data)
             elif self.llm_provider == "anthropic":
                 response = await self._call_anthropic(system_prompt, user_prompt, screenshot_data)

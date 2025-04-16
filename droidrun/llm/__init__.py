@@ -21,4 +21,12 @@ class AnthropicLLM(BaseLLM):
     def __init__(self, model="claude-3-opus-20240229", **kwargs):
         super().__init__(provider="anthropic", model=model, **kwargs)
 
-__all__ = ["BaseLLM", "OpenAILLM", "AnthropicLLM"] 
+class OllamaLLM(BaseLLM):
+    """
+    Anthropic-based LLM provider.
+    """
+    def __init__(self, model, **kwargs):
+        super().__init__(provider="ollama", model=model, **kwargs)
+
+
+__all__ = ["BaseLLM", "OpenAILLM", "AnthropicLLM", "OllamaLLM"] 
