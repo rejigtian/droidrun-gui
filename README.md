@@ -234,28 +234,13 @@ If DroidRun is using the wrong LLM provider:
    
    Prompt: "Go to Amazon, search for headphones and write the top 3 products to my colleague on WhatsApp."
    
-   <video width="640" height="360" controls>
-     <source src="./static/videos/amazon.mp4" type="video/mp4">
-     Your browser does not support the video tag.
-   </video>
+   [![Shopping Assistant Demo](https://img.youtube.com/vi/VQK3JcifgwU/0.jpg)](https://www.youtube.com/watch?v=VQK3JcifgwU)
 
 2. **Social Media Automation**: See DroidRun open X (Twitter) and post "Hello World".
    
    Prompt: "Open up X and post Hello World."
    
-   <video width="640" height="360" controls>
-     <source src="./static/videos/hello_world.mp4" type="video/mp4">
-     Your browser does not support the video tag.
-   </video>
-
-3. **Content Interaction**: Watch DroidRun navigate TikTok, find a cat video, and comment "I love cats".
-   
-   Prompt: "Go on TikTok. Swipe through the videos until you find a cat. Comment 'I love cats'."
-   
-   <video width="640" height="360" controls>
-     <source src="./static/videos/tiktok.mp4" type="video/mp4">
-     Your browser does not support the video tag.
-   </video>
+   [![Social Media Automation Demo](https://img.youtube.com/vi/i4-sDQhzt_M/0.jpg)](https://www.youtube.com/watch?v=i4-sDQhzt_M)
 
 ## 💡 Example Use Cases
 
