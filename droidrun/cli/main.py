@@ -25,7 +25,7 @@ def coro(f):
 
 # Define the run command as a standalone function to be used as both a command and default
 @coro
-async def run_command(command: str, device: str | None, provider: str, model: str, steps: int, vision: bool):
+async def run_command(command: str, device: str | None, provider: str, model: str, steps: int, vision: bool, base_url: str):
     """Run a command on your Android device using natural language."""
     console.print(f"[bold blue]Executing command:[/] {command}")
     
@@ -62,6 +62,12 @@ async def run_command(command: str, device: str | None, provider: str, model: st
             return
         if not model:
             model = "gemini-2.0-flash"
+    elif provider.lower() == 'ollama':
+        api_key = "ollama"
+        if not base_url:
+            base_url = "http://localhost:11434/v1"
+        if not model:
+            model = "llama3.1:8b"
     else:
         console.print(f"[bold red]Error:[/] Unsupported provider: {provider}")
         return
@@ -92,7 +98,8 @@ async def run_command(command: str, device: str | None, provider: str, model: st
                 llm_provider=provider,
                 model_name=model,
                 api_key=api_key,
-                vision=vision
+                vision=vision,
+                base_url=base_url
             )
             
             # Final message
@@ -129,14 +136,16 @@ def cli():
 @cli.command()
 @click.argument('command', type=str)
 @click.option('--device', '-d', help='Device serial number or IP address', default=None)
-@click.option('--provider', '-p', help='LLM provider (openai, anthropic, or gemini)', default='openai')
+@click.option('--provider', '-p', help='LLM provider (openai, ollama, anthropic, or gemini)', default='openai')
 @click.option('--model', '-m', help='LLM model name', default=None)
 @click.option('--steps', type=int, help='Maximum number of steps', default=15)
 @click.option('--vision', is_flag=True, help='Enable vision capabilities')
-def run(command: str, device: str | None, provider: str, model: str, steps: int, vision: bool):
+@click.option('--base_url', '-u', help='Base URL for Ollama server', default=None)
+def run(command: str, device: str | None, provider: str, model: str, steps: int, vision: bool, base_url):
     """Run a command on your Android device using natural language."""
     # Call our standalone function
-    return run_command(command, device, provider, model, steps, vision)
+    print(base_url)
+    return run_command(command, device, provider, model, steps, vision, base_url)
 
 @cli.command()
 @coro
