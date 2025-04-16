@@ -18,31 +18,31 @@
   "topbarLinks": [
     {
       "name": "GitHub",
-      "url": "https://github.com/yourusername/droidrun"
+      "url": "https://github.com/droidrun/droidrun"
     }
   ],
   "topbarCtaButton": {
     "name": "Get Started",
-    "url": "https://github.com/yourusername/droidrun"
+    "url": "https://github.com/droidrun/droidrun"
   },
   "navigation": [
     {
       "group": "Getting Started",
       "pages": [
         "introduction",
-        "quickstart",
-        "installation"
+        "quickstart"
       ]
     },
     {
       "group": "Core Concepts",
       "pages": [
         "concepts/agent",
-        "concepts/android-control"
+        "concepts/android-control",
+        "concepts/portal-app"
       ]
     }
   ],
   "footerSocials": {
-    "github": "https://github.com/yourusername/droidrun"
+    "github": "https://github.com/droidrun/droidrun"
   }
 } 
