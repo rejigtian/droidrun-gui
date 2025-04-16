@@ -1,4 +1,15 @@
-# 🤖 DroidRun
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./static/droidrun-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="./static/droidrun.png">
+  <img src="./static/droidrun.png"  width="full">
+</picture>
+
+[![GitHub stars](https://img.shields.io/github/stars/droidrun/droidrun?style=social)](https://github.com/droidrun/droidrun/stargazers)
+[![Discord](https://img.shields.io/discord/1360219330318696488?color=7289DA&label=Discord&logo=discord&logoColor=white)](https://discord.gg/ZZbKEZZkwK)
+[![Documentation](https://img.shields.io/badge/Documentation-📕-blue)](https://docs.droidrun.ai)
+[![Twitter Follow](https://img.shields.io/twitter/follow/droid_run?style=social)](https://x.com/droid_run)
+
 
 DroidRun is a powerful framework for controlling Android devices through LLM agents. It allows you to automate Android device interactions using natural language commands.
 
