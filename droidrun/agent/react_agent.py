@@ -102,7 +102,8 @@ class ReActAgent:
         llm: Any = None,
         device_serial: Optional[str] = None,
         max_steps: int = 100,
-        vision: bool = False
+        vision: bool = False,
+        base_url: Optional[str] = None
     ):
         """Initialize the ReAct agent.
         
@@ -112,12 +113,14 @@ class ReActAgent:
             device_serial: Serial number of the Android device to control
             max_steps: Maximum number of steps to take
             vision: Whether to enable vision capabilities (screenshot tool)
+            base_url: URL for Ollama case
         """
         self.device_serial = device_serial
         self.goal = task  # Store task as goal for backward compatibility
         self.max_steps = max_steps
         self.llm_instance = llm
         self.vision = vision
+        self.base_url = base_url
         
         # Initialize steps list
         self.steps: List[ReActStep] = []
@@ -181,7 +184,8 @@ class ReActAgent:
                         api_key=api_key,
                         temperature=0.2,
                         max_tokens=2000,
-                        vision=self.vision
+                        vision=self.vision,
+                        base_url=self.base_url
                     )
             else:
                 # Use default OpenAI if no LLM provided
@@ -516,7 +520,8 @@ async def run_agent(
     llm_provider: Optional[str] = None,
     model_name: Optional[str] = None,
     api_key: Optional[str] = None,
-    vision: bool = False
+    vision: bool = False,
+    base_url: Optional[str] = None
 ) -> List[ReActStep]:
     """Run the ReAct agent with the given goal.
     
@@ -528,6 +533,7 @@ async def run_agent(
         model_name: Name of the LLM model to use
         api_key: API key for accessing the LLM service
         vision: Whether to enable vision capabilities (screenshot tool)
+        base_url: URL for Ollama server
     
     Returns:
         List of ReAct steps taken
@@ -542,7 +548,8 @@ async def run_agent(
             api_key=api_key,
             temperature=0.2,
             max_tokens=2000,
-            vision=vision
+            vision=vision,
+            base_url=base_url
         )
     
     agent = ReActAgent(
