@@ -228,6 +228,35 @@ If DroidRun is using the wrong LLM provider:
 1. Explicitly specify the provider with `--provider` (in CLI) or `llm_provider=` (in code)
 2. When using Gemini, ensure you have set `GEMINI_API_KEY` and specified `--provider gemini`
 
+### 🎬 Demo Videos
+
+1. **Shopping Assistant**: Watch how DroidRun searches Amazon for headphones and sends the top 3 products to a colleague on WhatsApp.
+   
+   Prompt: "Go to Amazon, search for headphones and write the top 3 products to my colleague on WhatsApp."
+   
+   <video width="640" height="360" controls>
+     <source src="./static/videos/amazon.mp4" type="video/mp4">
+     Your browser does not support the video tag.
+   </video>
+
+2. **Social Media Automation**: See DroidRun open X (Twitter) and post "Hello World".
+   
+   Prompt: "Open up X and post Hello World."
+   
+   <video width="640" height="360" controls>
+     <source src="./static/videos/hello_world.mp4" type="video/mp4">
+     Your browser does not support the video tag.
+   </video>
+
+3. **Content Interaction**: Watch DroidRun navigate TikTok, find a cat video, and comment "I love cats".
+   
+   Prompt: "Go on TikTok. Swipe through the videos until you find a cat. Comment 'I love cats'."
+   
+   <video width="640" height="360" controls>
+     <source src="./static/videos/tiktok.mp4" type="video/mp4">
+     Your browser does not support the video tag.
+   </video>
+
 ## 💡 Example Use Cases
 
 - Automated UI testing of Android applications
@@ -235,6 +264,22 @@ If DroidRun is using the wrong LLM provider:
 - Automating repetitive tasks on Android devices
 - Remote assistance for less technical users
 - Exploring Android UI with natural language commands
+
+## 🗺️ Roadmap
+
+### 🤖 Agent:
+- **Improve memory**: Enhance context retention for complex multi-step tasks
+- **Improve vision capabilities**: Better UI element recognition and visual feedback interpretation
+- **Add Integrations**: Support more LLM providers and agent frameworks (LangChain, Agno etc.)
+
+### ⚙️ Automations:
+- **Create Automation Scripts**: Generate reusable scripts from agent actions that can be scheduled or shared
+
+### ☁️ Cloud:
+- **Hosted version**: Remote device control via web interface without local setup
+- **Add-Ons**: Marketplace for extensions serving specific use cases
+- **Proxy Hours**: Cloud compute time with tiered pricing for running automations
+- **Droidrun AppStore**: Simple installation of Apps on your hosted devices
 
 ## 👥 Contributing
 
