@@ -8,7 +8,7 @@ reasoning about the current state and taking appropriate actions.
 import time
 import logging
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Callable, Union
+from typing import Any, Dict, List, Optional, Callable
 
 # Import tools
 from droidrun.tools import (
@@ -99,25 +99,26 @@ class ReActAgent:
     def __init__(
         self, 
         task: Optional[str] = None,
-        llm: Any = None,
+        llm: LLMReasoner = None,
         device_serial: Optional[str] = None,
-        max_steps: int = 100,
-        vision: bool = False
+        max_steps: int = 100
     ):
         """Initialize the ReAct agent.
         
         Args:
             task: The automation task to perform (same as goal)
-            llm: LLM instance to use for reasoning
+            llm: Initialized LLMReasoner instance
             device_serial: Serial number of the Android device to control
             max_steps: Maximum number of steps to take
-            vision: Whether to enable vision capabilities (screenshot tool)
         """
+        if llm is None:
+            raise ValueError("LLMReasoner instance is required")
+            
         self.device_serial = device_serial
         self.goal = task  # Store task as goal for backward compatibility
         self.max_steps = max_steps
-        self.llm_instance = llm
-        self.vision = vision
+        self.reasoner = llm
+        self.use_llm = True
         
         # Initialize steps list
         self.steps: List[ReActStep] = []
@@ -152,8 +153,8 @@ class ReActAgent:
             "complete": complete,
         }
         
-        # Add screenshot tool only if vision is enabled
-        if vision:
+        # Add screenshot tool only if vision is enabled in the LLM
+        if self.reasoner.provider.vision:
             self.tools["take_screenshot"] = take_screenshot
             logger.info("Vision capabilities enabled: screenshot tool available")
         else:
@@ -162,103 +163,7 @@ class ReActAgent:
         # Initialize device manager
         self.device_manager = DeviceManager()
         
-        # Initialize LLM reasoner based on provided LLM or defaults
-        try:
-            # If an llm instance is provided, use it or adapt it
-            if llm is not None:
-                # Check if the llm is already an LLMReasoner instance
-                if hasattr(llm, "reason") and callable(getattr(llm, "reason")):
-                    # If it's already an LLMReasoner or compatible, use it directly
-                    self.reasoner = llm
-                    logger.info(f"Using provided LLM reasoner: provider={getattr(llm, 'llm_provider', 'unknown')}, model={getattr(llm, 'model_name', 'unknown')}")
-                else:
-                    # Detect the type of LLM and use appropriate initialization
-                    llm_provider, model_name, api_key = self._detect_llm_type(llm)
-                    
-                    self.reasoner = LLMReasoner(
-                        llm_provider=llm_provider,
-                        model_name=model_name,
-                        api_key=api_key,
-                        temperature=0.2,
-                        max_tokens=2000,
-                        vision=self.vision
-                    )
-            else:
-                # Use default OpenAI if no LLM provided
-                self.reasoner = LLMReasoner(
-                    llm_provider="openai",
-                    temperature=0.2,
-                    max_tokens=2000,
-                    vision=self.vision
-                )
-            
-            self.use_llm = True
-        except (ImportError, ValueError) as e:
-            logger.warning(f"LLM reasoning not available: {e}")
-            self.reasoner = None
-            self.use_llm = False
-    
-    def _detect_llm_type(self, llm_instance: Any) -> Tuple[str, Optional[str], Optional[str]]:
-        """Detect the type of LLM instance and return appropriate configuration.
-        
-        Args:
-            llm_instance: The LLM instance provided
-            
-        Returns:
-            Tuple of (provider_name, model_name, api_key)
-        """
-        # First check if it's our own LLMReasoner
-        if hasattr(llm_instance, "llm_provider") and hasattr(llm_instance, "model_name"):
-            # It's likely our own LLMReasoner, use its attributes directly
-            return (
-                llm_instance.llm_provider,
-                llm_instance.model_name,
-                llm_instance.api_key if hasattr(llm_instance, "api_key") else None
-            )
-            
-        # Default values if not a recognized type
-        provider = "openai"
-        model = None
-        api_key = None
-        
-        # Check for common attributes to determine provider
-        instance_type = str(type(llm_instance))
-        
-        if "openai" in instance_type.lower():
-            provider = "openai"
-            if hasattr(llm_instance, "model_name"):
-                model = llm_instance.model_name
-            elif hasattr(llm_instance, "model"):
-                model = llm_instance.model
-                
-            # Try to extract API key if available
-            if hasattr(llm_instance, "api_key"):
-                api_key = llm_instance.api_key
-        
-        elif "anthropic" in instance_type.lower() or "claude" in instance_type.lower():
-            provider = "anthropic"
-            if hasattr(llm_instance, "model_name"):
-                model = llm_instance.model_name
-            elif hasattr(llm_instance, "model"):
-                model = llm_instance.model
-                
-            # Try to extract API key if available
-            if hasattr(llm_instance, "api_key"):
-                api_key = llm_instance.api_key
-        
-        elif "gemini" in instance_type.lower():
-            provider = "gemini"
-            if hasattr(llm_instance, "model_name"):
-                model = llm_instance.model_name
-            elif hasattr(llm_instance, "model"):
-                model = llm_instance.model
-                
-            # Try to extract API key if available
-            if hasattr(llm_instance, "api_key"):
-                api_key = llm_instance.api_key
-        
-        logger.info(f"Detected LLM type: {provider}, model: {model}")
-        return provider, model, api_key
+        logger.info(f"Using LLM reasoner: provider={llm.llm_provider}, model={llm.provider.model_name}")
     
     async def connect(self) -> bool:
         """Connect to the specified device.
@@ -441,7 +346,7 @@ class ReActAgent:
                     
                     # Add action step
                     action_description = f"{action}({', '.join(f'{k}={v}' for k, v in parameters.items())})"
-                    action_step = await self.add_step(ReActStepType.ACTION, action_description)
+                    await self.add_step(ReActStepType.ACTION, action_description)
                     
                     # Execute the action if it's a valid tool
                     result = "No action taken"
@@ -507,50 +412,4 @@ class ReActAgent:
                 f"Maximum steps ({self.max_steps}) reached without achieving goal."
             )
         
-        return self.steps
-
-async def run_agent(
-    task: str, 
-    llm: Any = None,
-    device_serial: Optional[str] = None,
-    llm_provider: Optional[str] = None,
-    model_name: Optional[str] = None,
-    api_key: Optional[str] = None,
-    vision: bool = False
-) -> List[ReActStep]:
-    """Run the ReAct agent with the given goal.
-    
-    Args:
-        task: The automation task to perform
-        llm: LLM instance to use for reasoning
-        device_serial: Serial number of the Android device
-        llm_provider: LLM provider name (openai, anthropic, or gemini)
-        model_name: Name of the LLM model to use
-        api_key: API key for accessing the LLM service
-        vision: Whether to enable vision capabilities (screenshot tool)
-    
-    Returns:
-        List of ReAct steps taken
-    """
-    # If llm_provider, model_name, and api_key are provided, create an LLMReasoner
-    if llm is None and llm_provider and model_name and api_key:
-        from .llm_reasoning import LLMReasoner
-        logger.info(f"Creating LLMReasoner with provider={llm_provider}, model={model_name}")
-        llm = LLMReasoner(
-            llm_provider=llm_provider,
-            model_name=model_name, 
-            api_key=api_key,
-            temperature=0.2,
-            max_tokens=2000,
-            vision=vision
-        )
-    
-    agent = ReActAgent(
-        task=task,
-        llm=llm,
-        device_serial=device_serial,
-        vision=vision
-    )
-    
-    steps = await agent.run()
-    return steps 
+        return self.steps 
