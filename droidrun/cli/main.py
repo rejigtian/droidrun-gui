@@ -6,9 +6,9 @@ import asyncio
 import click
 import os
 from rich.console import Console
-from rich import print as rprint
 from droidrun.tools import DeviceManager
-from droidrun.agent import run_agent
+from droidrun.agent import ReActAgent
+from droidrun.agent.llm_reasoning import LLMReasoner
 from functools import wraps
 
 # Import the install_app function directly for the setup command
@@ -25,7 +25,7 @@ def coro(f):
 
 # Define the run command as a standalone function to be used as both a command and default
 @coro
-async def run_command(command: str, device: str | None, provider: str, model: str, steps: int, vision: bool):
+async def run_command(command: str, device: str | None, provider: str, model: str, steps: int, vision: bool, base_url: str):
     """Run a command on your Android device using natural language."""
     console.print(f"[bold blue]Executing command:[/] {command}")
     
@@ -62,6 +62,12 @@ async def run_command(command: str, device: str | None, provider: str, model: st
             return
         if not model:
             model = "gemini-2.0-flash"
+    elif provider.lower() == 'ollama':
+        api_key = "ollama"
+        if not base_url:
+            base_url = "http://localhost:11434/v1"
+        if not model:
+            model = "llama3.1:8b"
     else:
         console.print(f"[bold red]Error:[/] Unsupported provider: {provider}")
         return
@@ -81,19 +87,30 @@ async def run_command(command: str, device: str | None, provider: str, model: st
         os.environ["DROIDRUN_DEVICE_SERIAL"] = device
         console.print(f"[blue]Set DROIDRUN_DEVICE_SERIAL to:[/] {device}")
         
-        # Run the agent
+        # Create LLM reasoner
+        console.print("[bold blue]Initializing LLM reasoner...[/]")
+        llm = LLMReasoner(
+            llm_provider=provider,
+            model_name=model,
+            api_key=api_key,
+            temperature=0.2,
+            max_tokens=2000,
+            vision=vision,
+            base_url=base_url
+        )
+        
+        # Create and run the agent
         console.print("[bold blue]Running ReAct agent...[/]")
         console.print("[yellow]Press Ctrl+C to stop execution[/]")
         
         try:
-            steps = await run_agent(
+            agent = ReActAgent(
                 task=command,
-                device_serial=device,  # Still pass for backward compatibility
-                llm_provider=provider,
-                model_name=model,
-                api_key=api_key,
-                vision=vision
+                llm=llm,
+                device_serial=device,
+                max_steps=steps
             )
+            steps = await agent.run()
             
             # Final message
             console.print(f"[bold green]Execution completed with {len(steps)} steps[/]")
@@ -129,14 +146,15 @@ def cli():
 @cli.command()
 @click.argument('command', type=str)
 @click.option('--device', '-d', help='Device serial number or IP address', default=None)
-@click.option('--provider', '-p', help='LLM provider (openai, anthropic, or gemini)', default='openai')
+@click.option('--provider', '-p', help='LLM provider (openai, ollama, anthropic, gemini)', default='openai')
 @click.option('--model', '-m', help='LLM model name', default=None)
 @click.option('--steps', type=int, help='Maximum number of steps', default=15)
 @click.option('--vision', is_flag=True, help='Enable vision capabilities')
-def run(command: str, device: str | None, provider: str, model: str, steps: int, vision: bool):
+@click.option('--base_url', '-u', help='Base URL for API (e.g., OpenRouter or Ollama)', default=None)
+def run(command: str, device: str | None, provider: str, model: str, steps: int, vision: bool, base_url):
     """Run a command on your Android device using natural language."""
     # Call our standalone function
-    return run_command(command, device, provider, model, steps, vision)
+    return run_command(command, device, provider, model, steps, vision, base_url)
 
 @cli.command()
 @coro
