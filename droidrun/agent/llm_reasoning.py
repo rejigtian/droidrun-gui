@@ -4,26 +4,17 @@ LLM Reasoning - Provides reasoning capabilities for the ReAct agent.
 This module handles the integration with LLM providers to generate reasoning steps.
 """
 
-import asyncio
 import json
-import os
 import re
 import logging
 from typing import Any, Dict, List, Optional
 
-# Import OpenAI for LLM integration
-try:
-    from openai import OpenAI
-    OPENAI_AVAILABLE = True
-except ImportError:
-    OPENAI_AVAILABLE = False
-
-# Import Anthropic for Claude integration
-try:
-    import anthropic
-    ANTHROPIC_AVAILABLE = True
-except ImportError:
-    ANTHROPIC_AVAILABLE = False
+from .providers import (
+    OpenAIProvider,
+    AnthropicProvider,
+    GeminiProvider,
+    OllamaProvider
+)
 
 # Set up logger
 logger = logging.getLogger("droidrun")
@@ -61,124 +52,40 @@ class LLMReasoner:
         """Initialize the LLM reasoner.
         
         Args:
-            llm_provider: LLM provider ('openai', 'anthropic', or 'gemini'). 
+            llm_provider: LLM provider ('openai', 'anthropic', 'gemini', or 'ollama'). 
                          If model_name starts with 'gemini-', provider will be set to 'gemini' automatically.
             model_name: Model name to use
             api_key: API key for the LLM provider
             temperature: Temperature for generation
             max_tokens: Maximum tokens to generate
             vision: Whether vision capabilities (screenshot) are enabled
+            base_url: Optional base URL for the API (mainly used for Ollama)
         """
         # Auto-detect Gemini models
         if model_name and model_name.startswith("gemini-"):
             llm_provider = "gemini"
             
         self.llm_provider = llm_provider.lower()
-        self.temperature = temperature
-        self.max_tokens = max_tokens
-        self.vision = vision
         
-        # Token usage tracking
-        self.total_prompt_tokens = 0
-        self.total_completion_tokens = 0
-        self.total_tokens = 0
-        self.api_calls = 0
+        # Initialize the appropriate provider
+        provider_class = {
+            "openai": OpenAIProvider,
+            "anthropic": AnthropicProvider,
+            "gemini": GeminiProvider,
+            "ollama": OllamaProvider
+        }.get(self.llm_provider)
         
-        # Set up model and client based on provider
-        if self.llm_provider == "gemini":
-            if not OPENAI_AVAILABLE:
-                raise ImportError("OpenAI package not installed. Install with 'pip install openai'")
-            
-            # Set default model if not specified
-            self.model_name = model_name or "gemini-2.0-flash"
-            
-            # Get API key from env var if not provided
-            self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
-            if not self.api_key:
-                raise ValueError("Gemini API key not provided and not found in environment (GEMINI_API_KEY)")
-            
-            # Initialize client with Gemini configuration
-            self.client = OpenAI(
-                api_key=self.api_key,
-                base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
-            )
-            logger.info(f"Initialized Gemini client with model {self.model_name}")
-
-        elif self.llm_provider == "ollama":
-            if not OPENAI_AVAILABLE:
-                raise ImportError("OpenAI package not installed. Install with 'pip install openai'")
-            
-            # Set default model if not specified
-            self.model_name = model_name or "llama3.1:8b"
-            
-            # Get API key from env var if not provided
-            self.api_key = api_key or "ollama"
-            if base_url is None:
-                base_url = "http://localhost:11434/v1"
-            if not base_url.startswith('http://'):
-                base_url = "http://" + base_url
-            if not base_url.endswith('/v1'):
-                base_url += "/v1"
-            # Initialize client with Ollama configuration
-            print(base_url)
-            self.client = OpenAI(
-                api_key=self.api_key,
-                base_url=base_url
-            )
-            logger.info(f"Initialized Ollama client with model {self.model_name}")
-                
-        elif self.llm_provider == "openai":
-            if not OPENAI_AVAILABLE:
-                raise ImportError("OpenAI package not installed. Install with 'pip install openai'")
-            
-            # If vision is enabled, verify we're using a vision-capable model without auto-switching
-            if vision:
-                if model_name and not (model_name.startswith("gpt-4-vision") or model_name.startswith("gpt-4o") or model_name.endswith("-vision")):
-                    # Instead of auto-switching, raise an error
-                    raise ValueError(f"The selected model '{model_name}' does not support vision. Please manually specify a vision-capable model like gpt-4o or gpt-4-vision.")
-                elif not model_name:
-                    # Only set default model if none was specified
-                    model_name = "gpt-4o"  # Default vision model
-                logger.info(f"Using vision-capable model: {model_name}")
-            
-            # Set default model if not specified
-            self.model_name = model_name or "gpt-4o-mini"
-            
-            # Get API key from env var if not provided
-            self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
-            if not self.api_key:
-                raise ValueError("OpenAI API key not provided and not found in environment")
-            
-            # Initialize client
-            self.client = OpenAI(api_key=self.api_key)
-            
-        elif self.llm_provider == "anthropic":
-            if not ANTHROPIC_AVAILABLE:
-                raise ImportError("Anthropic package not installed. Install with 'pip install anthropic'")
-            
-            # If vision is enabled, verify we're using a vision-capable model without auto-switching
-            if vision:
-                if model_name and not ("claude-3" in model_name):
-                    # Instead of auto-switching, raise an error
-                    raise ValueError(f"The selected model '{model_name}' does not support vision. Please manually specify a Claude 3 model which supports vision capabilities.")
-                elif not model_name:
-                    # Only set default model if none was specified
-                    model_name = "claude-3-opus-20240229"  # Default vision model
-                logger.info(f"Using vision-capable Claude model: {model_name}")
-            
-            # Set default model if not specified
-            self.model_name = model_name or "claude-3-opus-20240229"
-            
-            # Get API key from env var if not provided
-            self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
-            if not self.api_key:
-                raise ValueError("Anthropic API key not provided and not found in environment")
-            
-            # Initialize client
-            self.client = anthropic.Anthropic(api_key=self.api_key)
-            
-        else:
+        if not provider_class:
             raise ValueError(f"Unsupported LLM provider: {llm_provider}")
+        
+        self.provider = provider_class(
+            model_name=model_name,
+            api_key=api_key,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            vision=vision,
+            base_url=base_url
+        )
     
     def get_token_usage_stats(self) -> Dict[str, int]:
         """Get current token usage statistics.
@@ -186,12 +93,7 @@ class LLMReasoner:
         Returns:
             Dictionary with token usage statistics
         """
-        return {
-            "prompt_tokens": self.total_prompt_tokens,
-            "completion_tokens": self.total_completion_tokens,
-            "total_tokens": self.total_tokens,
-            "api_calls": self.api_calls
-        }
+        return self.provider.get_token_usage_stats()
     
     async def reason(
         self,
@@ -220,13 +122,12 @@ class LLMReasoner:
         user_prompt = self._create_user_prompt(goal, history)
         
         try:
-            # Call the LLM based on provider
-            if self.llm_provider in ["openai", "gemini", "ollama"]:  # Handle both OpenAI, Ollama and Gemini with OpenAI client
-                response = await self._call_openai(system_prompt, user_prompt, screenshot_data)
-            elif self.llm_provider == "anthropic":
-                response = await self._call_anthropic(system_prompt, user_prompt, screenshot_data)
-            else:
-                raise ValueError(f"Unsupported LLM provider: {self.llm_provider}")
+            # Call the provider
+            response = await self.provider.generate_response(
+                system_prompt,
+                user_prompt,
+                screenshot_data
+            )
             
             # Parse the response
             result = self._parse_response(response)
@@ -237,23 +138,13 @@ class LLMReasoner:
             return result
             
         except Exception as e:
-            error_str = str(e)
-            if "content[1].type" in error_str and "image" in error_str and self.vision:
-                logger.error(f"Vision error with {self.llm_provider} API: {e}")
-                logger.error("The selected model does not support image inputs. Please use a vision-capable model like gpt-4o or gpt-4-vision.")
-                return {
-                    "thought": f"Error: The selected model '{self.model_name}' does not support vision. Please use a vision-capable model like gpt-4o.",
-                    "action": "error",
-                    "parameters": {}
-                }
-            else:
-                logger.error(f"Error in LLM reasoning: {e}")
-                # Return a fallback response
-                return {
-                    "thought": f"LLM reasoning error: {e}",
-                    "action": "error",
-                    "parameters": {}
-                }
+            logger.error(f"Error in LLM reasoning: {e}")
+            # Return a fallback response
+            return {
+                "thought": f"LLM reasoning error: {e}",
+                "action": "error",
+                "parameters": {}
+            }
     
     def _create_system_prompt(self, available_tools: Optional[List[str]] = None) -> str:
         """Create the system prompt for the LLM.
@@ -290,7 +181,7 @@ class LLMReasoner:
         """
         
         # Add vision-specific instructions if vision is enabled
-        if self.vision:
+        if self.provider.vision:
             prompt += """
             You have access to screenshots through the take_screenshot tool. Use it when visual context is needed.
             """
@@ -319,7 +210,7 @@ class LLMReasoner:
         }
         
         # Add take_screenshot tool only if vision is enabled
-        if self.vision:
+        if self.provider.vision:
             tool_docs["take_screenshot"] = "take_screenshot() - Take a screenshot to better understand the current UI. Use when you need visual context."
         
         # Add available tools information if provided
@@ -402,145 +293,6 @@ class LLMReasoner:
             prompt = beginning + "\n... (content truncated to fit token limits) ...\n" + end
         
         return prompt
-    
-    async def _call_openai(self, system_prompt: str, user_prompt: str, screenshot_data: Optional[bytes] = None) -> str:
-        """Call OpenAI or Gemini API to generate a response.
-        
-        Args:
-            system_prompt: System prompt string
-            user_prompt: User prompt string
-            screenshot_data: Optional bytes containing the latest screenshot
-        
-        Returns:
-            Generated response string
-        """
-        try:
-            messages = [
-                {"role": "system", "content": system_prompt},
-            ]
-
-            # If we have a screenshot, add it as a message with the image
-            if screenshot_data:
-                import base64
-                base64_image = base64.b64encode(screenshot_data).decode('utf-8')
-                
-                # Different image format for different providers
-                if self.llm_provider == "gemini":
-                    # Gemini format
-                    image_content = {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/jpeg;base64,{base64_image}"
-                        }
-                    }
-                else:
-                    # OpenAI and others format
-                    image_content = {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/jpeg;base64,{base64_image}"
-                        }
-                    }
-                
-                messages.append({
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "Here's the current screenshot of the device. Please analyze it to help with the next action."
-                        },
-                        image_content
-                    ]
-                })
-
-            # Add the main user prompt
-            messages.append({"role": "user", "content": user_prompt})
-
-            response = await asyncio.to_thread(
-                self.client.chat.completions.create,
-                model=self.model_name,
-                messages=messages,
-                temperature=self.temperature,
-                max_tokens=self.max_tokens,
-                response_format={"type": "json_object"}
-            )
-            
-            # Extract token usage statistics
-            usage = response.usage
-            prompt_tokens = usage.prompt_tokens
-            completion_tokens = usage.completion_tokens
-            total_tokens = usage.total_tokens
-            
-            # Update token usage counters
-            self.total_prompt_tokens += prompt_tokens
-            self.total_completion_tokens += completion_tokens
-            self.total_tokens += total_tokens
-            self.api_calls += 1
-            
-            # Print token usage information
-            logger.info("===== Token Usage Statistics =====")
-            logger.info(f"API Call #{self.api_calls}")
-            logger.info(f"This call: {prompt_tokens} prompt + {completion_tokens} completion = {total_tokens} tokens")
-            logger.info(f"Cumulative: {self.total_prompt_tokens} prompt + {self.total_completion_tokens} completion = {self.total_tokens} tokens")
-            logger.info("=================================")
-            
-            return response.choices[0].message.content
-        except Exception as e:
-            logger.error(f"Error calling {'Gemini' if self.llm_provider == 'gemini' else 'OpenAI'} API: {e}")
-            raise
-    
-    async def _call_anthropic(self, system_prompt: str, user_prompt: str, screenshot_data: Optional[bytes] = None) -> str:
-        """Call Anthropic API to generate a response.
-        
-        Args:
-            system_prompt: System prompt string
-            user_prompt: User prompt string
-            screenshot_data: Optional bytes containing the latest screenshot
-        
-        Returns:
-            Generated response string
-        """
-        try:
-            messages = []
-
-            # If we have a screenshot, add it as a message with the image
-            if screenshot_data:
-                import base64
-                # Convert the image bytes to base64
-                base64_image = base64.b64encode(screenshot_data).decode('utf-8')
-                messages.append({
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": "image/jpeg",
-                                "data": base64_image
-                            }
-                        },
-                        {
-                            "type": "text",
-                            "text": "Here's the current screenshot of the device. Please analyze it to help with the next action."
-                        }
-                    ]
-                })
-
-            # Add the main user prompt
-            messages.append({"role": "user", "content": user_prompt})
-
-            response = await asyncio.to_thread(
-                self.client.messages.create,
-                model=self.model_name,
-                system=system_prompt,
-                messages=messages,
-                temperature=self.temperature,
-                max_tokens=self.max_tokens
-            )
-            return response.content[0].text
-        except Exception as e:
-            logger.error(f"Error calling Anthropic API: {e}")
-            raise
     
     def _parse_response(self, response: str) -> Dict[str, Any]:
         """Parse the LLM response into a structured format.
