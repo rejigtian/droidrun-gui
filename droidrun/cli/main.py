@@ -62,6 +62,15 @@ async def run_command(command: str, device: str | None, provider: str, model: st
             return
         if not model:
             model = "gemini-2.0-flash"
+
+    elif provider.lower() == 'deepseek':
+        api_key = os.environ.get('DeepSeek_API_KEY')
+        if not api_key:
+            console.print("[bold red]Error:[/] DeepSeek_API_KEY environment variable not set")
+            return
+        if not model:
+            model = "deepseek-chat"
+
     elif provider.lower() == 'ollama':
         api_key = "ollama"
         if not base_url:
@@ -146,7 +155,7 @@ def cli():
 @cli.command()
 @click.argument('command', type=str)
 @click.option('--device', '-d', help='Device serial number or IP address', default=None)
-@click.option('--provider', '-p', help='LLM provider (openai, ollama, anthropic, gemini)', default='openai')
+@click.option('--provider', '-p', help='LLM provider (openai, ollama, anthropic, gemini,deepseek)', default='openai')
 @click.option('--model', '-m', help='LLM model name', default=None)
 @click.option('--steps', type=int, help='Maximum number of steps', default=15)
 @click.option('--vision', is_flag=True, help='Enable vision capabilities')
