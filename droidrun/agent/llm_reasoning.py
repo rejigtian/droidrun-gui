@@ -13,6 +13,7 @@ from .providers import (
     OpenAIProvider,
     AnthropicProvider,
     GeminiProvider,
+    DeepSeekProvider,
     OllamaProvider
 )
 
@@ -52,7 +53,7 @@ class LLMReasoner:
         """Initialize the LLM reasoner.
         
         Args:
-            llm_provider: LLM provider ('openai', 'anthropic', 'gemini', or 'ollama'). 
+            llm_provider: LLM provider ('openai', 'anthropic', 'gemini', 'deepseek',or 'ollama').
                          If model_name starts with 'gemini-', provider will be set to 'gemini' automatically.
             model_name: Model name to use
             api_key: API key for the LLM provider
@@ -72,6 +73,7 @@ class LLMReasoner:
             "openai": OpenAIProvider,
             "anthropic": AnthropicProvider,
             "gemini": GeminiProvider,
+            "deepseek": DeepSeekProvider,
             "ollama": OllamaProvider
         }.get(self.llm_provider)
         
