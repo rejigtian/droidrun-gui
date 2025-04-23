@@ -106,7 +106,7 @@ async def get_clickables(serial: Optional[str] = None) -> Dict[str, Any]:
             device_path = None
             while asyncio.get_event_loop().time() - start_time < max_wait_time:
                 # Check logcat for the file path
-                logcat_output = await device._adb.shell(device._serial, "logcat -d | grep \"DROIDRUN_FILE\" | grep \"JSON data written to\" | tail -1")
+                logcat_output = await device._adb.shell(device._serial, "logcat -d \"DROIDRUN_FILE:E *:s\" | grep \"JSON data written to\" | tail -1")
                 
                 # Parse the file path if present
                 match = re.search(r"JSON data written to: (.*)", logcat_output)
