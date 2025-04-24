@@ -38,8 +38,8 @@ class OpenAIProvider(LLMProvider):
                            "Please manually specify a vision-capable model like gpt-4o or gpt-4-vision.")
         
         # Initialize client
-        self.client = OpenAI(api_key=self.api_key)
-        logger.info(f"Initialized OpenAI client with model {self.model_name}")
+        self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+        logger.info(f"Initialized OpenAI client with model {self.model_name}, base_url={self.base_url}")
     
     async def generate_response(
         self,
