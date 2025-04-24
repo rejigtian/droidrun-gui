@@ -16,7 +16,9 @@ from .actions import (
     get_clickables,
     complete,
     extract,
+    get_phone_state
 )
+from .remember import remember
 
 __all__ = [
     'DeviceManager',
@@ -32,4 +34,6 @@ __all__ = [
     'get_clickables',
     'complete',
     'extract',
+    'remember',
+    'get_phone_state'
 ]

@@ -7,7 +7,9 @@ reasoning about the current state and taking appropriate actions.
 
 import time
 import logging
+import inspect
 from enum import Enum
+import asyncio
 from typing import Any, Dict, List, Optional, Callable
 
 # Import tools
@@ -18,14 +20,18 @@ from droidrun.tools import (
     input_text,
     press_key,
     start_app,
-    install_app,
-    uninstall_app,
     take_screenshot,
     list_packages,
     get_clickables,
+    get_phone_state,
     complete,
-    extract,
 )
+
+# Import the remember function directly
+from droidrun.tools.remember import remember
+
+# Import memory store for accessing memories
+from droidrun.tools.memory_store import get_memories, clear_memories
 
 # Import LLM reasoning
 from .llm_reasoning import LLMReasoner
@@ -40,6 +46,7 @@ class ReActStepType(Enum):
     OBSERVATION = "observation"  # Observing the result
     PLAN = "plan"        # Planning future steps
     GOAL = "goal"        # Setting or refining the goal
+    MEMORY = "memory"    # Remembered information
 
 class ReActStep:
     """A single step in the ReAct agent's process."""
@@ -48,16 +55,19 @@ class ReActStep:
         self, 
         step_type: ReActStepType, 
         content: str,
+        step_number: int = 0,
     ):
         """Initialize a ReAct step.
         
         Args:
             step_type: The type of step (thought, action, observation)
             content: The content of the step
+            step_number: The sequential number of this step
         """
         self.step_type = step_type
         self.content = content
         self.timestamp = time.time()
+        self.step_number = step_number
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert the step to a dictionary.
@@ -68,7 +78,8 @@ class ReActStep:
         return {
             "type": self.step_type.value,
             "content": self.content,
-            "timestamp": self.timestamp
+            "timestamp": self.timestamp,
+            "step_number": self.step_number
         }
     
     def __str__(self) -> str:
@@ -81,17 +92,19 @@ class ReActStep:
         
         # Format based on step type
         if self.step_type == ReActStepType.THOUGHT:
-            return f"🤔 THOUGHT: {self.content}"
+            return f"🤔 Step {self.step_number} - THOUGHT: {self.content}"
         elif self.step_type == ReActStepType.ACTION:
-            return f"🔄 ACTION: {self.content}"
+            return f"🔄 Step {self.step_number} - ACTION: {self.content}"
         elif self.step_type == ReActStepType.OBSERVATION:
-            return f"👁️ OBSERVATION: {self.content}"
+            return f"👁️ Step {self.step_number} - OBSERVATION: {self.content}"
         elif self.step_type == ReActStepType.PLAN:
-            return f"📝 PLAN: {self.content}"
+            return f"📝 Step {self.step_number} - PLAN: {self.content}"
         elif self.step_type == ReActStepType.GOAL:
-            return f"🎯 GOAL: {self.content}"
+            return f"🎯 Step {self.step_number} - GOAL: {self.content}"
+        elif self.step_type == ReActStepType.MEMORY:
+            return f"🧠 Step {self.step_number} - MEMORY: {self.content}"
         
-        return f"{type_str}: {self.content}"
+        return f"Step {self.step_number} - {type_str}: {self.content}"
 
 class ReActAgent:
     """ReAct agent for Android device automation."""
@@ -126,6 +139,9 @@ class ReActAgent:
         # Initialize screenshot storage
         self._last_screenshot: Optional[bytes] = None
         
+        # Reset the memory store when creating a new agent
+        clear_memories()
+        
         # Configure logging
         logging.basicConfig(level=logging.INFO)
         
@@ -139,19 +155,21 @@ class ReActAgent:
             
             # App management
             "start_app": start_app,
-            "install_app": install_app,
-            "uninstall_app": uninstall_app,
             "list_packages": list_packages,
-            
-            # UI analysis
-            "get_clickables": get_clickables,
-            
-            # Data extraction
-            "extract": extract,
             
             # Goal management
             "complete": complete,
         }
+        
+        # Add memory tool with explicit async wrapper
+        async def remember_wrapper(memory: str) -> str:
+            # This wrapper ensures the remember tool is called correctly in the async context
+            result = await remember(memory)
+            # Add as a MEMORY step for clearer UI integration
+            await self.add_step(ReActStepType.MEMORY, memory)
+            return result
+            
+        self.tools["remember"] = remember_wrapper
         
         # Add screenshot tool only if vision is enabled in the LLM
         if self.reasoner.provider.vision:
@@ -215,8 +233,8 @@ class ReActAgent:
         Returns:
             The created ReActStep
         """
-        # Create the step
-        step = ReActStep(step_type, content)
+        # Create the step with current step count
+        step = ReActStep(step_type, content, step_number=len(self.steps) + 1)
         
         # Add to steps list
         self.steps.append(step)
@@ -239,54 +257,61 @@ class ReActAgent:
         Raises:
             ValueError: If tool not found or parameter validation fails
         """
-        import inspect
-        
-        if tool_name not in self.tools:
-            # Clean up tool name by removing extra parentheses
-            cleaned_tool_name = tool_name.replace("()", "")
-            if cleaned_tool_name in self.tools:
-                tool_name = cleaned_tool_name
-            else:
-                raise ValueError(f"Tool {tool_name} not found")
-        
-        tool_func = self.tools[tool_name]
-        
-        # Add serial number if needed and not provided
-        sig = inspect.signature(tool_func)
-        if 'serial' in sig.parameters and 'serial' not in kwargs:
-            kwargs['serial'] = self.device_serial
-            
         try:
-            # Execute the tool and capture the result
-            result = await tool_func(**kwargs)
+            if tool_name not in self.tools:
+                # Clean up tool name by removing extra parentheses
+                cleaned_tool_name = tool_name.replace("()", "")
+                if cleaned_tool_name in self.tools:
+                    tool_name = cleaned_tool_name
+                else:
+                    raise ValueError(f"Tool {tool_name} not found")
             
-            # Special handling for formatted results
-            if tool_name == "list_packages" and isinstance(result, dict):
-                # Format package list for better readability
-                message = result.get("message", "")
-                packages = result.get("packages", [])
-                package_list = "\n".join([f"- {pkg.get('package', '')}" for pkg in packages])
+            tool_func = self.tools[tool_name]
+            
+            # Special handling for remember tool parameters
+            if tool_name == "remember" and "memory" in kwargs:
+                # Simply pass the memory content as the first argument
+                return await tool_func(kwargs["memory"])
+            
+            # Add serial number if needed and not provided
+            sig = inspect.signature(tool_func)
+            if 'serial' in sig.parameters and 'serial' not in kwargs:
+                kwargs['serial'] = self.device_serial
                 
-                return f"{message}\n{package_list}"
-            elif tool_name == "get_clickables" and isinstance(result, dict):
-                # Format clickable elements for better readability
-                message = result.get("message", "")
-                clickable = result.get("clickable_elements", [])
-                return clickable
+            try:
+                # Execute the tool and capture the result
+                result = await tool_func(**kwargs)
                 
+                # Special handling for formatted results
+                if tool_name == "list_packages" and isinstance(result, dict):
+                    # Format package list for better readability
+                    message = result.get("message", "")
+                    packages = result.get("packages", [])
+                    package_list = "\n".join([f"- {pkg.get('package', '')}" for pkg in packages])
+                    
+                    return f"{message}\n{package_list}"
+                elif tool_name == "get_clickables" and isinstance(result, dict):
+                    # Format clickable elements for better readability
+                    message = result.get("message", "")
+                    clickable = result.get("clickable_elements", [])
+                    return clickable
+                    
 
-            elif tool_name == "take_screenshot" and isinstance(result, tuple) and len(result) >= 2:
-                # For screenshots, store the image data for the LLM and return the path
-                path, image_data = result
-                # Store the screenshot data for the next LLM call
-                self._last_screenshot = image_data
-                return f"Screenshot captured and available for analysis"
-            else:
-                return result
-                
+                elif tool_name == "take_screenshot" and isinstance(result, tuple) and len(result) >= 2:
+                    # For screenshots, store the image data for the LLM and return the path
+                    path, image_data = result
+                    # Store the screenshot data for the next LLM call
+                    self._last_screenshot = image_data
+                    return f"Screenshot captured and available for analysis"
+                else:
+                    return result
+                    
+            except Exception as e:
+                logger.error(f"Error executing tool {tool_name}: {e}")
+                return f"Error: {str(e)}"
         except Exception as e:
-            logger.error(f"Error executing tool {tool_name}: {e}")
-            return f"Error: {str(e)}"
+            logger.error(f"Error processing tool {tool_name}: {e}")
+            return f"Error processing tool: {str(e)}"
     
     async def run(self) -> List[ReActStep]:
         """Run the ReAct agent to achieve the goal.
@@ -318,16 +343,22 @@ class ReActAgent:
                 try:
                     # Convert steps to dictionaries for the LLM
                     history = [step.to_dict() for step in self.steps]
+
+                    current_ui_state = await get_clickables()
+                    current_phone_state = await get_phone_state()
                     
                     # Get available tool names
                     available_tools = list(self.tools.keys())
                     
-                    # Get LLM reasoning, passing the last screenshot if available
+                    # Get LLM reasoning, passing the last screenshot if available and memories from the memory store
                     reasoning_result = await self.reasoner.reason(
                         goal=self.goal,
                         history=history,
+                        current_ui_state=current_ui_state["clickable_elements"],
+                        current_phone_state=current_phone_state,
                         available_tools=available_tools,
-                        screenshot_data=self._last_screenshot
+                        screenshot_data=self._last_screenshot,
+                        memories=get_memories()
                     )
                     
                     # Clear the screenshot after using it
@@ -339,7 +370,7 @@ class ReActAgent:
                     parameters = reasoning_result.get("parameters", {})
                     
                     # Add thought step
-                    thought_step = await self.add_step(
+                    await self.add_step(
                         ReActStepType.THOUGHT, 
                         thought,
                     )
@@ -354,7 +385,7 @@ class ReActAgent:
                         try:
                             # Execute the tool
                             result = await self.execute_tool(action, **parameters)
-                            
+                            await asyncio.sleep(2)
                             # Check if the complete tool was called
                             if action == "complete":
                                 goal_achieved = True
