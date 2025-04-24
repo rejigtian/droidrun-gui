@@ -141,7 +141,7 @@ class LLMReasoner:
                 screenshot_data
             )
 
-            logger.info(f"Prompts:\nSystem: {system_prompt}\nUser: {user_prompt}")
+            #logger.info(f"Prompts:\nSystem: {system_prompt}\nUser: {user_prompt}")
             # Parse the response
             result = self._parse_response(response)
             
@@ -192,9 +192,28 @@ class LLMReasoner:
         
         You always follow these guidelines:
 
+        You have access to the `plan` tool to build your plan step by step. You should use it to document each next step you intend to take.
+
+        **PLAN** (step-by-step planning):
+            - Purpose: Use the `plan` tool to document each next step you intend to take. Build your plan incrementally, one step at a time.
+            - Usage: Call `plan` before taking any action to document what you're about to do. Each plan entry should be a single, specific step.
+            - Example flow:
+              1. Plan step 1 (e.g., "Check if settings app is installed")
+              2. Execute step 1
+              3. Plan step 2 based on results
+              4. Execute step 2
+              And so on...
+
+        ## IMPORTANT GUIDELINES
+        - **Plan Each Step:** Use the `plan` tool before each significant action to document what you're about to do.
+        - **One Step at a Time:** Each plan entry should be a single, specific step - not a list of steps.
+        - **Adapt Based on Results:** After each step, plan the next step based on what happened.
+        - **Keep Plans Specific:** Each plan entry should describe exactly what you're going to do next.
+        - **Update Plans as Needed:** If something unexpected happens, plan a new step to handle it.
+
         1. Analyze the current screen state from the UI state getting all UI elements
-        2. Think step-by-step to plan your actions
-        3. Choose the most appropriate tool for each step
+        2. Plan your next step
+        3. Choose the appropriate tool for that step
         4. Return your response in JSON format with the following fields:
         - thought: Your detailed reasoning about the current state and what to do next
         - action: The name of the tool to execute (use EXACT tool name without any parentheses)
@@ -206,8 +225,11 @@ class LLMReasoner:
         history - Describe what actions and observations you have already made
         phone_state - Describe what state the phone is currently in
         ui_structure - Describe the current UI structure of the current Android screen
-        \
+        \n
         """
+        prompt += "<plan>\n"
+        prompt += self._add_plans_to_prompt(history)
+        prompt += "</plan>\n\n"
 
         prompt += "<tools>\n"
         prompt += self._add_tools_to_prompt(available_tools)
@@ -216,6 +238,7 @@ class LLMReasoner:
         prompt += "<memories>\n"
         prompt += self._add_memories_to_prompt(memories)
         prompt += "</memories>\n\n"
+
 
         prompt += "<history>\n"
         prompt += self._add_history_to_prompt(history)
@@ -297,6 +320,31 @@ class LLMReasoner:
         
         return memories_prompt
     
+    def _add_plans_to_prompt(self, history: Optional[List[Dict[str, Any]]]) -> str:
+        """Add plans information to the prompt.
+        
+        Args:
+            history: Optional list of previous steps
+            
+        Returns:
+            String containing formatted plans
+        """
+        if not history:
+            return ""
+            
+        # Filter to get only PLAN type steps
+        plan_steps = [step for step in history if step.get("type", "").upper() == "PLAN"]
+        
+        plans_prompt = ""
+        if not plan_steps:
+            plans_prompt = "You have made no plan yet. Start planning\n"
+        else:
+            for i, step in enumerate(plan_steps, 1):
+                content = step.get("content", "")
+                step_number = step.get("step_number", 0)
+                plans_prompt += f"{i}. {content}\n"
+        
+        return plans_prompt
 
     def _add_history_to_prompt(self, history: Optional[List[Dict[str, Any]]]) -> str:
         """Add recent history information to the prompt.

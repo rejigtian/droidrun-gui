@@ -171,6 +171,28 @@ class ReActAgent:
             
         self.tools["remember"] = remember_wrapper
         
+        # Add plan tool
+        async def plan_wrapper(title: str, next_step: str, confidence: float = 0.8) -> str:
+            """Create a structured plan for achieving the goal.
+            
+            Args:
+                title: A concise title for this plan
+                steps: Detailed steps to achieve the goal
+                confidence: How confident you are about this plan (0.0 to 1.0)
+            
+            Returns:
+                Confirmation message with plan details
+            """
+            # Format the plan content
+            plan_content = f"Plan: {title}\nNext Step: {next_step}\nConfidence: {confidence:.2f}"
+            
+            # Add as a PLAN step for clearer UI integration
+            await self.add_step(ReActStepType.PLAN, plan_content)
+            
+            return f"Plan recorded: {title} (confidence: {confidence:.2f})"
+            
+        self.tools["plan"] = plan_wrapper
+        
         # Add screenshot tool only if vision is enabled in the LLM
         if self.reasoner.provider.vision:
             self.tools["take_screenshot"] = take_screenshot
