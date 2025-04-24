@@ -9,7 +9,6 @@ import time
 import logging
 import inspect
 from enum import Enum
-import asyncio
 from typing import Any, Dict, List, Optional, Callable
 
 # Import tools
@@ -369,6 +368,12 @@ class ReActAgent:
                     current_ui_state = await get_clickables()
                     current_phone_state = await get_phone_state()
                     
+                    # Take a screenshot if vision is enabled
+                    if self.reasoner.provider.vision:
+                       _, screenshot_data = await take_screenshot()
+                    else:
+                        screenshot_data = None
+
                     # Get available tool names
                     available_tools = list(self.tools.keys())
                     
@@ -379,7 +384,7 @@ class ReActAgent:
                         current_ui_state=current_ui_state["clickable_elements"],
                         current_phone_state=current_phone_state,
                         available_tools=available_tools,
-                        screenshot_data=self._last_screenshot,
+                        screenshot_data=screenshot_data,
                         memories=get_memories()
                     )
                     
@@ -407,7 +412,6 @@ class ReActAgent:
                         try:
                             # Execute the tool
                             result = await self.execute_tool(action, **parameters)
-                            await asyncio.sleep(2)
                             # Check if the complete tool was called
                             if action == "complete":
                                 goal_achieved = True
