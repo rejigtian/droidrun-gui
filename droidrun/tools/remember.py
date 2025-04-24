@@ -2,7 +2,6 @@
 Remember tool - Allows the agent to remember important information.
 """
 
-from typing import Optional, Dict, Any
 import logging
 
 # Import the memory store
