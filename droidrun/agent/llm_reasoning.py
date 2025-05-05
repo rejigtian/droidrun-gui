@@ -287,10 +287,6 @@ class LLMReasoner:
             if not available_tools:
                 return ""
                 
-            # Add take_screenshot tool only if vision is enabled
-            if self.provider.vision:
-                available_tools.append("take_screenshot")
-                
             tools_prompt = ""
             
             # Only include docs for available tools
