@@ -744,17 +744,6 @@ class Tools:
         except ValueError as e:
             raise ValueError(f"Error listing packages: {str(e)}")
 
-    async def complete(self, result: str) -> str:
-        """Complete the task with a result message.
-        
-        Args:
-            result: The result message
-            
-        Returns:
-            Success message
-        """
-        return f"Task completed: {result}"
-
     async def extract(self, filename: Optional[str] = None) -> str:
         """Extract and save the current UI state to a JSON file.
         

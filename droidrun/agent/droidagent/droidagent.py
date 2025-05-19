@@ -5,7 +5,7 @@ to achieve a user's goal on an Android device.
 
 import asyncio
 import logging
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple
 
 from llama_index.core.base.llms.types import ChatMessage
 from llama_index.core.llms.llm import LLM
@@ -35,6 +35,7 @@ class DroidAgent:
         max_retries: int = 3,
         reasoning: bool = True,
         enable_tracing: bool = False,
+        debug: bool = False,
         **kwargs
     ):
         """
@@ -52,6 +53,7 @@ class DroidAgent:
             reasoning: Whether to use the PlannerAgent for complex reasoning (True) 
                       or send tasks directly to CodeActAgent (False)
             enable_tracing: Whether to enable Arize Phoenix tracing
+            debug: Whether to enable verbose debug logging
             **kwargs: Additional keyword arguments to pass to the agents
         """
         self.goal = goal
@@ -64,16 +66,17 @@ class DroidAgent:
         self.max_retries = max_retries
         self.task_manager = TaskManager()
         self.reasoning = reasoning
+        self.debug = debug
         
         logger.info("🤖 Initializing DroidAgent wrapper...")
         
         # Ensure remember tool is in the tool_list if available
         if hasattr(tools_instance, 'remember') and 'remember' not in tool_list:
-            logger.info("📝 Adding 'remember' tool to the available tools")
+            logger.debug("📝 Adding 'remember' tool to the available tools")
             tool_list['remember'] = tools_instance.remember
         
         # Create code executor
-        logger.info("🔧 Initializing Code Executor...")
+        logger.debug("🔧 Initializing Code Executor...")
         loop = asyncio.get_event_loop()
         self.executor = SimpleCodeExecutor(
             loop=loop,
@@ -95,26 +98,27 @@ class DroidAgent:
             tools=tools_instance,
             max_steps=999999, 
             vision=vision,
+            debug=debug,
             timeout=timeout
         )
         
-        # Create PlannerAgent only if reasoning is enabled
         if self.reasoning:
             logger.info("📝 Initializing Planner Agent...")
             self.planner_agent = PlannerAgent(
                 goal=goal,
                 llm=llm,
-                agent=self.codeact_agent,  # Connect the planner to the codeact agent
+                agent=self.codeact_agent, 
                 tools_instance=tools_instance,
                 timeout=timeout,
                 max_retries=max_retries,
-                enable_tracing=enable_tracing
+                enable_tracing=enable_tracing,
+                debug=debug
             )
             
             # Give task manager to the planner
             self.planner_agent.task_manager = self.task_manager
         else:
-            logger.info("🚫 Planning disabled - will execute tasks directly with CodeActAgent")
+            logger.debug("🚫 Planning disabled - will execute tasks directly with CodeActAgent")
             self.planner_agent = None
         
         logger.info("✅ DroidAgent initialized successfully.")
@@ -126,7 +130,7 @@ class DroidAgent:
         Returns:
             List of task dictionaries
         """
-        logger.info("📋 Getting plan from planner...")
+        logger.info("📋 Planning steps to accomplish the goal...")
         
         # Create system and user messages
         system_msg = ChatMessage(role="system", content=self.planner_agent.system_prompt)
@@ -173,7 +177,8 @@ class DroidAgent:
         
         # Create message list
         messages = [system_msg, user_msg]
-        logger.info(f"Sending {len(messages)} messages to planner: {[msg.role for msg in messages]}")
+        if self.debug:
+            logger.debug(f"Sending {len(messages)} messages to planner: {[msg.role for msg in messages]}")
         
         # Get response from LLM
         llm_response = await self.planner_agent._get_llm_response(messages)
@@ -201,8 +206,17 @@ class DroidAgent:
                 # If there's an error, create a simple default task
                 self.task_manager.set_tasks([f"Achieve the goal: {self.goal}"])
         
-        # Return the tasks
-        return self.task_manager.get_all_tasks()
+        # Get and display the tasks
+        tasks = self.task_manager.get_all_tasks()
+        if tasks:
+            logger.info("📝 Plan created:")
+            for i, task in enumerate(tasks, 1):
+                if task["status"] == self.task_manager.STATUS_PENDING:
+                    logger.info(f"  {i}. {task['description']}")
+        else:
+            logger.warning("No tasks were generated in the plan")
+            
+        return tasks
 
     async def _execute_task_with_codeact(self, task: Dict) -> Tuple[bool, str]:
         """
@@ -235,25 +249,33 @@ class DroidAgent:
             if self.tools_instance.finished:
                 if self.tools_instance.success:
                     task["status"] = self.task_manager.STATUS_COMPLETED
+                    if self.debug:
+                        logger.debug(f"Task completed successfully: {self.tools_instance.reason}")
                     return True, self.tools_instance.reason or "Task completed successfully"
                 else:
                     task["status"] = self.task_manager.STATUS_FAILED
                     task["failure_reason"] = self.tools_instance.reason or "Task failed without specific reason"
+                    logger.warning(f"Task failed: {task['failure_reason']}")
                     return False, self.tools_instance.reason or "Task failed without specific reason"
             
             # If tools instance wasn't marked as finished, check the result directly
             if result and isinstance(result, dict) and "success" in result and result["success"]:
                 task["status"] = self.task_manager.STATUS_COMPLETED
-
+                if self.debug:
+                    logger.debug(f"Task completed with result: {result}")
                 return True, result.get("reason", "Task completed successfully")
             else:
                 failure_reason = result.get("reason", "Unknown failure") if isinstance(result, dict) else "Task execution failed"
                 task["status"] = self.task_manager.STATUS_FAILED
                 task["failure_reason"] = failure_reason
+                logger.warning(f"Task failed: {failure_reason}")
                 return False, failure_reason
                 
         except Exception as e:
             logger.error(f"Error during task execution: {e}")
+            if self.debug:
+                import traceback
+                logger.error(traceback.format_exc())
             task["status"] = self.task_manager.STATUS_FAILED
             task["failure_reason"] = f"Error: {str(e)}"
             return False, f"Error: {str(e)}"
@@ -275,7 +297,7 @@ class DroidAgent:
         try:
             # If reasoning is disabled, directly execute the goal as a single task in CodeActAgent
             if not self.reasoning:
-                logger.info(f"🔄 Reasoning disabled - directly executing goal: {self.goal}")
+                logger.info(f"🔄 Direct execution mode - executing goal: {self.goal}")
                 # Create a simple task for the goal
                 task = {
                     "description": self.goal,
@@ -295,7 +317,8 @@ class DroidAgent:
             # Standard reasoning mode with planning
             while step_counter < self.max_steps:
                 step_counter += 1
-                logger.info(f"Step {step_counter}/{self.max_steps}")
+                if self.debug:
+                    logger.debug(f"Planning step {step_counter}/{self.max_steps}")
                 
                 # 1. Get a plan from the planner
                 tasks = await self._get_plan_from_planner()
@@ -336,10 +359,9 @@ class DroidAgent:
                                 self.task_manager.STATUS_COMPLETED, 
                                 result_info
                             )
+                            logger.info(f"✅ Task completed: {task['description']}")
                         
                         if not success:
-                            logger.warning(f"Task failed: {reason}")
-                            
                             # Store detailed failure information if not already set
                             if "failure_reason" not in task:
                                 self.task_manager.update_status(
@@ -382,8 +404,9 @@ class DroidAgent:
                 
         except Exception as e:
             logger.error(f"❌ Error during DroidAgent execution: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
+            if self.debug:
+                import traceback
+                logger.error(traceback.format_exc())
             return {
                 "success": False, 
                 "reason": str(e),
