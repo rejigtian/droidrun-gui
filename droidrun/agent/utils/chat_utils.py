@@ -1,14 +1,8 @@
 import base64
 import json
 import logging
-import re
-import inspect
-from enum import Enum
-import time
-from typing import Awaitable, Callable, List, Optional, Dict, Any, Tuple, TYPE_CHECKING, Union
-
-# LlamaIndex imports for LLM interaction and types
-from llama_index.core.base.llms.types import ChatMessage, ChatResponse, ImageBlock, TextBlock
+from typing import List, TYPE_CHECKING
+from llama_index.core.base.llms.types import ChatMessage, ImageBlock, TextBlock
 
 if TYPE_CHECKING:
     from ...tools import Tools
@@ -28,11 +22,6 @@ def message_copy(message: ChatMessage, deep = True) -> ChatMessage:
     copied_message.blocks = list(message.blocks) # or original_message.blocks[:]
 
     return copied_message
-
-
-
-
-
 
 async def add_ui_text_block(tools: 'Tools', chat_history: List[ChatMessage], retry = 5, copy = True) -> List[ChatMessage]:
     """Add UI elements to the chat history without modifying the original."""

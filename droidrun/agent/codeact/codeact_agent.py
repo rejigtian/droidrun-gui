@@ -1,20 +1,20 @@
-import base64
-import json
 import logging
 import re
 import inspect
-from enum import Enum
 import time
 from typing import Awaitable, Callable, List, Optional, Dict, Any, Tuple, TYPE_CHECKING, Union
-
-# LlamaIndex imports for LLM interaction and types
-from llama_index.core.base.llms.types import ChatMessage, ChatResponse, ImageBlock, TextBlock
+from llama_index.core.base.llms.types import ChatMessage, ChatResponse, TextBlock
 from llama_index.core.prompts import PromptTemplate
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Workflow, StartEvent, StopEvent, Context, step
 from llama_index.core.memory import ChatMemoryBuffer
 from .events import FinalizeEvent, InputEvent, ModelOutputEvent, ExecutionEvent, ExecutionResultEvent
 from ..utils.chat_utils import add_screenshot, add_screenshot_image_block, add_ui_text_block, message_copy
+from .prompts import (
+    DEFAULT_CODE_ACT_SYSTEM_PROMPT, 
+    DEFAULT_CODE_ACT_USER_PROMPT, 
+    DEFAULT_NO_THOUGHTS_PROMPT
+)
 
 if TYPE_CHECKING:
     from ...tools import Tools
@@ -22,91 +22,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger("droidrun")
 logging.basicConfig(level=logging.INFO)
 
-# Simple token estimator (very rough approximation)
-def estimate_tokens(text: str) -> int:
-    """Estimate number of tokens in a string.
-    
-    This is a very rough approximation based on the rule of thumb that
-    1 token is approximately 4 characters for English text.
-    
-    Args:
-        text: Input text
-    
-    Returns:
-        Estimated token count
-    """
-    if not text:
-        return 0
-    return len(text) // 4 + 1  # Add 1 to be safe
 
-
-
-# --- Agent Definition ---
-
-DEFAULT_CODE_ACT_SYSTEM_PROMPT = """You are a helpful AI assistant that can write and execute Python code to solve problems.
-
-You will be given a task to perform. You should output:
-- Python code wrapped in ``` tags that provides the solution to the task, or a step towards the solution. Any output you want to extract from the code should be printed to the console.
-- Text to be shown directly to the user, if you want to ask for more information or provide the final answer.
-- If the previous code execution can be used to respond to the user, then respond directly (typically you want to avoid mentioning anything related to the code execution in your response).
-- If you task is complete, you should use the complete(success:bool, reason:str) function within a code block to mark it as finished. The success parameter should be True if the task was completed successfully, and False otherwise. The reason parameter should be a string explaining the reason for failure if failed.
-## Response Format:
-Example of proper code format:
-To calculate the area of a circle, I need to use the formula: area = pi * radius^2. I will write a function to do this.
-```python
-import math
-
-def calculate_area(radius):
-    return math.pi * radius**2
-
-# Calculate the area for radius = 5
-area = calculate_area(5)
-print(f"The area of the circle is {{area:.2f}} square units")
-```
-
-Another example (with for loop):
-To calculate the sum of numbers from 1 to 10, I will use a for loop.
-```python
-sum = 0
-for i in range(1, 11):
-    sum += i
-print(f"The sum of numbers from 1 to 10 is {{sum}}")
-```
-
-In addition to the Python Standard Library and any functions you have already written, you can use the following functions:
-{tool_descriptions}
-
-You'll receive a screenshot showing the current screen and its UI elements to help you complete the task. However, screenshots won't be saved in the chat history. So, make sure to describe what you see and explain the key parts of your plan in your thoughts, as those will be saved and used to assist you in future steps.
-
-**Important Notes:**
-- If there is a precondition for the task, you MUST check if it is met.
-- If a goal's precondition is unmet, fail the task by calling `complete(success=False, reason='...')` with an explanation.
-
-## Final Answer Guidelines:
-- When providing a final answer, focus on directly answering the user's question
-- Avoid referencing the code you generated unless specifically asked
-- Present the results clearly and concisely as if you computed them directly
-- If relevant, you can briefly mention general methods used, but don't include code snippets in the final answer
-- Structure your response like you're directly answering the user's query, not explaining how you solved it
-
-Reminder: Always place your Python code between ```...``` tags when you want to run code. 
-
-You MUST ALWAYS to include your reasoning and thought process outside of the code block. You MUST DOUBLE CHECK that TASK IS COMPLETE with a SCREENSHOT.
-"""
-
-DEFAULT_CODE_ACT_USER_PROMPT = """**Current Request:**
-{goal}
-
-**Is the precondition met? What is your reasoning and the next step to address this request?** Explain your thought process then provide code in ```python ... ``` tags if needed."""""
-
-DEFAULT_NO_THOUGHTS_PROMPT = """Your previous response provided code without explaining your reasoning first. Remember to always describe your thought process and plan *before* providing the code block.
-
-The code you provided will be executed below.
-
-Now, describe the next step you will take to address the original goal: {goal}"""
-
-# --- Updated System Prompt ---
-# Guides the LLM towards a Thought -> Code -> Observation cycle
 class CodeActAgent(Workflow):
     """
     An agent that uses a ReAct-like cycle (Thought -> Code -> Observation)
@@ -137,9 +53,9 @@ class CodeActAgent(Workflow):
         self.tools = tools
         self.max_steps = max_steps  # Kept for backwards compatibility but not enforced
         self.tool_descriptions = self.parse_tool_descriptions() # Parse tool descriptions once at initialization
-        self.system_prompt_content = DEFAULT_CODE_ACT_SYSTEM_PROMPT.format(tool_descriptions=self.tool_descriptions)
+        self.system_prompt_content = (system_prompt or DEFAULT_CODE_ACT_SYSTEM_PROMPT).format(tool_descriptions=self.tool_descriptions)
         self.system_prompt = ChatMessage(role="system", content=self.system_prompt_content)
-        self.user_prompt = None
+        self.user_prompt = user_prompt
         self.no_thoughts_prompt = None
         self.memory = None 
         self.goal = None
@@ -374,7 +290,6 @@ class CodeActAgent(Workflow):
         
         messages_to_send = [self.system_prompt] + chat_history 
 
-        # llama-index bug modifies the original messages for some models (e.g. Gemini possibly claude too)
         messages_to_send = [message_copy(msg) for msg in messages_to_send]
         try:
             response = await self.llm.achat(
@@ -398,7 +313,6 @@ class CodeActAgent(Workflow):
             else:
                 logger.error(f"Error getting LLM response: {e}")
                 return StopEvent(result={'finished': True, 'message': f"Error getting LLM response: {e}", 'steps': self.steps_counter, 'code_executions': self.code_exec_counter}) # Return final message and steps
-        #time.sleep(3)
         logger.debug("  - Received response from LLM.")
         return response
     

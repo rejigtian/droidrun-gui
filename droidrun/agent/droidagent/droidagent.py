@@ -31,9 +31,10 @@ class DroidAgent:
         tool_list: Dict[str, Any],
         max_steps: int = 15,
         vision: bool = False,
-        temperature: float = 0,
         timeout: int = 1000,
         max_retries: int = 3,
+        reasoning: bool = True,
+        enable_tracing: bool = False,
         **kwargs
     ):
         """
@@ -45,10 +46,12 @@ class DroidAgent:
             tools_instance: An instance of the Tools class
             tool_list: Dictionary of available tools
             max_steps: Maximum number of steps for both agents
-            always_screenshot: Whether to always include screenshots with prompts
-            temperature: Temperature for LLM sampling
+            vision: Whether to enable vision capabilities
             timeout: Timeout for agent execution in seconds
             max_retries: Maximum number of retries for failed tasks
+            reasoning: Whether to use the PlannerAgent for complex reasoning (True) 
+                      or send tasks directly to CodeActAgent (False)
+            enable_tracing: Whether to enable Arize Phoenix tracing
             **kwargs: Additional keyword arguments to pass to the agents
         """
         self.goal = goal
@@ -60,6 +63,7 @@ class DroidAgent:
         self.timeout = timeout
         self.max_retries = max_retries
         self.task_manager = TaskManager()
+        self.reasoning = reasoning
         
         logger.info("🤖 Initializing DroidAgent wrapper...")
         
@@ -78,8 +82,9 @@ class DroidAgent:
             globals={"__builtins__": __builtins__}
         )
         
-        # Create memory buffer for the planning agent
-        self.planning_memory = ChatMemoryBuffer.from_defaults(llm=llm)
+        # Create memory buffer for the planning agent if reasoning is enabled
+        if self.reasoning:
+            self.planning_memory = ChatMemoryBuffer.from_defaults(llm=llm)
         
         # Create CodeActAgent
         logger.info("🧠 Initializing CodeAct Agent...")
@@ -93,20 +98,24 @@ class DroidAgent:
             timeout=timeout
         )
         
-        # Create PlannerAgent (but without passing it the CodeActAgent)
-        logger.info("📝 Initializing Planner Agent...")
-        # We'll use the planner just to create plans, not to execute them
-        self.planner_agent = PlannerAgent(
-            goal=goal,
-            agent=None,  # No longer passing the CodeActAgent
-            llm=llm,
-            tools_instance=tools_instance,
-            timeout=timeout,
-            max_retries=max_retries
-        )
-        
-        # Give task manager to the planner
-        self.planner_agent.task_manager = self.task_manager
+        # Create PlannerAgent only if reasoning is enabled
+        if self.reasoning:
+            logger.info("📝 Initializing Planner Agent...")
+            self.planner_agent = PlannerAgent(
+                goal=goal,
+                llm=llm,
+                agent=self.codeact_agent,  # Connect the planner to the codeact agent
+                tools_instance=tools_instance,
+                timeout=timeout,
+                max_retries=max_retries,
+                enable_tracing=enable_tracing
+            )
+            
+            # Give task manager to the planner
+            self.planner_agent.task_manager = self.task_manager
+        else:
+            logger.info("🚫 Planning disabled - will execute tasks directly with CodeActAgent")
+            self.planner_agent = None
         
         logger.info("✅ DroidAgent initialized successfully.")
     
@@ -264,6 +273,26 @@ class DroidAgent:
         final_message = ""
         
         try:
+            # If reasoning is disabled, directly execute the goal as a single task in CodeActAgent
+            if not self.reasoning:
+                logger.info(f"🔄 Reasoning disabled - directly executing goal: {self.goal}")
+                # Create a simple task for the goal
+                task = {
+                    "description": self.goal,
+                    "status": self.task_manager.STATUS_PENDING
+                }
+                
+                # Execute the task directly with CodeActAgent
+                success, reason = await self._execute_task_with_codeact(task)
+                
+                return {
+                    "success": success,
+                    "reason": reason,
+                    "steps": 1,
+                    "task_history": [task]  # Single task history
+                }
+            
+            # Standard reasoning mode with planning
             while step_counter < self.max_steps:
                 step_counter += 1
                 logger.info(f"Step {step_counter}/{self.max_steps}")

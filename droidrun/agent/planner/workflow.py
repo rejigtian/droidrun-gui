@@ -11,6 +11,7 @@ from .prompts import (
 )
 import logging
 import re
+import os
 from typing import List, Optional, Tuple, TYPE_CHECKING, Union
 import inspect
 # LlamaIndex imports for LLM interaction and types
@@ -23,21 +24,34 @@ from ..utils.executer import SimpleCodeExecutor
 from ..utils.chat_utils import add_ui_text_block, add_screenshot_image_block, add_phone_state_block, message_copy
 from .task_manager import TaskManager
 
-from llama_index.core import set_global_handler
-set_global_handler("arize_phoenix")
-# Load environment variables (for API key)
+# Load environment variables
 from dotenv import load_dotenv
 load_dotenv()
+
+# Setup logger
+logger = logging.getLogger("droidrun")
+logging.basicConfig(level=logging.INFO)
 
 if TYPE_CHECKING:
     from ...tools import Tools
 
-logger = logging.getLogger("droidrun")
-logging.basicConfig(level=logging.INFO)
-
 class PlannerAgent(Workflow):
-    def __init__(self, goal: str, llm: LLM, agent: Optional[Workflow], tools_instance: 'Tools', executer = None, system_prompt = None, user_prompt = None, max_retries = 1, *args, **kwargs) -> None:
+    def __init__(self, goal: str, llm: LLM, agent: Optional[Workflow], tools_instance: 'Tools', 
+                 executer = None, system_prompt = None, user_prompt = None, max_retries = 1, 
+                 enable_tracing = False, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+        
+        # Setup tracing if enabled
+        if enable_tracing:
+            try:
+                from llama_index.core import set_global_handler
+                set_global_handler("arize_phoenix")
+                logger.info("Arize Phoenix tracing enabled")
+            except ImportError:
+                logger.warning("Arize Phoenix package not found, tracing disabled")
+        else:
+            logger.info("Arize Phoenix tracing disabled")
+            
         self.llm = llm
         self.goal = goal
         self.task_manager = TaskManager()
@@ -52,7 +66,6 @@ class PlannerAgent(Workflow):
         self.system_message = ChatMessage(role="system", content=self.system_prompt)
         self.user_message = ChatMessage(role="user", content=self.user_prompt)
         self.memory = None
-        self.agent = agent  # This can now be None when used just for planning
         self.tools_instance = tools_instance
 
         self.max_retries = max_retries # Number of retries for a failed task
@@ -208,22 +221,9 @@ class PlannerAgent(Workflow):
             await self.memory.aput(ChatMessage(role="user", content=f"Please either set new tasks using set_tasks() or mark the goal as complete using complete_goal() if done."))
             logger.info("🔄 Waiting for next plan or completion.")
             return InputEvent(input=self.memory.get_all())
-    @step
-    async def execute_plan(self, ev: ExecutePlan, ctx: Context) -> Union[ExecutePlan, TaskFailedEvent]:
-        """Execute the plan by scheduling the agent to run."""
-        step_name = await ctx.get("step")
-        if step_name == "execute_agent":
-            return await self.execute_agent(ev, ctx)  # Sub-steps
-        else:
-            await ctx.set("step", "execute_agent")
-            return ev  # Reenter this step with the subcontext key set
 
     async def execute_agent(self, ev: ExecutePlan, ctx: Context) -> Union[ExecutePlan, TaskFailedEvent]:
         """Execute a single task using the agent."""
-        # Skip execution if no agent is provided (used in planning-only mode)
-        if self.agent is None:
-            logger.info("No agent provided, skipping execution")
-            return StopEvent(result={"success": False, "reason": "No agent provided"})
 
         # Original execution logic
         tasks = self.task_manager.get_all_tasks()
