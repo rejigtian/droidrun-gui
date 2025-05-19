@@ -3,7 +3,7 @@ Device Manager - Handles Android device connections and management.
 """
 
 from typing import Optional, List
-from droidrun.adb import Device, DeviceManager as ADBDeviceManager
+from ..adb import Device, DeviceManager as ADBDeviceManager
 
 class DeviceManager:
     """Manages Android device connections and operations."""

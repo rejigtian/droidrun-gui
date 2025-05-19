@@ -1,19 +1,31 @@
 """
 DroidRun CLI - Command line interface for controlling Android devices through LLM agents.
 """
+if __name__ == "__main__":
+    import sys
+    import os
+    # Calculate the path to the project root directory (the one containing the 'droidrun' folder)
+    _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    # Add the project root to the beginning of sys.path
+    sys.path.insert(0, _project_root)
+    # Manually set the package context so relative imports work
+    __package__ = "droidrun.cli" # Set this based on the script's location within the package
+
+
+try:
+    from . import patch_apis # patch to use multiple api keys
+except Exception as e:
+    pass
 
 import asyncio
 import click
 import os
 from rich.console import Console
-from droidrun.tools import DeviceManager
-from droidrun.agent import ReActAgent
-from droidrun.agent.llm_reasoning import LLMReasoner
+from ..tools import DeviceManager, Tools, load_tools # Import the loader
+from ..agent.droidagent import DroidAgent
+from ..agent.utils.llm_picker import load_llm
 from functools import wraps
-
 # Import the install_app function directly for the setup command
-from droidrun.tools.actions import install_app
-
 console = Console()
 device_manager = DeviceManager()
 
@@ -25,109 +37,70 @@ def coro(f):
 
 # Define the run command as a standalone function to be used as both a command and default
 @coro
-async def run_command(command: str, device: str | None, provider: str, model: str, steps: int, vision: bool, base_url: str):
+async def run_command(command: str, device: str | None, provider: str, model: str, steps: int, vision: bool, base_url: str, **kwargs):
     """Run a command on your Android device using natural language."""
     console.print(f"[bold blue]Executing command:[/] {command}")
-    
-    # Auto-detect Gemini if model starts with "gemini-"
-    if model and model.startswith("gemini-"):
-        provider = "gemini"
-    
-    # Print vision status
-    if vision:
-        console.print("[blue]Vision capabilities are enabled.[/]")
-    else:
-        console.print("[blue]Vision capabilities are disabled.[/]")
-    
-    # Get API keys from environment variables
-    api_key = None
-    if provider.lower() == 'openai':
-        api_key = os.environ.get('OPENAI_API_KEY')
-        if not api_key:
-            console.print("[bold red]Error:[/] OPENAI_API_KEY environment variable not set")
-            return
-        if not model:
-            model = "gpt-4o-mini"
-    elif provider.lower() == 'anthropic':
-        api_key = os.environ.get('ANTHROPIC_API_KEY')
-        if not api_key:
-            console.print("[bold red]Error:[/] ANTHROPIC_API_KEY environment variable not set")
-            return
-        if not model:
-            model = "claude-3-sonnet-20240229"
-    elif provider.lower() == 'gemini':
-        api_key = os.environ.get('GEMINI_API_KEY')
-        if not api_key:
-            console.print("[bold red]Error:[/] GEMINI_API_KEY environment variable not set")
-            return
-        if not model:
-            model = "gemini-2.0-flash"
-    elif provider.lower() == 'ollama':
-        api_key = "ollama"
-        if not base_url:
-            base_url = "http://localhost:11434/v1"
-        if not model:
-            model = "llama3.1:8b"
-    else:
-        console.print(f"[bold red]Error:[/] Unsupported provider: {provider}")
-        return
-    
+
+    if not kwargs.get("temperature"):
+        kwargs["temperature"] = 0
     try:
-        # Try to find a device if none specified
-        if not device:
-            devices = await device_manager.list_devices()
-            if not devices:
-                console.print("[yellow]No devices connected.[/]")
-                return
-            
-            device = devices[0].serial
-            console.print(f"[blue]Using device:[/] {device}")
-        
-        # Set the device serial in the environment variable
-        os.environ["DROIDRUN_DEVICE_SERIAL"] = device
-        console.print(f"[blue]Set DROIDRUN_DEVICE_SERIAL to:[/] {device}")
-        
+        # Setting up tools for the agent using the loader
+        console.print("[bold blue]Setting up tools...[/]")
+        # Pass the 'device' argument from the CLI options to load_tools
+        tool_list, tools_instance = await load_tools(serial=device, vision=vision)
+
+        console.print(f"[blue] tools:{tool_list}")
+        # Get the actual serial used (either provided or auto-detected)
+        device_serial = tools_instance.serial
+        console.print(f"[blue]Using device:[/] {device_serial}")
+
+
+        # Set the device serial in the environment variable (optional, depends if needed elsewhere)
+        os.environ["DROIDRUN_DEVICE_SERIAL"] = device_serial
+        console.print(f"[blue]Set DROIDRUN_DEVICE_SERIAL to:[/] {device_serial}")
+
         # Create LLM reasoner
-        console.print("[bold blue]Initializing LLM reasoner...[/]")
-        llm = LLMReasoner(
-            llm_provider=provider,
-            model_name=model,
-            api_key=api_key,
-            temperature=0.2,
-            max_tokens=2000,
+        console.print("[bold blue]Initializing LLM...[/]")
+        llm = load_llm(provider_name=provider, model=model, base_url=base_url, **kwargs)
+
+        # Create and run the DroidAgent (wrapper for CodeActAgent and PlannerAgent)
+        console.print("[bold blue]Initializing DroidAgent...[/]")
+        droid_agent = DroidAgent(
+            goal=command,
+            llm=llm,
+            tools_instance=tools_instance,
+            tool_list=tool_list,
+            max_steps=steps,
             vision=vision,
-            base_url=base_url
+            timeout=1000,
+            max_retries=3,
+            temperature=kwargs.get("temperature", 0)
         )
         
-        # Create and run the agent
-        console.print("[bold blue]Running ReAct agent...[/]")
         console.print("[yellow]Press Ctrl+C to stop execution[/]")
-        
+
         try:
-            agent = ReActAgent(
-                task=command,
-                llm=llm,
-                device_serial=device,
-                max_steps=steps
-            )
-            steps = await agent.run()
-            
-            # Final message
-            console.print(f"[bold green]Execution completed with {len(steps)} steps[/]")
+            await droid_agent.run()
+        except KeyboardInterrupt:
+            console.print("\n[bold red]Execution stopped by user.[/]")
         except ValueError as e:
-            if "does not support vision" in str(e):
-                console.print(f"[bold red]Vision Error:[/] {e}")
-                console.print("[yellow]Please specify a vision-capable model with the --model flag.[/]")
-                console.print("[blue]Recommended models:[/]")
-                console.print("  - OpenAI: gpt-4o or gpt-4-vision")
-                console.print("  - Anthropic: claude-3-opus-20240229 or claude-3-sonnet-20240229")
-                console.print("  - Gemini: gemini-pro-vision")
-                return
-            else:
-                raise  # Re-raise other ValueError exceptions
-        
-    except Exception as e:
+            console.print(f"[bold red]Configuration Error:[/] {e}")
+        except Exception as e:
+            console.print(f"[bold red]An unexpected error occurred during agent execution:[/] {e}")
+            # Consider adding traceback logging here for debugging
+            # import traceback
+            # console.print(traceback.format_exc())
+
+
+    except ValueError as e: # Catch ValueError from load_tools (no device found)
         console.print(f"[bold red]Error:[/] {e}")
+    except Exception as e:
+        console.print(f"[bold red]An unexpected error occurred during setup:[/] {e}")
+        # Consider adding traceback logging here for debugging
+        import traceback
+        console.print(traceback.format_exc())
+
+
 
 # Custom Click multi-command class to handle both subcommands and default behavior
 class DroidRunCLI(click.Group):
@@ -146,15 +119,16 @@ def cli():
 @cli.command()
 @click.argument('command', type=str)
 @click.option('--device', '-d', help='Device serial number or IP address', default=None)
-@click.option('--provider', '-p', help='LLM provider (openai, ollama, anthropic, gemini)', default='openai')
-@click.option('--model', '-m', help='LLM model name', default=None)
+@click.option('--provider', '-p', help='LLM provider (openai, ollama, anthropic, gemini,deepseek)', default='Gemini')
+@click.option('--model', '-m', help='LLM model name', default="models/gemini-2.5-pro-preview-05-06")
+@click.option('--temperature', type=int, help='Temperature for LLM', default=0.2)
 @click.option('--steps', type=int, help='Maximum number of steps', default=15)
-@click.option('--vision', is_flag=True, help='Enable vision capabilities')
+@click.option('--vision', is_flag=True, help='Enable vision capabilities', default=True)
 @click.option('--base_url', '-u', help='Base URL for API (e.g., OpenRouter or Ollama)', default=None)
-def run(command: str, device: str | None, provider: str, model: str, steps: int, vision: bool, base_url):
+def run(command: str, device: str | None, provider: str, model: str, steps: int, vision: bool, base_url: str, temperature: int):
     """Run a command on your Android device using natural language."""
     # Call our standalone function
-    return run_command(command, device, provider, model, steps, vision, base_url)
+    return run_command(command, device, provider, model, steps, vision, base_url, temperature=temperature)
 
 @cli.command()
 @coro
@@ -232,10 +206,10 @@ async def setup(path: str, device: str | None):
         if not device_obj:
             console.print(f"[bold red]Error:[/] Could not get device object for {device}")
             return
-        
+        tools = Tools(serial=device)
         # Step 1: Install the APK file
         console.print(f"[bold blue]Step 1/2: Installing APK:[/] {path}")
-        result = await install_app(path, False, True, device)
+        result = await tools.install_app(path, False, True)
         
         if "Error" in result:
             console.print(f"[bold red]Installation failed:[/] {result}")
@@ -278,6 +252,3 @@ async def setup(path: str, device: str | None):
         console.print(f"[bold red]Error:[/] {e}")
         import traceback
         traceback.print_exc()
-
-if __name__ == '__main__':
-    cli() 
