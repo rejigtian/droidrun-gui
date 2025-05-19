@@ -66,28 +66,24 @@ def update_layout(layout, log_list, step_message, current_time, goal=None):
     """Update the layout with current logs and step information"""
     from rich.console import Group
     
-    # How many total recent log lines to keep in our main log_list for potential slicing.
-    # This is not directly rendered in its entirety.
-    # log_list itself is the full history managed outside this function.
-    
     # Maximum number of the *most recent* log lines to actually render in the panel.
     max_visible_log_lines = 50 # For example, always show the latest 50 logs.
     
     # Get the most recent logs, limited by max_visible_log_lines, for display.
-    # log_list contains all logs; we take the tail end for display.
-    logs_for_display = log_list[-max_visible_log_lines:]
+    # Always show the most recent logs by taking the last 'max_visible_log_lines' items
+    visible_logs = log_list[-max_visible_log_lines:] if len(log_list) > max_visible_log_lines else log_list
     
     # Create Text objects only for the logs we intend to display.
-    log_texts = [Text(log) for log in logs_for_display]
+    log_texts = [Text(log) for log in visible_logs]
     log_group = Group(*log_texts) # This group is at most max_visible_log_lines tall.
     
-    # Align this smaller group to the bottom-left of the panel.
+    # Align this smaller group to the bottom-left of the panel to ensure newest logs are visible
     aligned_log_content = Align(log_group, vertical="bottom", align="left")
     
     # Update logs panel
     layout["logs"].update(Panel(
         aligned_log_content,
-        title="Logs", 
+        title=f"Logs ({len(log_list)} total, showing last {len(visible_logs)})", 
         border_style="blue",
         title_align="left",
         padding=(0, 1), # Reduced vertical padding (top/bottom)
@@ -445,7 +441,7 @@ def cli():
 @cli.command()
 @click.argument('command', type=str)
 @click.option('--device', '-d', help='Device serial number or IP address', default=None)
-@click.option('--provider', '-p', help='LLM provider (openai, ollama, anthropic, gemini,deepseek)', default='Gemini')
+@click.option('--provider', '-p', help='LLM provider (openai, ollama, anthropic, gemini, deepseek)', default='Gemini')
 @click.option('--model', '-m', help='LLM model name', default="models/gemini-2.5-pro-preview-05-06")
 @click.option('--temperature', type=float, help='Temperature for LLM', default=0.2)
 @click.option('--steps', type=int, help='Maximum number of steps', default=15)
