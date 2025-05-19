@@ -12,15 +12,19 @@ if __name__ == "__main__":
     __package__ = "droidrun.cli" # Set this based on the script's location within the package
 
 
-try:
-    from . import patch_apis # patch to use multiple api keys
-except Exception as e:
-    pass
-
 import asyncio
 import click
 import os
+import logging
+import time
+import queue
 from rich.console import Console
+from rich.live import Live
+from rich.panel import Panel
+from rich.layout import Layout
+from rich.text import Text
+from rich.spinner import Spinner
+from rich.align import Align
 from ..tools import DeviceManager, Tools, load_tools # Import the loader
 from ..agent.droidagent import DroidAgent
 from ..agent.utils.llm_picker import load_llm
@@ -29,89 +33,399 @@ from functools import wraps
 console = Console()
 device_manager = DeviceManager()
 
+# Custom queue for log messages
+log_queue = queue.Queue()
+# Store the current step for display
+current_step = "Initializing..."
+# Global spinner for animation
+spinner = Spinner("dots")
+
+class RichHandler(logging.Handler):
+    def emit(self, record):
+        log_record = self.format(record)
+        # Add log to our queue for the live display to process
+        log_queue.put(log_record)
+
 def coro(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
         return asyncio.run(f(*args, **kwargs))
     return wrapper
 
+def create_layout():
+    """Create a layout with logs at top and status at bottom"""
+    layout = Layout()
+    layout.split(
+        Layout(name="logs"),  # Fixed size in lines for logs
+        Layout(name="goal", size=3),   # Goal display box
+        Layout(name="status", size=3)   # Status size at 3 lines
+    )
+    return layout
+
+def update_layout(layout, log_list, step_message, current_time, goal=None):
+    """Update the layout with current logs and step information"""
+    from rich.console import Group
+    
+    # How many total recent log lines to keep in our main log_list for potential slicing.
+    # This is not directly rendered in its entirety.
+    # log_list itself is the full history managed outside this function.
+    
+    # Maximum number of the *most recent* log lines to actually render in the panel.
+    max_visible_log_lines = 50 # For example, always show the latest 50 logs.
+    
+    # Get the most recent logs, limited by max_visible_log_lines, for display.
+    # log_list contains all logs; we take the tail end for display.
+    logs_for_display = log_list[-max_visible_log_lines:]
+    
+    # Create Text objects only for the logs we intend to display.
+    log_texts = [Text(log) for log in logs_for_display]
+    log_group = Group(*log_texts) # This group is at most max_visible_log_lines tall.
+    
+    # Align this smaller group to the bottom-left of the panel.
+    aligned_log_content = Align(log_group, vertical="bottom", align="left")
+    
+    # Update logs panel
+    layout["logs"].update(Panel(
+        aligned_log_content,
+        title="Logs", 
+        border_style="blue",
+        title_align="left",
+        padding=(0, 1), # Reduced vertical padding (top/bottom)
+    ))
+    
+    # Update goal panel if goal is provided
+    if goal:
+        goal_text = Text(goal, style="bold")
+        layout["goal"].update(Panel(
+            Align(goal_text, vertical="middle", align="center"),
+            title="Goal", 
+            border_style="magenta",
+            title_align="left",
+            padding=(0, 1)
+        ))
+    
+    # Create status panel with spinner
+    global spinner
+    # Create a Text object first, then add spinner text
+    step_display = Text()
+    step_display.append(spinner.render(current_time))  # Use current time for animation
+    step_display.append(" ")
+    step_display.append(step_message)
+    
+    layout["status"].update(Panel(
+        step_display, 
+        title="Current Action", 
+        border_style="green",
+        title_align="left",
+        padding=(0, 1) # Reduced vertical padding
+    ))
+
 # Define the run command as a standalone function to be used as both a command and default
 @coro
-async def run_command(command: str, device: str | None, provider: str, model: str, steps: int, vision: bool, base_url: str, reasoning: bool, tracing: bool, **kwargs):
+async def run_command(command: str, device: str | None, provider: str, model: str, steps: int, vision: bool, base_url: str, reasoning: bool, tracing: bool, debug: bool, **kwargs):
     """Run a command on your Android device using natural language."""
-    console.print(f"[bold blue]Executing command:[/] {command}")
-
-    if not kwargs.get("temperature"):
-        kwargs["temperature"] = 0
-    try:
-        # Setting up tools for the agent using the loader
-        console.print("[bold blue]Setting up tools...[/]")
-        # Pass the 'device' argument from the CLI options to load_tools
-        tool_list, tools_instance = await load_tools(serial=device, vision=vision)
-
-        console.print(f"[blue] tools:{tool_list}")
-        # Get the actual serial used (either provided or auto-detected)
-        device_serial = tools_instance.serial
-        console.print(f"[blue]Using device:[/] {device_serial}")
-
-
-        # Set the device serial in the environment variable (optional, depends if needed elsewhere)
-        os.environ["DROIDRUN_DEVICE_SERIAL"] = device_serial
-        console.print(f"[blue]Set DROIDRUN_DEVICE_SERIAL to:[/] {device_serial}")
-
-        # Create LLM reasoner
-        console.print("[bold blue]Initializing LLM...[/]")
-        llm = load_llm(provider_name=provider, model=model, base_url=base_url, **kwargs)
-
-        # Create and run the DroidAgent (wrapper for CodeActAgent and PlannerAgent)
-        console.print("[bold blue]Initializing DroidAgent...[/]")
+    # Configure logging based on debug flag
+    configure_logging(debug)
+    
+    global current_step
+    current_step = "Initializing..."
+    logs = []
+    
+    # Create live display
+    layout = create_layout()
+    
+    with Live(layout, refresh_per_second=10, console=console) as live:
+        def update_display():
+            # Update the layout with current logs and status
+            current_time = time.time()  # Get current time for spinner animation
+            update_layout(layout, logs, current_step, current_time, goal=command)  # Pass current time and goal
+            live.refresh()
         
-        # Log the reasoning mode
-        if reasoning:
-            console.print("[blue]Using planning mode with reasoning[/]")
-        else:
-            console.print("[blue]Using direct execution mode without planning[/]")
-            
-        # Log tracing status
-        if tracing:
-            console.print("[blue]Arize Phoenix tracing enabled[/]")
-        
-        droid_agent = DroidAgent(
-            goal=command,
-            llm=llm,
-            tools_instance=tools_instance,
-            tool_list=tool_list,
-            max_steps=steps,
-            vision=vision,
-            timeout=1000,
-            max_retries=3,
-            reasoning=reasoning,
-            enable_tracing=tracing
-        )
-        
-        console.print("[yellow]Press Ctrl+C to stop execution[/]")
-
         try:
-            await droid_agent.run()
-        except KeyboardInterrupt:
-            console.print("\n[bold red]Execution stopped by user.[/]")
-        except ValueError as e:
-            console.print(f"[bold red]Configuration Error:[/] {e}")
+            update_display()
+            logs.append(f"Executing command: {command}")
+            
+            if not kwargs.get("temperature"):
+                kwargs["temperature"] = 0
+                
+            # Setting up tools for the agent using the loader
+            current_step = "Setting up tools..."
+            update_display()
+            
+            # Pass the 'device' argument from the CLI options to load_tools
+            tool_list, tools_instance = await load_tools(serial=device, vision=vision)
+
+            if debug:
+                logs.append(f"Tools: {list(tool_list.keys())}")
+                update_display()
+                
+            # Get the actual serial used (either provided or auto-detected)
+            device_serial = tools_instance.serial
+            logs.append(f"Using device: {device_serial}")
+            update_display()
+
+            # Set the device serial in the environment variable (optional, depends if needed elsewhere)
+            os.environ["DROIDRUN_DEVICE_SERIAL"] = device_serial
+            
+            # Create LLM reasoner
+            current_step = "Initializing LLM..."
+            update_display()
+            
+            llm = load_llm(provider_name=provider, model=model, base_url=base_url, **kwargs)
+
+            # Create and run the DroidAgent (wrapper for CodeActAgent and PlannerAgent)
+            current_step = "Initializing DroidAgent..."
+            update_display()
+            
+            # Log the reasoning mode
+            if reasoning:
+                logs.append("Using planning mode with reasoning")
+            else:
+                logs.append("Using direct execution mode without planning")
+                
+            # Log tracing status
+            if tracing:
+                logs.append("Arize Phoenix tracing enabled")
+            
+            update_display()
+            
+            droid_agent = DroidAgent(
+                goal=command,
+                llm=llm,
+                tools_instance=tools_instance,
+                tool_list=tool_list,
+                max_steps=steps,
+                vision=vision,
+                timeout=1000,
+                max_retries=3,
+                reasoning=reasoning,
+                enable_tracing=tracing,
+                debug=debug
+            )
+            
+            logs.append("Press Ctrl+C to stop execution")
+            current_step = "Running agent..."
+            update_display()
+
+            try:
+                # Start log processor task
+                async def process_logs():
+                    global current_step
+                    while True:
+                        # Check if there are new logs that contain "Executing task"
+                        while not log_queue.empty():
+                            try:
+                                log = log_queue.get_nowait()
+                                logs.append(log)
+                                # If this is an "Executing task" message, update the current_step
+                                if "🔧 Executing task:" in log:
+                                    # Extract the task description
+                                    task_desc = log.split("🔧 Executing task:", 1)[1].strip()
+                                    
+                                    # Extract only the "Goal" part if it exists
+                                    if "Goal:" in task_desc:
+                                        goal_part = task_desc.split("Goal:", 1)[1].strip()
+                                        current_step = f"Executing: {goal_part}"
+                                    else:
+                                        # If no "Goal:" pattern, just use the full description
+                                        current_step = f"Executing: {task_desc}"
+                            except queue.Empty:
+                                break
+                        update_display()
+                        await asyncio.sleep(0.1)
+                
+                # Run both the agent and log processor concurrently
+                log_task = asyncio.create_task(process_logs())
+                result = None
+                try:
+                    result = await droid_agent.run()
+                    
+                    # Set completion status but keep spinner active for a moment
+                    if result.get("success", False):
+                        success_str = f"✅ Goal completed: {result.get('reason', 'Success')}"
+                        logs.append(success_str)
+                        current_step = f"✅ {result.get('reason', 'Success')}"
+                    else:
+                        err_str = f"❌ Execution failed: {result.get('reason', 'Unknown reason')}"
+                        logs.append(err_str)
+                        current_step = f"❌ {result.get('reason', 'Unknown reason')}"
+                    
+                    # Continue updating for a moment to show final state with animation
+                    await asyncio.sleep(2)
+                finally:
+                    # Make sure we cancel the log processing task
+                    log_task.cancel()
+                    try:
+                        await log_task
+                    except asyncio.CancelledError:
+                        pass
+                    
+                    # Final display update with a static indicator instead of spinner
+                    if result and result.get("success", False):
+                        # Create success indicator
+                        step_display = Text()
+                        step_display.append("✓ ", style="bold green")
+                        step_display.append(current_step)
+                        
+                        layout["status"].update(Panel(
+                            step_display, 
+                            title="Completed Successfully", 
+                            border_style="green",
+                            title_align="left",
+                            padding=(0, 1)
+                        ))
+                    else:
+                        # Create failure indicator
+                        step_display = Text()
+                        step_display.append("✗ ", style="bold red")
+                        step_display.append(current_step)
+                        
+                        layout["status"].update(Panel(
+                            step_display, 
+                            title="Failed", 
+                            border_style="red",
+                            title_align="left",
+                            padding=(0, 1)
+                        ))
+                    
+                    live.refresh()
+                    # One more pause to show the final state
+                    await asyncio.sleep(1)
+
+            except KeyboardInterrupt:
+                logs.append("Execution stopped by user.")
+                current_step = "Stopped by user"
+                
+                # Show stopped indicator
+                step_display = Text()
+                step_display.append("⚠ ", style="bold yellow")
+                step_display.append(current_step)
+                
+                layout["status"].update(Panel(
+                    step_display, 
+                    title="Execution Stopped", 
+                    border_style="yellow",
+                    title_align="left",
+                    padding=(0, 1)
+                ))
+                
+            except ValueError as e:
+                logs.append(f"Configuration Error: {e}")
+                current_step = f"Error: {e}"
+                
+                # Show error indicator
+                step_display = Text()
+                step_display.append("⚠ ", style="bold red")
+                step_display.append(current_step)
+                
+                layout["status"].update(Panel(
+                    step_display, 
+                    title="Error", 
+                    border_style="red",
+                    title_align="left",
+                    padding=(0, 1)
+                ))
+                
+            except Exception as e:
+                logs.append(f"An unexpected error occurred during agent execution: {e}")
+                current_step = f"Error: {e}"
+                # Consider adding traceback logging here for debugging
+                if debug:
+                    import traceback
+                    logs.append(traceback.format_exc())
+                
+                # Show error indicator
+                step_display = Text()
+                step_display.append("⚠ ", style="bold red")
+                step_display.append(current_step)
+                
+                layout["status"].update(Panel(
+                    step_display, 
+                    title="Error", 
+                    border_style="red",
+                    title_align="left",
+                    padding=(0, 1)
+                ))
+            
+            update_display()
+            # Final pause to show the completion status
+            await asyncio.sleep(1)
+
+        except ValueError as e: # Catch ValueError from load_tools (no device found)
+            logs.append(f"Error: {e}")
+            current_step = f"Error: {e}"
+            
+            # Show error indicator
+            step_display = Text()
+            step_display.append("⚠ ", style="bold red")
+            step_display.append(current_step)
+            
+            layout["status"].update(Panel(
+                step_display, 
+                title="Error", 
+                border_style="red",
+                title_align="left",
+                padding=(0, 1)
+            ))
+            update_display()
+            
         except Exception as e:
-            console.print(f"[bold red]An unexpected error occurred during agent execution:[/] {e}")
+            logs.append(f"An unexpected error occurred during setup: {e}")
+            current_step = f"Error: {e}"
             # Consider adding traceback logging here for debugging
-            # import traceback
-            # console.print(traceback.format_exc())
+            if debug:
+                import traceback
+                logs.append(traceback.format_exc())
+                
+            # Show error indicator
+            step_display = Text()
+            step_display.append("⚠ ", style="bold red")
+            step_display.append(current_step)
+            
+            layout["status"].update(Panel(
+                step_display, 
+                title="Error", 
+                border_style="red",
+                title_align="left",
+                padding=(0, 1)
+            ))
+            update_display()
+            await asyncio.sleep(1)
 
-
-    except ValueError as e: # Catch ValueError from load_tools (no device found)
-        console.print(f"[bold red]Error:[/] {e}")
-    except Exception as e:
-        console.print(f"[bold red]An unexpected error occurred during setup:[/] {e}")
-        # Consider adding traceback logging here for debugging
-        import traceback
-        console.print(traceback.format_exc())
-
+def configure_logging(debug: bool):
+    """Configure logging verbosity based on debug flag."""
+    root_logger = logging.getLogger()
+    droidrun_logger = logging.getLogger("droidrun")
+    
+    # Clear existing handlers
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+    for handler in droidrun_logger.handlers[:]:
+        droidrun_logger.removeHandler(handler)
+    
+    # Create a Rich handler that will put logs in our queue
+    rich_handler = RichHandler()
+    
+    # Set format
+    formatter = logging.Formatter('%(message)s')  # Simpler format for the panel
+    rich_handler.setFormatter(formatter)
+    
+    # Set log levels based on debug flag
+    if debug:
+        rich_handler.setLevel(logging.DEBUG)
+        droidrun_logger.setLevel(logging.DEBUG)
+        root_logger.setLevel(logging.INFO)
+    else:
+        # In normal mode, still show INFO level logs for droidrun logger
+        rich_handler.setLevel(logging.INFO)
+        droidrun_logger.setLevel(logging.INFO)
+        root_logger.setLevel(logging.WARNING)
+    
+    # Add the handler
+    droidrun_logger.addHandler(rich_handler)
+    
+    # Capture the initialization message in our queue instead of printing directly
+    log_queue.put(f"Logging level set to: {logging.getLevelName(droidrun_logger.level)}")
 
 
 # Custom Click multi-command class to handle both subcommands and default behavior
@@ -139,10 +453,11 @@ def cli():
 @click.option('--base_url', '-u', help='Base URL for API (e.g., OpenRouter or Ollama)', default=None)
 @click.option('--reasoning/--no-reasoning', is_flag=True, help='Enable/disable planning with reasoning', default=False)
 @click.option('--tracing', is_flag=True, help='Enable Arize Phoenix tracing', default=False)
-def run(command: str, device: str | None, provider: str, model: str, steps: int, vision: bool, base_url: str, temperature: float, reasoning: bool, tracing: bool):
+@click.option('--debug', is_flag=True, help='Enable verbose debug logging', default=False)
+def run(command: str, device: str | None, provider: str, model: str, steps: int, vision: bool, base_url: str, temperature: float, reasoning: bool, tracing: bool, debug: bool):
     """Run a command on your Android device using natural language."""
     # Call our standalone function
-    return run_command(command, device, provider, model, steps, vision, base_url, reasoning, tracing, temperature=temperature)
+    return run_command(command, device, provider, model, steps, vision, base_url, reasoning, tracing, debug, temperature=temperature)
 
 @cli.command()
 @coro
