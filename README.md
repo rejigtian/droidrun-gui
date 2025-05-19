@@ -1,3 +1,36 @@
+# DroidRun GUI 使用说明
+
+DroidRun GUI 是对 droidrun 命令行工具的可视化封装，支持一键操作 Android 设备，无需命令行基础。
+
+## 主要功能
+- 多设备管理与选择
+- 任务输入与模板快捷填充
+- 历史任务一键复用
+- AI模型与API Key管理
+- Portal APK/ADBKeyboard自动安装与环境检测
+- 任务执行进度与结果实时输出
+
+## 启动方式
+1. 安装依赖并激活虚拟环境：
+   ```bash
+   pip install -r requirements.txt
+   source ../venv/bin/activate
+   ```
+2. 一键运行 GUI：
+   ```bash
+   ./run_local_gui.sh
+   ```
+   或手动：
+   ```bash
+   PYTHONPATH=. python3 droidrun_gui/gui_main.py
+   ```
+
+## 亮点体验
+- 支持中文/英文任务输入，自动适配输入法
+- Portal APK/ADBKeyboard 一键安装与切换
+- 任务执行全程可视化，历史可追溯
+
+---
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./static/droidrun-dark.png">
