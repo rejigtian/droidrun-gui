@@ -1,0 +1,2 @@
+[console_scripts]
+droidrun = droidrun.cli.main:cli
