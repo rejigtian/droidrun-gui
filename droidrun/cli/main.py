@@ -37,7 +37,7 @@ def coro(f):
 
 # Define the run command as a standalone function to be used as both a command and default
 @coro
-async def run_command(command: str, device: str | None, provider: str, model: str, steps: int, vision: bool, base_url: str, **kwargs):
+async def run_command(command: str, device: str | None, provider: str, model: str, steps: int, vision: bool, base_url: str, reasoning: bool, tracing: bool, **kwargs):
     """Run a command on your Android device using natural language."""
     console.print(f"[bold blue]Executing command:[/] {command}")
 
@@ -65,6 +65,17 @@ async def run_command(command: str, device: str | None, provider: str, model: st
 
         # Create and run the DroidAgent (wrapper for CodeActAgent and PlannerAgent)
         console.print("[bold blue]Initializing DroidAgent...[/]")
+        
+        # Log the reasoning mode
+        if reasoning:
+            console.print("[blue]Using planning mode with reasoning[/]")
+        else:
+            console.print("[blue]Using direct execution mode without planning[/]")
+            
+        # Log tracing status
+        if tracing:
+            console.print("[blue]Arize Phoenix tracing enabled[/]")
+        
         droid_agent = DroidAgent(
             goal=command,
             llm=llm,
@@ -74,7 +85,8 @@ async def run_command(command: str, device: str | None, provider: str, model: st
             vision=vision,
             timeout=1000,
             max_retries=3,
-            temperature=kwargs.get("temperature", 0)
+            reasoning=reasoning,
+            enable_tracing=tracing
         )
         
         console.print("[yellow]Press Ctrl+C to stop execution[/]")
@@ -121,14 +133,16 @@ def cli():
 @click.option('--device', '-d', help='Device serial number or IP address', default=None)
 @click.option('--provider', '-p', help='LLM provider (openai, ollama, anthropic, gemini,deepseek)', default='Gemini')
 @click.option('--model', '-m', help='LLM model name', default="models/gemini-2.5-pro-preview-05-06")
-@click.option('--temperature', type=int, help='Temperature for LLM', default=0.2)
+@click.option('--temperature', type=float, help='Temperature for LLM', default=0.2)
 @click.option('--steps', type=int, help='Maximum number of steps', default=15)
 @click.option('--vision', is_flag=True, help='Enable vision capabilities', default=True)
 @click.option('--base_url', '-u', help='Base URL for API (e.g., OpenRouter or Ollama)', default=None)
-def run(command: str, device: str | None, provider: str, model: str, steps: int, vision: bool, base_url: str, temperature: int):
+@click.option('--reasoning/--no-reasoning', is_flag=True, help='Enable/disable planning with reasoning', default=False)
+@click.option('--tracing', is_flag=True, help='Enable Arize Phoenix tracing', default=False)
+def run(command: str, device: str | None, provider: str, model: str, steps: int, vision: bool, base_url: str, temperature: float, reasoning: bool, tracing: bool):
     """Run a command on your Android device using natural language."""
     # Call our standalone function
-    return run_command(command, device, provider, model, steps, vision, base_url, temperature=temperature)
+    return run_command(command, device, provider, model, steps, vision, base_url, reasoning, tracing, temperature=temperature)
 
 @cli.command()
 @coro
