@@ -27,8 +27,8 @@ class DroidAgent:
         self, 
         goal: str,
         llm: LLM,
-        tools_instance: 'Tools',
-        tool_list: Dict[str, Any],
+        tools_instance: 'Tools' = None,
+        tool_list: Dict[str, Any] = None,
         max_steps: int = 15,
         vision: bool = False,
         timeout: int = 1000,
@@ -36,6 +36,7 @@ class DroidAgent:
         reasoning: bool = True,
         enable_tracing: bool = False,
         debug: bool = False,
+        device_serial: str = None,
         **kwargs
     ):
         """
@@ -54,12 +55,11 @@ class DroidAgent:
                       or send tasks directly to CodeActAgent (False)
             enable_tracing: Whether to enable Arize Phoenix tracing
             debug: Whether to enable verbose debug logging
+            device_serial: Target Android device serial number
             **kwargs: Additional keyword arguments to pass to the agents
         """
         self.goal = goal
         self.llm = llm
-        self.tools_instance = tools_instance
-        self.tool_list = tool_list
         self.max_steps = max_steps
         self.vision = vision
         self.timeout = timeout
@@ -67,8 +67,12 @@ class DroidAgent:
         self.task_manager = TaskManager()
         self.reasoning = reasoning
         self.debug = debug
+        self.device_serial = device_serial
         
         logger.info("🤖 Initializing DroidAgent wrapper...")
+        
+        self.tools_instance = tools_instance
+        self.tool_list = tool_list
         
         # Ensure remember tool is in the tool_list if available
         if hasattr(tools_instance, 'remember') and 'remember' not in tool_list:
