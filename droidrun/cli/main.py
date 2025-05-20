@@ -4,12 +4,9 @@ DroidRun CLI - Command line interface for controlling Android devices through LL
 if __name__ == "__main__":
     import sys
     import os
-    # Calculate the path to the project root directory (the one containing the 'droidrun' folder)
     _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-    # Add the project root to the beginning of sys.path
     sys.path.insert(0, _project_root)
-    # Manually set the package context so relative imports work
-    __package__ = "droidrun.cli" # Set this based on the script's location within the package
+    __package__ = "droidrun.cli"
 
 
 import asyncio
@@ -25,25 +22,20 @@ from rich.layout import Layout
 from rich.text import Text
 from rich.spinner import Spinner
 from rich.align import Align
-from ..tools import DeviceManager, Tools, load_tools # Import the loader
+from ..tools import DeviceManager, Tools, load_tools
 from ..agent.droidagent import DroidAgent
 from ..agent.utils.llm_picker import load_llm
 from functools import wraps
-# Import the install_app function directly for the setup command
 console = Console()
 device_manager = DeviceManager()
 
-# Custom queue for log messages
 log_queue = queue.Queue()
-# Store the current step for display
 current_step = "Initializing..."
-# Global spinner for animation
 spinner = Spinner("dots")
 
 class RichHandler(logging.Handler):
     def emit(self, record):
         log_record = self.format(record)
-        # Add log to our queue for the live display to process
         log_queue.put(log_record)
 
 def coro(f):
@@ -56,86 +48,154 @@ def create_layout():
     """Create a layout with logs at top and status at bottom"""
     layout = Layout()
     layout.split(
-        Layout(name="logs"),  # Fixed size in lines for logs
-        Layout(name="goal", size=3),   # Goal display box
-        Layout(name="status", size=3)   # Status size at 3 lines
+        Layout(name="logs"),
+        Layout(name="goal", size=3),
+        Layout(name="status", size=3)
     )
     return layout
 
-def update_layout(layout, log_list, step_message, current_time, goal=None):
+def update_layout(layout, log_list, step_message, current_time, goal=None, completed=False, success=None):
     """Update the layout with current logs and step information"""
-    from rich.console import Group
+    from rich.text import Text
+    import shutil
     
-    # Maximum number of the *most recent* log lines to actually render in the panel.
-    max_visible_log_lines = 50 # For example, always show the latest 50 logs.
+    terminal_height = shutil.get_terminal_size().lines
+    other_components_height = 3 + 3 + 4 + 1 + 4
+    available_log_lines = max(5, terminal_height - other_components_height)
     
-    # Get the most recent logs, limited by max_visible_log_lines, for display.
-    # Always show the most recent logs by taking the last 'max_visible_log_lines' items
-    visible_logs = log_list[-max_visible_log_lines:] if len(log_list) > max_visible_log_lines else log_list
+    visible_logs = log_list[-available_log_lines:] if len(log_list) > available_log_lines else log_list
     
-    # Create Text objects only for the logs we intend to display.
-    log_texts = [Text(log) for log in visible_logs]
-    log_group = Group(*log_texts) # This group is at most max_visible_log_lines tall.
+    log_content = "\n".join(visible_logs)
     
-    # Align this smaller group to the bottom-left of the panel to ensure newest logs are visible
-    aligned_log_content = Align(log_group, vertical="bottom", align="left")
-    
-    # Update logs panel
     layout["logs"].update(Panel(
-        aligned_log_content,
-        title=f"Logs ({len(log_list)} total, showing last {len(visible_logs)})", 
+        log_content,
+        title=f"Logs (showing {len(visible_logs)} most recent of {len(log_list)} total)", 
         border_style="blue",
         title_align="left",
-        padding=(0, 1), # Reduced vertical padding (top/bottom)
+        padding=(0, 1),
     ))
     
-    # Update goal panel if goal is provided
     if goal:
         goal_text = Text(goal, style="bold")
         layout["goal"].update(Panel(
-            Align(goal_text, vertical="middle", align="center"),
+            goal_text,
             title="Goal", 
             border_style="magenta",
             title_align="left",
             padding=(0, 1)
         ))
     
-    # Create status panel with spinner
-    global spinner
-    # Create a Text object first, then add spinner text
     step_display = Text()
-    step_display.append(spinner.render(current_time))  # Use current time for animation
-    step_display.append(" ")
+    
+    if completed:
+        if success:
+            step_display.append("✓  ", style="bold green")
+            panel_title = "Completed Successfully"
+            panel_style = "green"
+        else:
+            step_display.append("✗  ", style="bold red")
+            panel_title = "Failed"
+            panel_style = "red"
+    else:
+        step_display.append(spinner.render(current_time))
+        step_display.append(" ")
+        panel_title = "Current Action"
+        panel_style = "green"
+    
     step_display.append(step_message)
     
     layout["status"].update(Panel(
         step_display, 
-        title="Current Action", 
-        border_style="green",
+        title=panel_title, 
+        border_style=panel_style,
         title_align="left",
-        padding=(0, 1) # Reduced vertical padding
+        padding=(0, 1)
     ))
 
-# Define the run command as a standalone function to be used as both a command and default
 @coro
 async def run_command(command: str, device: str | None, provider: str, model: str, steps: int, vision: bool, base_url: str, reasoning: bool, tracing: bool, debug: bool, **kwargs):
     """Run a command on your Android device using natural language."""
-    # Configure logging based on debug flag
     configure_logging(debug)
     
     global current_step
     current_step = "Initializing..."
     logs = []
+    max_log_history = 1000
+    is_completed = False
+    is_success = None
     
-    # Create live display
     layout = create_layout()
     
-    with Live(layout, refresh_per_second=10, console=console) as live:
+    with Live(layout, refresh_per_second=20, console=console) as live:
         def update_display():
-            # Update the layout with current logs and status
-            current_time = time.time()  # Get current time for spinner animation
-            update_layout(layout, logs, current_step, current_time, goal=command)  # Pass current time and goal
+            current_time = time.time()
+            update_layout(
+                layout, 
+                logs, 
+                current_step, 
+                current_time, 
+                goal=command, 
+                completed=is_completed,
+                success=is_success
+            )
             live.refresh()
+        
+        def process_new_logs():
+            log_count = 0
+            while not log_queue.empty():
+                try:
+                    log = log_queue.get_nowait()
+                    logs.append(log)
+                    log_count += 1
+                    if len(logs) > max_log_history:
+                        logs.pop(0)
+                except queue.Empty:
+                    break
+            return log_count > 0
+        
+        async def process_logs():
+            global current_step
+            iteration = 0
+            while True:
+                if is_completed:
+                    process_new_logs()
+                    if iteration % 10 == 0:
+                        update_display()
+                    iteration += 1
+                    await asyncio.sleep(0.1)
+                    continue
+                
+                new_logs_added = process_new_logs()
+                
+                # Improve detection of the latest action from logs
+                latest_task = None
+                for log in reversed(logs[-50:]):  # Search from most recent logs first
+                    if "🔧 Executing task:" in log:
+                        task_desc = log.split("🔧 Executing task:", 1)[1].strip()
+                        
+                        if "Goal:" in task_desc:
+                            goal_part = task_desc.split("Goal:", 1)[1].strip()
+                            latest_task = goal_part
+                        else:
+                            latest_task = task_desc
+                        break  # Stop at the most recent task
+                        
+                if latest_task:
+                    current_step = f"Executing: {latest_task}"
+                
+                if new_logs_added or iteration % 5 == 0:
+                    update_layout(
+                        layout, 
+                        logs, 
+                        current_step, 
+                        time.time(), 
+                        goal=command, 
+                        completed=is_completed,
+                        success=is_success
+                    )
+                
+                iteration += 1
+                await asyncio.sleep(0.05)
         
         try:
             update_display()
@@ -144,42 +204,34 @@ async def run_command(command: str, device: str | None, provider: str, model: st
             if not kwargs.get("temperature"):
                 kwargs["temperature"] = 0
                 
-            # Setting up tools for the agent using the loader
             current_step = "Setting up tools..."
             update_display()
             
-            # Pass the 'device' argument from the CLI options to load_tools
-            tool_list, tools_instance = await load_tools(serial=device, vision=vision)
+            tool_list, tools_instance = await load_tools(serial=device)
 
             if debug:
                 logs.append(f"Tools: {list(tool_list.keys())}")
                 update_display()
                 
-            # Get the actual serial used (either provided or auto-detected)
             device_serial = tools_instance.serial
             logs.append(f"Using device: {device_serial}")
             update_display()
 
-            # Set the device serial in the environment variable (optional, depends if needed elsewhere)
             os.environ["DROIDRUN_DEVICE_SERIAL"] = device_serial
             
-            # Create LLM reasoner
             current_step = "Initializing LLM..."
             update_display()
             
             llm = load_llm(provider_name=provider, model=model, base_url=base_url, **kwargs)
 
-            # Create and run the DroidAgent (wrapper for CodeActAgent and PlannerAgent)
             current_step = "Initializing DroidAgent..."
             update_display()
             
-            # Log the reasoning mode
             if reasoning:
                 logs.append("Using planning mode with reasoning")
             else:
                 logs.append("Using direct execution mode without planning")
                 
-            # Log tracing status
             if tracing:
                 logs.append("Arize Phoenix tracing enabled")
             
@@ -204,154 +256,124 @@ async def run_command(command: str, device: str | None, provider: str, model: st
             update_display()
 
             try:
-                # Start log processor task
-                async def process_logs():
-                    global current_step
-                    while True:
-                        # Check if there are new logs that contain "Executing task"
-                        while not log_queue.empty():
-                            try:
-                                log = log_queue.get_nowait()
-                                logs.append(log)
-                                # If this is an "Executing task" message, update the current_step
-                                if "🔧 Executing task:" in log:
-                                    # Extract the task description
-                                    task_desc = log.split("🔧 Executing task:", 1)[1].strip()
-                                    
-                                    # Extract only the "Goal" part if it exists
-                                    if "Goal:" in task_desc:
-                                        goal_part = task_desc.split("Goal:", 1)[1].strip()
-                                        current_step = f"Executing: {goal_part}"
-                                    else:
-                                        # If no "Goal:" pattern, just use the full description
-                                        current_step = f"Executing: {task_desc}"
-                            except queue.Empty:
-                                break
-                        update_display()
-                        await asyncio.sleep(0.1)
-                
-                # Run both the agent and log processor concurrently
                 log_task = asyncio.create_task(process_logs())
                 result = None
                 try:
                     result = await droid_agent.run()
                     
-                    # Set completion status but keep spinner active for a moment
                     if result.get("success", False):
-                        success_str = f"✅ Goal completed: {result.get('reason', 'Success')}"
-                        logs.append(success_str)
-                        current_step = f"✅ {result.get('reason', 'Success')}"
+                        is_completed = True
+                        is_success = True
+                        
+                        if result.get("output"):
+                            success_output = f"🎯 FINAL ANSWER: {result.get('output')}"
+                            logs.append(success_output)
+                            current_step = f"{result.get('output')}"
+                        else:
+                            current_step = result.get("reason", "Success")
                     else:
-                        err_str = f"❌ Execution failed: {result.get('reason', 'Unknown reason')}"
-                        logs.append(err_str)
-                        current_step = f"❌ {result.get('reason', 'Unknown reason')}"
+                        is_completed = True
+                        is_success = False
+                        
+                        current_step = result.get("reason", "Failed") if result else "Failed"
                     
-                    # Continue updating for a moment to show final state with animation
+                    update_layout(
+                        layout, 
+                        logs, 
+                        current_step, 
+                        time.time(), 
+                        goal=command, 
+                        completed=is_completed, 
+                        success=is_success
+                    )
+                    
                     await asyncio.sleep(2)
                 finally:
-                    # Make sure we cancel the log processing task
                     log_task.cancel()
                     try:
                         await log_task
                     except asyncio.CancelledError:
                         pass
                     
-                    # Final display update with a static indicator instead of spinner
-                    if result and result.get("success", False):
-                        # Create success indicator
-                        step_display = Text()
-                        step_display.append("✓ ", style="bold green")
-                        step_display.append(current_step)
-                        
-                        layout["status"].update(Panel(
-                            step_display, 
-                            title="Completed Successfully", 
-                            border_style="green",
-                            title_align="left",
-                            padding=(0, 1)
-                        ))
-                    else:
-                        # Create failure indicator
-                        step_display = Text()
-                        step_display.append("✗ ", style="bold red")
-                        step_display.append(current_step)
-                        
-                        layout["status"].update(Panel(
-                            step_display, 
-                            title="Failed", 
-                            border_style="red",
-                            title_align="left",
-                            padding=(0, 1)
-                        ))
+                    for _ in range(20):
+                        process_new_logs()
+                        await asyncio.sleep(0.05)
+                    
+                    update_layout(
+                        layout, 
+                        logs, 
+                        current_step, 
+                        time.time(), 
+                        goal=command, 
+                        completed=is_completed, 
+                        success=is_success
+                    )
                     
                     live.refresh()
-                    # One more pause to show the final state
-                    await asyncio.sleep(1)
+                    
+                    await asyncio.sleep(3)
 
             except KeyboardInterrupt:
                 logs.append("Execution stopped by user.")
                 current_step = "Stopped by user"
                 
-                # Show stopped indicator
-                step_display = Text()
-                step_display.append("⚠ ", style="bold yellow")
-                step_display.append(current_step)
+                is_completed = True
+                is_success = False
                 
-                layout["status"].update(Panel(
-                    step_display, 
-                    title="Execution Stopped", 
-                    border_style="yellow",
-                    title_align="left",
-                    padding=(0, 1)
-                ))
+                update_layout(
+                    layout, 
+                    logs, 
+                    current_step, 
+                    time.time(), 
+                    goal=command, 
+                    completed=is_completed, 
+                    success=is_success
+                )
                 
             except ValueError as e:
                 logs.append(f"Configuration Error: {e}")
                 current_step = f"Error: {e}"
                 
-                # Show error indicator
-                step_display = Text()
-                step_display.append("⚠ ", style="bold red")
-                step_display.append(current_step)
+                is_completed = True
+                is_success = False
                 
-                layout["status"].update(Panel(
-                    step_display, 
-                    title="Error", 
-                    border_style="red",
-                    title_align="left",
-                    padding=(0, 1)
-                ))
+                update_layout(
+                    layout, 
+                    logs, 
+                    current_step, 
+                    time.time(), 
+                    goal=command, 
+                    completed=is_completed, 
+                    success=is_success
+                )
                 
             except Exception as e:
                 logs.append(f"An unexpected error occurred during agent execution: {e}")
                 current_step = f"Error: {e}"
-                # Consider adding traceback logging here for debugging
                 if debug:
                     import traceback
                     logs.append(traceback.format_exc())
                 
-                # Show error indicator
-                step_display = Text()
-                step_display.append("⚠ ", style="bold red")
-                step_display.append(current_step)
+                is_completed = True
+                is_success = False
                 
-                layout["status"].update(Panel(
-                    step_display, 
-                    title="Error", 
-                    border_style="red",
-                    title_align="left",
-                    padding=(0, 1)
-                ))
+                update_layout(
+                    layout, 
+                    logs, 
+                    current_step, 
+                    time.time(), 
+                    goal=command, 
+                    completed=is_completed, 
+                    success=is_success
+                )
             
             update_display()
-            # Final pause to show the completion status
             await asyncio.sleep(1)
 
-        except ValueError as e: # Catch ValueError from load_tools (no device found)
+        except ValueError as e:
             logs.append(f"Error: {e}")
             current_step = f"Error: {e}"
             
-            # Show error indicator
             step_display = Text()
             step_display.append("⚠ ", style="bold red")
             step_display.append(current_step)
@@ -368,12 +390,10 @@ async def run_command(command: str, device: str | None, provider: str, model: st
         except Exception as e:
             logs.append(f"An unexpected error occurred during setup: {e}")
             current_step = f"Error: {e}"
-            # Consider adding traceback logging here for debugging
             if debug:
                 import traceback
                 logs.append(traceback.format_exc())
                 
-            # Show error indicator
             step_display = Text()
             step_display.append("⚠ ", style="bold red")
             step_display.append(current_step)
@@ -399,37 +419,28 @@ def configure_logging(debug: bool):
     for handler in droidrun_logger.handlers[:]:
         droidrun_logger.removeHandler(handler)
     
-    # Create a Rich handler that will put logs in our queue
     rich_handler = RichHandler()
     
-    # Set format
-    formatter = logging.Formatter('%(message)s')  # Simpler format for the panel
+    formatter = logging.Formatter('%(message)s') 
     rich_handler.setFormatter(formatter)
     
-    # Set log levels based on debug flag
     if debug:
         rich_handler.setLevel(logging.DEBUG)
         droidrun_logger.setLevel(logging.DEBUG)
         root_logger.setLevel(logging.INFO)
     else:
-        # In normal mode, still show INFO level logs for droidrun logger
         rich_handler.setLevel(logging.INFO)
         droidrun_logger.setLevel(logging.INFO)
         root_logger.setLevel(logging.WARNING)
     
-    # Add the handler
     droidrun_logger.addHandler(rich_handler)
     
-    # Capture the initialization message in our queue instead of printing directly
     log_queue.put(f"Logging level set to: {logging.getLevelName(droidrun_logger.level)}")
 
 
-# Custom Click multi-command class to handle both subcommands and default behavior
 class DroidRunCLI(click.Group):
     def parse_args(self, ctx, args):
-        # Check if the first argument might be a task rather than a command
         if args and not args[0].startswith('-') and args[0] not in self.commands:
-            # Insert the 'run' command before the first argument if it's not a known command
             args.insert(0, 'run')
         return super().parse_args(ctx, args)
 
@@ -507,12 +518,10 @@ async def disconnect(serial: str):
 async def setup(path: str, device: str | None):
     """Install an APK file and enable it as an accessibility service."""
     try:
-        # Check if APK file exists
         if not os.path.exists(path):
             console.print(f"[bold red]Error:[/] APK file not found at {path}")
             return
             
-        # Try to find a device if none specified
         if not device:
             devices = await device_manager.list_devices()
             if not devices:
@@ -522,17 +531,14 @@ async def setup(path: str, device: str | None):
             device = devices[0].serial
             console.print(f"[blue]Using device:[/] {device}")
         
-        # Set the device serial in the environment variable
         os.environ["DROIDRUN_DEVICE_SERIAL"] = device
         console.print(f"[blue]Set DROIDRUN_DEVICE_SERIAL to:[/] {device}")
         
-        # Get a device object for ADB commands
         device_obj = await device_manager.get_device(device)
         if not device_obj:
             console.print(f"[bold red]Error:[/] Could not get device object for {device}")
             return
         tools = Tools(serial=device)
-        # Step 1: Install the APK file
         console.print(f"[bold blue]Step 1/2: Installing APK:[/] {path}")
         result = await tools.install_app(path, False, True)
         
@@ -542,17 +548,13 @@ async def setup(path: str, device: str | None):
         else:
             console.print(f"[bold green]Installation successful![/]")
         
-        # Step 2: Enable the accessibility service with the specific command
         console.print(f"[bold blue]Step 2/2: Enabling accessibility service[/]")
         
-        # Package name for reference in error message
         package = "com.droidrun.portal"
         
         try:
-            # Use the exact command provided
             await device_obj._adb.shell(device, "settings put secure enabled_accessibility_services com.droidrun.portal/com.droidrun.portal.DroidrunPortalService")
             
-            # Also enable accessibility services globally
             await device_obj._adb.shell(device, "settings put secure accessibility_enabled 1")
             
             console.print("[green]Accessibility service enabled successfully![/]")
@@ -562,7 +564,6 @@ async def setup(path: str, device: str | None):
             console.print(f"[yellow]Could not automatically enable accessibility service: {e}[/]")
             console.print("[yellow]Opening accessibility settings for manual configuration...[/]")
             
-            # Fallback: Open the accessibility settings page
             await device_obj._adb.shell(device, "am start -a android.settings.ACCESSIBILITY_SETTINGS")
             
             console.print("\n[yellow]Please complete the following steps on your device:[/]")
