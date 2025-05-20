@@ -23,7 +23,7 @@ from rich.text import Text
 from rich.spinner import Spinner
 from rich.align import Align
 from ..tools import DeviceManager, Tools, load_tools
-from ..agent.droidagent import DroidAgent
+from ..agent.droid import DroidAgent
 from ..agent.utils.llm_picker import load_llm
 from functools import wraps
 console = Console()

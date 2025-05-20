@@ -10,9 +10,9 @@ from typing import Dict, Any, List, Tuple
 from llama_index.core.base.llms.types import ChatMessage
 from llama_index.core.llms.llm import LLM
 from llama_index.core.memory import ChatMemoryBuffer
-from ...agent.codeact import CodeActAgent
-from ...agent.planner import PlannerAgent, TaskManager
-from ...agent.utils.executer import SimpleCodeExecutor
+from ..codeact import CodeActAgent
+from ..planner import PlannerAgent, TaskManager
+from ..utils.executer import SimpleCodeExecutor
 from ...tools import Tools
 
 logger = logging.getLogger("droidrun")
