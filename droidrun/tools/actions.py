@@ -546,32 +546,6 @@ class Tools:
         except ValueError as e:
             return f"Error: {str(e)}"
 
-    async def uninstall_app(
-        self,
-        package: str, 
-        keep_data: bool = False
-    ) -> str:
-        """
-        Uninstall an app from the device.
-        
-        Args:
-            package: Package name to uninstall
-            keep_data: Whether to keep app data and cache
-        """
-        try:
-            if self.serial:
-                device_manager = DeviceManager()
-                device = await device_manager.get_device(self.serial)
-                if not device:
-                    return f"Error: Device {self.serial} not found"
-            else:
-                device = await self.get_device()
-            
-            result = await device.uninstall_app(package, keep_data)
-            return result
-        except ValueError as e:
-            return f"Error: {str(e)}"
-
     async def take_screenshot(self) -> bool:
         """
         Take a screenshot of the device.
@@ -754,100 +728,6 @@ class Tools:
                 
         except Exception as e:
             raise ValueError(f"Error getting all UI elements: {e}")
-        
-    async def draw_line(self, start_x: float, start_y: float, end_x: float, end_y: float, color: int) -> str:
-        """
-        Draw a line on the device screen using a broadcast intent.
-
-        Args:
-            start_x: Starting X coordinate.
-            start_y: Starting Y coordinate.
-            end_x: Ending X coordinate.
-            end_y: Ending Y coordinate.
-            color: Color of the line (integer representation, e.g., -16711936 for green).
-
-        Returns:
-            Result message.
-        """
-        try:
-            if self.serial:
-                device_manager = DeviceManager()
-                device = await device_manager.get_device(self.serial)
-                if not device:
-                    return f"Error: Device {self.serial} not found"
-            else:
-                device = await self.get_device()
-
-            cmd = (
-                f"am broadcast -a com.droidrun.portal.DRAW_LINE "
-                f"--ef start_x {start_x} --ef start_y {start_y} "
-                f"--ef end_x {end_x} --ef end_y {end_y} "
-                f"--ei color {color}"
-            )
-            await device._adb.shell(device._serial, cmd)
-            return f"Draw line command sent: from ({start_x},{start_y}) to ({end_x},{end_y}) with color {color}"
-        except ValueError as e:
-            return f"Error: {str(e)}"
-        except Exception as e:
-            return f"Error sending draw line command: {str(e)}"
-
-    async def draw_dot(self, x: float, y: float, color: int, radius: float) -> str:
-        """
-        Draw a dot on the device screen using a broadcast intent.
-
-        Args:
-            x: X coordinate of the dot center.
-            y: Y coordinate of the dot center.
-            color: Color of the dot (integer representation, e.g., -16711936 for green).
-            radius: Radius of the dot.
-
-        Returns:
-            Result message.
-        """
-        try:
-            if self.serial:
-                device_manager = DeviceManager()
-                device = await device_manager.get_device(self.serial)
-                if not device:
-                    return f"Error: Device {self.serial} not found"
-            else:
-                device = await self.get_device()
-
-            cmd = (
-                f"am broadcast -a com.droidrun.portal.DRAW_DOT "
-                f"--ef x {x} --ef y {y} "
-                f"--ei color {color} --ef radius {radius}"
-            )
-            await device._adb.shell(device._serial, cmd)
-            return f"Draw dot command sent: at ({x},{y}) with radius {radius} and color {color}"
-        except ValueError as e:
-            return f"Error: {str(e)}"
-        except Exception as e:
-            return f"Error sending draw dot command: {str(e)}"
-
-    async def clear_all_drawings(self) -> str:
-        """
-        Clear all drawings on the device screen using a broadcast intent.
-
-        Returns:
-            Result message.
-        """
-        try:
-            if self.serial:
-                device_manager = DeviceManager()
-                device = await device_manager.get_device(self.serial)
-                if not device:
-                    return f"Error: Device {self.serial} not found"
-            else:
-                device = await self.get_device()
-
-            cmd = "am broadcast -a com.droidrun.portal.CLEAR_ALL"
-            await device._adb.shell(device._serial, cmd)
-            return "Clear all drawings command sent."
-        except ValueError as e:
-            return f"Error: {str(e)}"
-        except Exception as e:
-            return f"Error sending clear drawings command: {str(e)}"
         
     def complete(self, success: bool, reason: str = ""):
         """
