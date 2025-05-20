@@ -393,11 +393,14 @@ class Tools:
 
     async def input_text(self, text: str, serial: Optional[str] = None) -> str:
         """
-        Input text on the device.
+        Input text on the device using Base64 encoding and broadcast intent.
         
         Args:
             text: Text to input. Can contain spaces, newlines, and special characters including non-ASCII.
             serial: Optional device serial (for backward compatibility)
+        
+        Returns:
+            Result message
         """
         try:
             if serial:
@@ -408,156 +411,39 @@ class Tools:
             else:
                 device = await self.get_device()
             
-            # Select all text (Ctrl+A using keycombination)
-            await device._adb.shell(device._serial, 'input keycombination 113 29')
-            # Delete selected text
-            await device._adb.shell(device._serial, 'input keyevent KEYCODE_DEL')
+            # Save the current keyboard
+            original_ime = await device._adb.shell(device._serial, "settings get secure default_input_method")
+            original_ime = original_ime.strip()
             
-            # For handling special characters, we'll use different approaches
+            # Enable the Droidrun keyboard
+            await device._adb.shell(device._serial, "ime enable com.droidrun.portal/.DroidrunKeyboardIME")
             
-            # Convert newlines to explicit key events
-            if '\n' in text:
-                # Split by newlines and handle each line separately
-                lines = text.split('\n')
-                for i, line in enumerate(lines):
-                    if i > 0:
-                        # Send ENTER keyevent between lines
-                        await device._adb.shell(device._serial, 'input keyevent KEYCODE_ENTER')
-                    
-                    if line:  # Only process non-empty lines
-                        await self._input_text_segment(device, line)
-                
-                # Success case for newlines
-                return f"Text input with newlines completed: {text[:50]}{'...' if len(text) > 50 else ''}"
+            # Set the Droidrun keyboard as the default
+            await device._adb.shell(device._serial, "ime set com.droidrun.portal/.DroidrunKeyboardIME")
             
-            # Handle text without newlines
-            await self._input_text_segment(device, text)
+            # Wait for keyboard to change
+            await asyncio.sleep(0.2)
             
-            # Wait for UI to stabilize after input
-            await asyncio.sleep(2)
+            # Encode the text to Base64
+            import base64
+            encoded_text = base64.b64encode(text.encode()).decode()
+            
+            # Send the broadcast intent with the Base64-encoded text
+            cmd = f'am broadcast -a DROIDRUN_INPUT_B64 --es msg "{encoded_text}"'
+            await device._adb.shell(device._serial, cmd)
+            
+            # Wait for text input to complete
+            await asyncio.sleep(0.5)
+            
+            # Restore the original keyboard
+            if original_ime and "com.droidrun.portal" not in original_ime:
+                await device._adb.shell(device._serial, f"ime set {original_ime}")
             
             return f"Text input completed: {text[:50]}{'...' if len(text) > 50 else ''}"
         except ValueError as e:
             return f"Error: {str(e)}"
-    
-    async def _input_text_segment(self, device, text: str) -> bool:
-        """
-        Helper method to input a segment of text (no newlines)
-        
-        Args:
-            device: The device instance
-            text: Text segment to input
-        
-        Returns:
-            True if successful, False otherwise
-        """
-        # Handle special characters
-        has_special = any(ord(c) > 127 for c in text) or any(c in '[](){}|&;$<>\\`"\'#^~!' for c in text)
-        
-        if has_special:
-            # For text with special characters, we'll create a temporary file
-            # with the text encoded in UTF-8, then use cat to output the file contents
-            
-            # Create a unique temporary filename on the device
-            temp_filename = f"/data/local/tmp/text_input_{int(time.time() * 1000)}.txt"
-            
-            try:
-                # Create a temporary file locally
-                with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', delete=False) as temp:
-                    temp.write(text)
-                    local_path = temp.name
-                
-                # Push the file to the device
-                await device._adb.push_file(device._serial, local_path, temp_filename)
-                
-                # Use 'cat' to output the file contents and pipe to clipboard
-                await device._adb.shell(device._serial, f"cat {temp_filename} | am broadcast -a clipboardtext --es text \"$(cat {temp_filename})\"")
-                
-                # Wait a moment for clipboard to update
-                await asyncio.sleep(0.5)
-                
-                # Use paste shortcut (Ctrl+V)
-                await device._adb.shell(device._serial, 'input keyevent 279')  # KEYCODE_PASTE
-                
-                # Clean up
-                await device._adb.shell(device._serial, f"rm {temp_filename}")
-                os.unlink(local_path)
-                
-                return True
-                
-            except Exception as e:
-                print(f"Error with file method: {e}")
-                
-                # Fallback: Try a character-by-character approach with regular text for special ASCII chars
-                try:
-                    for char in text:
-                        if ord(char) > 127:
-                            # For non-ASCII, replace with a recognizable placeholder or skip
-                            # We could try alternate methods here like mapping € to EUR
-                            special_char_map = {
-                                '€': 'EUR',
-                                '£': 'GBP',
-                                '¥': 'JPY',
-                                '₹': 'INR',
-                                # Add more mappings as needed
-                            }
-                            
-                            replacement = special_char_map.get(char, '?')
-                            escaped_char = char.replace('"', '\\"')
-                            await device._adb.shell(device._serial, f'input text "{escaped_char}"')
-                        elif char in '[](){}|&;$<>\\`"\'#^~!':
-                            # For ASCII special chars, escape them for shell
-                            escaped_char = char.replace('"', '\\"')
-                            await device._adb.shell(device._serial, f'input text "{escaped_char}"')
-                        else:
-                            # Regular character
-                            escaped_char = char
-                            await device._adb.shell(device._serial, f'input text "{escaped_char}"')
-                        
-                        # Small delay between characters
-                        await asyncio.sleep(0.01)
-                    
-                    return True
-                    
-                except Exception as inner_e:
-                    print(f"Error with character-by-character fallback: {inner_e}")
-                    return False
-        
-        # For normal ASCII text without special chars, use the standard method
-        # Split text into smaller chunks (max 500 chars)
-        chunk_size = 500
-        chunks = [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
-        
-        for chunk in chunks:
-            # Escape quotes for shell
-            escaped_chunk = chunk.replace('"', '\\"')
-            
-            # Try different input methods if one fails
-            methods = [
-                f'input text "{escaped_chunk}"',  # Standard method
-                f'input keyboard text "{escaped_chunk}"'  # Keyboard method
-            ]
-            
-            success = False
-            last_error = None
-            
-            for method in methods:
-                try:
-                    await device._adb.shell(device._serial, method)
-                    success = True
-                    break
-                except Exception as e:
-                    last_error = str(e)
-                    continue
-            
-            if not success:
-                print(f"Error: Failed to input text chunk. Last error: {last_error}")
-                return False
-            
-            # Small delay between chunks
-            await asyncio.sleep(0.1)
-        
-        return True
+        except Exception as e:
+            return f"Error sending text input: {str(e)}"
 
     async def press_key(self, keycode: int) -> str:
         """
