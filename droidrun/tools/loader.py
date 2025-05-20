@@ -7,7 +7,7 @@ from typing import Tuple, Dict, Callable, Any, Optional
 # Get a logger for this module
 logger = logging.getLogger(__name__)
 
-async def load_tools(serial: Optional[str] = None, vision: bool = False) -> Tuple[Dict[str, Callable[..., Any]], Tools]:
+async def load_tools(serial: Optional[str] = None) -> Tuple[Dict[str, Callable[..., Any]], Tools]:
     """
     Initializes the Tools class and returns a dictionary of available tool functions
     and the Tools instance itself. If serial is not provided, it attempts to find
