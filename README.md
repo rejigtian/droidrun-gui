@@ -16,10 +16,13 @@ DroidRun is a powerful framework for controlling Android devices through LLM age
 ## ✨ Features
 
 - Control Android devices with natural language commands
-- Supports multiple LLM providers (OpenAI, Anthropic, Gemini)
-- Easy to use CLI
+- Supports multiple LLM providers (OpenAI, Anthropic, Gemini, Ollama, DeepSeek)
+- Planning capabilities for complex multi-step tasks
+- LlamaIndex integration for flexible LLM interactions
+- Easy to use CLI with enhanced debugging features
 - Extendable Python API for custom automations
 - Screenshot analysis for visual understanding of the device
+- Execution tracing with Arize Phoenix
 
 ## 📦 Installation
 
@@ -100,6 +103,8 @@ Create a `.env` file in your working directory or set environment variables:
 export OPENAI_API_KEY="your_openai_api_key_here"
 export ANTHROPIC_API_KEY="your_anthropic_api_key_here"
 export GEMINI_API_KEY="your_gemini_api_key_here"
+export DEEPSEEK_API_KEY="your_deepseek_api_key_here"
+# For Ollama, no API key is needed
 ```
 
 To load the environment variables from the `.env` file:
@@ -144,13 +149,16 @@ droidrun "Open the settings app"
 
 ```bash
 # Using OpenAI
-droidrun "Open the calculator app" --provider openai --model gpt-4o-mini
+droidrun "Open the calculator app" --provider OpenAI --model gpt-4o-mini
 
 # Using Anthropic
-droidrun "Check the battery level" --provider anthropic --model claude-3-sonnet-20240229
+droidrun "Check the battery level" --provider Anthropic --model claude-3-sonnet-20240229
 
 # Using Gemini
-droidrun "Install and open Instagram" --provider gemini --model gemini-2.0-flash
+droidrun "Install and open Instagram" --provider Gemini --model models/gemini-2.5-pro-preview-05-06
+
+# Using Ollama (local)
+droidrun "Check battery level" --provider Ollama --model llama2
 ```
 
 ### ⚙️ Additional Options
@@ -158,6 +166,15 @@ droidrun "Install and open Instagram" --provider gemini --model gemini-2.0-flash
 ```bash
 # Specify a particular device
 droidrun "Open Chrome and search for weather" --device abc123
+
+# Enable vision capabilities
+droidrun "Analyze what's on the screen" --vision
+
+# Enable planning for complex tasks
+droidrun "Find and download a specific app" --reasoning
+
+# Enable execution tracing (requires Phoenix server running)
+droidrun "Debug this complex workflow" --tracing
 
 # Set maximum number of steps
 droidrun "Open settings and enable dark mode" --steps 20
@@ -170,40 +187,73 @@ If you want to use DroidRun in your Python code rather than via the CLI, you can
 ```python
 #!/usr/bin/env python3
 import asyncio
-import os
-from droidrun.agent.react_agent import ReActAgent
-from droidrun.agent.llm_reasoning import LLMReasoner
-from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
+from droidrun.agent.droid import DroidAgent
+from droidrun.agent.utils.llm_picker import load_llm
+from droidrun.tools import load_tools
 
 async def main():
-    # Create an LLM instance (choose your preferred provider)
-    llm = LLMReasoner(
-        llm_provider="gemini",  # Can be "openai", "anthropic", or "gemini"
-        model_name="gemini-2.0-flash",  # Choose appropriate model for your provider
-        api_key=os.environ.get("GEMINI_API_KEY"),  # Get API key from environment
+    # Load tools
+    tool_list, tools_instance = await load_tools()
+    
+    # Load LLM
+    llm = load_llm(
+        provider_name="Gemini",  # Case sensitive: OpenAI, Ollama, Anthropic, Gemini, DeepSeek
+        model="models/gemini-2.5-pro-preview-05-06",
         temperature=0.2
     )
     
     # Create and run the agent
-    agent = ReActAgent(
-        task="Open the Settings app and check the Android version",
-        llm=llm
+    agent = DroidAgent(
+        goal="Open the Settings app and check the Android version",
+        llm=llm,
+        tools_instance=tools_instance,
+        tool_list=tool_list,
+        vision=True,      # Enable vision for screen analysis
+        reasoning=True    # Enable planning for complex tasks
     )
     
-    steps = await agent.run()
-    print(f"Execution completed with {len(steps)} steps")
+    # Run the agent
+    result = await agent.run()
+    print(f"Success: {result['success']}")
+    if result.get('reason'):
+        print(f"Reason: {result['reason']}")
 
 if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-Save this as `test_droidrun.py`, ensure your `.env` file has the appropriate API key, and run:
+You can also use LlamaIndex directly:
 
-```bash
-python test_droidrun.py
+```python
+import asyncio
+from llama_index.llms.gemini import Gemini
+from droidrun.agent.droid import DroidAgent
+from droidrun.tools import load_tools
+
+async def main():
+    # Load tools
+    tool_list, tools_instance = await load_tools()
+    
+    # Create LlamaIndex LLM directly
+    llm = Gemini(
+        model="models/gemini-2.5-pro-preview-05-06",
+        temperature=0.2
+    )
+    
+    # Create and run the agent
+    agent = DroidAgent(
+        goal="Open the Settings app and check the Android version",
+        llm=llm,
+        tools_instance=tools_instance,
+        tool_list=tool_list
+    )
+    
+    # Run the agent
+    result = await agent.run()
+    print(f"Success: {result['success']}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
 ## ❓ Troubleshooting
@@ -227,6 +277,13 @@ If you have trouble connecting to your device:
 If DroidRun is using the wrong LLM provider:
 1. Explicitly specify the provider with `--provider` (in CLI) or `llm_provider=` (in code)
 2. When using Gemini, ensure you have set `GEMINI_API_KEY` and specified `--provider gemini`
+
+### 📊 Tracing Issues
+
+If you're using the tracing feature:
+1. Make sure to install Arize Phoenix: `pip install "arize-phoenix[llama-index]"`
+2. Start the Phoenix server before running your command: `phoenix serve`
+3. Access the tracing UI at http://localhost:6006 after execution
 
 ### 🎬 Demo Videos
 
@@ -254,6 +311,8 @@ If DroidRun is using the wrong LLM provider:
 
 ### 🤖 Agent:
 - **Improve memory**: Enhance context retention for complex multi-step tasks
+- **Expand planning capabilities**: Add support for more complex reasoning strategies
+- **Add more LLM providers**: Support additional local and cloud-based LLMs
 - **Improve vision capabilities**: Better UI element recognition and visual feedback interpretation
 - **Add Integrations**: Support more LLM providers and agent frameworks (LangChain, Agno etc.)
 
