@@ -1,21 +1,42 @@
 """
 DroidRun CLI - Command line interface for controlling Android devices through LLM agents.
 """
+if __name__ == "__main__":
+    import sys
+    import os
+    _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    sys.path.insert(0, _project_root)
+    __package__ = "droidrun.cli"
+
 
 import asyncio
 import click
 import os
+import logging
+import time
+import queue
 from rich.console import Console
-from droidrun.tools import DeviceManager
-from droidrun.agent import ReActAgent
-from droidrun.agent.llm_reasoning import LLMReasoner
+from rich.live import Live
+from rich.panel import Panel
+from rich.layout import Layout
+from rich.text import Text
+from rich.spinner import Spinner
+from rich.align import Align
+from ..tools import DeviceManager, Tools, load_tools
+from ..agent.droid import DroidAgent
+from ..agent.utils.llm_picker import load_llm
 from functools import wraps
-
-# Import the install_app function directly for the setup command
-from droidrun.tools.actions import install_app
-
 console = Console()
 device_manager = DeviceManager()
+
+log_queue = queue.Queue()
+current_step = "Initializing..."
+spinner = Spinner("dots")
+
+class RichHandler(logging.Handler):
+    def emit(self, record):
+        log_record = self.format(record)
+        log_queue.put(log_record)
 
 def coro(f):
     @wraps(f)
@@ -23,127 +44,403 @@ def coro(f):
         return asyncio.run(f(*args, **kwargs))
     return wrapper
 
-# Define the run command as a standalone function to be used as both a command and default
+def create_layout():
+    """Create a layout with logs at top and status at bottom"""
+    layout = Layout()
+    layout.split(
+        Layout(name="logs"),
+        Layout(name="goal", size=3),
+        Layout(name="status", size=3)
+    )
+    return layout
+
+def update_layout(layout, log_list, step_message, current_time, goal=None, completed=False, success=None):
+    """Update the layout with current logs and step information"""
+    from rich.text import Text
+    import shutil
+    
+    terminal_height = shutil.get_terminal_size().lines
+    other_components_height = 3 + 3 + 4 + 1 + 4
+    available_log_lines = max(5, terminal_height - other_components_height)
+    
+    visible_logs = log_list[-available_log_lines:] if len(log_list) > available_log_lines else log_list
+    
+    log_content = "\n".join(visible_logs)
+    
+    layout["logs"].update(Panel(
+        log_content,
+        title=f"Logs (showing {len(visible_logs)} most recent of {len(log_list)} total)", 
+        border_style="blue",
+        title_align="left",
+        padding=(0, 1),
+    ))
+    
+    if goal:
+        goal_text = Text(goal, style="bold")
+        layout["goal"].update(Panel(
+            goal_text,
+            title="Goal", 
+            border_style="magenta",
+            title_align="left",
+            padding=(0, 1)
+        ))
+    
+    step_display = Text()
+    
+    if completed:
+        if success:
+            step_display.append("✓  ", style="bold green")
+            panel_title = "Completed Successfully"
+            panel_style = "green"
+        else:
+            step_display.append("✗  ", style="bold red")
+            panel_title = "Failed"
+            panel_style = "red"
+    else:
+        step_display.append(spinner.render(current_time))
+        step_display.append(" ")
+        panel_title = "Current Action"
+        panel_style = "green"
+    
+    step_display.append(step_message)
+    
+    layout["status"].update(Panel(
+        step_display, 
+        title=panel_title, 
+        border_style=panel_style,
+        title_align="left",
+        padding=(0, 1)
+    ))
+
 @coro
-async def run_command(command: str, device: str | None, provider: str, model: str, steps: int, vision: bool, base_url: str):
+async def run_command(command: str, device: str | None, provider: str, model: str, steps: int, vision: bool, base_url: str, reasoning: bool, tracing: bool, debug: bool, **kwargs):
     """Run a command on your Android device using natural language."""
-    console.print(f"[bold blue]Executing command:[/] {command}")
+    configure_logging(debug)
     
-    # Auto-detect Gemini if model starts with "gemini-"
-    if model and model.startswith("gemini-"):
-        provider = "gemini"
+    global current_step
+    current_step = "Initializing..."
+    logs = []
+    max_log_history = 1000
+    is_completed = False
+    is_success = None
     
-    # Print vision status
-    if vision:
-        console.print("[blue]Vision capabilities are enabled.[/]")
-    else:
-        console.print("[blue]Vision capabilities are disabled.[/]")
+    layout = create_layout()
     
-    # Get API keys from environment variables
-    api_key = None
-    if provider.lower() == 'openai':
-        api_key = os.environ.get('OPENAI_API_KEY')
-        if not api_key:
-            console.print("[bold red]Error:[/] OPENAI_API_KEY environment variable not set")
-            return
-        if not model:
-            model = "gpt-4o-mini"
-    elif provider.lower() == 'anthropic':
-        api_key = os.environ.get('ANTHROPIC_API_KEY')
-        if not api_key:
-            console.print("[bold red]Error:[/] ANTHROPIC_API_KEY environment variable not set")
-            return
-        if not model:
-            model = "claude-3-sonnet-20240229"
-    elif provider.lower() == 'gemini':
-        api_key = os.environ.get('GEMINI_API_KEY')
-        if not api_key:
-            console.print("[bold red]Error:[/] GEMINI_API_KEY environment variable not set")
-            return
-        if not model:
-            model = "gemini-2.0-flash"
-
-    elif provider.lower() == 'deepseek':
-        api_key = os.environ.get('DeepSeek_API_KEY')
-        if not api_key:
-            console.print("[bold red]Error:[/] DeepSeek_API_KEY environment variable not set")
-            return
-        if not model:
-            model = "deepseek-chat"
-
-    elif provider.lower() == 'ollama':
-        api_key = "ollama"
-        if not base_url:
-            base_url = "http://localhost:11434/v1"
-        if not model:
-            model = "llama3.1:8b"
-    else:
-        console.print(f"[bold red]Error:[/] Unsupported provider: {provider}")
-        return
-    
-    try:
-        # Try to find a device if none specified
-        if not device:
-            devices = await device_manager.list_devices()
-            if not devices:
-                console.print("[yellow]No devices connected.[/]")
-                return
-            
-            device = devices[0].serial
-            console.print(f"[blue]Using device:[/] {device}")
+    with Live(layout, refresh_per_second=20, console=console) as live:
+        def update_display():
+            current_time = time.time()
+            update_layout(
+                layout, 
+                logs, 
+                current_step, 
+                current_time, 
+                goal=command, 
+                completed=is_completed,
+                success=is_success
+            )
+            live.refresh()
         
-        # Set the device serial in the environment variable
-        os.environ["DROIDRUN_DEVICE_SERIAL"] = device
-        console.print(f"[blue]Set DROIDRUN_DEVICE_SERIAL to:[/] {device}")
+        def process_new_logs():
+            log_count = 0
+            while not log_queue.empty():
+                try:
+                    log = log_queue.get_nowait()
+                    logs.append(log)
+                    log_count += 1
+                    if len(logs) > max_log_history:
+                        logs.pop(0)
+                except queue.Empty:
+                    break
+            return log_count > 0
         
-        # Create LLM reasoner
-        console.print("[bold blue]Initializing LLM reasoner...[/]")
-        llm = LLMReasoner(
-            llm_provider=provider,
-            model_name=model,
-            api_key=api_key,
-            temperature=0.2,
-            max_tokens=2000,
-            vision=vision,
-            base_url=base_url
-        )
-        
-        # Create and run the agent
-        console.print("[bold blue]Running ReAct agent...[/]")
-        console.print("[yellow]Press Ctrl+C to stop execution[/]")
+        async def process_logs():
+            global current_step
+            iteration = 0
+            while True:
+                if is_completed:
+                    process_new_logs()
+                    if iteration % 10 == 0:
+                        update_display()
+                    iteration += 1
+                    await asyncio.sleep(0.1)
+                    continue
+                
+                new_logs_added = process_new_logs()
+                
+                # Improve detection of the latest action from logs
+                latest_task = None
+                for log in reversed(logs[-50:]):  # Search from most recent logs first
+                    if "🔧 Executing task:" in log:
+                        task_desc = log.split("🔧 Executing task:", 1)[1].strip()
+                        
+                        if "Goal:" in task_desc:
+                            goal_part = task_desc.split("Goal:", 1)[1].strip()
+                            latest_task = goal_part
+                        else:
+                            latest_task = task_desc
+                        break  # Stop at the most recent task
+                        
+                if latest_task:
+                    current_step = f"Executing: {latest_task}"
+                
+                if new_logs_added or iteration % 5 == 0:
+                    update_layout(
+                        layout, 
+                        logs, 
+                        current_step, 
+                        time.time(), 
+                        goal=command, 
+                        completed=is_completed,
+                        success=is_success
+                    )
+                
+                iteration += 1
+                await asyncio.sleep(0.05)
         
         try:
-            agent = ReActAgent(
-                task=command,
-                llm=llm,
-                device_serial=device,
-                max_steps=steps
-            )
-            steps = await agent.run()
+            update_display()
+            logs.append(f"Executing command: {command}")
             
-            # Final message
-            console.print(f"[bold green]Execution completed with {len(steps)} steps[/]")
-        except ValueError as e:
-            if "does not support vision" in str(e):
-                console.print(f"[bold red]Vision Error:[/] {e}")
-                console.print("[yellow]Please specify a vision-capable model with the --model flag.[/]")
-                console.print("[blue]Recommended models:[/]")
-                console.print("  - OpenAI: gpt-4o or gpt-4-vision")
-                console.print("  - Anthropic: claude-3-opus-20240229 or claude-3-sonnet-20240229")
-                console.print("  - Gemini: gemini-pro-vision")
-                return
-            else:
-                raise  # Re-raise other ValueError exceptions
-        
-    except Exception as e:
-        console.print(f"[bold red]Error:[/] {e}")
+            if not kwargs.get("temperature"):
+                kwargs["temperature"] = 0
+                
+            current_step = "Setting up tools..."
+            update_display()
+            
+            tool_list, tools_instance = await load_tools(serial=device)
 
-# Custom Click multi-command class to handle both subcommands and default behavior
+            if debug:
+                logs.append(f"Tools: {list(tool_list.keys())}")
+                update_display()
+                
+            device_serial = tools_instance.serial
+            logs.append(f"Using device: {device_serial}")
+            update_display()
+
+            os.environ["DROIDRUN_DEVICE_SERIAL"] = device_serial
+            
+            current_step = "Initializing LLM..."
+            update_display()
+            
+            llm = load_llm(provider_name=provider, model=model, base_url=base_url, **kwargs)
+
+            current_step = "Initializing DroidAgent..."
+            update_display()
+            
+            if reasoning:
+                logs.append("Using planning mode with reasoning")
+            else:
+                logs.append("Using direct execution mode without planning")
+                
+            if tracing:
+                logs.append("Arize Phoenix tracing enabled")
+            
+            update_display()
+            
+            droid_agent = DroidAgent(
+                goal=command,
+                llm=llm,
+                tools_instance=tools_instance,
+                tool_list=tool_list,
+                max_steps=steps,
+                vision=vision,
+                timeout=1000,
+                max_retries=3,
+                reasoning=reasoning,
+                enable_tracing=tracing,
+                debug=debug
+            )
+            
+            logs.append("Press Ctrl+C to stop execution")
+            current_step = "Running agent..."
+            update_display()
+
+            try:
+                log_task = asyncio.create_task(process_logs())
+                result = None
+                try:
+                    result = await droid_agent.run()
+                    
+                    if result.get("success", False):
+                        is_completed = True
+                        is_success = True
+                        
+                        if result.get("output"):
+                            success_output = f"🎯 FINAL ANSWER: {result.get('output')}"
+                            logs.append(success_output)
+                            current_step = f"{result.get('output')}"
+                        else:
+                            current_step = result.get("reason", "Success")
+                    else:
+                        is_completed = True
+                        is_success = False
+                        
+                        current_step = result.get("reason", "Failed") if result else "Failed"
+                    
+                    update_layout(
+                        layout, 
+                        logs, 
+                        current_step, 
+                        time.time(), 
+                        goal=command, 
+                        completed=is_completed, 
+                        success=is_success
+                    )
+                    
+                    await asyncio.sleep(2)
+                finally:
+                    log_task.cancel()
+                    try:
+                        await log_task
+                    except asyncio.CancelledError:
+                        pass
+                    
+                    for _ in range(20):
+                        process_new_logs()
+                        await asyncio.sleep(0.05)
+                    
+                    update_layout(
+                        layout, 
+                        logs, 
+                        current_step, 
+                        time.time(), 
+                        goal=command, 
+                        completed=is_completed, 
+                        success=is_success
+                    )
+                    
+                    live.refresh()
+                    
+                    await asyncio.sleep(3)
+
+            except KeyboardInterrupt:
+                logs.append("Execution stopped by user.")
+                current_step = "Stopped by user"
+                
+                is_completed = True
+                is_success = False
+                
+                update_layout(
+                    layout, 
+                    logs, 
+                    current_step, 
+                    time.time(), 
+                    goal=command, 
+                    completed=is_completed, 
+                    success=is_success
+                )
+                
+            except ValueError as e:
+                logs.append(f"Configuration Error: {e}")
+                current_step = f"Error: {e}"
+                
+                is_completed = True
+                is_success = False
+                
+                update_layout(
+                    layout, 
+                    logs, 
+                    current_step, 
+                    time.time(), 
+                    goal=command, 
+                    completed=is_completed, 
+                    success=is_success
+                )
+                
+            except Exception as e:
+                logs.append(f"An unexpected error occurred during agent execution: {e}")
+                current_step = f"Error: {e}"
+                if debug:
+                    import traceback
+                    logs.append(traceback.format_exc())
+                
+                is_completed = True
+                is_success = False
+                
+                update_layout(
+                    layout, 
+                    logs, 
+                    current_step, 
+                    time.time(), 
+                    goal=command, 
+                    completed=is_completed, 
+                    success=is_success
+                )
+            
+            update_display()
+            await asyncio.sleep(1)
+
+        except ValueError as e:
+            logs.append(f"Error: {e}")
+            current_step = f"Error: {e}"
+            
+            step_display = Text()
+            step_display.append("⚠ ", style="bold red")
+            step_display.append(current_step)
+            
+            layout["status"].update(Panel(
+                step_display, 
+                title="Error", 
+                border_style="red",
+                title_align="left",
+                padding=(0, 1)
+            ))
+            update_display()
+            
+        except Exception as e:
+            logs.append(f"An unexpected error occurred during setup: {e}")
+            current_step = f"Error: {e}"
+            if debug:
+                import traceback
+                logs.append(traceback.format_exc())
+                
+            step_display = Text()
+            step_display.append("⚠ ", style="bold red")
+            step_display.append(current_step)
+            
+            layout["status"].update(Panel(
+                step_display, 
+                title="Error", 
+                border_style="red",
+                title_align="left",
+                padding=(0, 1)
+            ))
+            update_display()
+            await asyncio.sleep(1)
+
+def configure_logging(debug: bool):
+    """Configure logging verbosity based on debug flag."""
+    root_logger = logging.getLogger()
+    droidrun_logger = logging.getLogger("droidrun")
+    
+    # Clear existing handlers
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+    for handler in droidrun_logger.handlers[:]:
+        droidrun_logger.removeHandler(handler)
+    
+    rich_handler = RichHandler()
+    
+    formatter = logging.Formatter('%(message)s') 
+    rich_handler.setFormatter(formatter)
+    
+    if debug:
+        rich_handler.setLevel(logging.DEBUG)
+        droidrun_logger.setLevel(logging.DEBUG)
+        root_logger.setLevel(logging.INFO)
+    else:
+        rich_handler.setLevel(logging.INFO)
+        droidrun_logger.setLevel(logging.INFO)
+        root_logger.setLevel(logging.WARNING)
+    
+    droidrun_logger.addHandler(rich_handler)
+    
+    log_queue.put(f"Logging level set to: {logging.getLevelName(droidrun_logger.level)}")
+
+
 class DroidRunCLI(click.Group):
     def parse_args(self, ctx, args):
-        # Check if the first argument might be a task rather than a command
         if args and not args[0].startswith('-') and args[0] not in self.commands:
-            # Insert the 'run' command before the first argument if it's not a known command
             args.insert(0, 'run')
         return super().parse_args(ctx, args)
 
@@ -155,15 +452,19 @@ def cli():
 @cli.command()
 @click.argument('command', type=str)
 @click.option('--device', '-d', help='Device serial number or IP address', default=None)
-@click.option('--provider', '-p', help='LLM provider (openai, ollama, anthropic, gemini,deepseek)', default='openai')
-@click.option('--model', '-m', help='LLM model name', default=None)
+@click.option('--provider', '-p', help='LLM provider (openai, ollama, anthropic, gemini, deepseek)', default='Gemini')
+@click.option('--model', '-m', help='LLM model name', default="models/gemini-2.5-pro-preview-05-06")
+@click.option('--temperature', type=float, help='Temperature for LLM', default=0.2)
 @click.option('--steps', type=int, help='Maximum number of steps', default=15)
-@click.option('--vision', is_flag=True, help='Enable vision capabilities')
+@click.option('--vision', is_flag=True, help='Enable vision capabilities', default=True)
 @click.option('--base_url', '-u', help='Base URL for API (e.g., OpenRouter or Ollama)', default=None)
-def run(command: str, device: str | None, provider: str, model: str, steps: int, vision: bool, base_url):
+@click.option('--reasoning/--no-reasoning', is_flag=True, help='Enable/disable planning with reasoning', default=False)
+@click.option('--tracing', is_flag=True, help='Enable Arize Phoenix tracing', default=False)
+@click.option('--debug', is_flag=True, help='Enable verbose debug logging', default=False)
+def run(command: str, device: str | None, provider: str, model: str, steps: int, vision: bool, base_url: str, temperature: float, reasoning: bool, tracing: bool, debug: bool):
     """Run a command on your Android device using natural language."""
     # Call our standalone function
-    return run_command(command, device, provider, model, steps, vision, base_url)
+    return run_command(command, device, provider, model, steps, vision, base_url, reasoning, tracing, debug, temperature=temperature)
 
 @cli.command()
 @coro
@@ -217,12 +518,10 @@ async def disconnect(serial: str):
 async def setup(path: str, device: str | None):
     """Install an APK file and enable it as an accessibility service."""
     try:
-        # Check if APK file exists
         if not os.path.exists(path):
             console.print(f"[bold red]Error:[/] APK file not found at {path}")
             return
             
-        # Try to find a device if none specified
         if not device:
             devices = await device_manager.list_devices()
             if not devices:
@@ -232,19 +531,16 @@ async def setup(path: str, device: str | None):
             device = devices[0].serial
             console.print(f"[blue]Using device:[/] {device}")
         
-        # Set the device serial in the environment variable
         os.environ["DROIDRUN_DEVICE_SERIAL"] = device
         console.print(f"[blue]Set DROIDRUN_DEVICE_SERIAL to:[/] {device}")
         
-        # Get a device object for ADB commands
         device_obj = await device_manager.get_device(device)
         if not device_obj:
             console.print(f"[bold red]Error:[/] Could not get device object for {device}")
             return
-        
-        # Step 1: Install the APK file
+        tools = Tools(serial=device)
         console.print(f"[bold blue]Step 1/2: Installing APK:[/] {path}")
-        result = await install_app(path, False, True, device)
+        result = await tools.install_app(path, False, True)
         
         if "Error" in result:
             console.print(f"[bold red]Installation failed:[/] {result}")
@@ -252,17 +548,13 @@ async def setup(path: str, device: str | None):
         else:
             console.print(f"[bold green]Installation successful![/]")
         
-        # Step 2: Enable the accessibility service with the specific command
         console.print(f"[bold blue]Step 2/2: Enabling accessibility service[/]")
         
-        # Package name for reference in error message
         package = "com.droidrun.portal"
         
         try:
-            # Use the exact command provided
             await device_obj._adb.shell(device, "settings put secure enabled_accessibility_services com.droidrun.portal/com.droidrun.portal.DroidrunPortalService")
             
-            # Also enable accessibility services globally
             await device_obj._adb.shell(device, "settings put secure accessibility_enabled 1")
             
             console.print("[green]Accessibility service enabled successfully![/]")
@@ -272,7 +564,6 @@ async def setup(path: str, device: str | None):
             console.print(f"[yellow]Could not automatically enable accessibility service: {e}[/]")
             console.print("[yellow]Opening accessibility settings for manual configuration...[/]")
             
-            # Fallback: Open the accessibility settings page
             await device_obj._adb.shell(device, "am start -a android.settings.ACCESSIBILITY_SETTINGS")
             
             console.print("\n[yellow]Please complete the following steps on your device:[/]")
@@ -287,6 +578,3 @@ async def setup(path: str, device: str | None):
         console.print(f"[bold red]Error:[/] {e}")
         import traceback
         traceback.print_exc()
-
-if __name__ == '__main__':
-    cli() 

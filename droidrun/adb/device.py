@@ -264,7 +264,7 @@ class Device:
 
                 import logging
                 logger = logging.getLogger("droidrun")
-                logger.info(
+                logger.debug(
                     f"Screenshot compressed successfully: {png_size:.1f}KB → {jpg_size:.1f}KB ({reduction:.1f}% reduction)"
                 )
 
