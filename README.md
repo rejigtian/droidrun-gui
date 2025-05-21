@@ -303,8 +303,6 @@ If you're using the tracing feature:
 ### 🤖 Agent:
 - **Improve memory**: Enhance context retention for complex multi-step tasks
 - **Expand planning capabilities**: Add support for more complex reasoning strategies
-- **Add more LLM providers**: Support additional local and cloud-based LLMs
-- **Improve vision capabilities**: Better UI element recognition and visual feedback interpretation
 - **Add Integrations**: Support more LLM providers and agent frameworks (LangChain, Agno etc.)
 
 ### ⚙️ Automations:
