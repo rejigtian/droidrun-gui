@@ -27,6 +27,7 @@ class TaskWorker(QThread):
         self.cmd = cmd
         self.env = env
         self.device_id = device_id
+        self.process = None
     def run(self):
         # 检查并安装portal apk
         portal_flag_file = os.path.expanduser(f"~/.droidrun-gui/portal_{self.device_id}.flag")
@@ -53,17 +54,21 @@ class TaskWorker(QThread):
                 return
         self.output_signal.emit(f"执行命令: {' '.join(self.cmd)}")
         try:
-            # 替换droidrun命令为内置CLI
             if self.cmd[0] == "droidrun":
                 self.cmd[0] = DROIDRUN_CLI_PATH
-            result = subprocess.run(self.cmd, capture_output=True, text=True, env=self.env)
-            output = result.stdout + "\n" + result.stderr
+            self.process = subprocess.Popen(self.cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=self.env)
+            stdout, stderr = self.process.communicate()
+            output = stdout + "\n" + stderr
             self.output_signal.emit(output)
-            success = result.returncode == 0
+            success = self.process.returncode == 0
             self.finished_signal.emit(success, "CLI执行完成", 0)
         except Exception as e:
             self.output_signal.emit(f"错误: {str(e)}")
             self.finished_signal.emit(False, str(e), 0)
+    def stop(self):
+        if self.process and self.process.poll() is None:
+            self.process.terminate()
+            self.output_signal.emit("[中断] 已终止子进程。")
 
 class TaskExecutor(QObject):
     progress_signal = pyqtSignal(int)

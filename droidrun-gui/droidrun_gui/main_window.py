@@ -57,6 +57,49 @@ class DeviceThread(QThread):
         except Exception as e:
             self.update_signal.emit(f"Error: {str(e)}")
 
+class InstallAdbKeyboardThread(QThread):
+    result_signal = pyqtSignal(str, bool)  # (msg, success)
+    def __init__(self, device_id, apk_path):
+        super().__init__()
+        self.device_id = device_id
+        self.apk_path = apk_path
+    def run(self):
+        import subprocess
+        result1 = subprocess.run(['adb', '-s', self.device_id, 'install', '-r', self.apk_path], capture_output=True, text=True)
+        install_output = result1.stdout + result1.stderr
+        if "Success" in install_output:
+            subprocess.run(['adb', '-s', self.device_id, 'shell', 'am', 'start', '-a', 'android.settings.INPUT_METHOD_SETTINGS'])
+            msg = f"安装ADBKeyboard结果：{install_output}\n[引导] 已自动打开输入法设置界面，请在手机上手动启用ADBKeyboard输入法，然后再点击切换按钮。"
+            self.result_signal.emit(msg, True)
+        else:
+            msg = f"[失败] 安装ADBKeyboard失败：{install_output}\n请检查APK路径和设备连接。"
+            self.result_signal.emit(msg, False)
+
+class PortalSetupThread(QThread):
+    result_signal = pyqtSignal(str)
+    def __init__(self, device_manager, devices):
+        super().__init__()
+        self.device_manager = device_manager
+        self.devices = devices
+    def run(self):
+        import os, subprocess
+        from .task_executor import PORTAL_APK_PATH, DROIDRUN_CLI_PATH
+        env_initialized = False
+        for device_id in self.devices:
+            flag_file = os.path.expanduser(f"~/.droidrun-gui/portal_{device_id}.flag")
+            if not os.path.exists(flag_file):
+                setup_cmd = [DROIDRUN_CLI_PATH, "setup", f"--path={PORTAL_APK_PATH}", "--device", device_id]
+                try:
+                    result = subprocess.run(setup_cmd, capture_output=True, text=True)
+                    if result.returncode == 0:
+                        with open(flag_file, "w") as f:
+                            f.write("ok")
+                        env_initialized = True
+                except Exception as e:
+                    self.result_signal.emit(f"[自动安装Portal异常] {device_id}: {e}")
+        if env_initialized:
+            self.result_signal.emit("[环境已初始化] Portal APK 已自动安装到所有设备。")
+
 class DroidRunGUI(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -174,10 +217,15 @@ class DroidRunGUI(QMainWindow):
         # 执行按钮
         self.execute_button = QPushButton("执行任务")
         self.execute_button.clicked.connect(self.execute_task)
+        # 新增中断按钮
+        self.interrupt_button = QPushButton("中断任务")
+        self.interrupt_button.clicked.connect(self.interrupt_task)
+        self.interrupt_button.setEnabled(False)
         
         task_layout.addWidget(self.task_input)
         task_layout.addLayout(model_layout)
         task_layout.addWidget(self.execute_button)
+        task_layout.addWidget(self.interrupt_button)
         
         # 进度条
         self.progress_bar = QProgressBar()
@@ -412,6 +460,7 @@ class DroidRunGUI(QMainWindow):
         self.progress_bar.setValue(0)
         self.output_text.clear()
         self.execute_button.setEnabled(False)
+        self.interrupt_button.setEnabled(True)
         
         # 设置环境变量，确保底层droidrun用选中的设备
         os.environ["DROIDRUN_DEVICE_SERIAL"] = self.device_combo.currentText()
@@ -435,6 +484,7 @@ class DroidRunGUI(QMainWindow):
         
     def task_finished(self, success, message, steps):
         self.execute_button.setEnabled(True)
+        self.interrupt_button.setEnabled(False)
         if not success:
             QMessageBox.warning(self, "任务执行失败", message)
             
@@ -540,43 +590,42 @@ class DroidRunGUI(QMainWindow):
         if not device_id or device_id == "未检测到设备":
             QMessageBox.warning(self, "提示", "请先选择设备")
             return
-        import sys, os, subprocess
-        # 获取APK路径
+        import sys, os
         if hasattr(sys, '_MEIPASS'):
             apk_path = os.path.join(sys._MEIPASS, 'resources', 'ADBKeyboard.apk')
         else:
             apk_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "resources", "ADBKeyboard.apk"))
-        # 1. 安装APK
-        result1 = subprocess.run(['adb', '-s', device_id, 'install', '-r', apk_path], capture_output=True, text=True)
-        # 2. 自动弹出输入法设置界面，引导用户手动启用ADBKeyboard
-        subprocess.run(['adb', '-s', device_id, 'shell', 'am', 'start', '-a', 'android.settings.INPUT_METHOD_SETTINGS'])
-        msg = f"安装ADBKeyboard结果：{result1.stdout or result1.stderr}\n[引导] 已自动打开输入法设置界面，请在手机上手动启用ADBKeyboard输入法，然后再点击切换按钮。"
+        self.adbkeyboard_thread = InstallAdbKeyboardThread(device_id, apk_path)
+        self.adbkeyboard_thread.result_signal.connect(self.on_adbkeyboard_install_result)
+        self.adbkeyboard_thread.start()
+
+    def on_adbkeyboard_install_result(self, msg, success):
         self.output_text.append(msg)
-        QMessageBox.information(self, "ADBKeyboard", "已自动打开输入法设置界面，请在手机上手动启用ADBKeyboard输入法，然后再点击切换按钮。")
+        if success:
+            QMessageBox.information(self, "ADBKeyboard", "ADBKeyboard安装成功，已自动打开输入法设置界面，请在手机上手动启用ADBKeyboard输入法，然后再点击切换按钮。")
+        else:
+            QMessageBox.warning(self, "ADBKeyboard", "ADBKeyboard安装失败，请检查APK路径和设备连接。")
+
+    def interrupt_task(self):
+        if hasattr(self.task_executor, 'worker') and self.task_executor.worker.isRunning():
+            self.task_executor.worker.stop()
+            self.task_executor.worker.terminate()
+            self.output_text.append("[中断] 已请求中断当前任务。")
+            self.interrupt_button.setEnabled(False)
+            self.execute_button.setEnabled(True)
+        else:
+            self.output_text.append("[中断] 当前无正在运行的任务。")
 
 def main():
-    # 启动GUI前自动setup portal apk
     device_manager = DeviceManager()
     devices = device_manager.get_connected_devices()
-    env_initialized = False
-    for device_id in devices:
-        flag_file = os.path.expanduser(f"~/.droidrun-gui/portal_{device_id}.flag")
-        if not os.path.exists(flag_file):
-            setup_cmd = [DROIDRUN_CLI_PATH, "setup", f"--path={PORTAL_APK_PATH}", "--device", device_id]
-            try:
-                result = subprocess.run(setup_cmd, capture_output=True, text=True)
-                if result.returncode == 0:
-                    with open(flag_file, "w") as f:
-                        f.write("ok")
-                    env_initialized = True
-                else:
-                    print(f"[自动安装Portal失败] {device_id}: {result.stdout}\n{result.stderr}")
-            except Exception as e:
-                print(f"[自动安装Portal异常] {device_id}: {e}")
-
     app = QApplication(sys.argv)
     window = DroidRunGUI()
     window.show()
-    if env_initialized:
-        window.output_text.append("[环境已初始化] Portal APK 已自动安装到所有设备。")
+    # 启动 Portal 安装线程
+    def portal_result(msg):
+        window.output_text.append(msg)
+    portal_thread = PortalSetupThread(device_manager, devices)
+    portal_thread.result_signal.connect(portal_result)
+    portal_thread.start()
     sys.exit(app.exec()) 
