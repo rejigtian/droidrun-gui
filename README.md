@@ -125,15 +125,6 @@ droidrun devices
 droidrun connect 192.168.1.100
 ```
 
-### 🔄 4. Verify the setup
-
-Verify that everything is set up correctly:
-
-```bash
-# Should list your connected device and show portal status
-droidrun status
-```
-
 ## 💻 Using the CLI
 
 DroidRun's CLI is designed to be simple and intuitive. You can use it in two ways:
