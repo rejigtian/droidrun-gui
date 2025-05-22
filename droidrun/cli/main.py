@@ -294,9 +294,12 @@ async def run_command(command: str, device: str | None, provider: str, model: st
                             result["trajectory"],
                             command,
                             result,
-                            directory=trajectory_dir
+                            directory=trajectory_dir,
+                            screenshots=tools_instance.screenshots if tools_instance else None
                         )
                         logs.append(f"📝 Trajectory saved to: {trajectory_path}")
+                        if tools_instance and tools_instance.screenshots:
+                            logs.append(f"🎬 Created GIF with {len(tools_instance.screenshots)} screenshots")
                     
                     await asyncio.sleep(2)
                 finally:
