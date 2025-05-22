@@ -7,45 +7,78 @@ including saving, loading, and analyzing them.
 
 import json
 import logging
+import os
+import time
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 from datetime import datetime
+from PIL import Image
+import io
 
 logger = logging.getLogger("droidrun")
 
-def save_trajectory(trajectory_steps: List[Dict[str, Any]], 
-                   goal: str, 
-                   result: Dict[str, Any], 
-                   directory: Optional[str] = None,
-                   filename: Optional[str] = None) -> str:
+def create_screenshot_gif(screenshots: List[Dict[str, Any]], output_path: str, duration: int = 1000) -> str:
     """
-    Save a trajectory to a JSON file.
+    Create a GIF from a list of screenshots.
+    
+    Args:
+        screenshots: List of screenshot dictionaries with timestamp and image_data
+        output_path: Base path for the GIF (without extension)
+        duration: Duration for each frame in milliseconds
+    
+    Returns:
+        Path to the created GIF file
+    """
+    if not screenshots:
+        return None
+        
+    # Convert screenshots to PIL Images
+    images = []
+    for screenshot in screenshots:
+        img_data = screenshot['image_data']
+        img = Image.open(io.BytesIO(img_data))
+        images.append(img)
+    
+    # Save as GIF
+    gif_path = f"{output_path}.gif"
+    images[0].save(
+        gif_path,
+        save_all=True,
+        append_images=images[1:],
+        duration=duration,
+        loop=0
+    )
+    
+    return gif_path
+
+def save_trajectory(
+    trajectory_steps: List[Dict],
+    goal: str,
+    result: Dict,
+    directory: str = "trajectories",
+    screenshots: List[Dict[str, Any]] = None
+) -> str:
+    """
+    Save trajectory steps to a JSON file and create a GIF of screenshots if available.
     
     Args:
         trajectory_steps: List of trajectory step dictionaries
-        goal: The original goal of the run
-        result: The result dictionary from the agent.run() method
-        directory: Directory to save the trajectory (default: 'trajectories')
-        filename: Optional filename (default: auto-generated timestamp name)
-        
+        goal: The original goal/command
+        result: The final result dictionary
+        directory: Directory to save the trajectory files
+        screenshots: List of screenshots with timestamps (optional)
+    
     Returns:
         Path to the saved trajectory file
     """
-    # Create a directory to store trajectories
-    if directory:
-        trajectory_dir = Path(directory)
-    else:
-        trajectory_dir = Path("trajectories")
-    trajectory_dir.mkdir(exist_ok=True)
+    # Create directory if it doesn't exist
+    os.makedirs(directory, exist_ok=True)
     
-    # Create a timestamped filename if none provided
-    if not filename:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"trajectory_{timestamp}.json"
+    # Generate timestamp for filename
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    base_path = os.path.join(directory, f"trajectory_{timestamp}")
     
-    filepath = trajectory_dir / filename
-    
-    # Create a dictionary with all the data
+    # Create trajectory data
     trajectory_data = {
         "goal": goal,
         "success": result.get("success", False),
@@ -54,12 +87,22 @@ def save_trajectory(trajectory_steps: List[Dict[str, Any]],
         "trajectory_steps": trajectory_steps
     }
     
-    # Save to JSON file
-    with open(filepath, "w") as f:
+    # Save trajectory JSON
+    json_path = f"{base_path}.json"
+    with open(json_path, "w") as f:
         json.dump(trajectory_data, f, indent=2)
     
-    logger.info(f"Trajectory saved to {filepath}")
-    return str(filepath)
+    # Create GIF if screenshots are available
+    gif_path = None
+    if screenshots:
+        gif_path = create_screenshot_gif(screenshots, base_path)
+        if gif_path:
+            # Add GIF path to trajectory data and update JSON
+            trajectory_data["screenshot_gif"] = os.path.basename(gif_path)
+            with open(json_path, "w") as f:
+                json.dump(trajectory_data, f, indent=2)
+    
+    return json_path
 
 def load_trajectory(filepath: str) -> Dict[str, Any]:
     """
