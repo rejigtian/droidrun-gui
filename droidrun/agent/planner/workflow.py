@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 class PlannerAgent(Workflow):
     def __init__(self, goal: str, llm: LLM, agent: Optional[Workflow], tools_instance: 'Tools', 
                  executer = None, system_prompt = None, user_prompt = None, max_retries = 1, 
-                 enable_tracing = False, debug = False, *args, **kwargs) -> None:
+                 enable_tracing = False, debug = False, trajectory_callback = None, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         
         # Setup tracing if enabled
@@ -75,6 +75,9 @@ class PlannerAgent(Workflow):
         self.current_retry = 0 # Current retry count
 
         self.steps_counter = 0 # Steps counter
+        
+        # Callback function for yielding trajectory steps
+        self.trajectory_callback = trajectory_callback
 
     def _extract_code_and_thought(self, response_text: str) -> Tuple[Optional[str], str]:
         """
@@ -199,6 +202,16 @@ class PlannerAgent(Workflow):
         response = await self._get_llm_response(chat_history)
         # Add response to memory
         await self.memory.aput(response.message)
+        
+        # Yield planner trajectory step if callback is provided
+        if self.trajectory_callback:
+            trajectory_step = {
+                "type": "planner_thought",
+                "step": self.steps_counter,
+                "content": response.message.content
+            }
+            await self.trajectory_callback(trajectory_step)
+            
         return ModelResponseEvent(response=response.message.content)
     
     @step
@@ -224,6 +237,16 @@ class PlannerAgent(Workflow):
                 logger.debug(f"  - Planning code executed. Result: {result}")
             # Add result to memory
             await self.memory.aput(ChatMessage(role="user", content=f"Execution Result:\n```\n{result}\n```"))
+            
+            # Yield planner code execution trajectory step if callback is provided
+            if self.trajectory_callback:
+                trajectory_step = {
+                    "type": "planner_code_execution",
+                    "step": self.steps_counter,
+                    "code": code,
+                    "result": result
+                }
+                await self.trajectory_callback(trajectory_step)
                     
         # Check if there are any pending tasks
         pending_tasks = self.task_manager.get_pending_tasks()
@@ -234,6 +257,16 @@ class PlannerAgent(Workflow):
         elif pending_tasks:
             # If there are pending tasks, automatically start execution
             logger.info("🚀 Starting task execution...")
+            
+            # Yield plan trajectory step if callback is provided
+            if self.trajectory_callback and pending_tasks:
+                trajectory_step = {
+                    "type": "planner_generated_plan",
+                    "step": self.steps_counter,
+                    "tasks": [task.copy() for task in pending_tasks]
+                }
+                await self.trajectory_callback(trajectory_step)
+                
             return ExecutePlan()
         else:
             # If no tasks were set, prompt the planner to set tasks or complete the goal
@@ -243,77 +276,117 @@ class PlannerAgent(Workflow):
             return InputEvent(input=self.memory.get_all())
     @step
     async def execute_plan(self, ev: ExecutePlan, ctx: Context) -> Union[ExecutePlan, TaskFailedEvent]:
-        """Execute the plan by scheduling the agent to run."""
-        step_name = await ctx.get("step")
-        if step_name == "execute_agent":
-            return await self.execute_agent(ev, ctx)  # Sub-steps
-        else:
-            await ctx.set("step", "execute_agent")
-            return ev  # Reenter this step with the subcontext key set
+        """Execute the plan by running tasks through the agent."""
+        if self.debug:
+            logger.debug("🔄 Executing plan...")
+        
+        # Get all tasks
+        tasks = self.task_manager.get_all_tasks()
+        
+        # Yield plan execution trajectory step if callback is provided
+        if self.trajectory_callback:
+            trajectory_step = {
+                "type": "planner_execute_plan",
+                "step": self.steps_counter,
+                "tasks": [task["description"] for task in tasks],
+                "status": "started"
+            }
+            await self.trajectory_callback(trajectory_step)
+        
+        # Execute each task in sequence
+        for task in tasks:
+            if task["status"] == self.task_manager.STATUS_PENDING:
+                logger.info(f"🎯 Executing task: {task['description']}")
+                
+                # Yield task start trajectory step if callback is provided
+                if self.trajectory_callback:
+                    trajectory_step = {
+                        "type": "planner_task",
+                        "step": self.steps_counter,
+                        "task": task["description"],
+                        "status": "started"
+                    }
+                    await self.trajectory_callback(trajectory_step)
+                
+                # Execute the task using the agent
+                result = await self.execute_agent(ExecutePlan(task=task), ctx)
+                
+                # Check if task failed
+                if isinstance(result, TaskFailedEvent):
+                    # Yield task failure trajectory step if callback is provided
+                    if self.trajectory_callback:
+                        trajectory_step = {
+                            "type": "planner_task",
+                            "step": self.steps_counter,
+                            "task": task["description"],
+                            "status": "failed",
+                            "reason": result.reason
+                        }
+                        await self.trajectory_callback(trajectory_step)
+                    return result
+                
+                # Yield task completion trajectory step if callback is provided
+                if self.trajectory_callback:
+                    trajectory_step = {
+                        "type": "planner_task",
+                        "step": self.steps_counter,
+                        "task": task["description"],
+                        "status": "completed"
+                    }
+                    await self.trajectory_callback(trajectory_step)
+        
+        # Yield plan completion trajectory step if callback is provided
+        if self.trajectory_callback:
+            trajectory_step = {
+                "type": "planner_execute_plan",
+                "step": self.steps_counter,
+                "tasks": [task["description"] for task in tasks],
+                "status": "completed"
+            }
+            await self.trajectory_callback(trajectory_step)
+        
+        return StopEvent(result={"success": True, "message": "All tasks completed successfully"})
 
     async def execute_agent(self, ev: ExecutePlan, ctx: Context) -> Union[ExecutePlan, TaskFailedEvent]:
         """Execute a single task using the agent."""
-        # Skip execution if no agent is provided (used in planning-only mode)
-        if self.agent is None:
-            if self.debug:
-                logger.debug("No agent provided, skipping execution")
-            return StopEvent(result={"success": False, "reason": "No agent provided"})
-
-        # Original execution logic
-        tasks = self.task_manager.get_all_tasks()
-        attempting_tasks = self.task_manager.get_tasks_by_status(self.task_manager.STATUS_ATTEMPTING)
-        if attempting_tasks:
-            task = attempting_tasks[0]
-            logger.warning(f"A task is already being executed: {task['description']}")
-            task_description = task["description"]
-        else:
-            # Find the first task in 'pending' status
-            for task in tasks:
-                if task['status'] == self.task_manager.STATUS_PENDING:
-                    self.task_manager.update_status(tasks.index(task), self.task_manager.STATUS_ATTEMPTING)
-                    task_description = task['description']
-                    break
-            else:
-                # If execution reaches here, all tasks are either completed or failed
-                all_completed = all(task["status"] == self.task_manager.STATUS_COMPLETED for task in tasks)
-                if all_completed and tasks:
-                    if self.debug:
-                        logger.debug(f"All tasks completed: {[task['description'] for task in tasks]}")
-                    # Return to handle_llm_input with empty input to get new plan
-                    return InputEvent(input=self.memory.get_all())
-                else:
-                    logger.warning(f"No executable task found.")
-                    if self.debug:
-                        logger.debug(f"Tasks status: {[(task['description'], task['status']) for task in tasks]}")
-                    return TaskFailedEvent(task_description="No task to execute", reason="No executable task found")
+        task = ev.task
+        if not self.agent:
+            logger.warning("No agent provided for task execution")
+            return TaskFailedEvent(reason="No agent provided for task execution")
         
-        logger.info(f"🔧 Executing task: {task_description}")
-        # After the task is selected, execute the agent with that task
         try:
-            task_event = {"input": task_description}
-            result = await self.agent.run(task_event)
-            success = result.get("result", {}).get("success", False)
-            if success:
-                for task in tasks:
-                    if task["status"] == self.task_manager.STATUS_ATTEMPTING:
-                        self.task_manager.update_status(tasks.index(task), self.task_manager.STATUS_COMPLETED)
-                        return ExecutePlan()  # Continue execution to find more tasks
-            # Task failure case
-            for task in tasks:
-                if task["status"] == self.task_manager.STATUS_ATTEMPTING:
-                    self.task_manager.update_status(tasks.index(task), self.task_manager.STATUS_FAILED)
-                    reason = result.get("result", {}).get("reason", "Task failed without specific reason")
-                    return TaskFailedEvent(task_description=task_description, reason=reason)
+            # Execute the task using the agent
+            result = await self.agent.run(input=task["description"])
+            
+            # Yield agent execution trajectory step if callback is provided
+            if self.trajectory_callback:
+                trajectory_step = {
+                    "type": "planner_agent_execution",
+                    "step": self.steps_counter,
+                    "task": task["description"],
+                    "result": result
+                }
+                await self.trajectory_callback(trajectory_step)
+            
+            if result and isinstance(result, dict):
+                if result.get("success", False):
+                    task["status"] = self.task_manager.STATUS_COMPLETED
+                    task["result"] = result
+                    return ExecutePlan(task=task)
+                else:
+                    task["status"] = self.task_manager.STATUS_FAILED
+                    task["failure_reason"] = result.get("reason", "Unknown failure")
+                    return TaskFailedEvent(reason=task["failure_reason"])
+            else:
+                task["status"] = self.task_manager.STATUS_FAILED
+                task["failure_reason"] = "Invalid result format from agent"
+                return TaskFailedEvent(reason=task["failure_reason"])
+                
         except Exception as e:
-            logger.error(f"Error executing task '{task_description}': {e}")
-            # Find the attempting task and mark it as failed
-            for task in tasks:
-                if task["status"] == self.task_manager.STATUS_ATTEMPTING:
-                    self.task_manager.update_status(tasks.index(task), self.task_manager.STATUS_FAILED)
-                    return TaskFailedEvent(task_description=task_description, reason=f"Execution error: {e}")
-        
-        # Should not reach here, but just in case:
-        return TaskFailedEvent(task_description=task_description, reason="Task execution completed abnormally")
+            logger.error(f"Error during task execution: {e}")
+            task["status"] = self.task_manager.STATUS_FAILED
+            task["failure_reason"] = str(e)
+            return TaskFailedEvent(reason=str(e))
 
     async def _get_llm_response(self, chat_history: List[ChatMessage]) -> ChatResponse:
         """Get streaming response from LLM."""
