@@ -37,7 +37,6 @@ class CodeActAgent(Workflow):
         max_steps: int = 10, # Default max steps (kept for backwards compatibility but no longer enforced)
         system_prompt: Optional[str] = None,
         user_prompt: Optional[str] = None,
-        vision: bool = False,
         debug: bool = False,
         *args,
         **kwargs
@@ -61,7 +60,6 @@ class CodeActAgent(Workflow):
         self.goal = None
         self.steps_counter = 0 # Initialize step counter (kept for tracking purposes)
         self.code_exec_counter = 0 # Initialize execution counter
-        self.vision = vision
         self.debug = debug
         logger.info("✅ CodeActAgent initialized successfully.")
 
@@ -272,13 +270,8 @@ class CodeActAgent(Workflow):
         """Get streaming response from LLM."""
         if self.debug:
             logger.debug(f"  - Sending {len(chat_history)} messages to LLM.")
-        # Combine system prompt with chat history
-        if self.vision:
-            chat_history = await add_screenshot_image_block(self.tools, chat_history)
-        elif self.tools.last_screenshot:
-            chat_history = await add_screenshot(chat_history, self.tools.last_screenshot)
-            self.tools.last_screenshot = None # Reset last screenshot after sending it
-        
+        # add screenshot to prompt
+        chat_history = await add_screenshot_image_block(self.tools, chat_history)        
         # always add ui
         chat_history = await add_ui_text_block(self.tools, chat_history)
         

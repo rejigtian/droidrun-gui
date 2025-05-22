@@ -113,7 +113,7 @@ def update_layout(layout, log_list, step_message, current_time, goal=None, compl
     ))
 
 @coro
-async def run_command(command: str, device: str | None, provider: str, model: str, steps: int, vision: bool, base_url: str, reasoning: bool, tracing: bool, debug: bool, **kwargs):
+async def run_command(command: str, device: str | None, provider: str, model: str, steps: int, base_url: str, reasoning: bool, tracing: bool, debug: bool, **kwargs):
     """Run a command on your Android device using natural language."""
     configure_logging(debug)
     
@@ -243,7 +243,6 @@ async def run_command(command: str, device: str | None, provider: str, model: st
                 tools_instance=tools_instance,
                 tool_list=tool_list,
                 max_steps=steps,
-                vision=vision,
                 timeout=1000,
                 max_retries=3,
                 reasoning=reasoning,
@@ -456,15 +455,14 @@ def cli():
 @click.option('--model', '-m', help='LLM model name', default="models/gemini-2.5-pro-preview-05-06")
 @click.option('--temperature', type=float, help='Temperature for LLM', default=0.2)
 @click.option('--steps', type=int, help='Maximum number of steps', default=15)
-@click.option('--vision', is_flag=True, help='Enable vision capabilities', default=True)
 @click.option('--base_url', '-u', help='Base URL for API (e.g., OpenRouter or Ollama)', default=None)
 @click.option('--reasoning/--no-reasoning', is_flag=True, help='Enable/disable planning with reasoning', default=False)
 @click.option('--tracing', is_flag=True, help='Enable Arize Phoenix tracing', default=False)
 @click.option('--debug', is_flag=True, help='Enable verbose debug logging', default=False)
-def run(command: str, device: str | None, provider: str, model: str, steps: int, vision: bool, base_url: str, temperature: float, reasoning: bool, tracing: bool, debug: bool):
+def run(command: str, device: str | None, provider: str, model: str, steps: int, base_url: str, temperature: float, reasoning: bool, tracing: bool, debug: bool):
     """Run a command on your Android device using natural language."""
     # Call our standalone function
-    return run_command(command, device, provider, model, steps, vision, base_url, reasoning, tracing, debug, temperature=temperature)
+    return run_command(command, device, provider, model, steps, base_url, reasoning, tracing, debug, temperature=temperature)
 
 @cli.command()
 @coro
@@ -578,3 +576,18 @@ async def setup(path: str, device: str | None):
         console.print(f"[bold red]Error:[/] {e}")
         import traceback
         traceback.print_exc()
+
+
+if __name__ == "__main__":
+    command = "Open the settings app"
+    device = None
+    provider = "GoogleGenAI"
+    model = "models/gemini-2.5-flash-preview-05-20"
+    temperature = 0
+    api_key = os.getenv("GEMINI_API_KEY")
+    steps = 15
+    reasoning = True
+    tracing = True
+    debug = True
+    base_url = None
+    run_command(command=command, device=device, provider=provider, model=model, steps=steps, temperature=temperature, reasoning=reasoning, tracing=tracing, debug=debug, base_url=base_url, api_key=api_key)
