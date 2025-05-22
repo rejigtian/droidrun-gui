@@ -30,7 +30,6 @@ class DroidAgent:
         tools_instance: 'Tools' = None,
         tool_list: Dict[str, Any] = None,
         max_steps: int = 15,
-        vision: bool = False,
         timeout: int = 1000,
         max_retries: int = 3,
         reasoning: bool = True,
@@ -48,7 +47,6 @@ class DroidAgent:
             tools_instance: An instance of the Tools class
             tool_list: Dictionary of available tools
             max_steps: Maximum number of steps for both agents
-            vision: Whether to enable vision capabilities
             timeout: Timeout for agent execution in seconds
             max_retries: Maximum number of retries for failed tasks
             reasoning: Whether to use the PlannerAgent for complex reasoning (True) 
@@ -61,7 +59,6 @@ class DroidAgent:
         self.goal = goal
         self.llm = llm
         self.max_steps = max_steps
-        self.vision = vision
         self.timeout = timeout
         self.max_retries = max_retries
         self.task_manager = TaskManager()
@@ -101,7 +98,6 @@ class DroidAgent:
             available_tools=tool_list.values(),
             tools=tools_instance,
             max_steps=999999, 
-            vision=vision,
             debug=debug,
             timeout=timeout
         )

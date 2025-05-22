@@ -15,7 +15,6 @@ async def load_tools(serial: Optional[str] = None) -> Tuple[Dict[str, Callable[.
 
     Args:
         serial: The device serial number. If None, finds the first available device.
-        vision: Whether to include vision-related tools. (Set to false if you want to always send screenshot)
 
     Returns:
         A tuple containing:

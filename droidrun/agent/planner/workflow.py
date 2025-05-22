@@ -357,12 +357,12 @@ class PlannerAgent(Workflow):
         chat_history = await add_ui_text_block(self.tools_instance, chat_history)
         chat_history = await add_phone_state_block(self.tools_instance, chat_history)
         
-        # Create copies of messages to avoid modifying the originals
+        # Create copies of messages to avoid modifying the originals due to bug in some llama_index llm integration
         messages_to_send = [message_copy(msg) for msg in chat_history]
         
         if self.debug:
             logger.debug(f"  - Final message count: {len(messages_to_send)}")
-        response = await self.llm.achat(
+            response = await self.llm.achat(
             messages=messages_to_send
         )
         assert hasattr(response, "message"), f"LLM response does not have a message attribute.\nResponse: {response}"
