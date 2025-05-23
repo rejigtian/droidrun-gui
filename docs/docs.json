@@ -1,0 +1,79 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "DroidRun",
+  "colors": {
+    "primary": "#0D9373",
+    "light": "#07C983",
+    "dark": "#0D9373"
+  },
+  "favicon": "/favicon.png",
+  "navigation": {
+    "versions": [
+      {
+        "version": "0.2.0",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "v2/overview",
+              "v2/quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "v2/concepts/agent",
+              "v2/concepts/planning",
+              "v2/concepts/android-control",
+              "v2/concepts/portal-app",
+              "v2/concepts/tracing"
+            ]
+          }
+        ]
+      },
+      {
+        "version": "0.1.0",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "v1/overview",
+              "v1/quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "v1/concepts/agent",
+              "v1/concepts/android-control",
+              "v1/concepts/portal-app"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg"
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "GitHub",
+        "href": "https://github.com/droidrun/droidrun"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Get Started",
+      "href": "https://github.com/droidrun/droidrun"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/droidrun/droidrun"
+    }
+  }
+}
