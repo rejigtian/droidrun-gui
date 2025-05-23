@@ -55,6 +55,16 @@ class DroidAgent:
             device_serial: Target Android device serial number
             **kwargs: Additional keyword arguments to pass to the agents
         """
+        # Setup global tracing first if enabled
+        if enable_tracing:
+            try:
+                from llama_index.core import set_global_handler
+                set_global_handler("arize_phoenix")
+                logger.info("🔍 Arize Phoenix tracing enabled globally")
+            except ImportError:
+                logger.warning("⚠️ Arize Phoenix package not found, tracing disabled")
+                enable_tracing = False
+        
         self.goal = goal
         self.llm = llm
         self.max_steps = max_steps
@@ -117,7 +127,6 @@ class DroidAgent:
                 tools_instance=tools_instance,
                 timeout=timeout,
                 max_retries=max_retries,
-                enable_tracing=enable_tracing,
                 debug=debug,
                 trajectory_callback=self.trajectory_callback
             )

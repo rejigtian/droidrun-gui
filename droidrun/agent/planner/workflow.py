@@ -37,20 +37,10 @@ if TYPE_CHECKING:
 class PlannerAgent(Workflow):
     def __init__(self, goal: str, llm: LLM, agent: Optional[Workflow], tools_instance: 'Tools', 
                  executer = None, system_prompt = None, user_prompt = None, max_retries = 1, 
-                 enable_tracing = False, debug = False, trajectory_callback = None, *args, **kwargs) -> None:
+                 debug = False, trajectory_callback = None, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         
-        # Setup tracing if enabled
-        if enable_tracing:
-            try:
-                from llama_index.core import set_global_handler
-                set_global_handler("arize_phoenix")
-                logger.info("Arize Phoenix tracing enabled")
-            except ImportError:
-                logger.warning("Arize Phoenix package not found, tracing disabled")
-        else:
-            if debug:
-                logger.debug("Arize Phoenix tracing disabled")
+        # Note about tracing
             
         self.llm = llm
         self.goal = goal
