@@ -38,8 +38,6 @@ class Tools:
         if self.serial:
             return self.serial
         
-        # Fall back to environment variable if not set on the instance
-        return os.environ.get("DROIDRUN_DEVICE_SERIAL", "")
 
     async def get_device(self) -> Optional[Device]:
         """Get the device instance using the instance's serial or from environment variable.
@@ -49,7 +47,7 @@ class Tools:
         """
         serial = self.get_device_serial()
         if not serial:
-            raise ValueError("No device serial specified - set DROIDRUN_DEVICE_SERIAL environment variable or provide device_serial parameter")
+            raise ValueError("No device serial specified - set device_serial parameter")
             
         device = await self.device_manager.get_device(serial)
         if not device:

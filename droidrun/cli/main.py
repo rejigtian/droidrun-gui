@@ -200,18 +200,20 @@ async def run_command(command: str, device: str | None, provider: str, model: st
             current_step = "Setting up tools..."
             update_display()
             
-            tool_list, tools_instance = await load_tools(serial=device)
+            if device is None:
+                logs.append("No device serial provided, attempting to find a connected device.")
+                # Attempt to find a device if none is specified
+                device_manager = DeviceManager()
+                devices = await device_manager.list_devices()
+                if not devices:
+                    logs.append("Device discovery failed: No connected devices found.")
+                    raise ValueError("No device serial provided and no connected devices found.")
+                device = devices[0].serial
+                logs.append(f"Using auto-detected device: {device}")
 
-            if debug:
-                logs.append(f"Tools: {list(tool_list.keys())}")
-                update_display()
-                
-            device_serial = tools_instance.serial
-            logs.append(f"Using device: {device_serial}")
+            logs.append(f"Using device: {device}")
             update_display()
 
-            os.environ["DROIDRUN_DEVICE_SERIAL"] = device_serial
-            
             current_step = "Initializing LLM..."
             update_display()
             
@@ -233,14 +235,13 @@ async def run_command(command: str, device: str | None, provider: str, model: st
             droid_agent = DroidAgent(
                 goal=command,
                 llm=llm,
-                tools_instance=tools_instance,
-                tool_list=tool_list,
                 max_steps=steps,
                 timeout=1000,
                 max_retries=3,
                 reasoning=reasoning,
                 enable_tracing=tracing,
-                debug=debug
+                debug=debug,
+                device_serial=device
             )
             
             logs.append("Press Ctrl+C to stop execution")
@@ -287,11 +288,11 @@ async def run_command(command: str, device: str | None, provider: str, model: st
                             command,
                             result,
                             directory=trajectory_dir,
-                            screenshots=tools_instance.screenshots if tools_instance else None
+                            screenshots=droid_agent.tools_instance.screenshots if droid_agent.tools_instance else None
                         )
                         logs.append(f"📝 Trajectory saved to: {trajectory_path}")
-                        if tools_instance and tools_instance.screenshots:
-                            logs.append(f"🎬 Created GIF with {len(tools_instance.screenshots)} screenshots")
+                        if droid_agent.tools_instance and droid_agent.tools_instance.screenshots:
+                            logs.append(f"🎬 Created GIF with {len(droid_agent.tools_instance.screenshots)} screenshots")
                     
                     await asyncio.sleep(2)
                 finally:
@@ -537,9 +538,6 @@ async def setup(path: str, device: str | None):
             
             device = devices[0].serial
             console.print(f"[blue]Using device:[/] {device}")
-        
-        os.environ["DROIDRUN_DEVICE_SERIAL"] = device
-        console.print(f"[blue]Set DROIDRUN_DEVICE_SERIAL to:[/] {device}")
         
         device_obj = await device_manager.get_device(device)
         if not device_obj:

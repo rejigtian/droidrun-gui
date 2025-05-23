@@ -7,7 +7,7 @@ from typing import Tuple, Dict, Callable, Any, Optional
 # Get a logger for this module
 logger = logging.getLogger(__name__)
 
-async def load_tools(serial: Optional[str] = None) -> Tuple[Dict[str, Callable[..., Any]], Tools]:
+def load_tools(serial: Optional[str] = None) -> Tuple[Dict[str, Callable[..., Any]], Tools]:
     """
     Initializes the Tools class and returns a dictionary of available tool functions
     and the Tools instance itself. If serial is not provided, it attempts to find
@@ -24,17 +24,6 @@ async def load_tools(serial: Optional[str] = None) -> Tuple[Dict[str, Callable[.
     Raises:
         ValueError: If no device serial is provided and no devices are found.
     """
-    if serial is None:
-        logger.info("No device serial provided, attempting to find a connected device.")
-        # Attempt to find a device if none is specified
-        device_manager = DeviceManager()
-        devices = await device_manager.list_devices()
-        if not devices:
-            logger.error("Device discovery failed: No connected devices found.")
-            raise ValueError("No device serial provided and no connected devices found.")
-        serial = devices[0].serial
-        logger.info(f"Using auto-detected device: {serial}") # Use logger.info
-
     logger.debug(f"Initializing Tools for device: {serial}")
     tools_instance = Tools(serial=serial)
 
