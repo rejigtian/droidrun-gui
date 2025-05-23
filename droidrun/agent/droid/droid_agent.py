@@ -5,6 +5,7 @@ to achieve a user's goal on an Android device.
 
 import asyncio
 import logging
+import time
 from typing import Dict, Any, List, Tuple
 
 from llama_index.core.base.llms.types import ChatMessage
@@ -66,6 +67,10 @@ class DroidAgent:
         self.debug = debug
         self.device_serial = device_serial
         
+        # Store trajectory steps and callback
+        self.trajectory_steps = []
+        self.trajectory_callback = self._handle_trajectory_step
+        
         logger.info("🤖 Initializing DroidAgent wrapper...")
         
         self.tools_instance = tools_instance
@@ -99,7 +104,8 @@ class DroidAgent:
             tools=tools_instance,
             max_steps=999999, 
             debug=debug,
-            timeout=timeout
+            timeout=timeout,
+            trajectory_callback=self.trajectory_callback
         )
         
         if self.reasoning:
@@ -112,7 +118,8 @@ class DroidAgent:
                 timeout=timeout,
                 max_retries=max_retries,
                 enable_tracing=enable_tracing,
-                debug=debug
+                debug=debug,
+                trajectory_callback=self.trajectory_callback
             )
             
             # Give task manager to the planner
@@ -122,6 +129,33 @@ class DroidAgent:
             self.planner_agent = None
         
         logger.info("✅ DroidAgent initialized successfully.")
+    
+    async def _handle_trajectory_step(self, step):
+        """
+        Callback to handle trajectory steps from both agents.
+        This adds the step to our trajectory_steps list and yields it if needed.
+        
+        Args:
+            step: A trajectory step dictionary with metadata
+        """
+        # Add metadata about current time
+        step["timestamp"] = time.time()
+        
+        # Add to trajectory
+        self.trajectory_steps.append(step)
+        
+        # Log for debugging if needed
+        if self.debug:
+            logger.debug(f"📝 Trajectory step: {step['type']} (step {step['step']})")
+            
+    def get_trajectory(self):
+        """
+        Get the current trajectory.
+        
+        Returns:
+            List of trajectory steps
+        """
+        return self.trajectory_steps.copy()
     
     async def _get_plan_from_planner(self) -> List[Dict]:
         """
@@ -183,6 +217,17 @@ class DroidAgent:
         # Get response from LLM
         llm_response = await self.planner_agent._get_llm_response(messages)
         code, thoughts = self.planner_agent._extract_code_and_thought(llm_response.message.content)
+
+        # Add trajectory step for plan generation
+        if self.trajectory_callback:
+            trajectory_step = {
+                "type": "planner_plan_generation",
+                "step": self.planner_agent.steps_counter,
+                "thoughts": thoughts,
+                "code": code,
+                "timestamp": time.time()
+            }
+            await self._handle_trajectory_step(trajectory_step)
         
         # Execute the planning code (which should call set_tasks)
         if code:
@@ -200,7 +245,18 @@ class DroidAgent:
                     locals={},
                     tools=planning_tools
                 )
-                await planning_executor.execute(code)
+                result = await planning_executor.execute(code)
+
+                # Add trajectory step for plan execution
+                if self.trajectory_callback:
+                    trajectory_step = {
+                        "type": "planner_plan_execution",
+                        "step": self.planner_agent.steps_counter,
+                        "result": result,
+                        "timestamp": time.time()
+                    }
+                    await self._handle_trajectory_step(trajectory_step)
+
             except Exception as e:
                 logger.error(f"Error executing planning code: {e}")
                 # If there's an error, create a simple default task
@@ -213,6 +269,16 @@ class DroidAgent:
             for i, task in enumerate(tasks, 1):
                 if task["status"] == self.task_manager.STATUS_PENDING:
                     logger.info(f"  {i}. {task['description']}")
+
+            # Add trajectory step for final plan
+            if self.trajectory_callback:
+                trajectory_step = {
+                    "type": "planner_final_plan",
+                    "step": self.planner_agent.steps_counter,
+                    "tasks": [task["description"] for task in tasks if task["status"] == self.task_manager.STATUS_PENDING],
+                    "timestamp": time.time()
+                }
+                await self._handle_trajectory_step(trajectory_step)
         else:
             logger.warning("No tasks were generated in the plan")
             
@@ -283,9 +349,10 @@ class DroidAgent:
     async def run(self) -> Dict[str, Any]:
         """
         Main execution loop that coordinates between planning and execution.
+        Yields trajectory steps during execution.
         
         Returns:
-            Dict containing the execution result
+            Dict containing the execution result and complete trajectory
         """
         logger.info(f"🚀 Running DroidAgent to achieve goal: {self.goal}")
         
@@ -293,6 +360,9 @@ class DroidAgent:
         retry_counter = 0
         overall_success = False
         final_message = ""
+        
+        # Clear trajectory from any previous runs
+        self.trajectory_steps = []
         
         try:
             # If reasoning is disabled, directly execute the goal as a single task in CodeActAgent
@@ -311,7 +381,8 @@ class DroidAgent:
                     "success": success,
                     "reason": reason,
                     "steps": 1,
-                    "task_history": [task]  # Single task history
+                    "task_history": [task],  # Single task history
+                    "trajectory": self.trajectory_steps
                 }
             
             # Standard reasoning mode with planning
@@ -379,7 +450,11 @@ class DroidAgent:
                             else:
                                 logger.error(f"Max retries exceeded for task")
                                 final_message = f"Failed after {self.max_retries} retries. Reason: {reason}"
-                                return {"success": False, "reason": final_message}
+                                return {
+                                    "success": False, 
+                                    "reason": final_message,
+                                    "trajectory": self.trajectory_steps
+                                }
                 
                 # Reset retry counter for new task sequence
                 retry_counter = 0
@@ -399,7 +474,8 @@ class DroidAgent:
                 "success": overall_success,
                 "reason": final_message,
                 "steps": step_counter,
-                "task_history": self.task_manager.get_task_history()
+                "task_history": self.task_manager.get_task_history(),
+                "trajectory": self.trajectory_steps
             }
                 
         except Exception as e:
@@ -410,5 +486,6 @@ class DroidAgent:
             return {
                 "success": False, 
                 "reason": str(e),
-                "task_history": self.task_manager.get_task_history()
+                "task_history": self.task_manager.get_task_history(),
+                "trajectory": self.trajectory_steps
             } 

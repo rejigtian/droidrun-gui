@@ -113,7 +113,7 @@ def update_layout(layout, log_list, step_message, current_time, goal=None, compl
     ))
 
 @coro
-async def run_command(command: str, device: str | None, provider: str, model: str, steps: int, base_url: str, reasoning: bool, tracing: bool, debug: bool, **kwargs):
+async def run_command(command: str, device: str | None, provider: str, model: str, steps: int, base_url: str, reasoning: bool, tracing: bool, debug: bool, save_trajectory: bool = False, trajectory_dir: str = None, **kwargs):
     """Run a command on your Android device using natural language."""
     configure_logging(debug)
     
@@ -285,6 +285,20 @@ async def run_command(command: str, device: str | None, provider: str, model: st
                         completed=is_completed, 
                         success=is_success
                     )
+                    
+                    # Save trajectory if requested
+                    if save_trajectory and result and "trajectory" in result:
+                        from ..agent.utils.trajectory import save_trajectory
+                        trajectory_path = save_trajectory(
+                            result["trajectory"],
+                            command,
+                            result,
+                            directory=trajectory_dir,
+                            screenshots=tools_instance.screenshots if tools_instance else None
+                        )
+                        logs.append(f"📝 Trajectory saved to: {trajectory_path}")
+                        if tools_instance and tools_instance.screenshots:
+                            logs.append(f"🎬 Created GIF with {len(tools_instance.screenshots)} screenshots")
                     
                     await asyncio.sleep(2)
                 finally:
@@ -459,7 +473,9 @@ def cli():
 @click.option('--reasoning/--no-reasoning', is_flag=True, help='Enable/disable planning with reasoning', default=False)
 @click.option('--tracing', is_flag=True, help='Enable Arize Phoenix tracing', default=False)
 @click.option('--debug', is_flag=True, help='Enable verbose debug logging', default=False)
-def run(command: str, device: str | None, provider: str, model: str, steps: int, base_url: str, temperature: float, reasoning: bool, tracing: bool, debug: bool):
+@click.option('--save-trajectory', is_flag=True, help='Save agent trajectory to file', default=False)
+@click.option('--trajectory-dir', help='Directory to save trajectory (default: "trajectories")', default="trajectories")
+def run(command: str, device: str | None, provider: str, model: str, steps: int, base_url: str, temperature: float, reasoning: bool, tracing: bool, debug: bool, save_trajectory: bool, trajectory_dir: str):
     """Run a command on your Android device using natural language."""
     # Call our standalone function
     return run_command(command, device, provider, model, steps, base_url, reasoning, tracing, debug, temperature=temperature)

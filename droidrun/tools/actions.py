@@ -28,6 +28,8 @@ class Tools:
         self.finished = False
         # Memory storage for remembering important information
         self.memory: List[str] = []
+        # Store all screenshots with timestamps
+        self.screenshots: List[Dict[str, Any]] = []
 
     def get_device_serial(self) -> str:
         """Get the device serial from the instance or environment variable."""
@@ -549,13 +551,8 @@ class Tools:
     async def take_screenshot(self) -> bool:
         """
         Take a screenshot of the device.
-
         This function captures the current screen and adds the screenshot to context in the next message.
-
-        This does not save the screenshot anywhere on the phone, it just attaches it to the next message.
-        
-        Returns:
-            True if successful, False otherwise
+        Also stores the screenshot in the screenshots list with timestamp for later GIF creation.
         """
         try:
             if self.serial:
@@ -567,6 +564,13 @@ class Tools:
                 device = await self.get_device()
             screen_tuple = await device.take_screenshot()
             self.last_screenshot = screen_tuple[1]
+            
+            # Store screenshot with timestamp
+            self.screenshots.append({
+                "timestamp": time.time(),
+                "image_data": screen_tuple[1],
+                "format": screen_tuple[0]  # Usually 'PNG'
+            })
             return True
         except ValueError as e:
             raise ValueError(f"Error taking screenshot: {str(e)}")

@@ -38,6 +38,7 @@ class CodeActAgent(Workflow):
         system_prompt: Optional[str] = None,
         user_prompt: Optional[str] = None,
         debug: bool = False,
+        trajectory_callback = None,
         *args,
         **kwargs
     ):
@@ -61,6 +62,7 @@ class CodeActAgent(Workflow):
         self.steps_counter = 0 # Initialize step counter (kept for tracking purposes)
         self.code_exec_counter = 0 # Initialize execution counter
         self.debug = debug
+        self.trajectory_callback = trajectory_callback
         logger.info("✅ CodeActAgent initialized successfully.")
 
     def parse_tool_descriptions(self) -> str:
@@ -179,6 +181,17 @@ class CodeActAgent(Workflow):
         code, thoughts = self._extract_code_and_thought(response.message.content)
         if self.debug:
             logger.debug(f"  - Thoughts: {'Yes' if thoughts else 'No'}, Code: {'Yes' if code else 'No'}")
+            
+        # Yield thought trajectory if callback is provided
+        if self.trajectory_callback:
+            trajectory_step = {
+                "type": "codeact_thought",
+                "step": self.steps_counter,
+                "thoughts": thoughts,
+                "code": code
+            }
+            await self.trajectory_callback(trajectory_step)
+            
         return ModelOutputEvent(thoughts=thoughts, code=code)
 
     @step
@@ -219,6 +232,18 @@ class CodeActAgent(Workflow):
             self.code_exec_counter += 1
             result = await self.code_execute_fn(code)
             logger.info(f"💡 Code execution successful. Result: {result}")
+            
+            # Yield code execution trajectory if callback is provided
+            if self.trajectory_callback:
+                trajectory_step = {
+                    "type": "codeact_execution",
+                    "step": self.steps_counter,
+                    "code": code,
+                    "result": result,
+                    "success": True
+                }
+                await self.trajectory_callback(trajectory_step)
+                
             if self.tools.finished == True:
                 logger.debug("  - Task completed.")
                 return FinalizeEvent(result={'success': self.tools.success, 'reason': self.tools.reason})
@@ -228,6 +253,18 @@ class CodeActAgent(Workflow):
             if self.debug:
                 logger.error("Exception details:", exc_info=True)
             error_message = f"Error during execution: {e}"
+            
+            # Yield failed code execution trajectory if callback is provided
+            if self.trajectory_callback:
+                trajectory_step = {
+                    "type": "codeact_execution",
+                    "step": self.steps_counter,
+                    "code": code,
+                    "result": error_message,
+                    "success": False
+                }
+                await self.trajectory_callback(trajectory_step)
+                
             return ExecutionResultEvent(output=error_message) # Return error message as output
 
     @step
@@ -246,8 +283,7 @@ class CodeActAgent(Workflow):
         # Add the output to memory as an user message (observation)
         observation_message = ChatMessage(role="user", content=f"Execution Result:\n```\n{output}\n```")
         await self.memory.aput(observation_message)
-        if self.debug:
-            logger.debug("  - Added execution result to memory.")
+        
         return InputEvent(input=self.memory.get_all())
     
 
