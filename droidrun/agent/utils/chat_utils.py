@@ -1,7 +1,7 @@
 import base64
 import json
 import logging
-from typing import List, TYPE_CHECKING
+from typing import List, TYPE_CHECKING, Dict, Any, Optional
 from llama_index.core.base.llms.types import ChatMessage, ImageBlock, TextBlock
 
 if TYPE_CHECKING:
@@ -9,6 +9,26 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("droidrun")
 logging.basicConfig(level=logging.INFO)
+
+class UIState:
+    """Singleton class to manage UI elements state."""
+    _instance = None
+    _ui_elements: Optional[Dict[str, Any]] = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(UIState, cls).__new__(cls)
+        return cls._instance
+
+    @classmethod
+    def get_ui_elements(cls) -> Optional[Dict[str, Any]]:
+        """Get the current UI elements."""
+        return cls._ui_elements
+
+    @classmethod
+    def set_ui_elements(cls, elements: Dict[str, Any]) -> None:
+        """Set the current UI elements."""
+        cls._ui_elements = elements
 
 def message_copy(message: ChatMessage, deep = True) -> ChatMessage:
     if deep:
@@ -37,6 +57,8 @@ async def add_ui_text_block(tools: 'Tools', chat_history: List[ChatMessage], ret
             else:
                 logger.error(f"  - Error getting UI elements: {e}. No UI elements will be sent.")
     if ui_elements:
+        # Update the UI state
+        UIState.set_ui_elements(ui_elements)
         ui_block = TextBlock(text="\nCurrent Clickable UI elements from the device using the custom TopViewService:\n```json\n" + json.dumps(ui_elements) + "\n```\n")
         if copy:
             chat_history = chat_history.copy()

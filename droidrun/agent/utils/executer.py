@@ -2,9 +2,13 @@ import io
 import contextlib
 import ast
 import traceback
+import logging
 from typing import Any, Dict
 from droidrun.agent.utils.async_utils import async_to_sync
+from droidrun.agent.utils.chat_utils import UIState
 import asyncio
+
+logger = logging.getLogger("droidrun")
 
 class SimpleCodeExecutor:
     """
@@ -52,6 +56,10 @@ class SimpleCodeExecutor:
         # add time to globals
         import time
         globals['time'] = time
+        
+        # Add UI elements to globals
+        globals['ui_elements'] = UIState.get_ui_elements()
+        
         # State that persists between executions
         self.globals = globals
         self.locals = locals
@@ -71,6 +79,9 @@ class SimpleCodeExecutor:
         Returns:
             str: Output from the execution, including print statements.
         """
+        # Update UI elements before execution
+        self.globals['ui_elements'] = UIState.get_ui_elements()
+        
         # Capture stdout and stderr
         stdout = io.StringIO()
         stderr = io.StringIO()

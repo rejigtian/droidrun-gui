@@ -181,13 +181,8 @@ class Tools:
                             await asyncio.sleep(0.5)  # 500ms sleep
                             
                             # Convert the dictionary to a JSON string before returning
-                            result = {
-                                "clickable_elements": filtered_data,
-                                "count": len(filtered_data),
-                                "message": f"Found {len(filtered_data)} UI elements after retrying"
-                            }
                             
-                            return result
+                            return filtered_data
                         
                         # If no elements found, wait and retry
                         await asyncio.sleep(retry_interval)
