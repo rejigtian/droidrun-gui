@@ -293,8 +293,12 @@ class CodeActAgent(Workflow):
     async def _get_llm_response(self, chat_history: List[ChatMessage]) -> ChatResponse:
         """Get streaming response from LLM."""
         logger.debug(f"  - Sending {len(chat_history)} messages to LLM.")
-        # add screenshot to prompt
-        chat_history = await add_screenshot_image_block(self.tools, chat_history)        
+
+        model = self.llm.class_name()
+        if model != "DeepSeek":
+            chat_history = await add_screenshot_image_block(self.tools, chat_history)
+        else:
+            logger.warning("[yellow]DeepSeek doesnt support images. Disabling screenshots[/]")
         # always add ui
         chat_history = await add_ui_text_block(self.tools, chat_history)
         
