@@ -2,7 +2,7 @@
 Utility modules for DroidRun agents.
 """
 
-from .trajectory import (
+from droidrun.agent.utils.trajectory import (
     save_trajectory,
     load_trajectory,
     get_trajectory_statistics,

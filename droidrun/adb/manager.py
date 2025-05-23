@@ -3,8 +3,8 @@ Device Manager - Manages Android device connections.
 """
 
 from typing import Dict, List, Optional
-from .wrapper import ADBWrapper
-from .device import Device
+from droidrun.adb.wrapper import ADBWrapper
+from droidrun.adb.device import Device
 
 class DeviceManager:
     """Manages Android device connections."""

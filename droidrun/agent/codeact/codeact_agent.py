@@ -8,16 +8,16 @@ from llama_index.core.prompts import PromptTemplate
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Workflow, StartEvent, StopEvent, Context, step
 from llama_index.core.memory import ChatMemoryBuffer
-from .events import FinalizeEvent, InputEvent, ModelOutputEvent, ExecutionEvent, ExecutionResultEvent
-from ..utils.chat_utils import add_screenshot, add_screenshot_image_block, add_ui_text_block, message_copy
-from .prompts import (
+from droidrun.agent.codeact.events import FinalizeEvent, InputEvent, ModelOutputEvent, ExecutionEvent, ExecutionResultEvent
+from droidrun.agent.utils.chat_utils import add_screenshot, add_screenshot_image_block, add_ui_text_block, message_copy
+from droidrun.agent.codeact.prompts import (
     DEFAULT_CODE_ACT_SYSTEM_PROMPT, 
     DEFAULT_CODE_ACT_USER_PROMPT, 
     DEFAULT_NO_THOUGHTS_PROMPT
 )
 
 if TYPE_CHECKING:
-    from ...tools import Tools
+    from droidrun.tools import Tools
 
 logger = logging.getLogger("droidrun")
 
@@ -37,7 +37,6 @@ class CodeActAgent(Workflow):
         max_steps: int = 10, # Default max steps (kept for backwards compatibility but no longer enforced)
         system_prompt: Optional[str] = None,
         user_prompt: Optional[str] = None,
-        vision: bool = False,
         debug: bool = False,
         trajectory_callback = None,
         *args,
@@ -62,7 +61,6 @@ class CodeActAgent(Workflow):
         self.goal = None
         self.steps_counter = 0 # Initialize step counter (kept for tracking purposes)
         self.code_exec_counter = 0 # Initialize execution counter
-        self.vision = vision
         self.debug = debug
         self.trajectory_callback = trajectory_callback
         logger.info("✅ CodeActAgent initialized successfully.")
@@ -308,13 +306,8 @@ class CodeActAgent(Workflow):
         """Get streaming response from LLM."""
         if self.debug:
             logger.debug(f"  - Sending {len(chat_history)} messages to LLM.")
-        # Combine system prompt with chat history
-        if self.vision:
-            chat_history = await add_screenshot_image_block(self.tools, chat_history)
-        elif self.tools.last_screenshot:
-            chat_history = await add_screenshot(chat_history, self.tools.last_screenshot)
-            self.tools.last_screenshot = None # Reset last screenshot after sending it
-        
+        # add screenshot to prompt
+        chat_history = await add_screenshot_image_block(self.tools, chat_history)        
         # always add ui
         chat_history = await add_ui_text_block(self.tools, chat_history)
         

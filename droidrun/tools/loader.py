@@ -1,7 +1,7 @@
 import asyncio
 import logging
-from .actions import Tools
-from .device import DeviceManager
+from droidrun.tools.actions import Tools
+from droidrun.adb.manager import DeviceManager
 from typing import Tuple, Dict, Callable, Any, Optional
 
 # Get a logger for this module
@@ -15,7 +15,6 @@ async def load_tools(serial: Optional[str] = None) -> Tuple[Dict[str, Callable[.
 
     Args:
         serial: The device serial number. If None, finds the first available device.
-        vision: Whether to include vision-related tools. (Set to false if you want to always send screenshot)
 
     Returns:
         A tuple containing:
