@@ -32,6 +32,8 @@ def load_llm(provider_name: str, **kwargs: Any) -> LLM:
         raise ValueError("provider_name cannot be empty.")
     if provider_name == "OpenAILike":
         module_provider_part = "openai_like"
+    elif provider_name == "GoogleGenAI":
+        module_provider_part = "google_genai"
     else:
         # Use lowercase for module path, handle hyphens for package name suggestion
         lower_provider_name = provider_name.lower()
@@ -81,7 +83,7 @@ def load_llm(provider_name: str, **kwargs: Any) -> LLM:
         raise # Re-raise TypeError (could be from issubclass check or __init__)
     except Exception as e:
         logger.error(f"An unexpected error occurred initializing {provider_name}: {e}")
-        raise RuntimeError(f"Failed to initialize LLM '{provider_name}'.") from e
+        raise e
     
 # --- Example Usage ---
 if __name__ == "__main__":
