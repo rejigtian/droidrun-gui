@@ -100,16 +100,14 @@ class CodeActAgent(Workflow):
         Returns:
             Tuple[Optional[code_string], thought_string]
         """
-        if self.debug:
-            logger.debug("✂️ Extracting code and thought from response...")
+        logger.debug("✂️ Extracting code and thought from response...")
         code_pattern = r"^\s*```python\s*\n(.*?)\n^\s*```\s*?$" # Added ^\s*, re.MULTILINE, and made closing fence match more robust
         # Use re.DOTALL to make '.' match newlines and re.MULTILINE to make '^' match start of lines
         code_matches = list(re.finditer(code_pattern, response_text, re.DOTALL | re.MULTILINE))
 
         if not code_matches:
             # No code found, the entire response is thought
-            if self.debug:
-                logger.debug("  - No code block found. Entire response is thought.")
+            logger.debug("  - No code block found. Entire response is thought.")
             return None, response_text.strip()
 
         extracted_code_parts = []
@@ -119,8 +117,7 @@ class CodeActAgent(Workflow):
              extracted_code_parts.append(code_content) # Keep original indentation for now
 
         extracted_code = "\n\n".join(extracted_code_parts)
-        if self.debug:
-            logger.debug(f"  - Combined extracted code:\n```python\n{extracted_code}\n```")
+        logger.debug(f"  - Combined extracted code:\n```python\n{extracted_code}\n```")
 
 
         # Extract thought text (text before the first code block, between blocks, and after the last)
@@ -134,10 +131,8 @@ class CodeActAgent(Workflow):
         thought_parts.append(response_text[last_end:]) # Text after the last block
 
         thought_text = "".join(thought_parts).strip()
-        # Avoid overly long debug messages for thought
-        if self.debug:
-            thought_preview = (thought_text[:100] + '...') if len(thought_text) > 100 else thought_text
-            logger.debug(f"  - Extracted thought: {thought_preview}")
+        thought_preview = (thought_text[:100] + '...') if len(thought_text) > 100 else thought_text
+        logger.debug(f"  - Extracted thought: {thought_preview}")
 
         return extracted_code, thought_text
 
@@ -151,14 +146,13 @@ class CodeActAgent(Workflow):
         )
         user_input = ev.get("input", default=None)
         assert user_input, "User input cannot be empty."
-        # Add user input to memory
-        if self.debug:
-            logger.debug("  - Adding goal to memory.")
+
+        logger.debug("  - Adding goal to memory.")
         goal = user_input
         self.user_message = ChatMessage(role="user", content=PromptTemplate(self.user_prompt or DEFAULT_CODE_ACT_USER_PROMPT).format(goal=goal))
         self.no_thoughts_prompt = ChatMessage(role="user", content=PromptTemplate(DEFAULT_NO_THOUGHTS_PROMPT).format(goal=goal))
         await self.memory.aput(self.user_message)
-        # Update context
+
         await ctx.set("memory", self.memory)
         input_messages = self.memory.get_all()
         return InputEvent(input=input_messages)
@@ -176,11 +170,9 @@ class CodeActAgent(Workflow):
         response = await self._get_llm_response(chat_history)
         # Add response to memory
         await self.memory.aput(response.message)
-        if self.debug:
-            logger.debug("🤖 LLM response received.")
+        logger.debug("🤖 LLM response received.")
         code, thoughts = self._extract_code_and_thought(response.message.content)
-        if self.debug:
-            logger.debug(f"  - Thoughts: {'Yes' if thoughts else 'No'}, Code: {'Yes' if code else 'No'}")
+        logger.debug(f"  - Thoughts: {'Yes' if thoughts else 'No'}, Code: {'Yes' if code else 'No'}")
             
         # Yield thought trajectory if callback is provided
         if self.trajectory_callback:
@@ -197,8 +189,7 @@ class CodeActAgent(Workflow):
     @step
     async def handle_llm_output(self, ev: ModelOutputEvent, ctx: Context) -> Union[ExecutionEvent, FinalizeEvent]:
         """Handle LLM output."""
-        if self.debug:
-            logger.debug("⚙️ Handling LLM output...")
+        logger.debug("⚙️ Handling LLM output...")
         # Get code and thoughts from event
         code = ev.code
         thoughts = ev.thoughts
@@ -225,8 +216,7 @@ class CodeActAgent(Workflow):
         code = ev.code
         assert code, "Code cannot be empty."
         logger.info(f"⚡ Executing action...")
-        if self.debug:
-            logger.debug(f"Code to execute:\n```python\n{code}\n```")
+        logger.debug(f"Code to execute:\n```python\n{code}\n```")
         # Execute the code using the provided function
         try:
             self.code_exec_counter += 1
@@ -270,16 +260,14 @@ class CodeActAgent(Workflow):
     @step
     async def handle_execution_result(self, ev: ExecutionResultEvent, ctx: Context) -> InputEvent:
         """Handle the execution result. Currently it just returns InputEvent."""
-        if self.debug:
-            logger.debug("📊 Handling execution result...")
+        logger.debug("📊 Handling execution result...")
         # Get the output from the event
         output = ev.output
         if output is None:
             output = "Code executed, but produced no output."
             logger.warning("  - Execution produced no output.")
         else:
-             if self.debug:
-                 logger.debug(f"  - Execution output: {output[:100]}..." if len(output) > 100 else f"  - Execution output: {output}") 
+            logger.debug(f"  - Execution output: {output[:100]}..." if len(output) > 100 else f"  - Execution output: {output}") 
         # Add the output to memory as an user message (observation)
         observation_message = ChatMessage(role="user", content=f"Execution Result:\n```\n{output}\n```")
         await self.memory.aput(observation_message)
@@ -304,8 +292,7 @@ class CodeActAgent(Workflow):
 
     async def _get_llm_response(self, chat_history: List[ChatMessage]) -> ChatResponse:
         """Get streaming response from LLM."""
-        if self.debug:
-            logger.debug(f"  - Sending {len(chat_history)} messages to LLM.")
+        logger.debug(f"  - Sending {len(chat_history)} messages to LLM.")
         # add screenshot to prompt
         chat_history = await add_screenshot_image_block(self.tools, chat_history)        
         # always add ui
@@ -357,7 +344,6 @@ class CodeActAgent(Workflow):
             else:
                 logger.error(f"Error getting LLM response: {e}")
                 return StopEvent(result={'finished': True, 'message': f"Error getting LLM response: {e}", 'steps': self.steps_counter, 'code_executions': self.code_exec_counter}) # Return final message and steps
-        if self.debug:
-            logger.debug("  - Received response from LLM.")
+        logger.debug("  - Received response from LLM.")
         return response
     

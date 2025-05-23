@@ -14,7 +14,7 @@ from llama_index.core.memory import ChatMemoryBuffer
 from droidrun.agent.codeact import CodeActAgent
 from droidrun.agent.planner import PlannerAgent, TaskManager
 from droidrun.agent.utils.executer import SimpleCodeExecutor
-from droidrun.tools import Tools
+from droidrun.tools import load_tools
 
 logger = logging.getLogger("droidrun")
 
@@ -28,8 +28,6 @@ class DroidAgent:
         self, 
         goal: str,
         llm: LLM,
-        tools_instance: 'Tools' = None,
-        tool_list: Dict[str, Any] = None,
         max_steps: int = 15,
         timeout: int = 1000,
         max_retries: int = 3,
@@ -72,6 +70,8 @@ class DroidAgent:
         self.trajectory_callback = self._handle_trajectory_step
         
         logger.info("🤖 Initializing DroidAgent wrapper...")
+
+        tool_list, tools_instance = load_tools(serial=device_serial)
         
         self.tools_instance = tools_instance
         self.tool_list = tool_list
@@ -145,8 +145,7 @@ class DroidAgent:
         self.trajectory_steps.append(step)
         
         # Log for debugging if needed
-        if self.debug:
-            logger.debug(f"📝 Trajectory step: {step['type']} (step {step['step']})")
+        logger.debug(f"📝 Trajectory step: {step['type']} (step {step['step']})")
             
     def get_trajectory(self):
         """
@@ -211,8 +210,7 @@ class DroidAgent:
         
         # Create message list
         messages = [system_msg, user_msg]
-        if self.debug:
-            logger.debug(f"Sending {len(messages)} messages to planner: {[msg.role for msg in messages]}")
+        logger.debug(f"Sending {len(messages)} messages to planner: {[msg.role for msg in messages]}")
         
         # Get response from LLM
         llm_response = await self.planner_agent._get_llm_response(messages)
@@ -315,8 +313,7 @@ class DroidAgent:
             if self.tools_instance.finished:
                 if self.tools_instance.success:
                     task["status"] = self.task_manager.STATUS_COMPLETED
-                    if self.debug:
-                        logger.debug(f"Task completed successfully: {self.tools_instance.reason}")
+                    logger.debug(f"Task completed successfully: {self.tools_instance.reason}")
                     return True, self.tools_instance.reason or "Task completed successfully"
                 else:
                     task["status"] = self.task_manager.STATUS_FAILED
@@ -327,8 +324,7 @@ class DroidAgent:
             # If tools instance wasn't marked as finished, check the result directly
             if result and isinstance(result, dict) and "success" in result and result["success"]:
                 task["status"] = self.task_manager.STATUS_COMPLETED
-                if self.debug:
-                    logger.debug(f"Task completed with result: {result}")
+                logger.debug(f"Task completed with result: {result}")
                 return True, result.get("reason", "Task completed successfully")
             else:
                 failure_reason = result.get("reason", "Unknown failure") if isinstance(result, dict) else "Task execution failed"
@@ -388,8 +384,7 @@ class DroidAgent:
             # Standard reasoning mode with planning
             while step_counter < self.max_steps:
                 step_counter += 1
-                if self.debug:
-                    logger.debug(f"Planning step {step_counter}/{self.max_steps}")
+                logger.debug(f"Planning step {step_counter}/{self.max_steps}")
                 
                 # 1. Get a plan from the planner
                 tasks = await self._get_plan_from_planner()
