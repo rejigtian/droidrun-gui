@@ -11,7 +11,8 @@ import asyncio
 import aiofiles
 import contextlib
 from typing import Optional, Dict, Tuple, List, Any
-from ..adb import Device, DeviceManager
+from droidrun.adb.device import Device
+from droidrun.adb.manager import DeviceManager
 
 
 class Tools:
@@ -93,7 +94,6 @@ class Tools:
         try:
             # Get the device
             if serial:
-                from droidrun.adb import DeviceManager
                 device_manager = DeviceManager()
                 device = await device_manager.get_device(serial)
                 if not device:
@@ -283,7 +283,6 @@ class Tools:
             
             # Get the device and tap at the coordinates
             if serial:
-                from droidrun.adb import DeviceManager
                 device_manager = DeviceManager()
                 device = await device_manager.get_device(serial)
                 if not device:

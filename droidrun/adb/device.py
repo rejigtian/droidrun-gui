@@ -8,7 +8,7 @@ import time
 import random
 import string
 from typing import Dict, Optional, Tuple, List
-from .wrapper import ADBWrapper
+from droidrun.adb.wrapper import ADBWrapper
 
 class Device:
     """High-level representation of an Android device."""

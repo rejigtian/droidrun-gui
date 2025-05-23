@@ -1,7 +1,7 @@
 """
 DroidRun main entry point
 """
-from .cli.main import cli
+from droidrun.cli.main import cli
 
 if __name__ == '__main__':
     cli()

@@ -1,7 +1,7 @@
 import asyncio
 import logging
-from .actions import Tools
-from .device import DeviceManager
+from droidrun.tools.actions import Tools
+from droidrun.adb.manager import DeviceManager
 from typing import Tuple, Dict, Callable, Any, Optional
 
 # Get a logger for this module
