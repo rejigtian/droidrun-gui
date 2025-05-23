@@ -471,7 +471,7 @@ def cli():
 def run(command: str, device: str | None, provider: str, model: str, steps: int, base_url: str, temperature: float, reasoning: bool, tracing: bool, debug: bool, save_trajectory: bool, trajectory_dir: str):
     """Run a command on your Android device using natural language."""
     # Call our standalone function
-    return run_command(command, device, provider, model, steps, base_url, reasoning, tracing, debug, temperature=temperature)
+    return run_command(command, device, provider, model, steps, base_url, reasoning, tracing, debug, temperature=temperature, save_trajectory=save_trajectory, trajectory_dir=trajectory_dir)
 
 @cli.command()
 @coro
