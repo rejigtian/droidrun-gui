@@ -1,13 +1,6 @@
 """
 DroidRun CLI - Command line interface for controlling Android devices through LLM agents.
 """
-if __name__ == "__main__":
-    import sys
-    import os
-    _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-    sys.path.insert(0, _project_root)
-    __package__ = "droidrun.cli"
-
 
 import asyncio
 import click
@@ -22,9 +15,9 @@ from rich.layout import Layout
 from rich.text import Text
 from rich.spinner import Spinner
 from rich.align import Align
-from ..tools import DeviceManager, Tools, load_tools
-from ..agent.droid import DroidAgent
-from ..agent.utils.llm_picker import load_llm
+from droidrun.tools import DeviceManager, Tools, load_tools
+from droidrun.agent.droid import DroidAgent
+from droidrun.agent.utils.llm_picker import load_llm
 from functools import wraps
 console = Console()
 device_manager = DeviceManager()
@@ -288,7 +281,7 @@ async def run_command(command: str, device: str | None, provider: str, model: st
                     
                     # Save trajectory if requested
                     if save_trajectory and result and "trajectory" in result:
-                        from ..agent.utils.trajectory import save_trajectory
+                        from droidrun.agent.utils.trajectory import save_trajectory
                         trajectory_path = save_trajectory(
                             result["trajectory"],
                             command,

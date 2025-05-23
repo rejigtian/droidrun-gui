@@ -2,11 +2,11 @@
 DroidRun Tools - Core functionality for Android device control.
 """
 
-from .device import DeviceManager
-from .actions import (
+from droidrun.adb.manager import DeviceManager
+from droidrun.tools.actions import (
     Tools
 )
-from .loader import load_tools
+from droidrun.tools.loader import load_tools
 __all__ = [
     'DeviceManager',
     'Tools',

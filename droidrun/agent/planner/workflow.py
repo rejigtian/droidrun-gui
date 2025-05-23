@@ -4,8 +4,8 @@ from llama_index.core.workflow import (
     Workflow,
     step,
 )
-from .events import *
-from .prompts import (
+from droidrun.agent.planner.events import *
+from droidrun.agent.planner.prompts import (
     DEFAULT_PLANNER_SYSTEM_PROMPT,
     DEFAULT_PLANNER_USER_PROMPT,
 )
@@ -20,9 +20,9 @@ from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Workflow, StartEvent, StopEvent, Context, step
 from llama_index.core.memory import ChatMemoryBuffer
 from llama_index.core.llms.llm import LLM
-from ..utils.executer import SimpleCodeExecutor
-from ..utils.chat_utils import add_ui_text_block, add_screenshot_image_block, add_phone_state_block, message_copy
-from .task_manager import TaskManager
+from droidrun.agent.utils.executer import SimpleCodeExecutor
+from droidrun.agent.utils.chat_utils import add_ui_text_block, add_screenshot_image_block, add_phone_state_block, message_copy
+from droidrun.agent.planner.task_manager import TaskManager
 
 # Load environment variables
 from dotenv import load_dotenv
@@ -32,7 +32,7 @@ load_dotenv()
 logger = logging.getLogger("droidrun")
 
 if TYPE_CHECKING:
-    from ...tools import Tools
+    from droidrun.tools import Tools
 
 class PlannerAgent(Workflow):
     def __init__(self, goal: str, llm: LLM, agent: Optional[Workflow], tools_instance: 'Tools', 

@@ -3,7 +3,7 @@ import contextlib
 import ast
 import traceback
 from typing import Any, Dict
-from .async_utils import async_to_sync
+from droidrun.agent.utils.async_utils import async_to_sync
 import asyncio
 
 class SimpleCodeExecutor:

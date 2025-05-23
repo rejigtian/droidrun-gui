@@ -8,16 +8,16 @@ from llama_index.core.prompts import PromptTemplate
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Workflow, StartEvent, StopEvent, Context, step
 from llama_index.core.memory import ChatMemoryBuffer
-from .events import FinalizeEvent, InputEvent, ModelOutputEvent, ExecutionEvent, ExecutionResultEvent
-from ..utils.chat_utils import add_screenshot, add_screenshot_image_block, add_ui_text_block, message_copy
-from .prompts import (
+from droidrun.agent.codeact.events import FinalizeEvent, InputEvent, ModelOutputEvent, ExecutionEvent, ExecutionResultEvent
+from droidrun.agent.utils.chat_utils import add_screenshot, add_screenshot_image_block, add_ui_text_block, message_copy
+from droidrun.agent.codeact.prompts import (
     DEFAULT_CODE_ACT_SYSTEM_PROMPT, 
     DEFAULT_CODE_ACT_USER_PROMPT, 
     DEFAULT_NO_THOUGHTS_PROMPT
 )
 
 if TYPE_CHECKING:
-    from ...tools import Tools
+    from droidrun.tools import Tools
 
 logger = logging.getLogger("droidrun")
 
