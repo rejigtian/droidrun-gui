@@ -406,7 +406,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         })
     
     @step
-    async def handle_reasoning_logic(self, ev: ReasoningLogicEvent) -> FinalizeEvent | CodeActResultEvent:
+    async def handle_reasoning_logic(self, ev: ReasoningLogicEvent) -> FinalizeEvent | CodeActResultEvent | TaskRunnerEvent:
         try:
             if self.step_counter >= self.max_steps:
                 return FinalizeEvent(success=False, reason=f"Reached maximum number of steps ({self.max_steps})", task=self.task_manager.get_task_history(), steps=self.step_counter)
