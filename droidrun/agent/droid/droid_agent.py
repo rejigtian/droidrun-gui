@@ -57,6 +57,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
             device_serial: Target Android device serial number
             **kwargs: Additional keyword arguments to pass to the agents
         """
+        super().__init__()
         # Setup global tracing first if enabled
         if enable_tracing:
             try:
