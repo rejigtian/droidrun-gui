@@ -2,12 +2,11 @@ from llama_index.core.workflow import Event
 from typing import Any
 
 class CodeActExecuteEvent(Event):
-    task: dict[str, str]
+    pass
 
 class CodeActResultEvent(Event):
     success: bool
     reason: str
-    task: dict[str, str]
 
 class ReasoningLogicEvent(Event):
     pass

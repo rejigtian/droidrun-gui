@@ -11,7 +11,7 @@ from typing import Dict, Any, List, Tuple
 from llama_index.core.base.llms.types import ChatMessage
 from llama_index.core.llms.llm import LLM
 from llama_index.core.memory import ChatMemoryBuffer
-from llama_index.core.workflow import step, StartEvent, StopEvent, Workflow
+from llama_index.core.workflow import step, StartEvent, StopEvent, Workflow, Context
 from droidrun.agent.droid.events import *
 from droidrun.agent.codeact import CodeActAgent
 from droidrun.agent.planner import PlannerAgent, TaskManager
@@ -37,6 +37,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         enable_tracing: bool = False,
         debug: bool = False,
         device_serial: str = None,
+        *args,
         **kwargs
     ):
         """
@@ -57,7 +58,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
             device_serial: Target Android device serial number
             **kwargs: Additional keyword arguments to pass to the agents
         """
-        super().__init__()
+        super().__init__(timeout=timeout, *args, **kwargs)
         # Setup global tracing first if enabled
         if enable_tracing:
             try:
@@ -294,7 +295,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
             
         return tasks
     @step
-    async def _execute_task_with_codeact(self, ev: CodeActExecuteEvent) -> CodeActResultEvent:
+    async def _execute_task_with_codeact(self, ev: CodeActExecuteEvent, ctx: Context) -> CodeActResultEvent:
         """
         Execute a single task using the CodeActAgent.
         
@@ -304,11 +305,12 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         Returns:
             Tuple of (success, reason)
         """
-        task_description = ev.task["description"]
+        task = await ctx.get("task")
+        task_description = task["description"]
         logger.info(f"🔧 Executing task: {task_description}")
         
         # Update task status
-        ev.task["status"] = self.task_manager.STATUS_ATTEMPTING
+        task["status"] = self.task_manager.STATUS_ATTEMPTING
         
         # Run the CodeActAgent
         try:
@@ -324,42 +326,43 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
             # Check if the tools instance was marked as finished by the 'complete' function
             if self.tools_instance.finished:
                 if self.tools_instance.success:
-                    ev.task["status"] = self.task_manager.STATUS_COMPLETED
+                    task["status"] = self.task_manager.STATUS_COMPLETED
                     logger.debug(f"Task completed successfully: {self.tools_instance.reason}")
-                    return CodeActResultEvent(success=True, reason=self.tools_instance.reason or "Task completed successfully", task=ev.task)
+                    return CodeActResultEvent(success=True, reason=self.tools_instance.reason or "Task completed successfully", task=task)
                 else:
-                    ev.task["status"] = self.task_manager.STATUS_FAILED
-                    ev.task["failure_reason"] = self.tools_instance.reason or "Task failed without specific reason"
-                    logger.warning(f"Task failed: {ev.task['failure_reason']}")
-                    return CodeActResultEvent(success=False, reason=self.tools_instance.reason or "Task failed without specific reason", task=ev.task)
+                    task["status"] = self.task_manager.STATUS_FAILED
+                    task["failure_reason"] = self.tools_instance.reason or "Task failed without specific reason"
+                    logger.warning(f"Task failed: {task['failure_reason']}")
+                    return CodeActResultEvent(success=False, reason=self.tools_instance.reason or "Task failed without specific reason", task=task)
             
             # If tools instance wasn't marked as finished, check the result directly
             if result and isinstance(result, dict) and "success" in result and result["success"]:
-                ev.task["status"] = self.task_manager.STATUS_COMPLETED
+                task["status"] = self.task_manager.STATUS_COMPLETED
                 logger.debug(f"Task completed with result: {result}")
-                return CodeActResultEvent(success=True, reason=result.get("reason", "Task completed successfully"), task=ev.task)
+                return CodeActResultEvent(success=True, reason=result.get("reason", "Task completed successfully"), task=task)
             else:
                 failure_reason = result.get("reason", "Unknown failure") if isinstance(result, dict) else "Task execution failed"
-                ev.task["status"] = self.task_manager.STATUS_FAILED
-                ev.task["failure_reason"] = failure_reason
+                task["status"] = self.task_manager.STATUS_FAILED
+                task["failure_reason"] = failure_reason
                 logger.warning(f"Task failed: {failure_reason}")
-                return CodeActResultEvent(success=False, reason=failure_reason, task=ev.task)
+                return CodeActResultEvent(success=False, reason=failure_reason, task=task)
                 
         except Exception as e:
             logger.error(f"Error during task execution: {e}")
             if self.debug:
                 import traceback
                 logger.error(traceback.format_exc())
-            ev.task["status"] = self.task_manager.STATUS_FAILED
-            ev.task["failure_reason"] = f"Error: {str(e)}"
-            return CodeActResultEvent(success=False, reason=f"Error: {str(e)}", task=ev.task)
+            task["status"] = self.task_manager.STATUS_FAILED
+            task["failure_reason"] = f"Error: {str(e)}"
+            return CodeActResultEvent(success=False, reason=f"Error: {str(e)}", task=task)
     
     @step
-    async def handle_codeact_execute(self, ev: CodeActResultEvent) -> FinalizeEvent | ReasoningLogicEvent:
+    async def handle_codeact_execute(self, ev: CodeActResultEvent, ctx: Context) -> FinalizeEvent | ReasoningLogicEvent:
         try:
+            task = await ctx.get("task")
             if not self.reasoning:
-                return FinalizeEvent(success=ev.success, reason=ev.reason, task=[ev.task], steps=1)
-            task_idx = self.tasks.index(ev.task)
+                return FinalizeEvent(success=ev.success, reason=ev.reason, task=[task], steps=1)
+            task_idx = self.tasks.index(task)
             result_info = {
                 "execution_details": ev.reason,
                 "step_executed": self.step_counter,
@@ -371,11 +374,11 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
                     self.task_manager.STATUS_COMPLETED, 
                     result_info
                 )
-                logger.info(f"✅ Task completed: {ev.task['description']}")
+                logger.info(f"✅ Task completed: {task['description']}")
             
             if not ev.success:
                 # Store detailed failure information if not already set
-                if "failure_reason" not in ev.task:
+                if "failure_reason" not in task:
                     self.task_manager.update_status(
                         task_idx,
                         self.task_manager.STATUS_FAILED,
@@ -407,7 +410,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         })
     
     @step
-    async def handle_reasoning_logic(self, ev: ReasoningLogicEvent) -> FinalizeEvent | CodeActResultEvent | TaskRunnerEvent:
+    async def handle_reasoning_logic(self, ev: ReasoningLogicEvent) -> FinalizeEvent | TaskRunnerEvent:
         try:
             if self.step_counter >= self.max_steps:
                 return FinalizeEvent(success=False, reason=f"Reached maximum number of steps ({self.max_steps})", task=self.task_manager.get_task_history(), steps=self.step_counter)
@@ -433,7 +436,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
             return FinalizeEvent(success=False, reason=str(e), task=self.task_manager.get_task_history(), steps=self.step_counter)
     
     @step
-    async def handle_task_loop(self, ev: TaskRunnerEvent) -> CodeActExecuteEvent | ReasoningLogicEvent | FinalizeEvent:
+    async def handle_task_loop(self, ev: TaskRunnerEvent, ctx: Context) -> CodeActExecuteEvent | ReasoningLogicEvent | FinalizeEvent:
         try:
             while True:
                 task = next(self.task_iter, None)
@@ -441,7 +444,8 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
                     return ReasoningLogicEvent()
                 if task["status"] == self.task_manager.STATUS_PENDING:
                     self.codeact_agent.steps_counter = 0
-                    return CodeActExecuteEvent(task=task)
+                    await ctx.set("task", task)
+                    return CodeActExecuteEvent()
         except Exception as e:
             logger.error(f"❌ Error during DroidAgent execution: {e}")
             if self.debug:
@@ -449,7 +453,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
                 logger.error(traceback.format_exc())
             return FinalizeEvent(success=False, reason=str(e), task=self.task_manager.get_task_history(), steps=self.step_counter)
     @step
-    async def start_handler(self, ev: StartEvent) -> CodeActExecuteEvent | ReasoningLogicEvent | FinalizeEvent:
+    async def start_handler(self, ev: StartEvent, ctx: Context) -> CodeActExecuteEvent | ReasoningLogicEvent | FinalizeEvent:
         """
         Main execution loop that coordinates between planning and execution.
         Yields trajectory steps during execution.
@@ -476,7 +480,8 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
                 }
                 
                 # Execute the task directly with CodeActAgent
-                return CodeActExecuteEvent(task=task)
+                await ctx.set("task", task)
+                return CodeActExecuteEvent()
             
             # Standard reasoning mode with planning
             return ReasoningLogicEvent()
