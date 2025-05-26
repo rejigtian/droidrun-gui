@@ -398,7 +398,7 @@ class PlannerAgent(Workflow):
         # Add UI elements, screenshot, and phone state
         model = self.llm.class_name()
         if model != "DeepSeek":
-            chat_history = await add_screenshot_image_block(self.tools, chat_history)
+            chat_history = await add_screenshot_image_block(self.tools_instance, chat_history)
         chat_history = await add_ui_text_block(self.tools_instance, chat_history)
         chat_history = await add_phone_state_block(self.tools_instance, chat_history)
         

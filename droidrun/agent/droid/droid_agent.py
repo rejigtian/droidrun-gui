@@ -11,6 +11,8 @@ from typing import Dict, Any, List, Tuple
 from llama_index.core.base.llms.types import ChatMessage
 from llama_index.core.llms.llm import LLM
 from llama_index.core.memory import ChatMemoryBuffer
+from llama_index.core.workflow import step, StartEvent, StopEvent, Workflow, Context
+from droidrun.agent.droid.events import *
 from droidrun.agent.codeact import CodeActAgent
 from droidrun.agent.planner import PlannerAgent, TaskManager
 from droidrun.agent.utils.executer import SimpleCodeExecutor
@@ -18,9 +20,9 @@ from droidrun.tools import load_tools
 
 logger = logging.getLogger("droidrun")
 
-class DroidAgent:
+class DroidAgent(Workflow):
     """
-    A wrapper class that coordinates between PlannerAgent (creates plans) and 
+A wrapper class that coordinates between PlannerAgent (creates plans) and 
     CodeActAgent (executes tasks) to achieve a user's goal.
     """
     
@@ -35,6 +37,7 @@ class DroidAgent:
         enable_tracing: bool = False,
         debug: bool = False,
         device_serial: str = None,
+        *args,
         **kwargs
     ):
         """
@@ -55,6 +58,7 @@ class DroidAgent:
             device_serial: Target Android device serial number
             **kwargs: Additional keyword arguments to pass to the agents
         """
+        super().__init__(timeout=timeout, *args, **kwargs)
         # Setup global tracing first if enabled
         if enable_tracing:
             try:
@@ -290,8 +294,8 @@ class DroidAgent:
             logger.warning("No tasks were generated in the plan")
             
         return tasks
-
-    async def _execute_task_with_codeact(self, task: Dict) -> Tuple[bool, str]:
+    @step
+    async def _execute_task_with_codeact(self, ev: CodeActExecuteEvent, ctx: Context) -> CodeActResultEvent:
         """
         Execute a single task using the CodeActAgent.
         
@@ -301,6 +305,7 @@ class DroidAgent:
         Returns:
             Tuple of (success, reason)
         """
+        task = await ctx.get("task")
         task_description = task["description"]
         logger.info(f"🔧 Executing task: {task_description}")
         
@@ -323,24 +328,24 @@ class DroidAgent:
                 if self.tools_instance.success:
                     task["status"] = self.task_manager.STATUS_COMPLETED
                     logger.debug(f"Task completed successfully: {self.tools_instance.reason}")
-                    return True, self.tools_instance.reason or "Task completed successfully"
+                    return CodeActResultEvent(success=True, reason=self.tools_instance.reason or "Task completed successfully", task=task)
                 else:
                     task["status"] = self.task_manager.STATUS_FAILED
                     task["failure_reason"] = self.tools_instance.reason or "Task failed without specific reason"
                     logger.warning(f"Task failed: {task['failure_reason']}")
-                    return False, self.tools_instance.reason or "Task failed without specific reason"
+                    return CodeActResultEvent(success=False, reason=self.tools_instance.reason or "Task failed without specific reason", task=task)
             
             # If tools instance wasn't marked as finished, check the result directly
             if result and isinstance(result, dict) and "success" in result and result["success"]:
                 task["status"] = self.task_manager.STATUS_COMPLETED
                 logger.debug(f"Task completed with result: {result}")
-                return True, result.get("reason", "Task completed successfully")
+                return CodeActResultEvent(success=True, reason=result.get("reason", "Task completed successfully"), task=task)
             else:
                 failure_reason = result.get("reason", "Unknown failure") if isinstance(result, dict) else "Task execution failed"
                 task["status"] = self.task_manager.STATUS_FAILED
                 task["failure_reason"] = failure_reason
                 logger.warning(f"Task failed: {failure_reason}")
-                return False, failure_reason
+                return CodeActResultEvent(success=False, reason=failure_reason, task=task)
                 
         except Exception as e:
             logger.error(f"Error during task execution: {e}")
@@ -349,9 +354,106 @@ class DroidAgent:
                 logger.error(traceback.format_exc())
             task["status"] = self.task_manager.STATUS_FAILED
             task["failure_reason"] = f"Error: {str(e)}"
-            return False, f"Error: {str(e)}"
+            return CodeActResultEvent(success=False, reason=f"Error: {str(e)}", task=task)
+    
+    @step
+    async def handle_codeact_execute(self, ev: CodeActResultEvent, ctx: Context) -> FinalizeEvent | ReasoningLogicEvent:
+        try:
+            task = await ctx.get("task")
+            if not self.reasoning:
+                return FinalizeEvent(success=ev.success, reason=ev.reason, task=[task], steps=1)
+            task_idx = self.tasks.index(task)
+            result_info = {
+                "execution_details": ev.reason,
+                "step_executed": self.step_counter,
+                "codeact_steps": self.codeact_agent.steps_counter
+            }
+            if ev.success:
+                self.task_manager.update_status(
+                    task_idx, 
+                    self.task_manager.STATUS_COMPLETED, 
+                    result_info
+                )
+                logger.info(f"✅ Task completed: {task['description']}")
+            
+            if not ev.success:
+                # Store detailed failure information if not already set
+                if "failure_reason" not in task:
+                    self.task_manager.update_status(
+                        task_idx,
+                        self.task_manager.STATUS_FAILED,
+                        {"failure_reason": ev.reason, **result_info}
+                    )
+                    # Handle retries
+                    if self.retry_counter < self.max_retries:
+                        self.retry_counter += 1
+                        logger.info(f"Retrying... ({self.retry_counter}/{self.max_retries})")
+                    else:
+                        logger.error(f"Max retries exceeded for task")
+                        final_message = f"Failed after {self.max_retries} retries. Reason: {ev.reason}"
+                        return FinalizeEvent(success=False, reason=final_message, task=self.task_manager.get_task_history(), steps=self.step_counter)
+            return ReasoningLogicEvent()
+        except Exception as e:
+            logger.error(f"❌ Error during DroidAgent execution: {e}")
+            if self.debug:
+                import traceback
+                logger.error(traceback.format_exc())
+            return FinalizeEvent(success=False, reason=str(e), task=self.task_manager.get_task_history(), steps=self.step_counter)
+    @step
+    async def finalize(self, ev: FinalizeEvent) -> StopEvent:
+        return StopEvent(result= {
+            "success": ev.success,
+            "reason": ev.reason,
+            "steps": ev.steps,
+            "task_history": ev.task,
+            "trajectory": self.trajectory_steps
+        })
+    
+    @step
+    async def handle_reasoning_logic(self, ev: ReasoningLogicEvent) -> FinalizeEvent | TaskRunnerEvent:
+        try:
+            if self.step_counter >= self.max_steps:
+                return FinalizeEvent(success=False, reason=f"Reached maximum number of steps ({self.max_steps})", task=self.task_manager.get_task_history(), steps=self.step_counter)
+            self.step_counter += 1
+            logger.debug(f"Planning step {self.step_counter}/{self.max_steps}")
 
-    async def run(self) -> Dict[str, Any]:
+            self.tasks = await self._get_plan_from_planner()
+            self.task_iter = iter(self.tasks)
+
+            if self.task_manager.task_completed:
+                logger.info(f"✅ Goal completed: {self.task_manager.message}")
+                return FinalizeEvent(success=True, reason=self.task_manager.message, task=self.task_manager.get_task_history(), steps=self.step_counter)
+            if not self.tasks:
+                logger.warning("No tasks generated by planner")
+                return FinalizeEvent(success=False, reason="Planner did not generate any tasks", task=self.task_manager.get_task_history(), steps=self.step_counter)
+            
+            return TaskRunnerEvent()
+        except Exception as e:
+            logger.error(f"❌ Error during DroidAgent execution: {e}")
+            if self.debug:
+                import traceback
+                logger.error(traceback.format_exc())
+            return FinalizeEvent(success=False, reason=str(e), task=self.task_manager.get_task_history(), steps=self.step_counter)
+    
+    @step
+    async def handle_task_loop(self, ev: TaskRunnerEvent, ctx: Context) -> CodeActExecuteEvent | ReasoningLogicEvent | FinalizeEvent:
+        try:
+            while True:
+                task = next(self.task_iter, None)
+                if task is None:
+                    return ReasoningLogicEvent()
+                if task["status"] == self.task_manager.STATUS_PENDING:
+                    self.codeact_agent.steps_counter = 0
+                    await ctx.set("task", task)
+                    return CodeActExecuteEvent()
+        except Exception as e:
+            logger.error(f"❌ Error during DroidAgent execution: {e}")
+            if self.debug:
+                import traceback
+                logger.error(traceback.format_exc())
+            return FinalizeEvent(success=False, reason=str(e), task=self.task_manager.get_task_history(), steps=self.step_counter)
+    @step
+    async def start_handler(self, ev: StartEvent, ctx: Context) -> CodeActExecuteEvent | ReasoningLogicEvent | FinalizeEvent:
         """
         Main execution loop that coordinates between planning and execution.
         Yields trajectory steps during execution.
@@ -361,10 +463,8 @@ class DroidAgent:
         """
         logger.info(f"🚀 Running DroidAgent to achieve goal: {self.goal}")
         
-        step_counter = 0
-        retry_counter = 0
-        overall_success = False
-        final_message = ""
+        self.step_counter = 0
+        self.retry_counter = 0
         
         # Clear trajectory from any previous runs
         self.trajectory_steps = []
@@ -380,116 +480,15 @@ class DroidAgent:
                 }
                 
                 # Execute the task directly with CodeActAgent
-                success, reason = await self._execute_task_with_codeact(task)
-                
-                return {
-                    "success": success,
-                    "reason": reason,
-                    "steps": 1,
-                    "task_history": [task],  # Single task history
-                    "trajectory": self.trajectory_steps
-                }
+                await ctx.set("task", task)
+                return CodeActExecuteEvent()
             
             # Standard reasoning mode with planning
-            while step_counter < self.max_steps:
-                step_counter += 1
-                logger.debug(f"Planning step {step_counter}/{self.max_steps}")
-                
-                # 1. Get a plan from the planner
-                tasks = await self._get_plan_from_planner()
-                
-                if self.task_manager.task_completed:
-                    # Task is marked as complete by the planner
-                    logger.info(f"✅ Goal completed: {self.task_manager.message}")
-                    overall_success = True
-                    final_message = self.task_manager.message
-                    break
-                
-                if not tasks:
-                    logger.warning("No tasks generated by planner")
-                    final_message = "Planner did not generate any tasks"
-                    break
-                
-                # 2. Execute each task in the plan sequentially
-                for task in tasks:
-                    if task["status"] == self.task_manager.STATUS_PENDING:
-                        # Reset the CodeActAgent's step counter for this task
-                        self.codeact_agent.steps_counter = 0
-                        
-                        # Execute the task
-                        success, reason = await self._execute_task_with_codeact(task)
-                        
-                        # Update task info with detailed result for the planner
-                        task_idx = tasks.index(task)
-                        result_info = {
-                            "execution_details": reason,
-                            "step_executed": step_counter,
-                            "codeact_steps": self.codeact_agent.steps_counter
-                        }
-                        
-                        # Only update if not already updated in _execute_task_with_codeact
-                        if success:
-                            self.task_manager.update_status(
-                                task_idx, 
-                                self.task_manager.STATUS_COMPLETED, 
-                                result_info
-                            )
-                            logger.info(f"✅ Task completed: {task['description']}")
-                        
-                        if not success:
-                            # Store detailed failure information if not already set
-                            if "failure_reason" not in task:
-                                self.task_manager.update_status(
-                                    task_idx,
-                                    self.task_manager.STATUS_FAILED,
-                                    {"failure_reason": reason, **result_info}
-                                )
-                            
-                            # Handle retries
-                            if retry_counter < self.max_retries:
-                                retry_counter += 1
-                                logger.info(f"Retrying... ({retry_counter}/{self.max_retries})")
-                                # Next iteration will generate a new plan based on current state
-                                break
-                            else:
-                                logger.error(f"Max retries exceeded for task")
-                                final_message = f"Failed after {self.max_retries} retries. Reason: {reason}"
-                                return {
-                                    "success": False, 
-                                    "reason": final_message,
-                                    "trajectory": self.trajectory_steps
-                                }
-                
-                # Reset retry counter for new task sequence
-                retry_counter = 0
-                
-                # Check if all tasks are completed
-                all_completed = all(task["status"] == self.task_manager.STATUS_COMPLETED for task in tasks)
-                if all_completed:
-                    # Get a new plan (the planner might decide we're done)
-                    continue
-            
-            # Check if we exited due to max steps
-            if step_counter >= self.max_steps and not overall_success:
-                final_message = f"Reached maximum number of steps ({self.max_steps})"
-                overall_success = False
-                
-            return {
-                "success": overall_success,
-                "reason": final_message,
-                "steps": step_counter,
-                "task_history": self.task_manager.get_task_history(),
-                "trajectory": self.trajectory_steps
-            }
+            return ReasoningLogicEvent()
                 
         except Exception as e:
             logger.error(f"❌ Error during DroidAgent execution: {e}")
             if self.debug:
                 import traceback
                 logger.error(traceback.format_exc())
-            return {
-                "success": False, 
-                "reason": str(e),
-                "task_history": self.task_manager.get_task_history(),
-                "trajectory": self.trajectory_steps
-            } 
+            return FinalizeEvent(success=False, reason=str(e), task=self.task_manager.get_task_history(), steps=self.step_counter)
