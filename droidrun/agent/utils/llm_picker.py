@@ -65,9 +65,12 @@ def load_llm(provider_name: str, **kwargs: Any) -> LLM:
         if not isinstance(llm_class, type) or not issubclass(llm_class, LLM):
             raise TypeError(f"Class '{provider_name}' found in '{module_path}' is not a valid LLM subclass.")
 
+        # Filter out None values from kwargs
+        filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None}
+        
         # Initialize
-        logger.info(f"Initializing {llm_class.__name__} with kwargs: {list(kwargs.keys())}")
-        llm_instance = llm_class(**kwargs)
+        logger.info(f"Initializing {llm_class.__name__} with kwargs: {list(filtered_kwargs.keys())}")
+        llm_instance = llm_class(**filtered_kwargs)
         logger.info(f"Successfully loaded and initialized LLM: {provider_name}")
         if not llm_instance:
             raise RuntimeError(f"Failed to initialize LLM instance for {provider_name}.")
