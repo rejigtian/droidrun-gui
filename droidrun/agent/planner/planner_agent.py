@@ -22,7 +22,7 @@ from llama_index.core.memory import ChatMemoryBuffer
 from llama_index.core.llms.llm import LLM
 from droidrun.agent.utils.executer import SimpleCodeExecutor
 from droidrun.agent.utils.chat_utils import add_ui_text_block, add_screenshot_image_block, add_phone_state_block, message_copy
-from droidrun.agent.planner.task_manager import TaskManager
+from droidrun.agent.utils.task_manager import TaskManager
 
 # Load environment variables
 from dotenv import load_dotenv
@@ -136,9 +136,7 @@ class PlannerAgent(Workflow):
     @step
     async def prepare_chat(self, ev: StartEvent, ctx: Context) -> InputEvent:
         logger.info("💬 Preparing planning session...")
-        await ctx.set("step", "generate_plan")
-        
-        # Check if we already have a memory buffer, otherwise create one
+
         if not self.memory:
             logger.debug("  - Creating new memory buffer.")
             self.memory = ChatMemoryBuffer.from_defaults(llm=self.llm)
@@ -146,29 +144,55 @@ class PlannerAgent(Workflow):
             await self.memory.aput(self.system_message)
         else:
             logger.debug("  - Using existing memory buffer with chat history.")
+
+        task_history = ""
+        completed_tasks = self.task_manager.get_all_completed_tasks()
+        failed_tasks = self.task_manager.get_all_failed_tasks()
         
-        # Check for user input
-        user_input = ev.get("input", default=None)
+        remembered_info = ""
+        if hasattr(self.tools_instance, 'memory') and self.tools_instance.memory:
+            remembered_info = "\n### Remembered Information:\n"
+            for idx, item in enumerate(self.tools_instance.memory, 1):
+                remembered_info += f"{idx}. {item}\n"
+        
+        if completed_tasks or failed_tasks or remembered_info:
+            task_history = "### Task Execution History:\n"
+            
+            if completed_tasks:
+                task_history += "✅ Completed Tasks:\n"
+                for task in completed_tasks:
+                    task_history += f"- {task['description']}\n"
+
+            if failed_tasks:
+                task_history += "\n❌ Failed Tasks:\n"
+                for task in failed_tasks:
+                    failure_reason = task.get('failure_reason', 'Unknown reason')
+                    task_history += f"- {task['description']} (Failed: {failure_reason})\n"
+            
+            if remembered_info:
+                task_history += remembered_info
+                
+            task_history += "\n⚠️ Please use the above information in your planning. For example, if specific dates or locations were found, include them explicitly in your next tasks instead of just referring to 'the dates' or 'the location'.\n"
+            
+            user_msg = ChatMessage(
+                role="user", 
+                content=f"{self.user_prompt}\n\n{task_history}\n\nPlease consider the above task history and discovered information when creating your next plan. Incorporate specific data (dates, locations, etc.) directly into tasks rather than referring to them generally. Remember that previously completed or failed tasks will not be repeated."
+            )
         
         # Validate we have either memory, input, or a user prompt
-        assert len(self.memory.get_all()) > 0 or user_input or self.user_prompt, "Memory input, user prompt or user input cannot be empty."
+        assert len(self.memory.get_all()) > 0 or self.user_prompt, "Memory input, user prompt or user input cannot be empty."
         
         # Add user input to memory if provided or use the user prompt if this is a new conversation
-        if user_input:
-            logger.debug("  - Adding user input to memory.")
-            await self.memory.aput(ChatMessage(role="user", content=user_input))
-        elif self.user_prompt and len(self.memory.get_all()) <= 1:  # Only add user prompt if memory only has system message
+        if self.user_prompt and len(self.memory.get_all()) <= 1:  # Only add user prompt if memory only has system message
             logger.debug("  - Adding goal to memory.")
             await self.memory.aput(ChatMessage(role="user", content=self.user_prompt))
         
-        # Update context
-        await ctx.set("memory", self.memory)
         input_messages = self.memory.get_all()
         logger.debug(f"  - Memory contains {len(input_messages)} messages")
         return InputEvent(input=input_messages)
     
     @step
-    async def handle_llm_input(self, ev: InputEvent, ctx: Context) -> Union[StopEvent, ModelResponseEvent]:
+    async def handle_llm_input(self, ev: InputEvent, ctx: Context) -> ModelResponseEvent:
         """Handle LLM input."""
         # Get chat history from event
         chat_history = ev.input
@@ -176,12 +200,9 @@ class PlannerAgent(Workflow):
 
         self.steps_counter += 1
         logger.info(f"🧠 Thinking about how to plan the goal...")
-        # Get LLM response
         response = await self._get_llm_response(chat_history)
-        # Add response to memory
         await self.memory.aput(response.message)
         
-        # Yield planner trajectory step if callback is provided
         if self.trajectory_callback:
             trajectory_step = {
                 "type": "planner_thought",
@@ -192,8 +213,10 @@ class PlannerAgent(Workflow):
             
         return ModelResponseEvent(response=response.message.content)
     
+    
+    
     @step
-    async def handle_llm_output(self, ev: ModelResponseEvent, ctx: Context) -> Union[StopEvent, ExecutePlan]:
+    async def handle_llm_output(self, ev: ModelResponseEvent, ctx: Context) -> Union[InputEvent, StopEvent]:
         """Handle LLM output."""
         response = ev.response
         if response:
@@ -216,150 +239,36 @@ class PlannerAgent(Workflow):
             # Yield planner code execution trajectory step if callback is provided
             if self.trajectory_callback:
                 trajectory_step = {
-                    "type": "planner_code_execution",
+                    "type": "planner_plan_execution",
                     "step": self.steps_counter,
                     "code": code,
                     "result": result
                 }
                 await self.trajectory_callback(trajectory_step)
                     
-        # Check if there are any pending tasks
-        pending_tasks = self.task_manager.get_pending_tasks()
-        
-        if self.task_manager.task_completed:
-            logger.info("✅ Goal marked as complete by planner.")
-            return StopEvent(result={'finished': True, 'message': "Task execution completed.", 'steps': self.steps_counter})
-        elif pending_tasks:
-            # If there are pending tasks, automatically start execution
-            logger.info("🚀 Starting task execution...")
-            
-            # Yield plan trajectory step if callback is provided
-            if self.trajectory_callback and pending_tasks:
-                trajectory_step = {
-                    "type": "planner_generated_plan",
-                    "step": self.steps_counter,
-                    "tasks": [task.copy() for task in pending_tasks]
-                }
-                await self.trajectory_callback(trajectory_step)
+
+            tasks = self.task_manager.get_all_tasks()
+            if tasks:
+                logger.info("📝 Plan created:")
+                for i, task in enumerate(tasks, 1):
+                    if task["status"] == self.task_manager.STATUS_PENDING:
+                        logger.info(f"  {i}. {task['description']}")
+
+                if self.trajectory_callback:
+                    trajectory_step = {
+                        "type": "planner_generated_plan",
+                        "step": self.steps_counter,
+                        "tasks": [task.copy() for task in tasks]
+                    }
+                    await self.trajectory_callback(trajectory_step)
                 
-            return ExecutePlan()
+            return StopEvent(tasks=tasks)
         else:
             # If no tasks were set, prompt the planner to set tasks or complete the goal
             await self.memory.aput(ChatMessage(role="user", content=f"Please either set new tasks using set_tasks() or mark the goal as complete using complete_goal() if done."))
             logger.debug("🔄 Waiting for next plan or completion.")
             return InputEvent(input=self.memory.get_all())
-    @step
-    async def execute_plan(self, ev: ExecutePlan, ctx: Context) -> Union[ExecutePlan, TaskFailedEvent]:
-        """Execute the plan by running tasks through the agent."""
-        logger.debug("🔄 Executing plan...")
         
-        # Get all tasks
-        tasks = self.task_manager.get_all_tasks()
-        
-        # Yield plan execution trajectory step if callback is provided
-        if self.trajectory_callback:
-            trajectory_step = {
-                "type": "planner_execute_plan",
-                "step": self.steps_counter,
-                "tasks": [task["description"] for task in tasks],
-                "status": "started"
-            }
-            await self.trajectory_callback(trajectory_step)
-        
-        # Execute each task in sequence
-        for task in tasks:
-            if task["status"] == self.task_manager.STATUS_PENDING:
-                logger.info(f"🎯 Executing task: {task['description']}")
-                
-                # Yield task start trajectory step if callback is provided
-                if self.trajectory_callback:
-                    trajectory_step = {
-                        "type": "planner_task",
-                        "step": self.steps_counter,
-                        "task": task["description"],
-                        "status": "started"
-                    }
-                    await self.trajectory_callback(trajectory_step)
-                
-                # Execute the task using the agent
-                result = await self.execute_agent(ExecutePlan(task=task), ctx)
-                
-                # Check if task failed
-                if isinstance(result, TaskFailedEvent):
-                    # Yield task failure trajectory step if callback is provided
-                    if self.trajectory_callback:
-                        trajectory_step = {
-                            "type": "planner_task",
-                            "step": self.steps_counter,
-                            "task": task["description"],
-                            "status": "failed",
-                            "reason": result.reason
-                        }
-                        await self.trajectory_callback(trajectory_step)
-                    return result
-                
-                # Yield task completion trajectory step if callback is provided
-                if self.trajectory_callback:
-                    trajectory_step = {
-                        "type": "planner_task",
-                        "step": self.steps_counter,
-                        "task": task["description"],
-                        "status": "completed"
-                    }
-                    await self.trajectory_callback(trajectory_step)
-        
-        # Yield plan completion trajectory step if callback is provided
-        if self.trajectory_callback:
-            trajectory_step = {
-                "type": "planner_execute_plan",
-                "step": self.steps_counter,
-                "tasks": [task["description"] for task in tasks],
-                "status": "completed"
-            }
-            await self.trajectory_callback(trajectory_step)
-        
-        return StopEvent(result={"success": True, "message": "All tasks completed successfully"})
-
-    async def execute_agent(self, ev: ExecutePlan, ctx: Context) -> Union[ExecutePlan, TaskFailedEvent]:
-        """Execute a single task using the agent."""
-        task = ev.task
-        if not self.agent:
-            logger.warning("No agent provided for task execution")
-            return TaskFailedEvent(reason="No agent provided for task execution")
-        
-        try:
-            # Execute the task using the agent
-            result = await self.agent.run(input=task["description"])
-            
-            # Yield agent execution trajectory step if callback is provided
-            if self.trajectory_callback:
-                trajectory_step = {
-                    "type": "planner_agent_execution",
-                    "step": self.steps_counter,
-                    "task": task["description"],
-                    "result": result
-                }
-                await self.trajectory_callback(trajectory_step)
-            
-            if result and isinstance(result, dict):
-                if result.get("success", False):
-                    task["status"] = self.task_manager.STATUS_COMPLETED
-                    task["result"] = result
-                    return ExecutePlan(task=task)
-                else:
-                    task["status"] = self.task_manager.STATUS_FAILED
-                    task["failure_reason"] = result.get("reason", "Unknown failure")
-                    return TaskFailedEvent(reason=task["failure_reason"])
-            else:
-                task["status"] = self.task_manager.STATUS_FAILED
-                task["failure_reason"] = "Invalid result format from agent"
-                return TaskFailedEvent(reason=task["failure_reason"])
-                
-        except Exception as e:
-            logger.error(f"Error during task execution: {e}")
-            task["status"] = self.task_manager.STATUS_FAILED
-            task["failure_reason"] = str(e)
-            return TaskFailedEvent(reason=str(e))
 
     async def _get_llm_response(self, chat_history: List[ChatMessage]) -> ChatResponse:
         """Get streaming response from LLM."""

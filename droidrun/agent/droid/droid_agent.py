@@ -14,8 +14,9 @@ from llama_index.core.memory import ChatMemoryBuffer
 from llama_index.core.workflow import step, StartEvent, StopEvent, Workflow, Context
 from droidrun.agent.droid.events import *
 from droidrun.agent.codeact import CodeActAgent
-from droidrun.agent.planner import PlannerAgent, TaskManager
+from droidrun.agent.planner import PlannerAgent
 from droidrun.agent.utils.executer import SimpleCodeExecutor
+from droidrun.agent.utils.task_manager import TaskManager
 from droidrun.tools import load_tools
 
 logger = logging.getLogger("droidrun")
@@ -121,13 +122,28 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
             timeout=timeout,
             trajectory_callback=self.trajectory_callback
         )
-        
         if self.reasoning:
+
+            planning_tools = {
+                "set_tasks": self.task_manager.set_tasks,
+                "add_task": self.task_manager.add_task,
+                "get_all_tasks": self.task_manager.get_all_tasks,
+                "clear_tasks": self.task_manager.clear_tasks,
+                "complete_goal": self.task_manager.complete_goal
+            }
+            planning_executor = SimpleCodeExecutor(
+                loop=asyncio.get_event_loop(),
+                globals={},
+                locals={},
+                tools=planning_tools
+            )
+        
             logger.info("📝 Initializing Planner Agent...")
             self.planner_agent = PlannerAgent(
                 goal=goal,
                 llm=llm,
                 agent=self.codeact_agent, 
+                executer=planning_executor,
                 tools_instance=tools_instance,
                 timeout=timeout,
                 max_retries=max_retries,
@@ -169,131 +185,6 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         """
         return self.trajectory_steps.copy()
     
-    async def _get_plan_from_planner(self) -> List[Dict]:
-        """
-        Get a plan (list of tasks) from the PlannerAgent.
-        
-        Returns:
-            List of task dictionaries
-        """
-        logger.info("📋 Planning steps to accomplish the goal...")
-        
-        # Create system and user messages
-        system_msg = ChatMessage(role="system", content=self.planner_agent.system_prompt)
-        user_msg = ChatMessage(role="user", content=self.planner_agent.user_prompt)
-        
-        # Check if we have task history to add to the prompt
-        task_history = ""
-        # Use the persistent task history methods to get ALL completed and failed tasks
-        completed_tasks = self.task_manager.get_all_completed_tasks()
-        failed_tasks = self.task_manager.get_all_failed_tasks()
-        
-        # Show any remembered information in task history
-        remembered_info = ""
-        if hasattr(self.tools_instance, 'memory') and self.tools_instance.memory:
-            remembered_info = "\n### Remembered Information:\n"
-            for idx, item in enumerate(self.tools_instance.memory, 1):
-                remembered_info += f"{idx}. {item}\n"
-        
-        if completed_tasks or failed_tasks or remembered_info:
-            task_history = "### Task Execution History:\n"
-            
-            if completed_tasks:
-                task_history += "✅ Completed Tasks:\n"
-                for task in completed_tasks:
-                    task_history += f"- {task['description']}\n"
-
-            if failed_tasks:
-                task_history += "\n❌ Failed Tasks:\n"
-                for task in failed_tasks:
-                    failure_reason = task.get('failure_reason', 'Unknown reason')
-                    task_history += f"- {task['description']} (Failed: {failure_reason})\n"
-            
-            if remembered_info:
-                task_history += remembered_info
-                
-            # Add a reminder to use this information
-            task_history += "\n⚠️ Please use the above information in your planning. For example, if specific dates or locations were found, include them explicitly in your next tasks instead of just referring to 'the dates' or 'the location'.\n"
-            
-            # Append task history to user prompt
-            user_msg = ChatMessage(
-                role="user", 
-                content=f"{self.planner_agent.user_prompt}\n\n{task_history}\n\nPlease consider the above task history and discovered information when creating your next plan. Incorporate specific data (dates, locations, etc.) directly into tasks rather than referring to them generally. Remember that previously completed or failed tasks will not be repeated."
-            )
-        
-        # Create message list
-        messages = [system_msg, user_msg]
-        logger.debug(f"Sending {len(messages)} messages to planner: {[msg.role for msg in messages]}")
-        
-        # Get response from LLM
-        llm_response = await self.planner_agent._get_llm_response(messages)
-        code, thoughts = self.planner_agent._extract_code_and_thought(llm_response.message.content)
-
-        # Add trajectory step for plan generation
-        if self.trajectory_callback:
-            trajectory_step = {
-                "type": "planner_plan_generation",
-                "step": self.planner_agent.steps_counter,
-                "thoughts": thoughts,
-                "code": code,
-                "timestamp": time.time()
-            }
-            await self._handle_trajectory_step(trajectory_step)
-        
-        # Execute the planning code (which should call set_tasks)
-        if code:
-            try:
-                planning_tools = {
-                    "set_tasks": self.task_manager.set_tasks,
-                    "add_task": self.task_manager.add_task,
-                    "get_all_tasks": self.task_manager.get_all_tasks,
-                    "clear_tasks": self.task_manager.clear_tasks,
-                    "complete_goal": self.task_manager.complete_goal
-                }
-                planning_executor = SimpleCodeExecutor(
-                    loop=asyncio.get_event_loop(),
-                    globals={},
-                    locals={},
-                    tools=planning_tools
-                )
-                result = await planning_executor.execute(code)
-
-                # Add trajectory step for plan execution
-                if self.trajectory_callback:
-                    trajectory_step = {
-                        "type": "planner_plan_execution",
-                        "step": self.planner_agent.steps_counter,
-                        "result": result,
-                        "timestamp": time.time()
-                    }
-                    await self._handle_trajectory_step(trajectory_step)
-
-            except Exception as e:
-                logger.error(f"Error executing planning code: {e}")
-                # If there's an error, create a simple default task
-                self.task_manager.set_tasks([f"Achieve the goal: {self.goal}"])
-        
-        # Get and display the tasks
-        tasks = self.task_manager.get_all_tasks()
-        if tasks:
-            logger.info("📝 Plan created:")
-            for i, task in enumerate(tasks, 1):
-                if task["status"] == self.task_manager.STATUS_PENDING:
-                    logger.info(f"  {i}. {task['description']}")
-
-            # Add trajectory step for final plan
-            if self.trajectory_callback:
-                trajectory_step = {
-                    "type": "planner_final_plan",
-                    "step": self.planner_agent.steps_counter,
-                    "tasks": [task["description"] for task in tasks if task["status"] == self.task_manager.STATUS_PENDING],
-                    "timestamp": time.time()
-                }
-                await self._handle_trajectory_step(trajectory_step)
-        else:
-            logger.warning("No tasks were generated in the plan")
-            
-        return tasks
     @step
     async def _execute_task_with_codeact(self, ev: CodeActExecuteEvent, ctx: Context) -> CodeActResultEvent:
         """
@@ -410,14 +301,16 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         })
     
     @step
-    async def handle_reasoning_logic(self, ev: ReasoningLogicEvent) -> FinalizeEvent | TaskRunnerEvent:
+    async def handle_reasoning_logic(self, ev: ReasoningLogicEvent, ctx: Context) -> FinalizeEvent | TaskRunnerEvent:
         try:
             if self.step_counter >= self.max_steps:
                 return FinalizeEvent(success=False, reason=f"Reached maximum number of steps ({self.max_steps})", task=self.task_manager.get_task_history(), steps=self.step_counter)
             self.step_counter += 1
             logger.debug(f"Planning step {self.step_counter}/{self.max_steps}")
 
-            self.tasks = await self._get_plan_from_planner()
+            await self.planner_agent.run()
+            self.tasks = self.task_manager.get_all_tasks()
+            logger.debug(f'Tasks: {self.tasks}')
             self.task_iter = iter(self.tasks)
 
             if self.task_manager.task_completed:
