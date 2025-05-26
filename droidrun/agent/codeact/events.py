@@ -21,16 +21,5 @@ class ExecutionResultEvent(Event):
     output: str
 
 class FinalizeEvent(Event):
-    _result: Any = PrivateAttr(default=None)
-
-    def __init__(self, result: Any = None, **kwargs: Any) -> None:
-        # forces the user to provide a result
-        super().__init__(_result=result, **kwargs)
-
-    def _get_result(self) -> Any:
-        """This can be overridden by subclasses to return the desired result."""
-        return self._result
-
-    @property
-    def result(self) -> Any:
-        return self._get_result()
+    success: bool
+    reason: str

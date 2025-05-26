@@ -18,6 +18,8 @@ from droidrun.agent.planner import PlannerAgent
 from droidrun.agent.utils.executer import SimpleCodeExecutor
 from droidrun.agent.utils.task_manager import TaskManager
 from droidrun.tools import load_tools
+from droidrun.agent.utils.trajectory import save_trajectory
+
 
 logger = logging.getLogger("droidrun")
 
@@ -38,6 +40,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         enable_tracing: bool = False,
         debug: bool = False,
         device_serial: str = None,
+        save_trajectories: bool = False,
         *args,
         **kwargs
     ):
@@ -47,8 +50,6 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         Args:
             goal: The user's goal or command to execute
             llm: The language model to use for both agents
-            tools_instance: An instance of the Tools class
-            tool_list: Dictionary of available tools
             max_steps: Maximum number of steps for both agents
             timeout: Timeout for agent execution in seconds
             max_retries: Maximum number of retries for failed tasks
@@ -59,7 +60,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
             device_serial: Target Android device serial number
             **kwargs: Additional keyword arguments to pass to the agents
         """
-        super().__init__(timeout=timeout, *args, **kwargs)
+        super().__init__(timeout=timeout ,*args,**kwargs)
         # Setup global tracing first if enabled
         if enable_tracing:
             try:
@@ -75,84 +76,52 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         self.max_steps = max_steps
         self.timeout = timeout
         self.max_retries = max_retries
-        self.task_manager = TaskManager()
         self.reasoning = reasoning
         self.debug = debug
         self.device_serial = device_serial
         
-        # Store trajectory steps and callback
+        self.save_trajectories = save_trajectories
         self.trajectory_steps = []
         self.trajectory_callback = self._handle_trajectory_step
-        
-        logger.info("🤖 Initializing DroidAgent wrapper...")
 
-        tool_list, tools_instance = load_tools(serial=device_serial)
+        self.task_manager = TaskManager()
+
+        logger.info("🤖 Initializing DroidAgent...")
         
-        self.tools_instance = tools_instance
-        self.tool_list = tool_list
-        
-        # Ensure remember tool is in the tool_list if available
-        if hasattr(tools_instance, 'remember') and 'remember' not in tool_list:
-            logger.debug("📝 Adding 'remember' tool to the available tools")
-            tool_list['remember'] = tools_instance.remember
-        
-        # Create code executor
-        logger.debug("🔧 Initializing Code Executor...")
-        loop = asyncio.get_event_loop()
-        self.executor = SimpleCodeExecutor(
-            loop=loop,
-            locals={},
-            tools=tool_list,
-            globals={"__builtins__": __builtins__}
-        )
-        
-        # Create memory buffer for the planning agent if reasoning is enabled
         if self.reasoning:
             self.planning_memory = ChatMemoryBuffer.from_defaults(llm=llm)
+
+        tool_list, tools_instance = load_tools(serial=device_serial)
+        self.tool_list = tool_list
+        self.tools_instance = tools_instance
+
         
         # Create CodeActAgent
         logger.info("🧠 Initializing CodeAct Agent...")
         self.codeact_agent = CodeActAgent(
             llm=llm,
-            code_execute_fn=self.executor.execute,
-            available_tools=tool_list.values(),
-            tools=tools_instance,
-            max_steps=999999, 
+            max_steps=max_steps,
+            tool_list=tool_list,
+            tools_instance=tools_instance,
             debug=debug,
             timeout=timeout,
-            trajectory_callback=self.trajectory_callback
         )
-        if self.reasoning:
+        self.add_workflows(codeact_agent=self.codeact_agent)
 
-            planning_tools = {
-                "set_tasks": self.task_manager.set_tasks,
-                "add_task": self.task_manager.add_task,
-                "get_all_tasks": self.task_manager.get_all_tasks,
-                "clear_tasks": self.task_manager.clear_tasks,
-                "complete_goal": self.task_manager.complete_goal
-            }
-            planning_executor = SimpleCodeExecutor(
-                loop=asyncio.get_event_loop(),
-                globals={},
-                locals={},
-                tools=planning_tools
-            )
-        
+
+        if self.reasoning:
             logger.info("📝 Initializing Planner Agent...")
             self.planner_agent = PlannerAgent(
                 goal=goal,
                 llm=llm,
-                agent=self.codeact_agent, 
-                executer=planning_executor,
+                task_manager=self.task_manager,
                 tools_instance=tools_instance,
                 timeout=timeout,
-                max_retries=max_retries,
                 debug=debug,
                 trajectory_callback=self.trajectory_callback
             )
+            self.add_workflows(planner_agent=self.planner_agent)
             
-            # Give task manager to the planner
-            self.planner_agent.task_manager = self.task_manager
         else:
             logger.debug("🚫 Planning disabled - will execute tasks directly with CodeActAgent")
             self.planner_agent = None
@@ -186,7 +155,12 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         return self.trajectory_steps.copy()
     
     @step
-    async def _execute_task_with_codeact(self, ev: CodeActExecuteEvent, ctx: Context) -> CodeActResultEvent:
+    async def _execute_task_with_codeact(
+        self,
+        ctx: Context,
+        ev: CodeActExecuteEvent,
+        codeact_agent: Workflow,
+        ) -> CodeActResultEvent:
         """
         Execute a single task using the CodeActAgent.
         
@@ -203,30 +177,14 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         # Update task status
         task["status"] = self.task_manager.STATUS_ATTEMPTING
         
-        # Run the CodeActAgent
         try:
-            # Reset the tools finished flag before execution
-            self.tools_instance.finished = False
-            self.tools_instance.success = None
-            self.tools_instance.reason = None
+            handler = codeact_agent.run(input=task_description)
+
+            async for nested_ev in handler.stream_events():
+                self.handle_stream_event(nested_ev)
+
+            result = await handler
             
-            # Execute the CodeActAgent with the task description as input
-            # Pass input as a keyword argument, not as a dictionary
-            result = await self.codeact_agent.run(input=task_description)
-            
-            # Check if the tools instance was marked as finished by the 'complete' function
-            if self.tools_instance.finished:
-                if self.tools_instance.success:
-                    task["status"] = self.task_manager.STATUS_COMPLETED
-                    logger.debug(f"Task completed successfully: {self.tools_instance.reason}")
-                    return CodeActResultEvent(success=True, reason=self.tools_instance.reason or "Task completed successfully", task=task)
-                else:
-                    task["status"] = self.task_manager.STATUS_FAILED
-                    task["failure_reason"] = self.tools_instance.reason or "Task failed without specific reason"
-                    logger.warning(f"Task failed: {task['failure_reason']}")
-                    return CodeActResultEvent(success=False, reason=self.tools_instance.reason or "Task failed without specific reason", task=task)
-            
-            # If tools instance wasn't marked as finished, check the result directly
             if result and isinstance(result, dict) and "success" in result and result["success"]:
                 task["status"] = self.task_manager.STATUS_COMPLETED
                 logger.debug(f"Task completed with result: {result}")
@@ -253,6 +211,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
             task = await ctx.get("task")
             if not self.reasoning:
                 return FinalizeEvent(success=ev.success, reason=ev.reason, task=[task], steps=1)
+            
             task_idx = self.tasks.index(task)
             result_info = {
                 "execution_details": ev.reason,
@@ -292,16 +251,31 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
             return FinalizeEvent(success=False, reason=str(e), task=self.task_manager.get_task_history(), steps=self.step_counter)
     @step
     async def finalize(self, ev: FinalizeEvent) -> StopEvent:
-        return StopEvent(result= {
+
+        result = {
             "success": ev.success,
             "reason": ev.reason,
             "steps": ev.steps,
             "task_history": ev.task,
             "trajectory": self.trajectory_steps
-        })
+        }
+
+        if self.save_trajectories:                        
+            trajectory_path = save_trajectory(
+                trajectory_steps=self.trajectory_steps,
+                goal=self.goal,
+                result=result,
+                screenshots=self.tools_instance.screenshots
+            )
+
+
+        return StopEvent(result)
     
     @step
-    async def handle_reasoning_logic(self, ev: ReasoningLogicEvent, ctx: Context) -> FinalizeEvent | TaskRunnerEvent:
+    async def handle_reasoning_logic(
+        self,
+        ctx: Context,
+        ev: ReasoningLogicEvent,) -> FinalizeEvent | TaskRunnerEvent:
         try:
             if self.step_counter >= self.max_steps:
                 return FinalizeEvent(success=False, reason=f"Reached maximum number of steps ({self.max_steps})", task=self.task_manager.get_task_history(), steps=self.step_counter)
@@ -359,24 +333,19 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         self.step_counter = 0
         self.retry_counter = 0
         
-        # Clear trajectory from any previous runs
         self.trajectory_steps = []
         
         try:
-            # If reasoning is disabled, directly execute the goal as a single task in CodeActAgent
             if not self.reasoning:
                 logger.info(f"🔄 Direct execution mode - executing goal: {self.goal}")
-                # Create a simple task for the goal
                 task = {
                     "description": self.goal,
                     "status": self.task_manager.STATUS_PENDING
                 }
                 
-                # Execute the task directly with CodeActAgent
                 await ctx.set("task", task)
                 return CodeActExecuteEvent()
             
-            # Standard reasoning mode with planning
             return ReasoningLogicEvent()
                 
         except Exception as e:
@@ -385,3 +354,6 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
                 import traceback
                 logger.error(traceback.format_exc())
             return FinalizeEvent(success=False, reason=str(e), task=self.task_manager.get_task_history(), steps=self.step_counter)
+        
+    def handle_stream_event(self, ev: Event):
+       self.trajectory_steps.append(ev)
