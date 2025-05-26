@@ -112,3 +112,6 @@ async def add_phone_state_block(tools: 'Tools', chat_history: List[ChatMessage])
     chat_history[-1] = message_copy(chat_history[-1])
     chat_history[-1].blocks.append(ui_block)
     return chat_history
+
+async def add_memory_block(tools: 'Tools', chat_history: List[ChatMessage]) -> List[ChatMessage]:
+    return chat_history

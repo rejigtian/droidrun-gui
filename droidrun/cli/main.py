@@ -243,6 +243,7 @@ async def run_command(command: str, device: str | None, provider: str, model: st
                 debug=debug,
                 device_serial=device
             )
+
             
             logs.append("Press Ctrl+C to stop execution")
             current_step = "Running agent..."

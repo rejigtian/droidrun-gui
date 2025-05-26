@@ -2,22 +2,25 @@ import logging
 import re
 import inspect
 import time
-from typing import Awaitable, Callable, List, Optional, Dict, Any, Tuple, TYPE_CHECKING, Union
+import asyncio
+from typing import List, Optional, Tuple, Union
 from llama_index.core.base.llms.types import ChatMessage, ChatResponse, TextBlock
 from llama_index.core.prompts import PromptTemplate
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Workflow, StartEvent, StopEvent, Context, step
 from llama_index.core.memory import ChatMemoryBuffer
 from droidrun.agent.codeact.events import FinalizeEvent, InputEvent, ModelOutputEvent, ExecutionEvent, ExecutionResultEvent
-from droidrun.agent.utils.chat_utils import add_screenshot, add_screenshot_image_block, add_ui_text_block, message_copy
+from droidrun.agent.utils.chat_utils import add_screenshot_image_block, add_ui_text_block, message_copy
+from droidrun.agent.utils.executer import SimpleCodeExecutor
 from droidrun.agent.codeact.prompts import (
     DEFAULT_CODE_ACT_SYSTEM_PROMPT, 
     DEFAULT_CODE_ACT_USER_PROMPT, 
     DEFAULT_NO_THOUGHTS_PROMPT
 )
 
-if TYPE_CHECKING:
-    from droidrun.tools import Tools
+from droidrun.tools import Tools
+from typing import Optional, Dict, Tuple, List, Any, Callable
+
 
 logger = logging.getLogger("droidrun")
 
@@ -31,63 +34,60 @@ class CodeActAgent(Workflow):
     def __init__(
         self,
         llm: LLM,
-        code_execute_fn: Callable[[str], Awaitable[Dict[str, Any]]],
-        tools: 'Tools',
-        available_tools: List = [],
+        tools_instance: 'Tools',
+        tool_list: Dict[str, Callable[..., Any]],
         max_steps: int = 10, # Default max steps (kept for backwards compatibility but no longer enforced)
         system_prompt: Optional[str] = None,
         user_prompt: Optional[str] = None,
         debug: bool = False,
-        trajectory_callback = None,
         *args,
         **kwargs
     ):
         # assert instead of if
         assert llm, "llm must be provided."
-        assert code_execute_fn, "code_execute_fn must be provided"
         super().__init__(*args, **kwargs)
 
         self.llm = llm
-        self.code_execute_fn = code_execute_fn
-        self.available_tools = available_tools or []
-        self.tools = tools
-        self.max_steps = max_steps  # Kept for backwards compatibility but not enforced
-        self.tool_descriptions = self.parse_tool_descriptions() # Parse tool descriptions once at initialization
-        self.system_prompt_content = (system_prompt or DEFAULT_CODE_ACT_SYSTEM_PROMPT).format(tool_descriptions=self.tool_descriptions)
-        self.system_prompt = ChatMessage(role="system", content=self.system_prompt_content)
+        self.max_steps = max_steps
+
         self.user_prompt = user_prompt
         self.no_thoughts_prompt = None
         self.memory = None 
         self.goal = None
-        self.steps_counter = 0 # Initialize step counter (kept for tracking purposes)
-        self.code_exec_counter = 0 # Initialize execution counter
+        self.steps_counter = 0
+        self.code_exec_counter = 0
         self.debug = debug
-        self.trajectory_callback = trajectory_callback
+
+        self.tools = tools_instance
+        self.tool_list = tool_list
+        self.tool_descriptions = self.parse_tool_descriptions()
+
+        self.system_prompt_content = (system_prompt or DEFAULT_CODE_ACT_SYSTEM_PROMPT).format(tool_descriptions=self.tool_descriptions)
+        self.system_prompt = ChatMessage(role="system", content=self.system_prompt_content)
+        
+
+        self.executor = SimpleCodeExecutor(
+            loop=asyncio.get_event_loop(),
+            locals={},
+            tools=self.tool_list,
+            globals={"__builtins__": __builtins__}
+        )
+
         logger.info("✅ CodeActAgent initialized successfully.")
 
     def parse_tool_descriptions(self) -> str:
         """Parses the available tools and their descriptions for the system prompt."""
         logger.info("🛠️ Parsing tool descriptions...")
-        # self.available_tools is a list of functions, we need to get their docstrings, names, and signatures and display them as `def name(args) -> return_type:\n"""docstring"""    ...\n`
         tool_descriptions = []
-        excluded_tools = ["take_screenshot"]  # List of tools to exclude
         
-        for tool in self.available_tools:
+        for tool in self.tool_list.values():
             assert callable(tool), f"Tool {tool} is not callable."
             tool_name = tool.__name__
-            
-            # Skip excluded tools
-            if tool_name in excluded_tools:
-                logger.debug(f"  - Skipping excluded tool: {tool_name}")
-                continue
-                
             tool_signature = inspect.signature(tool)
             tool_docstring = tool.__doc__ or "No description available."
-            # Format the function signature and docstring
             formatted_signature = f"def {tool_name}{tool_signature}:\n    \"\"\"{tool_docstring}\"\"\"\n..."
             tool_descriptions.append(formatted_signature)
             logger.debug(f"  - Parsed tool: {tool_name}")
-        # Join all tool descriptions into a single string
         descriptions = "\n".join(tool_descriptions)
         logger.info(f"🔩 Found {len(tool_descriptions)} tools.")
         return descriptions
@@ -101,34 +101,29 @@ class CodeActAgent(Workflow):
             Tuple[Optional[code_string], thought_string]
         """
         logger.debug("✂️ Extracting code and thought from response...")
-        code_pattern = r"^\s*```python\s*\n(.*?)\n^\s*```\s*?$" # Added ^\s*, re.MULTILINE, and made closing fence match more robust
-        # Use re.DOTALL to make '.' match newlines and re.MULTILINE to make '^' match start of lines
+        code_pattern = r"^\s*```python\s*\n(.*?)\n^\s*```\s*?$"
         code_matches = list(re.finditer(code_pattern, response_text, re.DOTALL | re.MULTILINE))
 
         if not code_matches:
-            # No code found, the entire response is thought
             logger.debug("  - No code block found. Entire response is thought.")
             return None, response_text.strip()
 
         extracted_code_parts = []
         for match in code_matches:
-             # group(1) is the (.*?) part - the actual code content
              code_content = match.group(1)
-             extracted_code_parts.append(code_content) # Keep original indentation for now
+             extracted_code_parts.append(code_content)
 
         extracted_code = "\n\n".join(extracted_code_parts)
         logger.debug(f"  - Combined extracted code:\n```python\n{extracted_code}\n```")
 
 
-        # Extract thought text (text before the first code block, between blocks, and after the last)
         thought_parts = []
         last_end = 0
         for match in code_matches:
-            # Use span(0) to get the start/end of the *entire* match (including fences and indentation)
             start, end = match.span(0)
             thought_parts.append(response_text[last_end:start])
             last_end = end
-        thought_parts.append(response_text[last_end:]) # Text after the last block
+        thought_parts.append(response_text[last_end:])
 
         thought_text = "".join(thought_parts).strip()
         thought_preview = (thought_text[:100] + '...') if len(thought_text) > 100 else thought_text
@@ -137,10 +132,11 @@ class CodeActAgent(Workflow):
         return extracted_code, thought_text
 
     @step
-    async def prepare_chat(self, ev: StartEvent, ctx: Context) -> InputEvent:
+    async def prepare_chat(self, ctx: Context, ev: StartEvent) -> InputEvent:
         """Prepare chat history from user input."""
         logger.info("💬 Preparing chat for task execution...")
-        # Get or create memory
+
+
         self.memory: ChatMemoryBuffer = await ctx.get(
             "memory", default=ChatMemoryBuffer.from_defaults(llm=self.llm)
         )
@@ -157,7 +153,7 @@ class CodeActAgent(Workflow):
         input_messages = self.memory.get_all()
         return InputEvent(input=input_messages)
     @step
-    async def handle_llm_input(self, ev: InputEvent, ctx: Context) -> Union[ModelOutputEvent, FinalizeEvent]:
+    async def handle_llm_input(self, ctx: Context, ev: InputEvent) -> ModelOutputEvent:
         """Handle LLM input."""
         # Get chat history from event
         chat_history = ev.input
@@ -166,43 +162,29 @@ class CodeActAgent(Workflow):
         self.steps_counter += 1
         logger.info(f"🧠 Step {self.steps_counter}: Thinking...")
         
-        # Get LLM response
         response = await self._get_llm_response(chat_history)
-        # Add response to memory
         await self.memory.aput(response.message)
         logger.debug("🤖 LLM response received.")
         code, thoughts = self._extract_code_and_thought(response.message.content)
         logger.debug(f"  - Thoughts: {'Yes' if thoughts else 'No'}, Code: {'Yes' if code else 'No'}")
-            
-        # Yield thought trajectory if callback is provided
-        if self.trajectory_callback:
-            trajectory_step = {
-                "type": "codeact_thought",
-                "step": self.steps_counter,
-                "thoughts": thoughts,
-                "code": code
-            }
-            await self.trajectory_callback(trajectory_step)
-            
-        return ModelOutputEvent(thoughts=thoughts, code=code)
+
+        event = ModelOutputEvent(thoughts=thoughts, code=code)
+        ctx.write_event_to_stream(event)
+        return event
 
     @step
-    async def handle_llm_output(self, ev: ModelOutputEvent, ctx: Context) -> Union[ExecutionEvent, FinalizeEvent]:
+    async def handle_llm_output(self, ctx: Context, ev: ModelOutputEvent) -> Union[ExecutionEvent, InputEvent]:
         """Handle LLM output."""
         logger.debug("⚙️ Handling LLM output...")
-        # Get code and thoughts from event
         code = ev.code
         thoughts = ev.thoughts
 
-        # Warning if no thoughts are provided
         if not thoughts:
             logger.warning("🤔 LLM provided code without thoughts. Adding reminder prompt.")
             await self.memory.aput(self.no_thoughts_prompt)
         else:
-            # print thought but start with emoji at the start of the log
             logger.info(f"🤔 Reasoning: {thoughts}")
 
-        # If code is present, execute it
         if code:
             return ExecutionEvent(code=code)
         else:
@@ -211,54 +193,40 @@ class CodeActAgent(Workflow):
             return InputEvent(input=self.memory.get_all()) 
 
     @step
-    async def execute_code(self, ev: ExecutionEvent, ctx: Context) -> ExecutionResultEvent:
+    async def execute_code(self, ctx: Context, ev: ExecutionEvent) -> Union[ExecutionResultEvent, FinalizeEvent]:
         """Execute the code and return the result."""
         code = ev.code
         assert code, "Code cannot be empty."
         logger.info(f"⚡ Executing action...")
         logger.debug(f"Code to execute:\n```python\n{code}\n```")
-        # Execute the code using the provided function
+
         try:
             self.code_exec_counter += 1
-            result = await self.code_execute_fn(code)
+            result = await self.executor.execute(code)
             logger.info(f"💡 Code execution successful. Result: {result}")
-            
-            # Yield code execution trajectory if callback is provided
-            if self.trajectory_callback:
-                trajectory_step = {
-                    "type": "codeact_execution",
-                    "step": self.steps_counter,
-                    "code": code,
-                    "result": result,
-                    "success": True
-                }
-                await self.trajectory_callback(trajectory_step)
-                
+
             if self.tools.finished == True:
                 logger.debug("  - Task completed.")
-                return FinalizeEvent(result={'success': self.tools.success, 'reason': self.tools.reason})
-            return ExecutionResultEvent(output=str(result)) # Ensure output is string
+                event = FinalizeEvent(success=self.tools.success, reason=self.tools.reason)
+                ctx.write_event_to_stream(event)
+                return event
+            
+            event = ExecutionResultEvent(output=str(result))
+            ctx.write_event_to_stream(event)
+            return event
+        
         except Exception as e:
             logger.error(f"💥 Action failed: {e}")
             if self.debug:
                 logger.error("Exception details:", exc_info=True)
             error_message = f"Error during execution: {e}"
-            
-            # Yield failed code execution trajectory if callback is provided
-            if self.trajectory_callback:
-                trajectory_step = {
-                    "type": "codeact_execution",
-                    "step": self.steps_counter,
-                    "code": code,
-                    "result": error_message,
-                    "success": False
-                }
-                await self.trajectory_callback(trajectory_step)
-                
-            return ExecutionResultEvent(output=error_message) # Return error message as output
+  
+            event = ExecutionResultEvent(output=error_message)
+            ctx.write_event_to_stream(event)
+            return event
 
     @step
-    async def handle_execution_result(self, ev: ExecutionResultEvent, ctx: Context) -> InputEvent:
+    async def handle_execution_result(self, ctx: Context, ev: ExecutionResultEvent) -> InputEvent:
         """Handle the execution result. Currently it just returns InputEvent."""
         logger.debug("📊 Handling execution result...")
         # Get the output from the event
@@ -272,23 +240,26 @@ class CodeActAgent(Workflow):
         observation_message = ChatMessage(role="user", content=f"Execution Result:\n```\n{output}\n```")
         await self.memory.aput(observation_message)
         
-        return InputEvent(input=self.memory.get_all())
+        inputEvent = InputEvent(input=self.memory.get_all())
+        ctx.write_event_to_stream(inputEvent)
+        return inputEvent
     
 
     @step
     async def finalize(self, ev: FinalizeEvent, ctx: Context) -> StopEvent:
         """Finalize the workflow."""
-        self.tools.finished = False # Reset finished flag
-        await ctx.set("memory", self.memory) # Ensure memory is set in context
+        self.tools.finished = False
+        await ctx.set("memory", self.memory)
         
-        # Include steps and code execution information in the result
-        result = ev.result or {}
+        result = ev.values() or {}
         result.update({
             "codeact_steps": self.steps_counter,
             "code_executions": self.code_exec_counter
         })
         
-        return StopEvent(result=result)
+        event = StopEvent(result=result)
+        ctx.write_event_to_stream(event)
+        return event
 
     async def _get_llm_response(self, chat_history: List[ChatMessage]) -> ChatResponse:
         """Get streaming response from LLM."""
@@ -347,7 +318,6 @@ class CodeActAgent(Workflow):
                     )
             else:
                 logger.error(f"Error getting LLM response: {e}")
-                return StopEvent(result={'finished': True, 'message': f"Error getting LLM response: {e}", 'steps': self.steps_counter, 'code_executions': self.code_exec_counter}) # Return final message and steps
         logger.debug("  - Received response from LLM.")
         return response
     

@@ -11,19 +11,18 @@ from droidrun.agent.planner.prompts import (
 )
 import logging
 import re
-import os
+import asyncio
 from typing import List, Optional, Tuple, TYPE_CHECKING, Union
 import inspect
-# LlamaIndex imports for LLM interaction and types
 from llama_index.core.base.llms.types import ChatMessage, ChatResponse
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Workflow, StartEvent, StopEvent, Context, step
 from llama_index.core.memory import ChatMemoryBuffer
 from llama_index.core.llms.llm import LLM
 from droidrun.agent.utils.executer import SimpleCodeExecutor
-from droidrun.agent.utils.chat_utils import add_ui_text_block, add_screenshot_image_block, add_phone_state_block, message_copy
+from droidrun.agent.utils.chat_utils import add_ui_text_block, add_screenshot_image_block, add_phone_state_block, add_memory_block, message_copy
 from droidrun.agent.utils.task_manager import TaskManager
-
+from droidrun.tools import Tools
 # Load environment variables
 from dotenv import load_dotenv
 load_dotenv()
@@ -35,89 +34,54 @@ if TYPE_CHECKING:
     from droidrun.tools import Tools
 
 class PlannerAgent(Workflow):
-    def __init__(self, goal: str, llm: LLM, agent: Optional[Workflow], tools_instance: 'Tools', 
-                 executer = None, system_prompt = None, user_prompt = None, max_retries = 1, 
-                 debug = False, trajectory_callback = None, *args, **kwargs) -> None:
+    def __init__(self,
+                 goal: str,
+                 llm: LLM, 
+                task_manager: TaskManager,
+                tools_instance: Tools,
+                system_prompt = None,
+                user_prompt = None, 
+                debug = False,
+                trajectory_callback = None,
+                *args,
+                **kwargs
+                ) -> None:
         super().__init__(*args, **kwargs)
         
-        # Note about tracing
             
         self.llm = llm
         self.goal = goal
-        self.task_manager = TaskManager()
+        self.task_manager = task_manager
+        self.debug = debug
+        self.memory = None
+
+        self.current_retry = 0
+        self.steps_counter = 0
+        
+        self.trajectory_callback = trajectory_callback
+
         self.tools = [self.task_manager.set_tasks, self.task_manager.add_task, self.task_manager.get_all_tasks, self.task_manager.clear_tasks, self.task_manager.complete_goal, self.task_manager.start_agent]
-        self.debug = debug  # Set debug attribute before using it in other methods
+
         self.tools_description = self.parse_tool_descriptions()
-        if not executer:
-            self.executer = SimpleCodeExecutor(loop=None, globals={}, locals={}, tools=self.tools, use_same_scope=True)
-        else:
-            self.executer = executer
+        self.tools_instance = tools_instance
+
         self.system_prompt = system_prompt or DEFAULT_PLANNER_SYSTEM_PROMPT.format(tools_description=self.tools_description)
         self.user_prompt = user_prompt or DEFAULT_PLANNER_USER_PROMPT.format(goal=goal)
         self.system_message = ChatMessage(role="system", content=self.system_prompt)
         self.user_message = ChatMessage(role="user", content=self.user_prompt)
-        self.memory = None
-        self.agent = agent  # This can now be None when used just for planning
-        self.tools_instance = tools_instance
-
-        self.max_retries = max_retries # Number of retries for a failed task
-
-        self.current_retry = 0 # Current retry count
-
-        self.steps_counter = 0 # Steps counter
         
-        # Callback function for yielding trajectory steps
-        self.trajectory_callback = trajectory_callback
 
-    def _extract_code_and_thought(self, response_text: str) -> Tuple[Optional[str], str]:
-        """
-        Extracts code from Markdown blocks (```python ... ```) and the surrounding text (thought),
-        handling indented code blocks.
+        self.executer = SimpleCodeExecutor(
+            loop=asyncio.get_event_loop(),
+            globals={},
+            locals={},
+            tools=self.tools
+        )
 
-        Returns:
-            Tuple[Optional[code_string], thought_string]
-        """
-        logger.debug("✂️ Extracting code and thought from response...")
-        code_pattern = r"^\s*```python\s*\n(.*?)\n^\s*```\s*?$" # Added ^\s*, re.MULTILINE, and made closing fence match more robust
-        # Use re.DOTALL to make '.' match newlines and re.MULTILINE to make '^' match start of lines
-        code_matches = list(re.finditer(code_pattern, response_text, re.DOTALL | re.MULTILINE))
-
-        if not code_matches:
-            # No code found, the entire response is thought
-            logger.debug("  - No code block found. Entire response is thought.")
-            return None, response_text.strip()
-
-        extracted_code_parts = []
-        for match in code_matches:
-             # group(1) is the (.*?) part - the actual code content
-             code_content = match.group(1)
-             extracted_code_parts.append(code_content) # Keep original indentation for now
-
-        extracted_code = "\n\n".join(extracted_code_parts)
-        logger.debug(f"  - Combined extracted code:\n```python\n{extracted_code}\n```")
-
-
-        # Extract thought text (text before the first code block, between blocks, and after the last)
-        thought_parts = []
-        last_end = 0
-        for match in code_matches:
-            # Use span(0) to get the start/end of the *entire* match (including fences and indentation)
-            start, end = match.span(0)
-            thought_parts.append(response_text[last_end:start])
-            last_end = end
-        thought_parts.append(response_text[last_end:]) # Text after the last block
-
-        thought_text = "".join(thought_parts).strip()
-
-        thought_preview = (thought_text[:100] + '...') if len(thought_text) > 100 else thought_text
-        logger.debug(f"  - Extracted thought: {thought_preview}")
-
-        return extracted_code, thought_text
-    
+            
     def parse_tool_descriptions(self) -> str:
         """Parses the available tools and their descriptions for the system prompt."""
         logger.debug("🛠️ Parsing tool descriptions for Planner Agent...")
-        # self.available_tools is a list of functions, we need to get their docstrings, names, and signatures and display them as `def name(args) -> return_type:\n"""docstring"""    ...\n`
         tool_descriptions = []
         for tool in self.tools:
             assert callable(tool), f"Tool {tool} is not callable."
@@ -133,6 +97,47 @@ class PlannerAgent(Workflow):
         logger.debug(f"🔩 Found {len(tool_descriptions)} tools.")
         return descriptions
     
+
+    def _extract_code_and_thought(self, response_text: str) -> Tuple[Optional[str], str]:
+        """
+        Extracts code from Markdown blocks (```python ... ```) and the surrounding text (thought),
+        handling indented code blocks.
+
+        Returns:
+            Tuple[Optional[code_string], thought_string]
+        """
+        logger.debug("✂️ Extracting code and thought from response...")
+        code_pattern = r"^\s*```python\s*\n(.*?)\n^\s*```\s*?$"
+        code_matches = list(re.finditer(code_pattern, response_text, re.DOTALL | re.MULTILINE))
+
+        if not code_matches:
+            logger.debug("  - No code block found. Entire response is thought.")
+            return None, response_text.strip()
+
+        extracted_code_parts = []
+        for match in code_matches:
+             code_content = match.group(1)
+             extracted_code_parts.append(code_content)
+
+        extracted_code = "\n\n".join(extracted_code_parts)
+        logger.debug(f"  - Combined extracted code:\n```python\n{extracted_code}\n```")
+
+
+        thought_parts = []
+        last_end = 0
+        for match in code_matches:
+            start, end = match.span(0)
+            thought_parts.append(response_text[last_end:start])
+            last_end = end
+        thought_parts.append(response_text[last_end:])
+
+        thought_text = "".join(thought_parts).strip()
+
+        thought_preview = (thought_text[:100] + '...') if len(thought_text) > 100 else thought_text
+        logger.debug(f"  - Extracted thought: {thought_preview}")
+
+        return extracted_code, thought_text
+
     @step
     async def prepare_chat(self, ev: StartEvent, ctx: Context) -> InputEvent:
         logger.info("💬 Preparing planning session...")
@@ -140,7 +145,6 @@ class PlannerAgent(Workflow):
         if not self.memory:
             logger.debug("  - Creating new memory buffer.")
             self.memory = ChatMemoryBuffer.from_defaults(llm=self.llm)
-            # Add system message to memory
             await self.memory.aput(self.system_message)
         else:
             logger.debug("  - Using existing memory buffer with chat history.")
@@ -308,6 +312,7 @@ class PlannerAgent(Workflow):
         model = self.llm.class_name()
         if model != "DeepSeek":
             chat_history = await add_screenshot_image_block(self.tools_instance, chat_history)
+        chat_history = await add_memory_block(self.tools_instance, chat_history)
         chat_history = await add_ui_text_block(self.tools_instance, chat_history)
         chat_history = await add_phone_state_block(self.tools_instance, chat_history)
         
