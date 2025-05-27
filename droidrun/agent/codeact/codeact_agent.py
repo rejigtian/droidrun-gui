@@ -140,10 +140,7 @@ class CodeActAgent(Workflow):
         """Prepare chat history from user input."""
         logger.info("💬 Preparing chat for task execution...")
 
-        self.chat_memory: Memory = await ctx.get(
-            "chat_memory", default=Memory.from_defaults()
-        )
-
+        self.chat_memory: Memory = await ctx.get("chat_memory", default=Memory.from_defaults())
         self.episodic_memory = await ctx.get("episodic_memory", default=None)
 
         user_input = ev.get("input", default=None)
@@ -177,9 +174,8 @@ class CodeActAgent(Workflow):
 
         response = await self._get_llm_response(ctx, chat_history)
         await self.chat_memory.aput(response.message)
-        logger.debug("🤖 LLM response received.")
+
         code, thoughts = self._extract_code_and_thought(response.message.content)
-        logger.debug(f"  - Thoughts: {'Yes' if thoughts else 'No'}, Code: {'Yes' if code else 'No'}")
 
         event = ModelOutputEvent(thoughts=thoughts, code=code)
         ctx.write_event_to_stream(event)

@@ -1,6 +1,6 @@
 from llama_index.core.llms import ChatMessage
 from llama_index.core.workflow import Event
-from typing import Any, Optional
+from typing import Optional
 
 
 class InputEvent(Event):

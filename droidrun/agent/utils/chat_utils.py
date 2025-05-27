@@ -52,17 +52,40 @@ async def add_phone_state_block(phone_state, chat_history: List[ChatMessage]) ->
     return chat_history
 
 async def add_memory_block(memory: List[str], chat_history: List[ChatMessage]) -> List[ChatMessage]:
-        memory_block = "\n### Remembered Information:\n"
-        for idx, item in enumerate(memory, 1):
-            memory_block += f"{idx}. {item}\n"
+    memory_block = "\n### Remembered Information:\n"
+    for idx, item in enumerate(memory, 1):
+        memory_block += f"{idx}. {item}\n"
+    
+    for i, msg in enumerate(chat_history):
+        if msg.role == "user":
+            if isinstance(msg.content, str):
+                updated_content = f"{memory_block}\n\n{msg.content}"
+                chat_history[i] = ChatMessage(role="user", content=updated_content)
+            elif isinstance(msg.content, list):
+                memory_text_block = TextBlock(text=memory_block)
+                content_blocks = [memory_text_block] + msg.content
+                chat_history[i] = ChatMessage(role="user", content=content_blocks)
+            break
+    return chat_history
         
-        for i, msg in enumerate(chat_history):
-            if msg.role == "user":
-                if isinstance(msg.content, str):
-                    updated_content = f"{memory_block}\n\n{msg.content}"
-                    chat_history[i] = ChatMessage(role="user", content=updated_content)
-                elif isinstance(msg.content, list):
-                    memory_text_block = TextBlock(text=memory_block)
-                    content_blocks = [memory_text_block] + msg.content
-                    chat_history[i] = ChatMessage(role="user", content=content_blocks)
-                break
+async def add_task_history_block(completed_tasks: list[dict], failed_tasks: list[dict], chat_history: List[ChatMessage]) -> List[ChatMessage]: 
+    task_history = ""
+
+    if completed_tasks:
+        task_history += "Completed Tasks:"
+        for task in completed_tasks:
+            task_history += f"- {task['description']}\n"
+
+    if failed_tasks:
+        task_history += "Failed Tasks:"
+        for task in failed_tasks:
+            failure_reason = task.get('failure_reason', 'Unknown reason')
+            task_history += f"- {task['description']} (Failed: {failure_reason})\n"
+
+    
+    task_block = TextBlock(text=f"\nTask History:\n {task_history}")
+
+    chat_history = chat_history.copy()
+    chat_history[-1] = message_copy(chat_history[-1])
+    chat_history[-1].blocks.append(task_block)
+    return chat_history

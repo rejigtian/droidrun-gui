@@ -1,4 +1,3 @@
-import json # For potential saving/loading later (optional)
 import os
 from typing import List, Dict, Any, Optional
 
@@ -6,11 +5,10 @@ class TaskManager:
     """
     Manages a list of tasks for an agent, each with a status.
     """
-    # --- Define Status Constants ---
-    STATUS_PENDING = "pending"       # Task hasn't been attempted yet
-    STATUS_ATTEMPTING = "attempting" # Task is currently being worked on
-    STATUS_COMPLETED = "completed"   # Task was finished successfully
-    STATUS_FAILED = "failed"         # Task attempt resulted in failure
+    STATUS_PENDING = "pending"      
+    STATUS_ATTEMPTING = "attempting"
+    STATUS_COMPLETED = "completed"
+    STATUS_FAILED = "failed"
 
     VALID_STATUSES = {
         STATUS_PENDING,
@@ -18,17 +16,17 @@ class TaskManager:
         STATUS_COMPLETED,
         STATUS_FAILED
     }
-    # desktop path/todo.md
     file_path = os.path.join(os.path.expanduser("~"), "Desktop", "todo.txt")
     def __init__(self):
         """Initializes an empty task list."""
-        self.tasks = []  # List to store task dictionaries
+        self.tasks = []
         self.task_completed = False 
         self.message = None
         self.start_execution = False
-        self.task_history = []  # List to store historical task information
-        self.persistent_completed_tasks = []  # Persistent list of completed tasks
-        self.persistent_failed_tasks = []     # Persistent list of failed tasks
+        self.task_history = [] 
+        self.persistent_completed_tasks = []
+        self.persistent_failed_tasks = []
+        self.file_path = os.path.join(os.path.expanduser("~"), "Desktop", "todo.txt")
 
     # self.tasks is a property, make a getter and setter for it
     def set_tasks(self, tasks: List[str], task_contexts: Optional[List[Dict[str, Any]]] = None):
