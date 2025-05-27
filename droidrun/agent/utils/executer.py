@@ -64,7 +64,7 @@ class SimpleCodeExecutor:
             # If using the same scope, set the globals and locals to the same dictionary
             self.globals = self.locals = {**self.locals, **{k: v for k, v in self.globals.items() if k not in self.locals}}
 
-    async def execute(self,ctx: Context, code: str) -> str:
+    async def execute(self, ctx: Context, code: str) -> str:
         """
         Execute Python code and capture output and return values.
 

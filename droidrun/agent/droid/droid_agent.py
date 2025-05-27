@@ -15,6 +15,7 @@ from droidrun.agent.utils.task_manager import TaskManager
 from droidrun.agent.utils.trajectory import Trajectory
 from droidrun.tools import load_tools
 from droidrun.agent.common.events import ScreenshotEvent
+from droidrun.agent.common.default import MockWorkflow
 
 
 logger = logging.getLogger("droidrun")
@@ -180,7 +181,6 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
 
             result = await handler
 
-            logger.info(f'RESULT: {result}')
             
             if "success" in result and result["success"]:
                 task["status"] = self.task_manager.STATUS_COMPLETED
@@ -251,14 +251,22 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
     async def handle_reasoning_logic(
         self,
         ctx: Context,
-        ev: ReasoningLogicEvent) -> FinalizeEvent | TaskRunnerEvent:
+        ev: ReasoningLogicEvent,
+        planner_agent: Workflow = MockWorkflow()
+        ) -> FinalizeEvent | TaskRunnerEvent:
         try:
             if self.step_counter >= self.max_steps:
                 return FinalizeEvent(success=False, reason=f"Reached maximum number of steps ({self.max_steps})", task=self.task_manager.get_task_history(), steps=self.step_counter)
             self.step_counter += 1
             logger.debug(f"Planning step {self.step_counter}/{self.max_steps}")
 
-            await self.planner_agent.run()
+            handler = planner_agent.run()
+            
+            async for nested_ev in handler.stream_events():
+                self.handle_stream_event(nested_ev, ctx)
+
+            result = await handler
+
             self.tasks = self.task_manager.get_all_tasks()
             logger.debug(f'Tasks: {self.tasks}')
             self.task_iter = iter(self.tasks)
