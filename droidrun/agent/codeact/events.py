@@ -2,8 +2,6 @@ from llama_index.core.llms import ChatMessage
 from llama_index.core.workflow import Event
 from typing import Any, Optional
 
-from pydantic import PrivateAttr
-
 
 class InputEvent(Event):
     input: list[ChatMessage]

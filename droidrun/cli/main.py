@@ -160,9 +160,8 @@ async def run_command(command: str, device: str | None, provider: str, model: st
                 
                 new_logs_added = process_new_logs()
                 
-                # Improve detection of the latest action from logs
                 latest_task = None
-                for log in reversed(logs[-50:]):  # Search from most recent logs first
+                for log in reversed(logs[-50:]):
                     if "🔧 Executing task:" in log:
                         task_desc = log.split("🔧 Executing task:", 1)[1].strip()
                         
@@ -280,20 +279,6 @@ async def run_command(command: str, device: str | None, provider: str, model: st
                         completed=is_completed, 
                         success=is_success
                     )
-                    
-                    # Save trajectory if requested
-                    if save_trajectory and result and "trajectory" in result:
-                        from droidrun.agent.utils.trajectory import save_trajectory
-                        trajectory_path = save_trajectory(
-                            result["trajectory"],
-                            command,
-                            result,
-                            directory=trajectory_dir,
-                            screenshots=droid_agent.tools_instance.screenshots if droid_agent.tools_instance else None
-                        )
-                        logs.append(f"📝 Trajectory saved to: {trajectory_path}")
-                        if droid_agent.tools_instance and droid_agent.tools_instance.screenshots:
-                            logs.append(f"🎬 Created GIF with {len(droid_agent.tools_instance.screenshots)} screenshots")
                     
                     await asyncio.sleep(2)
                 finally:

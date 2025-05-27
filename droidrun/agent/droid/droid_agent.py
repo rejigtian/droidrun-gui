@@ -3,22 +3,18 @@ DroidAgent - A wrapper class that coordinates the planning and execution of task
 to achieve a user's goal on an Android device.
 """
 
-import asyncio
 import logging
 import time
-from typing import Dict, Any, List, Tuple
 
-from llama_index.core.base.llms.types import ChatMessage
 from llama_index.core.llms.llm import LLM
-from llama_index.core.memory import ChatMemoryBuffer
 from llama_index.core.workflow import step, StartEvent, StopEvent, Workflow, Context
 from droidrun.agent.droid.events import *
 from droidrun.agent.codeact import CodeActAgent
 from droidrun.agent.planner import PlannerAgent
-from droidrun.agent.utils.executer import SimpleCodeExecutor
 from droidrun.agent.utils.task_manager import TaskManager
+from droidrun.agent.utils.trajectory import Trajectory
 from droidrun.tools import load_tools
-from droidrun.agent.utils.trajectory import save_trajectory
+from droidrun.agent.common.events import ScreenshotEvent
 
 
 logger = logging.getLogger("droidrun")
@@ -80,7 +76,10 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         self.debug = debug
         self.device_serial = device_serial
         
+        self.trajectory = Trajectory()
+
         self.save_trajectories = save_trajectories
+
         self.trajectory_steps = []
         self.trajectory_callback = self._handle_trajectory_step
 
@@ -88,15 +87,11 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
 
         logger.info("🤖 Initializing DroidAgent...")
         
-        if self.reasoning:
-            self.planning_memory = ChatMemoryBuffer.from_defaults(llm=llm)
-
         tool_list, tools_instance = load_tools(serial=device_serial)
         self.tool_list = tool_list
         self.tools_instance = tools_instance
 
         
-        # Create CodeActAgent
         logger.info("🧠 Initializing CodeAct Agent...")
         self.codeact_agent = CodeActAgent(
             llm=llm,
@@ -179,22 +174,24 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         
         try:
             handler = codeact_agent.run(input=task_description)
-
+            
             async for nested_ev in handler.stream_events():
-                self.handle_stream_event(nested_ev)
+                self.handle_stream_event(nested_ev, ctx)
 
             result = await handler
+
+            logger.info(f'RESULT: {result}')
             
-            if result and isinstance(result, dict) and "success" in result and result["success"]:
+            if "success" in result and result["success"]:
                 task["status"] = self.task_manager.STATUS_COMPLETED
                 logger.debug(f"Task completed with result: {result}")
-                return CodeActResultEvent(success=True, reason=result.get("reason", "Task completed successfully"), task=task)
+                return CodeActResultEvent(success=True, reason=result["reason"], task=task)
             else:
-                failure_reason = result.get("reason", "Unknown failure") if isinstance(result, dict) else "Task execution failed"
                 task["status"] = self.task_manager.STATUS_FAILED
-                task["failure_reason"] = failure_reason
-                logger.warning(f"Task failed: {failure_reason}")
-                return CodeActResultEvent(success=False, reason=failure_reason, task=task)
+                reason = result["reason"]
+                task["failure_reason"] = reason=reason
+                logger.warning(f"Task failed: {reason}")
+                return CodeActResultEvent(success=False, reason=reason, task=task)
                 
         except Exception as e:
             logger.error(f"Error during task execution: {e}")
@@ -249,33 +246,12 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
                 import traceback
                 logger.error(traceback.format_exc())
             return FinalizeEvent(success=False, reason=str(e), task=self.task_manager.get_task_history(), steps=self.step_counter)
-    @step
-    async def finalize(self, ev: FinalizeEvent) -> StopEvent:
 
-        result = {
-            "success": ev.success,
-            "reason": ev.reason,
-            "steps": ev.steps,
-            "task_history": ev.task,
-            "trajectory": self.trajectory_steps
-        }
-
-        if self.save_trajectories:                        
-            trajectory_path = save_trajectory(
-                trajectory_steps=self.trajectory_steps,
-                goal=self.goal,
-                result=result,
-                screenshots=self.tools_instance.screenshots
-            )
-
-
-        return StopEvent(result)
-    
     @step
     async def handle_reasoning_logic(
         self,
         ctx: Context,
-        ev: ReasoningLogicEvent,) -> FinalizeEvent | TaskRunnerEvent:
+        ev: ReasoningLogicEvent) -> FinalizeEvent | TaskRunnerEvent:
         try:
             if self.step_counter >= self.max_steps:
                 return FinalizeEvent(success=False, reason=f"Reached maximum number of steps ({self.max_steps})", task=self.task_manager.get_task_history(), steps=self.step_counter)
@@ -355,5 +331,29 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
                 logger.error(traceback.format_exc())
             return FinalizeEvent(success=False, reason=str(e), task=self.task_manager.get_task_history(), steps=self.step_counter)
         
-    def handle_stream_event(self, ev: Event):
-       self.trajectory_steps.append(ev)
+    @step
+    async def finalize(self, ev: FinalizeEvent) -> StopEvent:
+
+        result = {
+            "success": ev.success,
+            "reason": ev.reason,
+            "steps": ev.steps,
+            "task_history": ev.task,
+            "trajectory": self.trajectory_steps
+        }
+
+        if self.trajectory:
+            self.trajectory.save_trajectory()
+
+        return StopEvent(result)
+    
+    def handle_stream_event(self, ev: Event, ctx: Context):
+       
+        if isinstance(ev, ScreenshotEvent):
+            self.trajectory.screenshots.append(ev.screenshot)
+
+        else:
+            self.trajectory.events.append(ev)
+
+        logger.info(f"Event class: {ev.__class__.__name__}")
+        ctx.write_event_to_stream(ev)

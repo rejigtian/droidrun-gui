@@ -36,7 +36,11 @@ def load_tools(serial: Optional[str] = None) -> Tuple[Dict[str, Callable[..., An
         # App management
         "start_app": tools_instance.start_app,
         "list_packages": tools_instance.list_packages,
-        "complete": tools_instance.complete
+
+        #state management
+        "remember": tools_instance.remember,
+        "complete": tools_instance.complete,
+
     }
     logger.debug("Base tools loaded.")
 
