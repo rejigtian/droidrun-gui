@@ -5,7 +5,7 @@ import traceback
 import logging
 from typing import Any, Dict
 from droidrun.agent.utils.async_utils import async_to_sync
-from droidrun.agent.utils.chat_utils import UIState
+from llama_index.core.workflow import Context
 import asyncio
 
 logger = logging.getLogger("droidrun")
@@ -53,14 +53,9 @@ class SimpleCodeExecutor:
             raise ValueError("Tools must be a dictionary or a list of functions.")
 
 
-        # add time to globals
         import time
         globals['time'] = time
         
-        # Add UI elements to globals
-        globals['ui_elements'] = UIState.get_ui_elements()
-        
-        # State that persists between executions
         self.globals = globals
         self.locals = locals
         self.loop = loop
@@ -69,7 +64,7 @@ class SimpleCodeExecutor:
             # If using the same scope, set the globals and locals to the same dictionary
             self.globals = self.locals = {**self.locals, **{k: v for k, v in self.globals.items() if k not in self.locals}}
 
-    async def execute(self, code: str) -> str:
+    async def execute(self,ctx: Context, code: str) -> str:
         """
         Execute Python code and capture output and return values.
 
@@ -80,7 +75,7 @@ class SimpleCodeExecutor:
             str: Output from the execution, including print statements.
         """
         # Update UI elements before execution
-        self.globals['ui_elements'] = UIState.get_ui_elements()
+        self.globals['ui_elements'] = await ctx.get("ui_state")
         
         # Capture stdout and stderr
         stdout = io.StringIO()

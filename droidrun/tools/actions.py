@@ -563,7 +563,7 @@ class Tools:
                 "image_data": screen_tuple[1],
                 "format": screen_tuple[0]  # Usually 'PNG'
             })
-            return True
+            return screen_tuple
         except ValueError as e:
             raise ValueError(f"Error taking screenshot: {str(e)}")
 

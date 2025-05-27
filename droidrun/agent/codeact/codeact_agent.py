@@ -4,13 +4,14 @@ import inspect
 import time
 import asyncio
 from typing import List, Optional, Tuple, Union
-from llama_index.core.base.llms.types import ChatMessage, ChatResponse, TextBlock
+from llama_index.core.base.llms.types import ChatMessage, ChatResponse
 from llama_index.core.prompts import PromptTemplate
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Workflow, StartEvent, StopEvent, Context, step
-from llama_index.core.memory import ChatMemoryBuffer
+from llama_index.core.memory import Memory
 from droidrun.agent.codeact.events import FinalizeEvent, InputEvent, ModelOutputEvent, ExecutionEvent, ExecutionResultEvent
-from droidrun.agent.utils.chat_utils import add_screenshot_image_block, add_ui_text_block, message_copy
+from droidrun.agent.common.events import ScreenshotEvent
+from droidrun.agent.utils.chat_utils import add_screenshot_image_block, add_ui_text_block, message_copy, add_memory_block, add_phone_state_block
 from droidrun.agent.utils.executer import SimpleCodeExecutor
 from droidrun.agent.codeact.prompts import (
     DEFAULT_CODE_ACT_SYSTEM_PROMPT, 
@@ -36,7 +37,7 @@ class CodeActAgent(Workflow):
         llm: LLM,
         tools_instance: 'Tools',
         tool_list: Dict[str, Callable[..., Any]],
-        max_steps: int = 10, # Default max steps (kept for backwards compatibility but no longer enforced)
+        max_steps: int = 10,
         system_prompt: Optional[str] = None,
         user_prompt: Optional[str] = None,
         debug: bool = False,
@@ -52,7 +53,10 @@ class CodeActAgent(Workflow):
 
         self.user_prompt = user_prompt
         self.no_thoughts_prompt = None
-        self.memory = None 
+
+        self.chat_memory = None
+        self.episodic_memory = None
+
         self.goal = None
         self.steps_counter = 0
         self.code_exec_counter = 0
@@ -136,10 +140,12 @@ class CodeActAgent(Workflow):
         """Prepare chat history from user input."""
         logger.info("💬 Preparing chat for task execution...")
 
-
-        self.memory: ChatMemoryBuffer = await ctx.get(
-            "memory", default=ChatMemoryBuffer.from_defaults(llm=self.llm)
+        self.chat_memory: Memory = await ctx.get(
+            "chat_memory", default=Memory.from_defaults()
         )
+
+        self.episodic_memory = await ctx.get("episodic_memory", default=None)
+
         user_input = ev.get("input", default=None)
         assert user_input, "User input cannot be empty."
 
@@ -147,23 +153,30 @@ class CodeActAgent(Workflow):
         goal = user_input
         self.user_message = ChatMessage(role="user", content=PromptTemplate(self.user_prompt or DEFAULT_CODE_ACT_USER_PROMPT).format(goal=goal))
         self.no_thoughts_prompt = ChatMessage(role="user", content=PromptTemplate(DEFAULT_NO_THOUGHTS_PROMPT).format(goal=goal))
-        await self.memory.aput(self.user_message)
+        await self.chat_memory.aput(self.user_message)
 
-        await ctx.set("memory", self.memory)
-        input_messages = self.memory.get_all()
+        await ctx.set("chat_memory", self.chat_memory)
+        input_messages = self.chat_memory.get_all()
         return InputEvent(input=input_messages)
     @step
     async def handle_llm_input(self, ctx: Context, ev: InputEvent) -> ModelOutputEvent:
         """Handle LLM input."""
-        # Get chat history from event
         chat_history = ev.input
         assert len(chat_history) > 0, "Chat history cannot be empty."
 
         self.steps_counter += 1
         logger.info(f"🧠 Step {self.steps_counter}: Thinking...")
         
-        response = await self._get_llm_response(chat_history)
-        await self.memory.aput(response.message)
+        screenshot = (await self.tools.take_screenshot())[1]
+        ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
+        await ctx.set("screenshot", screenshot)
+
+        await ctx.set("ui_state", await self.tools.get_clickables())
+        await ctx.set("phone_state", await self.tools.get_phone_state())
+        await ctx.set("episodic_memory", self.episodic_memory)
+
+        response = await self._get_llm_response(ctx, chat_history)
+        await self.chat_memory.aput(response.message)
         logger.debug("🤖 LLM response received.")
         code, thoughts = self._extract_code_and_thought(response.message.content)
         logger.debug(f"  - Thoughts: {'Yes' if thoughts else 'No'}, Code: {'Yes' if code else 'No'}")
@@ -181,7 +194,7 @@ class CodeActAgent(Workflow):
 
         if not thoughts:
             logger.warning("🤔 LLM provided code without thoughts. Adding reminder prompt.")
-            await self.memory.aput(self.no_thoughts_prompt)
+            await self.chat_memory.aput(self.no_thoughts_prompt)
         else:
             logger.info(f"🤔 Reasoning: {thoughts}")
 
@@ -189,8 +202,8 @@ class CodeActAgent(Workflow):
             return ExecutionEvent(code=code)
         else:
             message = ChatMessage(role="user", content="No code was provided. If you want to mark task as complete (whether it failed or succeeded), use complete(success:bool, reason:str) function within a code block ```pythn\n```.")
-            await self.memory.aput(message)
-            return InputEvent(input=self.memory.get_all()) 
+            await self.chat_memory.aput(message)
+            return InputEvent(input=self.chat_memory.get_all()) 
 
     @step
     async def execute_code(self, ctx: Context, ev: ExecutionEvent) -> Union[ExecutionResultEvent, FinalizeEvent]:
@@ -202,7 +215,7 @@ class CodeActAgent(Workflow):
 
         try:
             self.code_exec_counter += 1
-            result = await self.executor.execute(code)
+            result = await self.executor.execute(ctx, code)
             logger.info(f"💡 Code execution successful. Result: {result}")
 
             if self.tools.finished == True:
@@ -238,9 +251,9 @@ class CodeActAgent(Workflow):
             logger.debug(f"  - Execution output: {output[:100]}..." if len(output) > 100 else f"  - Execution output: {output}") 
         # Add the output to memory as an user message (observation)
         observation_message = ChatMessage(role="user", content=f"Execution Result:\n```\n{output}\n```")
-        await self.memory.aput(observation_message)
+        await self.chat_memory.aput(observation_message)
         
-        inputEvent = InputEvent(input=self.memory.get_all())
+        inputEvent = InputEvent(input=self.chat_memory.get_all())
         ctx.write_event_to_stream(inputEvent)
         return inputEvent
     
@@ -249,10 +262,12 @@ class CodeActAgent(Workflow):
     async def finalize(self, ev: FinalizeEvent, ctx: Context) -> StopEvent:
         """Finalize the workflow."""
         self.tools.finished = False
-        await ctx.set("memory", self.memory)
+        await ctx.set("chat_memory", self.chat_memory)
         
-        result = ev.values() or {}
+        result = {}
         result.update({
+            "success": ev.success,
+            "reason": ev.reason,
             "codeact_steps": self.steps_counter,
             "code_executions": self.code_exec_counter
         })
@@ -261,38 +276,23 @@ class CodeActAgent(Workflow):
         ctx.write_event_to_stream(event)
         return event
 
-    async def _get_llm_response(self, chat_history: List[ChatMessage]) -> ChatResponse:
+    async def _get_llm_response(self, ctx: Context, chat_history: List[ChatMessage]) -> ChatResponse:
         """Get streaming response from LLM."""
         logger.debug(f"  - Sending {len(chat_history)} messages to LLM.")
 
         model = self.llm.class_name()
         if model != "DeepSeek":
-            chat_history = await add_screenshot_image_block(self.tools, chat_history)
+            chat_history = await add_screenshot_image_block(await ctx.get("screenshot"), chat_history)
         else:
             logger.warning("[yellow]DeepSeek doesnt support images. Disabling screenshots[/]")
-        # always add ui
-        chat_history = await add_ui_text_block(self.tools, chat_history)
-        
-        # Add remembered information if available
-        if hasattr(self.tools, 'memory') and self.tools.memory:
-            memory_block = "\n### Remembered Information:\n"
-            for idx, item in enumerate(self.tools.memory, 1):
-                memory_block += f"{idx}. {item}\n"
-            
-            # Find the first user message and inject memory before it
-            for i, msg in enumerate(chat_history):
-                if msg.role == "user":
-                    if isinstance(msg.content, str):
-                        # For text-only messages
-                        updated_content = f"{memory_block}\n\n{msg.content}"
-                        chat_history[i] = ChatMessage(role="user", content=updated_content)
-                    elif isinstance(msg.content, list):
-                        # For multimodal content
-                        memory_text_block = TextBlock(text=memory_block)
-                        # Insert memory text block at beginning
-                        content_blocks = [memory_text_block] + msg.content
-                        chat_history[i] = ChatMessage(role="user", content=content_blocks)
-                    break
+
+        episodic_memory = await ctx.get("episodic_memory", default=None)
+        if episodic_memory:
+            chat_history = await add_memory_block(episodic_memory, chat_history)
+
+        chat_history = await add_ui_text_block(await ctx.get("ui_state"), chat_history)
+        chat_history = await add_phone_state_block(await ctx.get("phone_state"), chat_history)
+
         
         messages_to_send = [self.system_prompt] + chat_history 
 
