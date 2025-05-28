@@ -167,7 +167,7 @@ async def run_command(command: str, device: str | None, provider: str, model: st
                     success=event_handler.is_success if 'event_handler' in locals() else None
                 )
             
-            event_handler = EventHandler(logs)
+            event_handler = EventHandler(logs, debug=debug)
             
             try:
                 logs.append(f"🚀 Starting: {command}")
