@@ -76,13 +76,12 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         self.reasoning = reasoning
         self.debug = debug
         self.device_serial = device_serial
+
+        self.event_counter = 0
         
         self.trajectory = Trajectory()
 
         self.save_trajectories = save_trajectories
-
-        self.trajectory_steps = []
-        self.trajectory_callback = self._handle_trajectory_step
 
         self.task_manager = TaskManager()
 
@@ -113,8 +112,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
                 task_manager=self.task_manager,
                 tools_instance=tools_instance,
                 timeout=timeout,
-                debug=debug,
-                trajectory_callback=self.trajectory_callback
+                debug=debug
             )
             self.add_workflows(planner_agent=self.planner_agent)
             
@@ -123,32 +121,6 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
             self.planner_agent = None
         
         logger.info("✅ DroidAgent initialized successfully.")
-    
-    async def _handle_trajectory_step(self, step):
-        """
-        Callback to handle trajectory steps from both agents.
-        This adds the step to our trajectory_steps list and yields it if needed.
-        
-        Args:
-            step: A trajectory step dictionary with metadata
-        """
-        # Add metadata about current time
-        step["timestamp"] = time.time()
-        
-        # Add to trajectory
-        self.trajectory_steps.append(step)
-        
-        # Log for debugging if needed
-        logger.debug(f"📝 Trajectory step: {step['type']} (step {step['step']})")
-            
-    def get_trajectory(self):
-        """
-        Get the current trajectory.
-        
-        Returns:
-            List of trajectory steps
-        """
-        return self.trajectory_steps.copy()
     
     @step
     async def _execute_task_with_codeact(
@@ -203,7 +175,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
             return CodeActResultEvent(success=False, reason=f"Error: {str(e)}", task=task)
     
     @step
-    async def handle_codeact_execute(self, ev: CodeActResultEvent, ctx: Context) -> FinalizeEvent | ReasoningLogicEvent:
+    async def handle_codeact_execute(self, ctx: Context, ev: CodeActResultEvent) -> FinalizeEvent | ReasoningLogicEvent:
         try:
             task = await ctx.get("task")
             if not self.reasoning:
@@ -287,7 +259,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
             return FinalizeEvent(success=False, reason=str(e), task=self.task_manager.get_task_history(), steps=self.step_counter)
     
     @step
-    async def handle_task_loop(self, ev: TaskRunnerEvent, ctx: Context) -> CodeActExecuteEvent | ReasoningLogicEvent | FinalizeEvent:
+    async def handle_task_loop(self, ctx: Context, ev: TaskRunnerEvent) -> CodeActExecuteEvent | ReasoningLogicEvent | FinalizeEvent:
         try:
             while True:
                 task = next(self.task_iter, None)
@@ -304,20 +276,17 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
                 logger.error(traceback.format_exc())
             return FinalizeEvent(success=False, reason=str(e), task=self.task_manager.get_task_history(), steps=self.step_counter)
     @step
-    async def start_handler(self, ev: StartEvent, ctx: Context) -> CodeActExecuteEvent | ReasoningLogicEvent | FinalizeEvent:
+    async def start_handler(self, ctx: Context, ev: StartEvent) -> CodeActExecuteEvent | ReasoningLogicEvent | FinalizeEvent:
         """
         Main execution loop that coordinates between planning and execution.
-        Yields trajectory steps during execution.
         
         Returns:
-            Dict containing the execution result and complete trajectory
+            Dict containing the execution result
         """
         logger.info(f"🚀 Running DroidAgent to achieve goal: {self.goal}")
         
         self.step_counter = 0
         self.retry_counter = 0
-        
-        self.trajectory_steps = []
         
         try:
             if not self.reasoning:
@@ -346,8 +315,6 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
             "success": ev.success,
             "reason": ev.reason,
             "steps": ev.steps,
-            "task_history": ev.task,
-            "trajectory": self.trajectory_steps
         }
 
         if self.trajectory:
@@ -356,12 +323,11 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         return StopEvent(result)
     
     def handle_stream_event(self, ev: Event, ctx: Context):
-       
+
         if isinstance(ev, ScreenshotEvent):
             self.trajectory.screenshots.append(ev.screenshot)
 
         else:
             self.trajectory.events.append(ev)
 
-        logger.info(f"Event class: {ev.__class__.__name__}")
         ctx.write_event_to_stream(ev)
