@@ -332,4 +332,6 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         else:
             self.trajectory.events.append(ev)
 
-        ctx.write_event_to_stream(ev)
+        if not isinstance(ev, StopEvent):
+            ctx.write_event_to_stream(ev)
+
