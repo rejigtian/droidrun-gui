@@ -12,7 +12,7 @@ from droidrun.agent.droid.events import CodeActExecuteEvent, CodeActResultEvent,
 class EventHandler:
     """Handles streaming events from DroidRun agents and converts them to user-friendly logs."""
     
-    def __init__(self, logs: List[str]):
+    def __init__(self, logs: List[str], debug: bool = False):
         """
         Initialize the event handler.
         
@@ -21,6 +21,7 @@ class EventHandler:
             update_display_callback: Callback function to update the display
         """
         self.logs = logs
+        self.debug = debug
         self.current_step = "Initializing..."
         self.is_completed = False
         self.is_success = None
@@ -29,7 +30,7 @@ class EventHandler:
         """Handle streaming events from the agent workflow."""
         
         # Log different event types with proper names
-        if isinstance(event, ScreenshotEvent):
+        if isinstance(event, ScreenshotEvent) and self.debug:
             self.logs.append("📸 Taking screenshot...")
         
         # Planner events
@@ -82,7 +83,7 @@ class EventHandler:
             if hasattr(event, 'success') and hasattr(event, 'reason'):
                 if event.success:
                     self.logs.append(f"✅ Task completed: {event.reason}")
-                    self.current_step = f"Task completed successfully"
+                    self.current_step = event.reason
                 else:
                     self.logs.append(f"❌ Task failed: {event.reason}")
                     self.current_step = f"Task failed"
@@ -96,7 +97,7 @@ class EventHandler:
             if hasattr(event, 'success') and hasattr(event, 'reason'):
                 if event.success:
                     self.logs.append(f"✅ Task completed: {event.reason}")
-                    self.current_step = f"Task completed successfully"
+                    self.current_step = event.reason
                 else:
                     self.logs.append(f"❌ Task failed: {event.reason}")
                     self.current_step = f"Task failed"
@@ -121,7 +122,8 @@ class EventHandler:
                     self.current_step = f"Failed: {event.reason}"
         
         else:
-            self.logs.append(f"🔄 {event.__class__.__name__}")
+            if self.debug:
+                self.logs.append(f"🔄 {event.__class__.__name__}")
         
         if len(self.logs) > 100:
             self.logs.pop(0)
