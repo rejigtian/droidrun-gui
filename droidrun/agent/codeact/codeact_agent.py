@@ -121,6 +121,7 @@ class CodeActAgent(Workflow):
         """Handle LLM input."""
         chat_history = ev.input
         assert len(chat_history) > 0, "Chat history cannot be empty."
+        ctx.write_event_to_stream(ev)
 
         self.steps_counter += 1
         logger.info(f"🧠 Step {self.steps_counter}: Thinking...")
@@ -210,9 +211,7 @@ class CodeActAgent(Workflow):
         observation_message = ChatMessage(role="user", content=f"Execution Result:\n```\n{output}\n```")
         await self.chat_memory.aput(observation_message)
         
-        inputEvent = TaskInputEvent(input=self.chat_memory.get_all())
-        ctx.write_event_to_stream(inputEvent)
-        return inputEvent
+        return TaskInputEvent(input=self.chat_memory.get_all())
     
 
     @step
@@ -229,9 +228,7 @@ class CodeActAgent(Workflow):
             "code_executions": self.code_exec_counter
         })
         
-        event = StopEvent(result=result)
-        ctx.write_event_to_stream(event)
-        return event
+        return StopEvent(result=result)
 
     async def _get_llm_response(self, ctx: Context, chat_history: List[ChatMessage]) -> ChatResponse:
         """Get streaming response from LLM."""
