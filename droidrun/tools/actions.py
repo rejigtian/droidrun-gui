@@ -731,11 +731,11 @@ class Tools:
 
         Args:
             success: Indicates if the task was successful.
-            reason: Reason for failure, if any. (required if success is False)
+            reason: Reason for failure/success
         """
         if success:
             self.success = True
-            self.reason = self.reason or "Task completed successfully."
+            self.reason = reason or "Task completed successfully."
             self.finished = True
         else:
             self.success = False
