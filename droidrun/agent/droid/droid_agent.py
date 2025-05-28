@@ -325,13 +325,14 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         return StopEvent(result)
     
     def handle_stream_event(self, ev: Event, ctx: Context):
-
-        if isinstance(ev, ScreenshotEvent):
-            self.trajectory.screenshots.append(ev.screenshot)
-
-        else:
-            self.trajectory.events.append(ev)
-
         if not isinstance(ev, StopEvent):
             ctx.write_event_to_stream(ev)
+            
+            if isinstance(ev, ScreenshotEvent):
+                self.trajectory.screenshots.append(ev.screenshot)
+
+            else:
+                self.trajectory.events.append(ev)
+
+
 

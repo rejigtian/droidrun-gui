@@ -1,9 +1,3 @@
-from llama_index.core.workflow import (
-    StartEvent,
-    StopEvent,
-    Workflow,
-    step,
-)
 from droidrun.agent.planner.events import *
 from droidrun.agent.planner.prompts import (
     DEFAULT_PLANNER_SYSTEM_PROMPT,
@@ -121,6 +115,8 @@ class PlannerAgent(Workflow):
         chat_history = ev.input
         assert len(chat_history) > 0, "Chat history cannot be empty."
 
+        ctx.write_event_to_stream(ev)
+
         self.steps_counter += 1
         logger.info(f"🧠 Thinking about how to plan the goal...")
 
@@ -183,9 +179,7 @@ class PlannerAgent(Workflow):
             "tasks": ev.tasks,
         })
         
-        event = StopEvent(result=result)
-        ctx.write_event_to_stream(event)
-        return event
+        return StopEvent(result=result)
 
 
     async def _get_llm_response(self, ctx: Context, chat_history: List[ChatMessage]) -> ChatResponse:
