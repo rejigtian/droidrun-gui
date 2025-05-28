@@ -7,7 +7,9 @@ import click
 import os
 import logging
 import time
-import queue
+import sys
+import contextlib
+import warnings
 from rich.console import Console
 from rich.live import Live
 from rich.panel import Panel
@@ -18,18 +20,17 @@ from rich.align import Align
 from droidrun.tools import DeviceManager, Tools, load_tools
 from droidrun.agent.droid import DroidAgent
 from droidrun.agent.utils.llm_picker import load_llm
+from droidrun.cli.event_handler import EventHandler
 from functools import wraps
+
+# Suppress all warnings
+warnings.filterwarnings("ignore")
+
 console = Console()
 device_manager = DeviceManager()
 
-log_queue = queue.Queue()
 current_step = "Initializing..."
 spinner = Spinner("dots")
-
-class RichHandler(logging.Handler):
-    def emit(self, record):
-        log_record = self.format(record)
-        log_queue.put(log_record)
 
 def coro(f):
     @wraps(f)
@@ -52,20 +53,32 @@ def update_layout(layout, log_list, step_message, current_time, goal=None, compl
     from rich.text import Text
     import shutil
     
-    terminal_height = shutil.get_terminal_size().lines
-    other_components_height = 3 + 3 + 4 + 1 + 4
-    available_log_lines = max(5, terminal_height - other_components_height)
+    # Cache terminal size to avoid frequent recalculation
+    try:
+        terminal_height = shutil.get_terminal_size().lines
+    except:
+        terminal_height = 24  # fallback
     
+    # Reserve space for panels and borders (more conservative estimate)
+    other_components_height = 10  # goal panel + status panel + borders + padding
+    available_log_lines = max(8, terminal_height - other_components_height)
+    
+    # Only show recent logs, but ensure we don't flicker
     visible_logs = log_list[-available_log_lines:] if len(log_list) > available_log_lines else log_list
+    
+    # Ensure we always have some content to prevent panel collapse
+    if not visible_logs:
+        visible_logs = ["Initializing..."]
     
     log_content = "\n".join(visible_logs)
     
     layout["logs"].update(Panel(
         log_content,
-        title=f"Logs (showing {len(visible_logs)} most recent of {len(log_list)} total)", 
+        title=f"Activity Log ({len(log_list)} entries)", 
         border_style="blue",
         title_align="left",
         padding=(0, 1),
+        height=available_log_lines + 2
     ))
     
     if goal:
@@ -75,25 +88,25 @@ def update_layout(layout, log_list, step_message, current_time, goal=None, compl
             title="Goal", 
             border_style="magenta",
             title_align="left",
-            padding=(0, 1)
+            padding=(0, 1),
+            height=3
         ))
     
     step_display = Text()
     
     if completed:
         if success:
-            step_display.append("✓  ", style="bold green")
-            panel_title = "Completed Successfully"
+            step_display.append("✓ ", style="bold green")
+            panel_title = "Completed"
             panel_style = "green"
         else:
-            step_display.append("✗  ", style="bold red")
+            step_display.append("✗ ", style="bold red")  
             panel_title = "Failed"
             panel_style = "red"
     else:
-        step_display.append(spinner.render(current_time))
-        step_display.append(" ")
-        panel_title = "Current Action"
-        panel_style = "green"
+        step_display.append("⚡ ", style="bold yellow")
+        panel_title = "Status"
+        panel_style = "yellow"
     
     step_display.append(step_message)
     
@@ -102,333 +115,195 @@ def update_layout(layout, log_list, step_message, current_time, goal=None, compl
         title=panel_title, 
         border_style=panel_style,
         title_align="left",
-        padding=(0, 1)
+        padding=(0, 1),
+        height=3
     ))
 
 @coro
 async def run_command(command: str, device: str | None, provider: str, model: str, steps: int, base_url: str, reasoning: bool, tracing: bool, debug: bool, save_trajectory: bool = False, trajectory_dir: str = None, **kwargs):
     """Run a command on your Android device using natural language."""
-    configure_logging(debug)
+    original_stderr = sys.stderr
     
-    global current_step
-    current_step = "Initializing..."
-    logs = []
-    max_log_history = 1000
-    is_completed = False
-    is_success = None
-    
-    layout = create_layout()
-    
-    with Live(layout, refresh_per_second=20, console=console) as live:
-        def update_display():
-            current_time = time.time()
-            update_layout(
-                layout, 
-                logs, 
-                current_step, 
-                current_time, 
-                goal=command, 
-                completed=is_completed,
-                success=is_success
-            )
-            live.refresh()
+    try:
+        configure_logging(debug)
         
-        def process_new_logs():
-            log_count = 0
-            while not log_queue.empty():
-                try:
-                    log = log_queue.get_nowait()
-                    logs.append(log)
-                    log_count += 1
-                    if len(logs) > max_log_history:
-                        logs.pop(0)
-                except queue.Empty:
-                    break
-            return log_count > 0
+        global current_step
+        current_step = "Initializing..."
+        logs = []
         
-        async def process_logs():
-            global current_step
-            iteration = 0
-            while True:
-                if is_completed:
-                    process_new_logs()
-                    if iteration % 10 == 0:
-                        update_display()
-                    iteration += 1
-                    await asyncio.sleep(0.1)
-                    continue
-                
-                new_logs_added = process_new_logs()
-                
-                latest_task = None
-                for log in reversed(logs[-50:]):
-                    if "🔧 Executing task:" in log:
-                        task_desc = log.split("🔧 Executing task:", 1)[1].strip()
-                        
-                        if "Goal:" in task_desc:
-                            goal_part = task_desc.split("Goal:", 1)[1].strip()
-                            latest_task = goal_part
-                        else:
-                            latest_task = task_desc
-                        break  # Stop at the most recent task
-                        
-                if latest_task:
-                    current_step = f"Executing: {latest_task}"
-                
-                if new_logs_added or iteration % 5 == 0:
-                    update_layout(
-                        layout, 
-                        logs, 
-                        current_step, 
-                        time.time(), 
-                        goal=command, 
-                        completed=is_completed,
-                        success=is_success
-                    )
-                
-                iteration += 1
-                await asyncio.sleep(0.05)
+        layout = create_layout()
         
-        try:
-            update_display()
-            logs.append(f"Executing command: {command}")
-            
-            if not kwargs.get("temperature"):
-                kwargs["temperature"] = 0
-                
-            current_step = "Setting up tools..."
-            update_display()
-            
-            if device is None:
-                logs.append("No device serial provided, attempting to find a connected device.")
-                # Attempt to find a device if none is specified
-                device_manager = DeviceManager()
-                devices = await device_manager.list_devices()
-                if not devices:
-                    logs.append("Device discovery failed: No connected devices found.")
-                    raise ValueError("No device serial provided and no connected devices found.")
-                device = devices[0].serial
-                logs.append(f"Using auto-detected device: {device}")
-
-            logs.append(f"Using device: {device}")
-            update_display()
-
-            current_step = "Initializing LLM..."
-            update_display()
-            
-            llm = load_llm(provider_name=provider, model=model, base_url=base_url, **kwargs)
-
-            current_step = "Initializing DroidAgent..."
-            update_display()
-            
-            if reasoning:
-                logs.append("Using planning mode with reasoning")
-            else:
-                logs.append("Using direct execution mode without planning")
-                
-            if tracing:
-                logs.append("Arize Phoenix tracing enabled")
-            
-            update_display()
-            
-            droid_agent = DroidAgent(
-                goal=command,
-                llm=llm,
-                max_steps=steps,
-                timeout=1000,
-                max_retries=3,
-                reasoning=reasoning,
-                enable_tracing=tracing,
-                debug=debug,
-                device_serial=device
-            )
-
-            
-            logs.append("Press Ctrl+C to stop execution")
-            current_step = "Running agent..."
-            update_display()
-
+        @contextlib.contextmanager
+        def suppress_stderr():
+            if not debug:
+                class NullDevice:
+                    def write(self, s): pass
+                    def flush(self): pass
+                sys.stderr = NullDevice()
             try:
-                log_task = asyncio.create_task(process_logs())
-                result = None
-                try:
-                    result = await droid_agent.run()
+                yield
+            finally:
+                if not debug:
+                    sys.stderr = original_stderr
+        
+        with suppress_stderr(), Live(layout, refresh_per_second=4, console=console) as live:
+            update_count = 0
+            
+            def update_display():
+                nonlocal update_count
+                update_count += 1
+                
+                if update_count % 2 != 0 and not event_handler.is_completed:
+                    return
                     
-                    if result.get("success", False):
-                        is_completed = True
-                        is_success = True
-                        
-                        if result.get("output"):
-                            success_output = f"🎯 FINAL ANSWER: {result.get('output')}"
-                            logs.append(success_output)
-                            current_step = f"{result.get('output')}"
-                        else:
-                            current_step = result.get("reason", "Success")
-                    else:
-                        is_completed = True
-                        is_success = False
-                        
-                        current_step = result.get("reason", "Failed") if result else "Failed"
+                current_time = time.time()
+                update_layout(
+                    layout, 
+                    logs, 
+                    event_handler.current_step if 'event_handler' in locals() else current_step, 
+                    current_time, 
+                    goal=command, 
+                    completed=event_handler.is_completed if 'event_handler' in locals() else False,
+                    success=event_handler.is_success if 'event_handler' in locals() else None
+                )
+            
+            event_handler = EventHandler(logs, update_display)
+            
+            try:
+                logs.append(f"🚀 Starting: {command}")
+                update_display()
+                
+                if not kwargs.get("temperature"):
+                    kwargs["temperature"] = 0
                     
-                    update_layout(
-                        layout, 
-                        logs, 
-                        current_step, 
-                        time.time(), 
-                        goal=command, 
-                        completed=is_completed, 
-                        success=is_success
-                    )
-                    
-                    await asyncio.sleep(2)
-                finally:
-                    log_task.cancel()
-                    try:
-                        await log_task
-                    except asyncio.CancelledError:
-                        pass
-                    
-                    for _ in range(20):
-                        process_new_logs()
-                        await asyncio.sleep(0.05)
-                    
-                    update_layout(
-                        layout, 
-                        logs, 
-                        current_step, 
-                        time.time(), 
-                        goal=command, 
-                        completed=is_completed, 
-                        success=is_success
-                    )
-                    
-                    live.refresh()
-                    
-                    await asyncio.sleep(3)
+                current_step = "Setting up tools..."
+                update_display()
+                
+                # Device setup
+                if device is None:
+                    logs.append("🔍 Finding connected device...")
+                    update_display()
+                    device_manager = DeviceManager()
+                    devices = await device_manager.list_devices()
+                    if not devices:
+                        raise ValueError("No connected devices found.")
+                    device = devices[0].serial
+                    logs.append(f"📱 Using device: {device}")
+                else:
+                    logs.append(f"📱 Using device: {device}")
 
-            except KeyboardInterrupt:
-                logs.append("Execution stopped by user.")
-                current_step = "Stopped by user"
+                update_display()
+
+                # LLM setup
+                current_step = "Initializing LLM..."
+                event_handler.current_step = current_step
+                update_display()
+                llm = load_llm(provider_name=provider, model=model, base_url=base_url, **kwargs)
+                logs.append(f"🧠 LLM ready: {provider}/{model}")
+
+                # Agent setup
+                current_step = "Initializing DroidAgent..."
+                event_handler.current_step = current_step
+                update_display()
                 
-                is_completed = True
-                is_success = False
+                mode = "planning with reasoning" if reasoning else "direct execution"
+                logs.append(f"🤖 Agent mode: {mode}")
                 
-                update_layout(
-                    layout, 
-                    logs, 
-                    current_step, 
-                    time.time(), 
-                    goal=command, 
-                    completed=is_completed, 
-                    success=is_success
+                if tracing:
+                    logs.append("🔍 Tracing enabled")
+                
+                droid_agent = DroidAgent(
+                    goal=command,
+                    llm=llm,
+                    max_steps=steps,
+                    timeout=1000,
+                    max_retries=3,
+                    reasoning=reasoning,
+                    enable_tracing=tracing,
+                    debug=debug,
+                    device_serial=device
                 )
-                
-            except ValueError as e:
-                logs.append(f"Configuration Error: {e}")
-                current_step = f"Error: {e}"
-                
-                is_completed = True
-                is_success = False
-                
-                update_layout(
-                    layout, 
-                    logs, 
-                    current_step, 
-                    time.time(), 
-                    goal=command, 
-                    completed=is_completed, 
-                    success=is_success
-                )
-                
+
+                logs.append("▶️ Starting agent execution...")
+                logs.append("Press Ctrl+C to stop")
+                current_step = "Running agent..."
+                event_handler.current_step = current_step
+                update_display()
+
+                try:
+                    handler = droid_agent.run()
+                    
+                    async for event in handler.stream_events():
+                        event_handler.handle_event(event)
+                    
+                    result = await handler
+                    
+                    await asyncio.sleep(0.5)
+                    update_display()
+                    await asyncio.sleep(1.5)
+
+                except KeyboardInterrupt:
+                    logs.append("⏹️ Stopped by user")
+                    event_handler.current_step = "Stopped by user"
+                    event_handler.is_completed = True
+                    event_handler.is_success = False
+                    update_display()
+                    
+                except Exception as e:
+                    logs.append(f"💥 Error: {e}")
+                    event_handler.current_step = f"Error: {e}"
+                    event_handler.is_completed = True
+                    event_handler.is_success = False
+                    if debug:
+                        import traceback
+                        logs.append(traceback.format_exc())
+                    update_display()
+
+                # Final pause
+                await asyncio.sleep(1)
+
             except Exception as e:
-                logs.append(f"An unexpected error occurred during agent execution: {e}")
-                current_step = f"Error: {e}"
+                logs.append(f"💥 Setup error: {e}")
+                event_handler.current_step = f"Error: {e}"
                 if debug:
                     import traceback
                     logs.append(traceback.format_exc())
                 
-                is_completed = True
-                is_success = False
-                
-                update_layout(
-                    layout, 
-                    logs, 
-                    current_step, 
-                    time.time(), 
-                    goal=command, 
-                    completed=is_completed, 
-                    success=is_success
-                )
-            
-            update_display()
-            await asyncio.sleep(1)
-
-        except ValueError as e:
-            logs.append(f"Error: {e}")
-            current_step = f"Error: {e}"
-            
-            step_display = Text()
-            step_display.append("⚠ ", style="bold red")
-            step_display.append(current_step)
-            
-            layout["status"].update(Panel(
-                step_display, 
-                title="Error", 
-                border_style="red",
-                title_align="left",
-                padding=(0, 1)
-            ))
-            update_display()
-            
-        except Exception as e:
-            logs.append(f"An unexpected error occurred during setup: {e}")
-            current_step = f"Error: {e}"
-            if debug:
-                import traceback
-                logs.append(traceback.format_exc())
-                
-            step_display = Text()
-            step_display.append("⚠ ", style="bold red")
-            step_display.append(current_step)
-            
-            layout["status"].update(Panel(
-                step_display, 
-                title="Error", 
-                border_style="red",
-                title_align="left",
-                padding=(0, 1)
-            ))
-            update_display()
-            await asyncio.sleep(1)
+                update_display()
+                await asyncio.sleep(1.5)
+    
+    finally:
+        # Always restore original stderr
+        sys.stderr = original_stderr
 
 def configure_logging(debug: bool):
     """Configure logging verbosity based on debug flag."""
-    root_logger = logging.getLogger()
+    warnings.filterwarnings("ignore")
+    
+    logging.getLogger().setLevel(logging.CRITICAL + 1)
+    logging.getLogger().disabled = True
+    
+    for logger_name in list(logging.Logger.manager.loggerDict.keys()):
+        logger = logging.getLogger(logger_name)
+        logger.disabled = True
+        logger.handlers = []
+        logger.propagate = False
+        logger.setLevel(logging.CRITICAL + 1)
+    
     droidrun_logger = logging.getLogger("droidrun")
+    droidrun_logger.disabled = True
+    droidrun_logger.handlers = []
+    droidrun_logger.propagate = False
+    droidrun_logger.setLevel(logging.CRITICAL + 1)
     
-    # Clear existing handlers
-    for handler in root_logger.handlers[:]:
-        root_logger.removeHandler(handler)
-    for handler in droidrun_logger.handlers[:]:
-        droidrun_logger.removeHandler(handler)
+    for logger_name in ["adb", "android", "asyncio", "urllib3", "requests", "httpx", "httpcore"]:
+        logger = logging.getLogger(logger_name)
+        logger.disabled = True
+        logger.handlers = []
+        logger.propagate = False
+        logger.setLevel(logging.CRITICAL + 1)
     
-    rich_handler = RichHandler()
-    
-    formatter = logging.Formatter('%(message)s') 
-    rich_handler.setFormatter(formatter)
-    
-    if debug:
-        rich_handler.setLevel(logging.DEBUG)
-        droidrun_logger.setLevel(logging.DEBUG)
-        root_logger.setLevel(logging.INFO)
-    else:
-        rich_handler.setLevel(logging.INFO)
-        droidrun_logger.setLevel(logging.INFO)
-        root_logger.setLevel(logging.WARNING)
-    
-    droidrun_logger.addHandler(rich_handler)
-    
-    log_queue.put(f"Logging level set to: {logging.getLevelName(droidrun_logger.level)}")
+    logging.getLogger().handlers = []
 
 
 class DroidRunCLI(click.Group):

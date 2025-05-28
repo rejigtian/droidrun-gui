@@ -9,9 +9,9 @@ from llama_index.core.prompts import PromptTemplate
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Workflow, StartEvent, StopEvent, Context, step
 from llama_index.core.memory import Memory
-from droidrun.agent.codeact.events import FinalizeEvent, InputEvent, ModelOutputEvent, ExecutionEvent, ExecutionResultEvent
+from droidrun.agent.codeact.events import TaskInputEvent, TaskEndEvent, TaskExecutionEvent, TaskExecutionResultEvent, TaskThinkingEvent
 from droidrun.agent.common.events import ScreenshotEvent
-from droidrun.agent.utils.chat_utils import add_screenshot_image_block, add_ui_text_block, message_copy, add_memory_block, add_phone_state_block
+from droidrun.agent.utils import chat_utils
 from droidrun.agent.utils.executer import SimpleCodeExecutor
 from droidrun.agent.codeact.prompts import (
     DEFAULT_CODE_ACT_SYSTEM_PROMPT, 
@@ -96,47 +96,8 @@ class CodeActAgent(Workflow):
         logger.info(f"🔩 Found {len(tool_descriptions)} tools.")
         return descriptions
 
-    def _extract_code_and_thought(self, response_text: str) -> Tuple[Optional[str], str]:
-        """
-        Extracts code from Markdown blocks (```python ... ```) and the surrounding text (thought),
-        handling indented code blocks.
-
-        Returns:
-            Tuple[Optional[code_string], thought_string]
-        """
-        logger.debug("✂️ Extracting code and thought from response...")
-        code_pattern = r"^\s*```python\s*\n(.*?)\n^\s*```\s*?$"
-        code_matches = list(re.finditer(code_pattern, response_text, re.DOTALL | re.MULTILINE))
-
-        if not code_matches:
-            logger.debug("  - No code block found. Entire response is thought.")
-            return None, response_text.strip()
-
-        extracted_code_parts = []
-        for match in code_matches:
-             code_content = match.group(1)
-             extracted_code_parts.append(code_content)
-
-        extracted_code = "\n\n".join(extracted_code_parts)
-        logger.debug(f"  - Combined extracted code:\n```python\n{extracted_code}\n```")
-
-
-        thought_parts = []
-        last_end = 0
-        for match in code_matches:
-            start, end = match.span(0)
-            thought_parts.append(response_text[last_end:start])
-            last_end = end
-        thought_parts.append(response_text[last_end:])
-
-        thought_text = "".join(thought_parts).strip()
-        thought_preview = (thought_text[:100] + '...') if len(thought_text) > 100 else thought_text
-        logger.debug(f"  - Extracted thought: {thought_preview}")
-
-        return extracted_code, thought_text
-
     @step
-    async def prepare_chat(self, ctx: Context, ev: StartEvent) -> InputEvent:
+    async def prepare_chat(self, ctx: Context, ev: StartEvent) -> TaskInputEvent:
         """Prepare chat history from user input."""
         logger.info("💬 Preparing chat for task execution...")
 
@@ -154,9 +115,9 @@ class CodeActAgent(Workflow):
 
         await ctx.set("chat_memory", self.chat_memory)
         input_messages = self.chat_memory.get_all()
-        return InputEvent(input=input_messages)
+        return TaskInputEvent(input=input_messages)
     @step
-    async def handle_llm_input(self, ctx: Context, ev: InputEvent) -> ModelOutputEvent:
+    async def handle_llm_input(self, ctx: Context, ev: TaskInputEvent) -> TaskThinkingEvent:
         """Handle LLM input."""
         chat_history = ev.input
         assert len(chat_history) > 0, "Chat history cannot be empty."
@@ -175,14 +136,14 @@ class CodeActAgent(Workflow):
         response = await self._get_llm_response(ctx, chat_history)
         await self.chat_memory.aput(response.message)
 
-        code, thoughts = self._extract_code_and_thought(response.message.content)
+        code, thoughts = chat_utils.extract_code_and_thought(response.message.content)
 
-        event = ModelOutputEvent(thoughts=thoughts, code=code)
+        event = TaskThinkingEvent(thoughts=thoughts, code=code)
         ctx.write_event_to_stream(event)
         return event
 
     @step
-    async def handle_llm_output(self, ctx: Context, ev: ModelOutputEvent) -> Union[ExecutionEvent, InputEvent]:
+    async def handle_llm_output(self, ctx: Context, ev: TaskThinkingEvent) -> Union[TaskExecutionEvent, TaskInputEvent]:
         """Handle LLM output."""
         logger.debug("⚙️ Handling LLM output...")
         code = ev.code
@@ -195,14 +156,14 @@ class CodeActAgent(Workflow):
             logger.info(f"🤔 Reasoning: {thoughts}")
 
         if code:
-            return ExecutionEvent(code=code)
+            return TaskExecutionEvent(code=code)
         else:
             message = ChatMessage(role="user", content="No code was provided. If you want to mark task as complete (whether it failed or succeeded), use complete(success:bool, reason:str) function within a code block ```pythn\n```.")
             await self.chat_memory.aput(message)
-            return InputEvent(input=self.chat_memory.get_all()) 
+            return TaskInputEvent(input=self.chat_memory.get_all()) 
 
     @step
-    async def execute_code(self, ctx: Context, ev: ExecutionEvent) -> Union[ExecutionResultEvent, FinalizeEvent]:
+    async def execute_code(self, ctx: Context, ev: TaskExecutionEvent) -> Union[TaskExecutionResultEvent, TaskEndEvent]:
         """Execute the code and return the result."""
         code = ev.code
         assert code, "Code cannot be empty."
@@ -216,11 +177,11 @@ class CodeActAgent(Workflow):
 
             if self.tools.finished == True:
                 logger.debug("  - Task completed.")
-                event = FinalizeEvent(success=self.tools.success, reason=self.tools.reason)
+                event = TaskEndEvent(success=self.tools.success, reason=self.tools.reason)
                 ctx.write_event_to_stream(event)
                 return event
             
-            event = ExecutionResultEvent(output=str(result))
+            event = TaskExecutionResultEvent(output=str(result))
             ctx.write_event_to_stream(event)
             return event
         
@@ -230,12 +191,12 @@ class CodeActAgent(Workflow):
                 logger.error("Exception details:", exc_info=True)
             error_message = f"Error during execution: {e}"
   
-            event = ExecutionResultEvent(output=error_message)
+            event = TaskExecutionResultEvent(output=error_message)
             ctx.write_event_to_stream(event)
             return event
 
     @step
-    async def handle_execution_result(self, ctx: Context, ev: ExecutionResultEvent) -> InputEvent:
+    async def handle_execution_result(self, ctx: Context, ev: TaskExecutionResultEvent) -> TaskInputEvent:
         """Handle the execution result. Currently it just returns InputEvent."""
         logger.debug("📊 Handling execution result...")
         # Get the output from the event
@@ -249,13 +210,13 @@ class CodeActAgent(Workflow):
         observation_message = ChatMessage(role="user", content=f"Execution Result:\n```\n{output}\n```")
         await self.chat_memory.aput(observation_message)
         
-        inputEvent = InputEvent(input=self.chat_memory.get_all())
+        inputEvent = TaskInputEvent(input=self.chat_memory.get_all())
         ctx.write_event_to_stream(inputEvent)
         return inputEvent
     
 
     @step
-    async def finalize(self, ev: FinalizeEvent, ctx: Context) -> StopEvent:
+    async def finalize(self, ev: TaskEndEvent, ctx: Context) -> StopEvent:
         """Finalize the workflow."""
         self.tools.finished = False
         await ctx.set("chat_memory", self.chat_memory)
@@ -278,21 +239,21 @@ class CodeActAgent(Workflow):
 
         model = self.llm.class_name()
         if model != "DeepSeek":
-            chat_history = await add_screenshot_image_block(await ctx.get("screenshot"), chat_history)
+            chat_history = await chat_utils.add_screenshot_image_block(await ctx.get("screenshot"), chat_history)
         else:
             logger.warning("[yellow]DeepSeek doesnt support images. Disabling screenshots[/]")
 
         episodic_memory = await ctx.get("episodic_memory", default=None)
         if episodic_memory:
-            chat_history = await add_memory_block(episodic_memory, chat_history)
+            chat_history = await chat_utils.add_memory_block(episodic_memory, chat_history)
 
-        chat_history = await add_ui_text_block(await ctx.get("ui_state"), chat_history)
-        chat_history = await add_phone_state_block(await ctx.get("phone_state"), chat_history)
+        chat_history = await chat_utils.add_ui_text_block(await ctx.get("ui_state"), chat_history)
+        chat_history = await chat_utils.add_phone_state_block(await ctx.get("phone_state"), chat_history)
 
         
         messages_to_send = [self.system_prompt] + chat_history 
 
-        messages_to_send = [message_copy(msg) for msg in messages_to_send]
+        messages_to_send = [chat_utils.message_copy(msg) for msg in messages_to_send]
         try:
             response = await self.llm.achat(
                 messages=messages_to_send

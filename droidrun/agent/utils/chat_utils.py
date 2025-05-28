@@ -1,7 +1,9 @@
 import base64
+import re
+
 import json
 import logging
-from typing import List, TYPE_CHECKING, Dict, Any, Optional
+from typing import List, TYPE_CHECKING, Optional, Tuple
 from llama_index.core.base.llms.types import ChatMessage, ImageBlock, TextBlock
 
 if TYPE_CHECKING:
@@ -89,3 +91,44 @@ async def add_task_history_block(completed_tasks: list[dict], failed_tasks: list
     chat_history[-1] = message_copy(chat_history[-1])
     chat_history[-1].blocks.append(task_block)
     return chat_history
+
+
+
+def extract_code_and_thought(response_text: str) -> Tuple[Optional[str], str]:
+    """
+    Extracts code from Markdown blocks (```python ... ```) and the surrounding text (thought),
+    handling indented code blocks.
+
+    Returns:
+        Tuple[Optional[code_string], thought_string]
+    """
+    logger.debug("✂️ Extracting code and thought from response...")
+    code_pattern = r"^\s*```python\s*\n(.*?)\n^\s*```\s*?$"
+    code_matches = list(re.finditer(code_pattern, response_text, re.DOTALL | re.MULTILINE))
+
+    if not code_matches:
+        logger.debug("  - No code block found. Entire response is thought.")
+        return None, response_text.strip()
+
+    extracted_code_parts = []
+    for match in code_matches:
+            code_content = match.group(1)
+            extracted_code_parts.append(code_content)
+
+    extracted_code = "\n\n".join(extracted_code_parts)
+    logger.debug(f"  - Combined extracted code:\n```python\n{extracted_code}\n```")
+
+
+    thought_parts = []
+    last_end = 0
+    for match in code_matches:
+        start, end = match.span(0)
+        thought_parts.append(response_text[last_end:start])
+        last_end = end
+    thought_parts.append(response_text[last_end:])
+
+    thought_text = "".join(thought_parts).strip()
+    thought_preview = (thought_text[:100] + '...') if len(thought_text) > 100 else thought_text
+    logger.debug(f"  - Extracted thought: {thought_preview}")
+
+    return extracted_code, thought_text

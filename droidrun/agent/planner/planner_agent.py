@@ -10,9 +10,8 @@ from droidrun.agent.planner.prompts import (
     DEFAULT_PLANNER_USER_PROMPT,
 )
 import logging
-import re
 import asyncio
-from typing import List, Optional, Tuple, TYPE_CHECKING, Union
+from typing import List, TYPE_CHECKING, Union
 import inspect
 from llama_index.core.base.llms.types import ChatMessage, ChatResponse
 from llama_index.core.prompts import PromptTemplate
@@ -21,11 +20,11 @@ from llama_index.core.workflow import Workflow, StartEvent, StopEvent, Context, 
 from llama_index.core.memory import Memory
 from llama_index.core.llms.llm import LLM
 from droidrun.agent.utils.executer import SimpleCodeExecutor
-from droidrun.agent.utils.chat_utils import add_ui_text_block, add_screenshot_image_block, add_phone_state_block, add_memory_block, message_copy, add_task_history_block
+from droidrun.agent.utils import chat_utils
 from droidrun.agent.utils.task_manager import TaskManager
 from droidrun.tools import Tools
 from droidrun.agent.common.events import ScreenshotEvent
-from droidrun.agent.planner.events import FinalizeEvent
+from droidrun.agent.planner.events import PlanInputEvent, PlanCreatedEvent, PlanThinkingEvent
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -45,7 +44,6 @@ class PlannerAgent(Workflow):
                 system_prompt = None,
                 user_prompt = None, 
                 debug = False,
-                trajectory_callback = None,
                 *args,
                 **kwargs
                 ) -> None:
@@ -63,8 +61,6 @@ class PlannerAgent(Workflow):
         self.current_retry = 0
         self.steps_counter = 0
         
-        self.trajectory_callback = trajectory_callback
-
         self.tools = [self.task_manager.set_tasks, self.task_manager.add_task, self.task_manager.get_all_tasks, self.task_manager.clear_tasks, self.task_manager.complete_goal, self.task_manager.start_agent]
 
         self.tools_description = self.parse_tool_descriptions()
@@ -103,48 +99,8 @@ class PlannerAgent(Workflow):
         return descriptions
     
 
-    def _extract_code_and_thought(self, response_text: str) -> Tuple[Optional[str], str]:
-        """
-        Extracts code from Markdown blocks (```python ... ```) and the surrounding text (thought),
-        handling indented code blocks.
-
-        Returns:
-            Tuple[Optional[code_string], thought_string]
-        """
-        logger.debug("✂️ Extracting code and thought from response...")
-        code_pattern = r"^\s*```python\s*\n(.*?)\n^\s*```\s*?$"
-        code_matches = list(re.finditer(code_pattern, response_text, re.DOTALL | re.MULTILINE))
-
-        if not code_matches:
-            logger.debug("  - No code block found. Entire response is thought.")
-            return None, response_text.strip()
-
-        extracted_code_parts = []
-        for match in code_matches:
-             code_content = match.group(1)
-             extracted_code_parts.append(code_content)
-
-        extracted_code = "\n\n".join(extracted_code_parts)
-        logger.debug(f"  - Combined extracted code:\n```python\n{extracted_code}\n```")
-
-
-        thought_parts = []
-        last_end = 0
-        for match in code_matches:
-            start, end = match.span(0)
-            thought_parts.append(response_text[last_end:start])
-            last_end = end
-        thought_parts.append(response_text[last_end:])
-
-        thought_text = "".join(thought_parts).strip()
-
-        thought_preview = (thought_text[:100] + '...') if len(thought_text) > 100 else thought_text
-        logger.debug(f"  - Extracted thought: {thought_preview}")
-
-        return extracted_code, thought_text
-
     @step
-    async def prepare_chat(self, ctx: Context, ev: StartEvent) -> InputEvent:
+    async def prepare_chat(self, ctx: Context, ev: StartEvent) -> PlanInputEvent:
         logger.info("💬 Preparing planning session...")
 
         self.chat_memory: Memory = await ctx.get("chat_memory", default=Memory.from_defaults())
@@ -157,10 +113,10 @@ class PlannerAgent(Workflow):
         
         input_messages = self.chat_memory.get_all()
         logger.debug(f"  - Memory contains {len(input_messages)} messages")
-        return InputEvent(input=input_messages)
+        return PlanInputEvent(input=input_messages)
     
     @step
-    async def handle_llm_input(self, ev: InputEvent, ctx: Context) -> ModelResponseEvent:
+    async def handle_llm_input(self, ev: PlanInputEvent, ctx: Context) -> PlanThinkingEvent:
         """Handle LLM input."""
         chat_history = ev.input
         assert len(chat_history) > 0, "Chat history cannot be empty."
@@ -179,16 +135,15 @@ class PlannerAgent(Workflow):
         response = await self._get_llm_response(ctx, chat_history)
         await self.chat_memory.aput(response.message)
         
-        code, thoughts = self._extract_code_and_thought(response.message.content)
+        code, thoughts = chat_utils.extract_code_and_thought(response.message.content)
             
-        event = ModelResponseEvent(thoughts=thoughts, code=code)
+        event = PlanThinkingEvent(thoughts=thoughts, code=code)
         ctx.write_event_to_stream(event)
         return event
     
     
-    
     @step
-    async def handle_llm_output(self, ev: ModelResponseEvent, ctx: Context) -> Union[InputEvent, FinalizeEvent]:
+    async def handle_llm_output(self, ev: PlanThinkingEvent, ctx: Context) -> Union[PlanInputEvent, PlanCreatedEvent]:
         """Handle LLM output."""
         logger.debug("🤖 Processing planning output...")
         code = ev.code
@@ -203,7 +158,7 @@ class PlannerAgent(Workflow):
                 await self.chat_memory.aput(ChatMessage(role="user", content=f"Execution Result:\n```\n{result}\n```"))
                 
                 tasks = self.task_manager.get_all_tasks()
-                event = FinalizeEvent(tasks=tasks)
+                event = PlanCreatedEvent(tasks=tasks)
                 ctx.write_event_to_stream(event)
                     
                 return event
@@ -211,15 +166,15 @@ class PlannerAgent(Workflow):
             except Exception as e:
                 await self.chat_memory.aput(ChatMessage(role="user", content=f"Please either set new tasks using set_tasks() or mark the goal as complete using complete_goal() if done."))
                 logger.debug("🔄 Waiting for next plan or completion.")
-                return InputEvent(input=self.chat_memory.get_all())
+                return PlanInputEvent(input=self.chat_memory.get_all())
         else:
             await self.chat_memory.aput(ChatMessage(role="user", content=f"Please either set new tasks using set_tasks() or mark the goal as complete using complete_goal() if done."))
             logger.debug("🔄 Waiting for next plan or completion.")
-            return InputEvent(input=self.chat_memory.get_all())
+            return PlanInputEvent(input=self.chat_memory.get_all())
         
 
     @step
-    async def finalize(self, ev: FinalizeEvent, ctx: Context) -> StopEvent:
+    async def finalize(self, ev: PlanCreatedEvent, ctx: Context) -> StopEvent:
         """Finalize the workflow."""
         await ctx.set("chat_memory", self.chat_memory)
         
@@ -239,22 +194,22 @@ class PlannerAgent(Workflow):
 
         model = self.llm.class_name()
         if model != "DeepSeek":
-            chat_history = await add_screenshot_image_block(await ctx.get("screenshot"), chat_history)
+            chat_history = await chat_utils.add_screenshot_image_block(await ctx.get("screenshot"), chat_history)
         else:
             logger.warning("[yellow]DeepSeek doesnt support images. Disabling screenshots[/]")
 
-        chat_history = await add_task_history_block(self.task_manager.get_completed_tasks(), self.task_manager.get_failed_tasks(), chat_history)
+        chat_history = await chat_utils.add_task_history_block(self.task_manager.get_completed_tasks(), self.task_manager.get_failed_tasks(), chat_history)
 
         episodic_memory = await ctx.get("episodic_memory", default=None)
         if episodic_memory:
-            chat_history = await add_memory_block(episodic_memory, chat_history)
+            chat_history = await chat_utils.add_memory_block(episodic_memory, chat_history)
 
-        chat_history = await add_ui_text_block(await ctx.get("ui_state"), chat_history)
-        chat_history = await add_phone_state_block(await ctx.get("phone_state"), chat_history)
+        chat_history = await chat_utils.add_ui_text_block(await ctx.get("ui_state"), chat_history)
+        chat_history = await chat_utils.add_phone_state_block(await ctx.get("phone_state"), chat_history)
 
         
         messages_to_send = [self.system_message] + chat_history 
-        messages_to_send = [message_copy(msg) for msg in messages_to_send]
+        messages_to_send = [chat_utils.message_copy(msg) for msg in messages_to_send]
         
         logger.debug(f"  - Final message count: {len(messages_to_send)}")
 
