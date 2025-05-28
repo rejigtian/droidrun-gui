@@ -12,7 +12,7 @@ from droidrun.agent.droid.events import CodeActExecuteEvent, CodeActResultEvent,
 class EventHandler:
     """Handles streaming events from DroidRun agents and converts them to user-friendly logs."""
     
-    def __init__(self, logs: List[str], update_display_callback: Callable):
+    def __init__(self, logs: List[str]):
         """
         Initialize the event handler.
         
@@ -21,7 +21,6 @@ class EventHandler:
             update_display_callback: Callback function to update the display
         """
         self.logs = logs
-        self.update_display = update_display_callback
         self.current_step = "Initializing..."
         self.is_completed = False
         self.is_success = None
@@ -121,13 +120,8 @@ class EventHandler:
                     self.logs.append(f"❌ Goal failed: {event.reason}")
                     self.current_step = f"Failed: {event.reason}"
         
-        # Handle any other events generically
         else:
-            # For debug purposes, show unknown events
             self.logs.append(f"🔄 {event.__class__.__name__}")
         
-        # Keep logs manageable
         if len(self.logs) > 100:
             self.logs.pop(0)
-        
-        self.update_display()
