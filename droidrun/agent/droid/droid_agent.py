@@ -309,7 +309,9 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
             return FinalizeEvent(success=False, reason=str(e), task=self.task_manager.get_task_history(), steps=self.step_counter)
         
     @step
-    async def finalize(self, ev: FinalizeEvent) -> StopEvent:
+    async def finalize(self, ctx: Context, ev: FinalizeEvent) -> StopEvent:
+        ctx.write_event_to_stream(ev)
+
 
         result = {
             "success": ev.success,
