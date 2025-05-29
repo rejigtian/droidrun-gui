@@ -427,8 +427,7 @@ class Tools:
             import base64
             encoded_text = base64.b64encode(text.encode()).decode()
             
-            # Send the broadcast intent with the Base64-encoded text
-            cmd = f'am broadcast -a DROIDRUN_INPUT_B64 --es msg "{encoded_text}"'
+            cmd = f'am broadcast -a com.droidrun.portal.DROIDRUN_INPUT_B64 --es msg "{encoded_text}" -p com.droidrun.portal'
             await device._adb.shell(device._serial, cmd)
             
             # Wait for text input to complete
