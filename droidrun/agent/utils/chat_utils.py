@@ -76,13 +76,20 @@ async def add_task_history_block(completed_tasks: list[dict], failed_tasks: list
     if completed_tasks:
         task_history += "Completed Tasks:"
         for task in completed_tasks:
-            task_history += f"- {task['description']}\n"
+            if isinstance(task, dict):
+                task_history += f"- {task['description']}\n"
+            else:
+                task_history += f"- {task}\n"
 
     if failed_tasks:
         task_history += "Failed Tasks:"
         for task in failed_tasks:
-            failure_reason = task.get('failure_reason', 'Unknown reason')
-            task_history += f"- {task['description']} (Failed: {failure_reason})\n"
+            if isinstance(task, dict):
+                failure_reason = task.get('failure_reason', 'Unknown reason')
+                task_description = task.get('description', str(task))
+                task_history += f"- {task_description} (Failed: {failure_reason})\n"
+            else:
+                task_history += f"- {task} (Failed: Unknown reason)\n"
 
     
     task_block = TextBlock(text=f"\nTask History:\n {task_history}")
