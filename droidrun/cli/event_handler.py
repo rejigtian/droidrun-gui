@@ -64,6 +64,8 @@ class EventHandler:
                 self.logs.append(f"🧠 Thinking: {thoughts_preview}")
             if hasattr(event, 'code') and event.code:
                 self.logs.append(f"💻 Executing action code")
+                if self.debug:
+                    self.logs.append(f'{event.code}')
         
         elif isinstance(event, TaskExecutionEvent):
             self.logs.append(f"⚡ Executing action...")
