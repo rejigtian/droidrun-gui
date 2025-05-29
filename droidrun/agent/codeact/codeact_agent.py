@@ -102,7 +102,9 @@ class CodeActAgent(Workflow):
         logger.info("💬 Preparing chat for task execution...")
 
         self.chat_memory: Memory = await ctx.get("chat_memory", default=Memory.from_defaults())
-        self.episodic_memory = await ctx.get("episodic_memory", default=None)
+        
+        if ev.episodic_memory:
+            self.episodic_memory = ev.episodic_memory
 
         user_input = ev.get("input", default=None)
         assert user_input, "User input cannot be empty."
@@ -181,6 +183,8 @@ class CodeActAgent(Workflow):
                 event = TaskEndEvent(success=self.tools.success, reason=self.tools.reason)
                 ctx.write_event_to_stream(event)
                 return event
+            
+            self.episodic_memory = self.tools.memory
             
             event = TaskExecutionResultEvent(output=str(result))
             ctx.write_event_to_stream(event)

@@ -99,7 +99,9 @@ class PlannerAgent(Workflow):
 
         self.chat_memory: Memory = await ctx.get("chat_memory", default=Memory.from_defaults())
         await self.chat_memory.aput(self.user_message)
-        self.episodic_memory = await ctx.get("episodic_memory", default=None)
+
+        if ev.episodic_memory:
+            self.episodic_memory = ev.episodic_memory
         
         assert len(self.chat_memory.get_all()) > 0 or self.user_prompt, "Memory input, user prompt or user input cannot be empty."
         
@@ -152,7 +154,9 @@ class PlannerAgent(Workflow):
                 logger.debug(f"  - Planning code executed. Result: {result}")
 
                 await self.chat_memory.aput(ChatMessage(role="user", content=f"Execution Result:\n```\n{result}\n```"))
-                
+
+                self.episodic_memory = self.tools_instance.memory
+
                 tasks = self.task_manager.get_all_tasks()
                 event = PlanCreatedEvent(tasks=tasks)
                 ctx.write_event_to_stream(event)

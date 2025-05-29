@@ -146,7 +146,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         task["status"] = self.task_manager.STATUS_ATTEMPTING
         
         try:
-            handler = codeact_agent.run(input=task_description)
+            handler = codeact_agent.run(input=task_description, episodic_memory=self.tools_instance.memory)
             
             async for nested_ev in handler.stream_events():
                 self.handle_stream_event(nested_ev, ctx)
@@ -232,7 +232,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
             self.step_counter += 1
             logger.debug(f"Planning step {self.step_counter}/{self.max_steps}")
 
-            handler = planner_agent.run()
+            handler = planner_agent.run(episodic_memory=self.tools_instance.memory)
             
             async for nested_ev in handler.stream_events():
                 self.handle_stream_event(nested_ev, ctx)
