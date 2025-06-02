@@ -21,6 +21,7 @@ from droidrun.agent.codeact.prompts import (
 
 from droidrun.tools import Tools
 from typing import Optional, Dict, Tuple, List, Any, Callable
+from droidrun.agent.context.agent_persona import AgentPersona
 
 
 logger = logging.getLogger("droidrun")
@@ -35,11 +36,10 @@ class CodeActAgent(Workflow):
     def __init__(
         self,
         llm: LLM,
+        persona: AgentPersona,
         tools_instance: 'Tools',
-        tool_list: Dict[str, Callable[..., Any]],
+        all_tools_list: Dict[str, Callable[..., Any]],
         max_steps: int = 10,
-        system_prompt: Optional[str] = None,
-        user_prompt: Optional[str] = None,
         debug: bool = False,
         *args,
         **kwargs
@@ -51,7 +51,7 @@ class CodeActAgent(Workflow):
         self.llm = llm
         self.max_steps = max_steps
 
-        self.user_prompt = user_prompt
+        self.user_prompt = persona.user_prompt
         self.no_thoughts_prompt = None
 
         self.chat_memory = None
@@ -63,12 +63,19 @@ class CodeActAgent(Workflow):
         self.debug = debug
 
         self.tools = tools_instance
-        self.tool_list = tool_list
+
+        self.tool_list = {}
+        
+        for tool_name in persona.allowed_tools:
+            if tool_name in all_tools_list:
+                self.tool_list[tool_name] = all_tools_list[tool_name]
+        
         self.tool_descriptions = self.parse_tool_descriptions()
 
-        self.system_prompt_content = (system_prompt or DEFAULT_CODE_ACT_SYSTEM_PROMPT).format(tool_descriptions=self.tool_descriptions)
+        self.system_prompt_content = (persona.system_prompt or DEFAULT_CODE_ACT_SYSTEM_PROMPT).format(tool_descriptions=self.tool_descriptions)
         self.system_prompt = ChatMessage(role="system", content=self.system_prompt_content)
         
+        self.required_context = persona.required_context
 
         self.executor = SimpleCodeExecutor(
             loop=asyncio.get_event_loop(),
@@ -118,6 +125,7 @@ class CodeActAgent(Workflow):
         await ctx.set("chat_memory", self.chat_memory)
         input_messages = self.chat_memory.get_all()
         return TaskInputEvent(input=input_messages)
+    
     @step
     async def handle_llm_input(self, ctx: Context, ev: TaskInputEvent) -> TaskThinkingEvent:
         """Handle LLM input."""
@@ -126,15 +134,29 @@ class CodeActAgent(Workflow):
         ctx.write_event_to_stream(ev)
 
         self.steps_counter += 1
-        logger.info(f"🧠 Step {self.steps_counter}: Thinking...")
+        logger.info(f"🧠 Step {self.steps_counter}: Thinking...")       
         
-        screenshot = (await self.tools.take_screenshot())[1]
-        ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
-        await ctx.set("screenshot", screenshot)
+        model = self.llm.class_name()
+        for context in self.required_context:
+            if context == "screenshot" and model != "DeepSeek":
+                screenshot = (await self.tools.take_screenshot())[1]
+                ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
+                chat_history = await chat_utils.add_screenshot_image_block(screenshot, chat_history)
+                
+            if context == "ui_state":
+                ui_state = await self.tools.get_clickables()
+                await ctx.set("ui_state", ui_state)
+                chat_history = await chat_utils.add_ui_text_block(ui_state, chat_history)
 
-        await ctx.set("ui_state", await self.tools.get_clickables())
-        await ctx.set("phone_state", await self.tools.get_phone_state())
-        await ctx.set("episodic_memory", self.episodic_memory)
+            if context == "phone_state":
+                chat_history = await chat_utils.add_phone_state_block(await self.tools.get_phone_state(), chat_history)
+
+            if context == "packages":
+                chat_history = await chat_utils.add_packages_block(await self.tools.list_packages(include_system_apps=True), chat_history)
+
+            if context == "episodic_memory":
+                chat_history = await chat_utils.add_memory_block(self.episodic_memory, chat_history)
+            
 
         response = await self._get_llm_response(ctx, chat_history)
         await self.chat_memory.aput(response.message)
@@ -235,25 +257,7 @@ class CodeActAgent(Workflow):
         return StopEvent(result=result)
 
     async def _get_llm_response(self, ctx: Context, chat_history: List[ChatMessage]) -> ChatResponse:
-        """Get streaming response from LLM."""
-        logger.debug(f"  - Sending {len(chat_history)} messages to LLM.")
-
-        model = self.llm.class_name()
-        if model != "DeepSeek":
-            chat_history = await chat_utils.add_screenshot_image_block(await ctx.get("screenshot"), chat_history)
-        else:
-            logger.warning("[yellow]DeepSeek doesnt support images. Disabling screenshots[/]")
-
-        episodic_memory = await ctx.get("episodic_memory", default=None)
-        if episodic_memory:
-            chat_history = await chat_utils.add_memory_block(episodic_memory, chat_history)
-
-        chat_history = await chat_utils.add_ui_text_block(await ctx.get("ui_state"), chat_history)
-        chat_history = await chat_utils.add_phone_state_block(await ctx.get("phone_state"), chat_history)
-
-        
         messages_to_send = [self.system_prompt] + chat_history 
-
         messages_to_send = [chat_utils.message_copy(msg) for msg in messages_to_send]
         try:
             response = await self.llm.achat(

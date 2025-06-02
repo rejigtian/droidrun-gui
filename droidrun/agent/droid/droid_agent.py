@@ -16,6 +16,7 @@ from droidrun.agent.utils.trajectory import Trajectory
 from droidrun.tools import load_tools
 from droidrun.agent.common.events import ScreenshotEvent
 from droidrun.agent.common.default import MockWorkflow
+from droidrun.agent.context import ContextInjectionManager
 
 
 logger = logging.getLogger("droidrun")
@@ -84,6 +85,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         self.save_trajectories = save_trajectories
 
         self.task_manager = TaskManager()
+        self.cim = ContextInjectionManager()
 
         logger.info("🤖 Initializing DroidAgent...")
         
@@ -92,17 +94,6 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         self.tools_instance = tools_instance
 
         
-        logger.info("🧠 Initializing CodeAct Agent...")
-        self.codeact_agent = CodeActAgent(
-            llm=llm,
-            max_steps=max_steps,
-            tool_list=tool_list,
-            tools_instance=tools_instance,
-            debug=debug,
-            timeout=timeout,
-        )
-        self.add_workflows(codeact_agent=self.codeact_agent)
-
 
         if self.reasoning:
             logger.info("📝 Initializing Planner Agent...")
@@ -123,11 +114,10 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         logger.info("✅ DroidAgent initialized successfully.")
     
     @step
-    async def _execute_task_with_codeact(
+    async def execute_task(
         self,
         ctx: Context,
-        ev: CodeActExecuteEvent,
-        codeact_agent: Workflow,
+        ev: CodeActExecuteEvent
         ) -> CodeActResultEvent:
         """
         Execute a single task using the CodeActAgent.
@@ -144,8 +134,19 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         
         # Update task status
         task["status"] = self.task_manager.STATUS_ATTEMPTING
-        
+        persona = self.cim.get_persona(task.get("agent_type"))
+
         try:
+
+            codeact_agent = CodeActAgent(
+                llm=self.llm,
+                persona=persona,
+                max_steps=self.max_steps,
+                all_tools_list=self.tool_list,
+                tools_instance=self.tools_instance,
+                debug=self.debug,
+                timeout=self.timeout,
+            )
             handler = codeact_agent.run(input=task_description, episodic_memory=self.tools_instance.memory)
             
             async for nested_ev in handler.stream_events():
@@ -185,7 +186,6 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
             result_info = {
                 "execution_details": ev.reason,
                 "step_executed": self.step_counter,
-                "codeact_steps": self.codeact_agent.steps_counter
             }
             if ev.success:
                 self.task_manager.update_status(
@@ -266,7 +266,6 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
                 if task is None:
                     return ReasoningLogicEvent()
                 if task["status"] == self.task_manager.STATUS_PENDING:
-                    self.codeact_agent.steps_counter = 0
                     await ctx.set("task", task)
                     return CodeActExecuteEvent()
         except Exception as e:
