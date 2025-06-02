@@ -4,7 +4,7 @@ to achieve a user's goal on an Android device.
 """
 
 import logging
-import time
+from typing import List
 
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import step, StartEvent, StopEvent, Workflow, Context
@@ -17,6 +17,8 @@ from droidrun.tools import load_tools
 from droidrun.agent.common.events import ScreenshotEvent
 from droidrun.agent.common.default import MockWorkflow
 from droidrun.agent.context import ContextInjectionManager
+from droidrun.agent.context.agent_persona import AgentPersona
+from droidrun.agent.context.personas import UI_EXPERT, APP_STARTER_EXPERT, DEFAULT
 
 
 logger = logging.getLogger("droidrun")
@@ -31,6 +33,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         self, 
         goal: str,
         llm: LLM,
+        personas: List[AgentPersona] = [DEFAULT],
         max_steps: int = 15,
         timeout: int = 1000,
         max_retries: int = 3,
@@ -79,13 +82,11 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         self.device_serial = device_serial
 
         self.event_counter = 0
+        self.save_trajectories = save_trajectories
         
         self.trajectory = Trajectory()
-
-        self.save_trajectories = save_trajectories
-
         self.task_manager = TaskManager()
-        self.cim = ContextInjectionManager()
+        self.cim = ContextInjectionManager(personas=personas)
 
         logger.info("🤖 Initializing DroidAgent...")
         
@@ -93,13 +94,13 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         self.tool_list = tool_list
         self.tools_instance = tools_instance
 
-        
 
         if self.reasoning:
             logger.info("📝 Initializing Planner Agent...")
             self.planner_agent = PlannerAgent(
                 goal=goal,
                 llm=llm,
+                personas=personas,
                 task_manager=self.task_manager,
                 tools_instance=tools_instance,
                 timeout=timeout,
@@ -292,7 +293,8 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
                 logger.info(f"🔄 Direct execution mode - executing goal: {self.goal}")
                 task = {
                     "description": self.goal,
-                    "status": self.task_manager.STATUS_PENDING
+                    "status": self.task_manager.STATUS_PENDING,
+                    "agent_type": "Default"
                 }
                 
                 await ctx.set("task", task)
