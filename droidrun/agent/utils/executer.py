@@ -7,6 +7,7 @@ from typing import Any, Dict
 from droidrun.agent.utils.async_utils import async_to_sync
 from llama_index.core.workflow import Context
 import asyncio
+from asyncio import AbstractEventLoop
 
 logger = logging.getLogger("droidrun")
 
@@ -20,7 +21,7 @@ class SimpleCodeExecutor:
     NOTE: not safe for production use! Use with caution.
     """
 
-    def __init__(self, loop, locals: Dict[str, Any] = {}, globals: Dict[str, Any] = {}, tools = {}, use_same_scope: bool = True):
+    def __init__(self, loop: AbstractEventLoop, locals: Dict[str, Any] = {}, globals: Dict[str, Any] = {}, tools = {}, use_same_scope: bool = True):
         """
         Initialize the code executor.
 
@@ -87,7 +88,6 @@ class SimpleCodeExecutor:
             with contextlib.redirect_stdout(
                 stdout
             ), contextlib.redirect_stderr(stderr):
-
                 exec(code, self.globals, self.locals)
 
             # Get output
