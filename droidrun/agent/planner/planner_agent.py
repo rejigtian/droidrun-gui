@@ -19,6 +19,7 @@ from droidrun.agent.utils.task_manager import TaskManager
 from droidrun.tools import Tools
 from droidrun.agent.common.events import ScreenshotEvent
 from droidrun.agent.planner.events import PlanInputEvent, PlanCreatedEvent, PlanThinkingEvent
+from droidrun.agent.context.agent_persona import AgentPersona
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -31,8 +32,9 @@ if TYPE_CHECKING:
 
 class PlannerAgent(Workflow):
     def __init__(self,
-                 goal: str,
-                 llm: LLM, 
+                goal: str,
+                llm: LLM, 
+                personas: List[AgentPersona],
                 task_manager: TaskManager,
                 tools_instance: Tools,
                 system_prompt = None,
@@ -55,12 +57,17 @@ class PlannerAgent(Workflow):
         self.current_retry = 0
         self.steps_counter = 0
         
-        self.tools = [self.task_manager.set_tasks_with_agents, self.task_manager.add_task, self.task_manager.get_all_tasks, self.task_manager.clear_tasks, self.task_manager.complete_goal, self.task_manager.start_agent]
+        self.tools = [self.task_manager.set_tasks_with_agents]
 
         self.tools_description = self.parse_tool_descriptions()
         self.tools_instance = tools_instance
 
-        self.system_prompt = system_prompt or DEFAULT_PLANNER_SYSTEM_PROMPT.format(tools_description=self.tools_description)
+        self.personas = personas 
+
+        self.system_prompt = system_prompt or DEFAULT_PLANNER_SYSTEM_PROMPT.format(
+            tools_description=self.tools_description,
+            agents=self.parse_persona_description()
+        )
         self.user_prompt = user_prompt or DEFAULT_PLANNER_USER_PROMPT.format(goal=goal)
         self.system_message = ChatMessage(role="system", content=self.system_prompt)
         self.user_message = ChatMessage(role="user", content=self.user_prompt)
@@ -73,7 +80,28 @@ class PlannerAgent(Workflow):
             tools=self.tools
         )
 
-            
+    def parse_persona_description(self) -> str:
+        """Parses the available agent personas and their descriptions for the system prompt."""
+        logger.debug("👥 Parsing agent persona descriptions for Planner Agent...")
+        
+        if not self.personas:
+            logger.warning("No agent personas provided to Planner Agent")
+            return "No specialized agents available."
+        
+        persona_descriptions = []
+        for persona in self.personas:
+            # Format each persona with name, description, and expertise areas
+            expertise_list = ", ".join(persona.expertise_areas) if persona.expertise_areas else "General tasks"
+            formatted_persona = f"- **{persona.name}**: {persona.description}\n  Expertise: {expertise_list}"
+            persona_descriptions.append(formatted_persona)
+            logger.debug(f"  - Parsed persona: {persona.name}")
+        
+        # Join all persona descriptions into a single string
+        descriptions = "\n".join(persona_descriptions)
+        logger.debug(f"👤 Found {len(persona_descriptions)} agent personas.")
+        return descriptions
+    
+
     def parse_tool_descriptions(self) -> str:
         """Parses the available tools and their descriptions for the system prompt."""
         logger.debug("🛠️ Parsing tool descriptions for Planner Agent...")
@@ -158,6 +186,12 @@ class PlannerAgent(Workflow):
                 self.episodic_memory = self.tools_instance.memory
 
                 tasks = self.task_manager.get_all_tasks()
+                logger.info(f"📋 Current plan created with {len(tasks)} tasks:")
+                for i, task in enumerate(tasks):
+                    logger.info(f"  Task {i}: [{task['status'].upper()}] [{task['agent_type']}] {task['description']}")
+                    if 'context' in task:
+                        logger.debug(f"    Context: {task['context']}")
+                
                 event = PlanCreatedEvent(tasks=tasks)
                 ctx.write_event_to_stream(event)
                     

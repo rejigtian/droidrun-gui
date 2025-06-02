@@ -14,7 +14,6 @@ from droidrun.agent.common.events import ScreenshotEvent
 from droidrun.agent.utils import chat_utils
 from droidrun.agent.utils.executer import SimpleCodeExecutor
 from droidrun.agent.codeact.prompts import (
-    DEFAULT_CODE_ACT_SYSTEM_PROMPT, 
     DEFAULT_CODE_ACT_USER_PROMPT, 
     DEFAULT_NO_THOUGHTS_PROMPT
 )
@@ -72,7 +71,7 @@ class CodeActAgent(Workflow):
         
         self.tool_descriptions = self.parse_tool_descriptions()
 
-        self.system_prompt_content = (persona.system_prompt or DEFAULT_CODE_ACT_SYSTEM_PROMPT).format(tool_descriptions=self.tool_descriptions)
+        self.system_prompt_content = persona.system_prompt.format(tool_descriptions=self.tool_descriptions)
         self.system_prompt = ChatMessage(role="system", content=self.system_prompt_content)
         
         self.required_context = persona.required_context
