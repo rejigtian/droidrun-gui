@@ -50,7 +50,8 @@ class EventHandler:
                 task_count = len(event.tasks) if event.tasks else 0
                 self.logs.append(f"📋 Plan created with {task_count} tasks")
                 for task in event.tasks:
-                    self.logs.append(f"- {task["description"]}")
+                    desc = task.get("description")
+                    self.logs.append(f"- {desc}")
                 self.current_step = f"Plan ready ({task_count} tasks)"
         
         # CodeAct events  
