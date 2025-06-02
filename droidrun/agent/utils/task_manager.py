@@ -3,7 +3,7 @@ from typing import List, Dict, Any, Optional
 
 class TaskManager:
     """
-    Manages a list of tasks for an agent, each with a status.
+    Manages a list of tasks for an agent, each with a status and assigned specialized agent.
     """
     STATUS_PENDING = "pending"      
     STATUS_ATTEMPTING = "attempting"
@@ -16,6 +16,13 @@ class TaskManager:
         STATUS_COMPLETED,
         STATUS_FAILED
     }
+    
+    # Available specialized agents
+    AVAILABLE_AGENTS = {
+        "UIExpert",      # For UI interactions, navigation, form filling
+        "AppStarterExpert"  # For app launching and startup tasks
+    }
+    
     file_path = os.path.join(os.path.expanduser("~"), "Desktop", "todo.txt")
     def __init__(self):
         """Initializes an empty task list."""
@@ -29,14 +36,16 @@ class TaskManager:
         self.file_path = os.path.join(os.path.expanduser("~"), "Desktop", "todo.txt")
 
     # self.tasks is a property, make a getter and setter for it
-    def set_tasks(self, tasks: List[str], task_contexts: Optional[List[Dict[str, Any]]] = None):
+    def set_tasks(self, tasks: List[str], task_contexts: Optional[List[Dict[str, Any]]] = None, agent_types: Optional[List[str]] = None):
         """
         Clears the current task list and sets new tasks from a list.
-        Each task should be a string.
+        Each task should be a string with an optional assigned specialized agent.
 
         Args:
             tasks: A list of strings, each representing a task.
             task_contexts: Optional list of context dictionaries for each task.
+            agent_types: Optional list of specialized agent types for each task.
+                        Must be one of AVAILABLE_AGENTS. Defaults to "UIExpert" if not specified.
         """
         try:
             # Save any completed or failed tasks before clearing the list
@@ -54,9 +63,18 @@ class TaskManager:
                 if not isinstance(task, str) or not task.strip():
                     raise ValueError("Each task must be a non-empty string.")
                 
+                # Determine the agent type for this task
+                agent_type = "UIExpert"  # Default agent
+                if agent_types and i < len(agent_types):
+                    if agent_types[i] in self.AVAILABLE_AGENTS:
+                        agent_type = agent_types[i]
+                    else:
+                        print(f"Warning: Invalid agent type '{agent_types[i]}' for task {i}. Using default 'UIExpert'.")
+                
                 task_dict = {
                     "description": task.strip(), 
-                    "status": self.STATUS_PENDING
+                    "status": self.STATUS_PENDING,
+                    "agent_type": agent_type
                 }
                 
                 # Add context if provided
@@ -65,31 +83,37 @@ class TaskManager:
                 
                 self.tasks.append(task_dict)
  
-            print(f"Tasks set: {len(self.tasks)} tasks added.")
+            print(f"Tasks set: {len(self.tasks)} tasks added with specialized agents.")
             self.save_to_file()
         except Exception as e:
             print(f"Error setting tasks: {e}")
 
-    def add_task(self, task_description: str, task_context: Optional[Dict[str, Any]] = None):
+    def add_task(self, task_description: str, task_context: Optional[Dict[str, Any]] = None, agent_type: str = "UIExpert"):
         """
-        Adds a new task to the list with a 'pending' status.
+        Adds a new task to the list with a 'pending' status and assigned specialized agent.
 
         Args:
             task_description: The string describing the task.
             task_context: Optional dictionary with context for the task.
+            agent_type: The specialized agent type to handle this task. 
+                       Must be one of AVAILABLE_AGENTS. Defaults to "UIExpert".
 
         Returns:
             int: The index of the newly added task.
 
         Raises:
-            ValueError: If the task_description is empty or not a string.
+            ValueError: If the task_description is empty or not a string, or if agent_type is invalid.
         """
         if not isinstance(task_description, str) or not task_description.strip():
             raise ValueError("Task description must be a non-empty string.")
+            
+        if agent_type not in self.AVAILABLE_AGENTS:
+            raise ValueError(f"Invalid agent type '{agent_type}'. Must be one of: {', '.join(self.AVAILABLE_AGENTS)}")
 
         task = {
             "description": task_description.strip(),
-            "status": self.STATUS_PENDING
+            "status": self.STATUS_PENDING,
+            "agent_type": agent_type
         }
         
         # Add context if provided
@@ -98,7 +122,7 @@ class TaskManager:
 
         self.tasks.append(task)
         self.save_to_file()
-        print(f"Task added: {task_description} (Status: {self.STATUS_PENDING})")
+        print(f"Task added: {task_description} (Agent: {agent_type}, Status: {self.STATUS_PENDING})")
         
         return len(self.tasks) - 1 # Return the index of the new task
 
@@ -128,7 +152,7 @@ class TaskManager:
             list[dict]: A list containing all task dictionaries.
                       Returns an empty list if no tasks exist.
         """
-        return list(self.tasks) # Return a copy to prevent external modification
+        return self.tasks
 
     def update_status(self, index: int, new_status: str, result_info: Optional[Dict[str, Any]] = None):
         """
@@ -255,7 +279,8 @@ class TaskManager:
         output = "Task List:\n"
         output += "----------\n"
         for i, task in enumerate(self.tasks):
-            output += f"{i}: [{task['status'].upper():<10}] {task['description']}\n"
+            agent_type = task.get("agent_type", "UIExpert")
+            output += f"{i}: [{task['status'].upper():<10}] [{agent_type}] {task['description']}\n"
         output += "----------"
         return output
 
@@ -351,3 +376,72 @@ Args:
                 all_failed.append(task)
         
         return all_failed
+
+    def get_tasks_by_agent_type(self, agent_type: str):
+        """
+        Filters and returns tasks assigned to a specific agent type.
+
+        Args:
+            agent_type: The agent type to filter by.
+
+        Returns:
+            list[dict]: A list of tasks assigned to the specified agent type.
+
+        Raises:
+            ValueError: If the agent_type is not valid.
+        """
+        if agent_type not in self.AVAILABLE_AGENTS:
+            raise ValueError(f"Invalid agent type '{agent_type}'. Valid agent types are: {', '.join(self.AVAILABLE_AGENTS)}")
+        return [task for task in self.tasks if task.get("agent_type") == agent_type]
+
+    def set_tasks_with_agents(self, task_assignments: List[Dict[str, str]]):
+        """
+        Clears the current task list and sets new tasks with their assigned agents.
+        
+        Args:
+            task_assignments: A list of dictionaries, each containing:
+                            - 'task': The task description string
+                            - 'agent': The agent type (one of AVAILABLE_AGENTS)
+                            
+        Example:
+            task_manager.set_tasks_with_agents([
+                {'task': 'Open Gmail app', 'agent': 'AppStarterExpert'},
+                {'task': 'Navigate to compose email', 'agent': 'UIExpert'}
+            ])
+        """
+        try:
+            # Save any completed or failed tasks before clearing the list
+            for task in self.tasks:
+                if task["status"] == self.STATUS_COMPLETED and task not in self.persistent_completed_tasks:
+                    self.persistent_completed_tasks.append(task.copy())
+                elif task["status"] == self.STATUS_FAILED and task not in self.persistent_failed_tasks:
+                    self.persistent_failed_tasks.append(task.copy())
+            
+            # Clear the task list and add new tasks
+            self.tasks = []
+            for i, assignment in enumerate(task_assignments):
+                if not isinstance(assignment, dict) or 'task' not in assignment:
+                    raise ValueError(f"Each task assignment must be a dictionary with 'task' key at index {i}.")
+                
+                task_description = assignment['task']
+                if not isinstance(task_description, str) or not task_description.strip():
+                    raise ValueError(f"Task description must be a non-empty string at index {i}.")
+                
+                # Get agent type, default to UIExpert if not specified or invalid
+                agent_type = assignment.get('agent', 'UIExpert')
+                if agent_type not in self.AVAILABLE_AGENTS:
+                    print(f"Warning: Invalid agent type '{agent_type}' for task {i}. Using default 'UIExpert'.")
+                    agent_type = 'UIExpert'
+                
+                task_dict = {
+                    "description": task_description.strip(),
+                    "status": self.STATUS_PENDING,
+                    "agent_type": agent_type
+                }
+                
+                self.tasks.append(task_dict)
+            
+            print(f"Tasks set with agents: {len(self.tasks)} tasks added.")
+            self.save_to_file()
+        except Exception as e:
+            print(f"Error setting tasks with agents: {e}")

@@ -55,7 +55,7 @@ class PlannerAgent(Workflow):
         self.current_retry = 0
         self.steps_counter = 0
         
-        self.tools = [self.task_manager.set_tasks, self.task_manager.add_task, self.task_manager.get_all_tasks, self.task_manager.clear_tasks, self.task_manager.complete_goal, self.task_manager.start_agent]
+        self.tools = [self.task_manager.set_tasks_with_agents, self.task_manager.add_task, self.task_manager.get_all_tasks, self.task_manager.clear_tasks, self.task_manager.complete_goal, self.task_manager.start_agent]
 
         self.tools_description = self.parse_tool_descriptions()
         self.tools_instance = tools_instance
@@ -164,11 +164,11 @@ class PlannerAgent(Workflow):
                 return event
             
             except Exception as e:
-                await self.chat_memory.aput(ChatMessage(role="user", content=f"Please either set new tasks using set_tasks() or mark the goal as complete using complete_goal() if done."))
+                await self.chat_memory.aput(ChatMessage(role="user", content=f"Please either set new tasks using set_tasks_with_agents() or mark the goal as complete using complete_goal() if done."))
                 logger.debug("🔄 Waiting for next plan or completion.")
                 return PlanInputEvent(input=self.chat_memory.get_all())
         else:
-            await self.chat_memory.aput(ChatMessage(role="user", content=f"Please either set new tasks using set_tasks() or mark the goal as complete using complete_goal() if done."))
+            await self.chat_memory.aput(ChatMessage(role="user", content=f"Please either set new tasks using set_tasks_with_agents() or mark the goal as complete using complete_goal() if done."))
             logger.debug("🔄 Waiting for next plan or completion.")
             return PlanInputEvent(input=self.chat_memory.get_all())
         

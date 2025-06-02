@@ -53,6 +53,14 @@ async def add_phone_state_block(phone_state, chat_history: List[ChatMessage]) ->
     chat_history[-1].blocks.append(ui_block)
     return chat_history
 
+async def add_packages_block(packages, chat_history: List[ChatMessage]) -> List[ChatMessage]:
+    
+    ui_block = TextBlock(text=f"\nInstalled packages: {packages}\n```\n")
+    chat_history = chat_history.copy()
+    chat_history[-1] = message_copy(chat_history[-1])
+    chat_history[-1].blocks.append(ui_block)
+    return chat_history
+
 async def add_memory_block(memory: List[str], chat_history: List[ChatMessage]) -> List[ChatMessage]:
     memory_block = "\n### Remembered Information:\n"
     for idx, item in enumerate(memory, 1):
