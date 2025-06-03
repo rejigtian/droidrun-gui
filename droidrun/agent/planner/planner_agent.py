@@ -57,16 +57,17 @@ class PlannerAgent(Workflow):
         self.current_retry = 0
         self.steps_counter = 0
         
-        self.tools = [self.task_manager.set_tasks_with_agents]
-
-        self.tools_description = self.parse_tool_descriptions()
+        self.tool_list = {}
+        self.tool_list[self.task_manager.set_tasks_with_agents.__name__] = self.task_manager.set_tasks_with_agents
+        
+        self.tools_description = chat_utils.parse_tool_descriptions(self.tool_list)
         self.tools_instance = tools_instance
 
         self.personas = personas 
 
         self.system_prompt = system_prompt or DEFAULT_PLANNER_SYSTEM_PROMPT.format(
             tools_description=self.tools_description,
-            agents=self.parse_persona_description()
+            agents=chat_utils.parse_persona_description(self.personas)
         )
         self.user_prompt = user_prompt or DEFAULT_PLANNER_USER_PROMPT.format(goal=goal)
         self.system_message = ChatMessage(role="system", content=self.system_prompt)
@@ -77,49 +78,8 @@ class PlannerAgent(Workflow):
             loop=asyncio.get_event_loop(),
             globals={},
             locals={},
-            tools=self.tools
+            tools=self.tool_list
         )
-
-    def parse_persona_description(self) -> str:
-        """Parses the available agent personas and their descriptions for the system prompt."""
-        logger.debug("👥 Parsing agent persona descriptions for Planner Agent...")
-        
-        if not self.personas:
-            logger.warning("No agent personas provided to Planner Agent")
-            return "No specialized agents available."
-        
-        persona_descriptions = []
-        for persona in self.personas:
-            # Format each persona with name, description, and expertise areas
-            expertise_list = ", ".join(persona.expertise_areas) if persona.expertise_areas else "General tasks"
-            formatted_persona = f"- **{persona.name}**: {persona.description}\n  Expertise: {expertise_list}"
-            persona_descriptions.append(formatted_persona)
-            logger.debug(f"  - Parsed persona: {persona.name}")
-        
-        # Join all persona descriptions into a single string
-        descriptions = "\n".join(persona_descriptions)
-        logger.debug(f"👤 Found {len(persona_descriptions)} agent personas.")
-        return descriptions
-    
-
-    def parse_tool_descriptions(self) -> str:
-        """Parses the available tools and their descriptions for the system prompt."""
-        logger.debug("🛠️ Parsing tool descriptions for Planner Agent...")
-        tool_descriptions = []
-        for tool in self.tools:
-            assert callable(tool), f"Tool {tool} is not callable."
-            tool_name = tool.__name__
-            tool_signature = inspect.signature(tool)
-            tool_docstring = tool.__doc__ or "No description available."
-            # Format the function signature and docstring
-            formatted_signature = f"def {tool_name}{tool_signature}:\n    \"\"\"{tool_docstring}\"\"\"\n..."
-            tool_descriptions.append(formatted_signature)
-            logger.debug(f"  - Parsed tool: {tool_name}")
-        # Join all tool descriptions into a single string
-        descriptions = "\n".join(tool_descriptions)
-        logger.debug(f"🔩 Found {len(tool_descriptions)} tools.")
-        return descriptions
-    
 
     @step
     async def prepare_chat(self, ctx: Context, ev: StartEvent) -> PlanInputEvent:

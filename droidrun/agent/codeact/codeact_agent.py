@@ -1,6 +1,5 @@
 import logging
 import re
-import inspect
 import time
 import asyncio
 from typing import List, Optional, Tuple, Union
@@ -69,7 +68,7 @@ class CodeActAgent(Workflow):
             if tool_name in all_tools_list:
                 self.tool_list[tool_name] = all_tools_list[tool_name]
         
-        self.tool_descriptions = self.parse_tool_descriptions()
+        self.tool_descriptions = chat_utils.parse_tool_descriptions(self.tool_list)
 
         self.system_prompt_content = persona.system_prompt.format(tool_descriptions=self.tool_descriptions)
         self.system_prompt = ChatMessage(role="system", content=self.system_prompt_content)
@@ -85,22 +84,6 @@ class CodeActAgent(Workflow):
 
         logger.info("✅ CodeActAgent initialized successfully.")
 
-    def parse_tool_descriptions(self) -> str:
-        """Parses the available tools and their descriptions for the system prompt."""
-        logger.info("🛠️ Parsing tool descriptions...")
-        tool_descriptions = []
-        
-        for tool in self.tool_list.values():
-            assert callable(tool), f"Tool {tool} is not callable."
-            tool_name = tool.__name__
-            tool_signature = inspect.signature(tool)
-            tool_docstring = tool.__doc__ or "No description available."
-            formatted_signature = f"def {tool_name}{tool_signature}:\n    \"\"\"{tool_docstring}\"\"\"\n..."
-            tool_descriptions.append(formatted_signature)
-            logger.debug(f"  - Parsed tool: {tool_name}")
-        descriptions = "\n".join(tool_descriptions)
-        logger.info(f"🔩 Found {len(tool_descriptions)} tools.")
-        return descriptions
 
     @step
     async def prepare_chat(self, ctx: Context, ev: StartEvent) -> TaskInputEvent:
