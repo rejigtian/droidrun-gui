@@ -8,6 +8,7 @@ from droidrun.agent.utils.async_utils import async_to_sync
 from llama_index.core.workflow import Context
 import asyncio
 from asyncio import AbstractEventLoop
+import threading
 
 logger = logging.getLogger("droidrun")
 
@@ -88,7 +89,11 @@ class SimpleCodeExecutor:
             with contextlib.redirect_stdout(
                 stdout
             ), contextlib.redirect_stderr(stderr):
-                exec(code, self.globals, self.locals)
+                def execute_code():
+                    exec(code, self.globals, self.locals)
+                t = threading.Thread(target=execute_code)
+                t.start()
+                t.join()
 
             # Get output
             output = stdout.getvalue()
