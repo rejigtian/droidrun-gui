@@ -1,5 +1,4 @@
 import asyncio
-import threading
 
 def async_to_sync(func):
     """
@@ -13,16 +12,6 @@ def async_to_sync(func):
     """
 
     def wrapper(*args, **kwargs):
-        coro = func(*args, **kwargs)
-
-        result_container = {}
-        def runner():
-            result = asyncio.run(coro)
-            result_container['result'] = result
-
-        t = threading.Thread(target=runner)
-        t.start()
-        t.join()
-        return result_container['result']
+        return asyncio.run(func(*args, **kwargs))
 
     return wrapper
