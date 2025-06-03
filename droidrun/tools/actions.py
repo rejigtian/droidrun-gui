@@ -142,8 +142,15 @@ class Tools:
                     
                     # Check if we found the file path
                     if not device_path:
-                        await asyncio.sleep(retry_interval)
-                        continue
+                        # logcat没拿到，直接尝试固定路径
+                        fallback_path = "/storage/emulated/0/Android/data/com.droidrun.portal/files/element_data.json"
+                        try:
+                            await device._adb.pull_file(device._serial, fallback_path, local_path)
+                            device_path = fallback_path
+                        except Exception as e:
+                            # 拉不到就继续重试
+                            await asyncio.sleep(retry_interval)
+                            continue
                         
                     # Pull the JSON file from the device
                     await device._adb.pull_file(device._serial, device_path, local_path)

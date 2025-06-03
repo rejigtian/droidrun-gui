@@ -276,6 +276,7 @@ class CodeActAgent(Workflow):
                     )
             else:
                 logger.error(f"Error getting LLM response: {e}")
+                raise
         logger.debug("  - Received response from LLM.")
         return response
     

@@ -7,9 +7,9 @@ from .apikey_manager import APIKeyManager
 
 def get_portal_apk_path():
     if hasattr(sys, '_MEIPASS'):
-        return os.path.join(sys._MEIPASS, 'resources', 'droidrun-portal-v0.1.1.apk')
+        return os.path.join(sys._MEIPASS, 'resources', 'droidrun-portal-v0.2.1.apk')
     else:
-        return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "resources", "droidrun-portal-v0.1.1.apk"))
+        return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "resources", "droidrun-portal-v0.2.1.apk"))
 PORTAL_APK_PATH = get_portal_apk_path()
 
 def get_droidrun_cli_path():
@@ -82,11 +82,13 @@ class TaskExecutor(QObject):
         
     def get_llm_provider(self, model_name):
         if "OpenAI" in model_name:
-            return "openai", "gpt-4"
+            return "OpenAI", "gpt-4"
         elif "Anthropic" in model_name:
-            return "anthropic", "claude-3-sonnet-20240229"
+            return "Anthropic", "claude-3-sonnet-20240229"
+        elif "Gemini" in model_name or "gemini" in model_name:
+            return "Gemini", "gemini-2.0-flash"
         else:
-            return "gemini", "gemini-2.0-flash"
+            return "Gemini", "gemini-2.0-flash"
 
     def start_task(self, task_description, model_name, device_id, steps=15):
         provider, model = self.get_llm_provider(model_name)
