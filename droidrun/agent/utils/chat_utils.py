@@ -1,5 +1,7 @@
 import base64
 import re
+import inspect
+
 
 import json
 import logging
@@ -107,6 +109,44 @@ async def add_task_history_block(completed_tasks: list[dict], failed_tasks: list
     chat_history[-1].blocks.append(task_block)
     return chat_history
 
+def parse_tool_descriptions(tool_list) -> str:
+    """Parses the available tools and their descriptions for the system prompt."""
+    logger.info("🛠️ Parsing tool descriptions...")
+    tool_descriptions = []
+    
+    for tool in tool_list.values():
+        assert callable(tool), f"Tool {tool} is not callable."
+        tool_name = tool.__name__
+        tool_signature = inspect.signature(tool)
+        tool_docstring = tool.__doc__ or "No description available."
+        formatted_signature = f"def {tool_name}{tool_signature}:\n    \"\"\"{tool_docstring}\"\"\"\n..."
+        tool_descriptions.append(formatted_signature)
+        logger.debug(f"  - Parsed tool: {tool_name}")
+    descriptions = "\n".join(tool_descriptions)
+    logger.info(f"🔩 Found {len(tool_descriptions)} tools.")
+    return descriptions
+
+
+def parse_persona_description(personas) -> str:
+    """Parses the available agent personas and their descriptions for the system prompt."""
+    logger.debug("👥 Parsing agent persona descriptions for Planner Agent...")
+    
+    if not personas:
+        logger.warning("No agent personas provided to Planner Agent")
+        return "No specialized agents available."
+    
+    persona_descriptions = []
+    for persona in personas:
+        # Format each persona with name, description, and expertise areas
+        expertise_list = ", ".join(persona.expertise_areas) if persona.expertise_areas else "General tasks"
+        formatted_persona = f"- **{persona.name}**: {persona.description}\n  Expertise: {expertise_list}"
+        persona_descriptions.append(formatted_persona)
+        logger.debug(f"  - Parsed persona: {persona.name}")
+    
+    # Join all persona descriptions into a single string
+    descriptions = "\n".join(persona_descriptions)
+    logger.debug(f"👤 Found {len(persona_descriptions)} agent personas.")
+    return descriptions
 
 
 def extract_code_and_thought(response_text: str) -> Tuple[Optional[str], str]:
