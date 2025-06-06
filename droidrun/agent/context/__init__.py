@@ -8,8 +8,16 @@ This module contains:
 
 from .agent_persona import AgentPersona
 from .context_injection_manager import ContextInjectionManager
+from .episodic_memory import EpisodicMemory, EpisodicMemoryStep
+from .reflection import Reflection
+from .task_manager import TaskManager, Task
 
 __all__ = [
     "AgentPersona",
-    "ContextInjectionManager"
+    "ContextInjectionManager",
+    "EpisodicMemory",
+    "EpisodicMemoryStep",
+    "Reflection",
+    "TaskManager",
+    "Task"
 ]
