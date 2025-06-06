@@ -15,7 +15,7 @@ from llama_index.core.memory import Memory
 from llama_index.core.llms.llm import LLM
 from droidrun.agent.utils.executer import SimpleCodeExecutor
 from droidrun.agent.utils import chat_utils
-from droidrun.agent.utils.task_manager import TaskManager
+from droidrun.agent.context.task_manager import TaskManager
 from droidrun.tools import Tools
 from droidrun.agent.common.events import ScreenshotEvent
 from droidrun.agent.planner.events import PlanInputEvent, PlanCreatedEvent, PlanThinkingEvent
@@ -59,6 +59,7 @@ class PlannerAgent(Workflow):
         
         self.tool_list = {}
         self.tool_list[self.task_manager.set_tasks_with_agents.__name__] = self.task_manager.set_tasks_with_agents
+        self.tool_list[self.task_manager.complete_goal.__name__] = self.task_manager.complete_goal
         
         self.tools_description = chat_utils.parse_tool_descriptions(self.tool_list)
         self.tools_instance = tools_instance
@@ -148,9 +149,7 @@ class PlannerAgent(Workflow):
                 tasks = self.task_manager.get_all_tasks()
                 logger.info(f"📋 Current plan created with {len(tasks)} tasks:")
                 for i, task in enumerate(tasks):
-                    logger.info(f"  Task {i}: [{task['status'].upper()}] [{task['agent_type']}] {task['description']}")
-                    if 'context' in task:
-                        logger.debug(f"    Context: {task['context']}")
+                    logger.info(f"  Task {i}: [{task.status.upper()}] [{task.agent_type}] {task.description}")
                 
                 event = PlanCreatedEvent(tasks=tasks)
                 ctx.write_event_to_stream(event)
@@ -158,6 +157,7 @@ class PlannerAgent(Workflow):
                 return event
             
             except Exception as e:
+                logger.debug(f"error handling Planner: {e}")
                 await self.chat_memory.aput(ChatMessage(role="user", content=f"Please either set new tasks using set_tasks_with_agents() or mark the goal as complete using complete_goal() if done."))
                 logger.debug("🔄 Waiting for next plan or completion.")
                 return PlanInputEvent(input=self.chat_memory.get_all())
