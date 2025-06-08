@@ -2,13 +2,15 @@ import logging
 import re
 import time
 import asyncio
+import json
+import os
 from typing import List, Optional, Tuple, Union
 from llama_index.core.base.llms.types import ChatMessage, ChatResponse
 from llama_index.core.prompts import PromptTemplate
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Workflow, StartEvent, StopEvent, Context, step
 from llama_index.core.memory import Memory
-from droidrun.agent.codeact.events import TaskInputEvent, TaskEndEvent, TaskExecutionEvent, TaskExecutionResultEvent, TaskThinkingEvent
+from droidrun.agent.codeact.events import TaskInputEvent, TaskEndEvent, TaskExecutionEvent, TaskExecutionResultEvent, TaskThinkingEvent, EpisodicMemoryEvent
 from droidrun.agent.common.events import ScreenshotEvent
 from droidrun.agent.utils import chat_utils
 from droidrun.agent.utils.executer import SimpleCodeExecutor
@@ -17,10 +19,10 @@ from droidrun.agent.codeact.prompts import (
     DEFAULT_NO_THOUGHTS_PROMPT
 )
 
+from droidrun.agent.context.episodic_memory import EpisodicMemory, EpisodicMemoryStep
 from droidrun.tools import Tools
 from typing import Optional, Dict, Tuple, List, Any, Callable
 from droidrun.agent.context.agent_persona import AgentPersona
-
 
 logger = logging.getLogger("droidrun")
 
@@ -37,7 +39,7 @@ class CodeActAgent(Workflow):
         persona: AgentPersona,
         tools_instance: 'Tools',
         all_tools_list: Dict[str, Callable[..., Any]],
-        max_steps: int = 10,
+        max_steps: int = 5,
         debug: bool = False,
         *args,
         **kwargs
@@ -53,7 +55,7 @@ class CodeActAgent(Workflow):
         self.no_thoughts_prompt = None
 
         self.chat_memory = None
-        self.episodic_memory = None
+        self.episodic_memory = EpisodicMemory(persona=persona)
 
         self.goal = None
         self.steps_counter = 0
@@ -92,9 +94,6 @@ class CodeActAgent(Workflow):
 
         self.chat_memory: Memory = await ctx.get("chat_memory", default=Memory.from_defaults())
         
-        if ev.episodic_memory:
-            self.episodic_memory = ev.episodic_memory
-
         user_input = ev.get("input", default=None)
         assert user_input, "User input cannot be empty."
 
@@ -102,18 +101,30 @@ class CodeActAgent(Workflow):
         goal = user_input
         self.user_message = ChatMessage(role="user", content=PromptTemplate(self.user_prompt or DEFAULT_CODE_ACT_USER_PROMPT).format(goal=goal))
         self.no_thoughts_prompt = ChatMessage(role="user", content=PromptTemplate(DEFAULT_NO_THOUGHTS_PROMPT).format(goal=goal))
+
+        if ev.reflection:
+            reflection_message = await chat_utils.get_reflection_block([ev.reflection])
+            self.user_message.content += reflection_message.content
+
+
         await self.chat_memory.aput(self.user_message)
+
 
         await ctx.set("chat_memory", self.chat_memory)
         input_messages = self.chat_memory.get_all()
         return TaskInputEvent(input=input_messages)
     
     @step
-    async def handle_llm_input(self, ctx: Context, ev: TaskInputEvent) -> TaskThinkingEvent:
+    async def handle_llm_input(self, ctx: Context, ev: TaskInputEvent) -> TaskThinkingEvent | TaskEndEvent:
         """Handle LLM input."""
         chat_history = ev.input
         assert len(chat_history) > 0, "Chat history cannot be empty."
         ctx.write_event_to_stream(ev)
+
+        if self.steps_counter >= self.max_steps:
+            ev = TaskEndEvent(success=False, reason=f"Reached max step count of {self.max_steps} steps")
+            ctx.write_event_to_stream(ev)
+            return ev
 
         self.steps_counter += 1
         logger.info(f"🧠 Step {self.steps_counter}: Thinking...")       
@@ -136,9 +147,7 @@ class CodeActAgent(Workflow):
             if context == "packages":
                 chat_history = await chat_utils.add_packages_block(await self.tools.list_packages(include_system_apps=True), chat_history)
 
-            if context == "episodic_memory":
-                chat_history = await chat_utils.add_memory_block(self.episodic_memory, chat_history)
-            
+
 
         response = await self._get_llm_response(ctx, chat_history)
         await self.chat_memory.aput(response.message)
@@ -188,7 +197,7 @@ class CodeActAgent(Workflow):
                 ctx.write_event_to_stream(event)
                 return event
             
-            self.episodic_memory = self.tools.memory
+            #self.episodic_memory = self.tools.memory
             
             event = TaskExecutionResultEvent(output=str(result))
             ctx.write_event_to_stream(event)
@@ -236,6 +245,8 @@ class CodeActAgent(Workflow):
             "code_executions": self.code_exec_counter
         })
         
+        ctx.write_event_to_stream(EpisodicMemoryEvent(episodic_memory=self.episodic_memory))
+
         return StopEvent(result=result)
 
     async def _get_llm_response(self, ctx: Context, chat_history: List[ChatMessage]) -> ChatResponse:
@@ -245,6 +256,26 @@ class CodeActAgent(Workflow):
             response = await self.llm.achat(
                 messages=messages_to_send
             )
+
+            filtered_chat_history = []
+            for msg in chat_history:
+                filtered_msg = chat_utils.message_copy(msg)
+                if hasattr(filtered_msg, 'blocks') and filtered_msg.blocks:
+                    filtered_msg.blocks = [block for block in filtered_msg.blocks if not isinstance(block, chat_utils.ImageBlock)]
+                filtered_chat_history.append(filtered_msg)
+
+            # Convert chat history and response to JSON strings
+            chat_history_str = json.dumps([{"role": msg.role, "content": msg.content} for msg in filtered_chat_history])
+            response_str = json.dumps({"role": response.message.role, "content": response.message.content})
+
+            step = EpisodicMemoryStep(
+                chat_history=chat_history_str,
+                response=response_str,
+                timestamp=time.time()
+            )
+            
+            self.episodic_memory.steps.append(step)
+            
             assert hasattr(response, "message"), f"LLM response does not have a message attribute.\nResponse: {response}"
         except Exception as e:
             if self.llm.class_name() == "Gemini_LLM" and "You exceeded your current quota" in str(e):
