@@ -8,6 +8,9 @@ each with specific system prompts, contexts, and tool subsets tailored for speci
 import logging
 from typing import Optional, List
 from droidrun.agent.context.agent_persona import AgentPersona
+import chromadb
+import json
+from pathlib import Path
 
 logger = logging.getLogger("droidrun")
 
@@ -15,45 +18,52 @@ logger = logging.getLogger("droidrun")
 class ContextInjectionManager:
     """
     Manages different agent personas with specialized contexts and tool subsets.
-    
+
     This class is responsible for:
     - Defining agent personas with specific capabilities
     - Injecting appropriate system prompts based on agent type
     - Filtering tool lists to match agent specialization
     - Providing context-aware configurations for CodeActAgent instances
     """
-    
-    def __init__(
-            self,
-            personas: List[AgentPersona]
-        ):
+
+    def __init__(self):
         """Initialize the Context Injection Manager with predefined personas."""
+        self.client = chromadb.PersistentClient(path=str(Path.home() / ".droidrun" / "registry"))
+        self.collection = self.client.get_collection("personas")
 
-        self.personas = {}
+        logger.info(f"🎭 ContextInjectionManager initialized with {0} personas")
 
-        for persona in personas:
-            self.personas[persona.name] = persona
+    def _load_persona(self, data: str) -> AgentPersona:
+        persona = json.loads(data)
+        logger.info(f"🎭 Loaded persona: {persona['name']}")
+        return AgentPersona(
+            name=persona['name'],
+            system_prompt=persona['system_prompt'],
+            allowed_tools=persona['allowed_tools'],
+            description=persona['description'],
+            expertise_areas=persona['expertise_areas'],
+            user_prompt=persona['user_prompt'],
+            required_context=persona['required_context'],
+        )
 
-        logger.info(f"🎭 ContextInjectionManager initialized with {len(self.personas)} personas")
-    
-    def get_persona(self, agent_type: str) -> Optional[AgentPersona]:
+    def get_persona(self, agent_name: str) -> Optional[AgentPersona]:
         """
         Get a specific agent persona by type.
-        
+
         Args:
             agent_type: The type of agent ("UIExpert" or "AppStarterExpert")
-            
+
         Returns:
             AgentPersona instance or None if not found
         """
-        return self.personas.get(agent_type)
-    
-    def get_all_personas(self) -> List[str]:
-        """
-        Get list of available agent persona names.
-        
-        Returns:
-            List of available persona names
-        """
-        return self.personas
-    
+        print(f"🎭 Getting persona: {agent_name}")
+        result = self.collection.get(ids=[agent_name])
+        return self._load_persona(result.get("documents")[0])
+
+    def list_personas(self, task: str) -> List[AgentPersona]:
+        logger.info(f"🎭 Listing personas for task: {task}")
+        result = self.collection.query(query_texts=[task], n_results=10)
+        logger.info(
+            f"🎭 Found {len(result.get('documents'))} personas for task: {task}"
+        )
+        return [self._load_persona(data) for data in result.get("documents")[0]]
