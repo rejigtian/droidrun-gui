@@ -6,6 +6,7 @@ import inspect
 import json
 import logging
 from typing import List, TYPE_CHECKING, Optional, Tuple
+from droidrun.agent.context import Reflection
 from llama_index.core.base.llms.types import ChatMessage, ImageBlock, TextBlock
 
 if TYPE_CHECKING:
@@ -79,6 +80,13 @@ async def add_memory_block(memory: List[str], chat_history: List[ChatMessage]) -
                 chat_history[i] = ChatMessage(role="user", content=content_blocks)
             break
     return chat_history
+
+async def get_reflection_block(reflections: List[Reflection]) -> ChatMessage:
+    reflection_block = "\n### You also have additional Knowledge to help you guide your current task from previous expierences:\n"
+    for reflection in reflections:
+        reflection_block += f"**{reflection.advice}\n"
+    
+    return ChatMessage(role="user", content=reflection_block)
         
 async def add_task_history_block(completed_tasks: list[dict], failed_tasks: list[dict], chat_history: List[ChatMessage]) -> List[ChatMessage]: 
     task_history = ""
