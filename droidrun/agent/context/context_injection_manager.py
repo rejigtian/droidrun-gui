@@ -10,6 +10,7 @@ from typing import Optional, List
 from droidrun.agent.context.agent_persona import AgentPersona
 import chromadb
 import json
+from pathlib import Path
 
 logger = logging.getLogger("droidrun")
 
@@ -27,7 +28,7 @@ class ContextInjectionManager:
 
     def __init__(self):
         """Initialize the Context Injection Manager with predefined personas."""
-        self.client = chromadb.PersistentClient(path="/Users/timo/.droidrun/registry")
+        self.client = chromadb.PersistentClient(path=str(Path.home() / ".droidrun" / "registry"))
         self.collection = self.client.get_collection("personas")
 
         logger.info(f"🎭 ContextInjectionManager initialized with {0} personas")
