@@ -38,6 +38,7 @@ def load_tools(serial: Optional[str] = None) -> Tuple[Dict[str, Callable[..., An
         "list_packages": tools_instance.list_packages,
 
         #state management
+        "extract": tools_instance.extract,
         "remember": tools_instance.remember,
         "complete": tools_instance.complete,
 
