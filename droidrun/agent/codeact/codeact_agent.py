@@ -56,6 +56,7 @@ class CodeActAgent(Workflow):
 
         self.chat_memory = None
         self.episodic_memory = EpisodicMemory(persona=persona)
+        self.remembered_info = None
 
         self.goal = None
         self.steps_counter = 0
@@ -97,15 +98,13 @@ class CodeActAgent(Workflow):
         user_input = ev.get("input", default=None)
         assert user_input, "User input cannot be empty."
 
+        if ev.remembered_info:
+            self.remembered_info = ev.remembered_info
+
         logger.debug("  - Adding goal to memory.")
         goal = user_input
         self.user_message = ChatMessage(role="user", content=PromptTemplate(self.user_prompt or DEFAULT_CODE_ACT_USER_PROMPT).format(goal=goal))
         self.no_thoughts_prompt = ChatMessage(role="user", content=PromptTemplate(DEFAULT_NO_THOUGHTS_PROMPT).format(goal=goal))
-
-        if ev.reflection:
-            reflection_message = await chat_utils.get_reflection_block([ev.reflection])
-            self.user_message.content += reflection_message.content
-
 
         await self.chat_memory.aput(self.user_message)
 
@@ -130,6 +129,11 @@ class CodeActAgent(Workflow):
         logger.info(f"🧠 Step {self.steps_counter}: Thinking...")       
         
         model = self.llm.class_name()
+        
+        if "remember" in self.tool_list and self.remembered_info:
+            await ctx.set("remembered_info", self.remembered_info)
+            chat_history = await chat_utils.add_memory_block(self.remembered_info, chat_history)
+
         for context in self.required_context:
             if context == "screenshot" and model != "DeepSeek":
                 screenshot = (await self.tools.take_screenshot())[1]
@@ -198,7 +202,7 @@ class CodeActAgent(Workflow):
                 ctx.write_event_to_stream(event)
                 return event
             
-            #self.episodic_memory = self.tools.memory
+            self.remembered_info = self.tools.memory
             
             event = TaskExecutionResultEvent(output=str(result))
             ctx.write_event_to_stream(event)
@@ -237,6 +241,9 @@ class CodeActAgent(Workflow):
         """Finalize the workflow."""
         self.tools.finished = False
         await ctx.set("chat_memory", self.chat_memory)
+        
+        # Add final state observation to episodic memory
+        await self._add_final_state_observation(ctx)
         
         result = {}
         result.update({
@@ -297,4 +304,43 @@ class CodeActAgent(Workflow):
                 logger.error(f"Error getting LLM response: {e}")
         logger.debug("  - Received response from LLM.")
         return response
+
+    async def _add_final_state_observation(self, ctx: Context) -> None:
+        """Add the current UI state and screenshot as the final observation step."""
+        try:
+            # Get current screenshot and UI state
+            screenshot = None
+            ui_state = None
+            
+            try:
+                _, screenshot_bytes = await self.tools.take_screenshot()
+                screenshot = screenshot_bytes
+            except Exception as e:
+                logger.warning(f"Failed to capture final screenshot: {e}")
+            
+            try:
+                ui_state = await self.tools.get_clickables()
+            except Exception as e:
+                logger.warning(f"Failed to capture final UI state: {e}")
+            
+            # Create final observation chat history and response
+            final_chat_history = [{"role": "system", "content": "Final state observation after task completion"}]
+            final_response = {
+                "role": "user", 
+                "content": f"Final State Observation:\nUI State: {ui_state}\nScreenshot: {'Available' if screenshot else 'Not available'}"
+            }
+            
+            # Create final episodic memory step
+            final_step = EpisodicMemoryStep(
+                chat_history=json.dumps(final_chat_history),
+                response=json.dumps(final_response),
+                timestamp=time.time(),
+                screenshot=screenshot
+            )
+            
+            self.episodic_memory.steps.append(final_step)
+            logger.info("Added final state observation to episodic memory")
+            
+        except Exception as e:
+            logger.error(f"Failed to add final state observation: {e}")
     

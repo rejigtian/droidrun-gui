@@ -11,7 +11,7 @@ class CodeActResultEvent(Event):
     reason: str
 
 class ReasoningLogicEvent(Event):
-    pass
+    reflection: Optional[Reflection] = None
 
 class FinalizeEvent(Event):
     success: bool

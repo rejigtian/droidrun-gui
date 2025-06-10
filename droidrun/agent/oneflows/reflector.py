@@ -88,7 +88,7 @@ class Reflector:
         if not screenshots:
             return None
         
-        num_screenshots = min(len(screenshots), 5)
+        num_screenshots = min(len(screenshots), 6)
         cols, rows = num_screenshots, 1
         
         screenshots = screenshots[:num_screenshots]
@@ -188,10 +188,11 @@ class Reflector:
         - Suboptimal decision-making patterns
 
         ADVICE GUIDELINES (for failed goals):
-        - Address the agent directly using "you" form (e.g., "You should have...", "Next time, you need to...")
-        - Be specific about what they did wrong
-        - Provide clear, actionable guidance for what they should do differently next time
-        - Focus on the most critical mistake that prevented goal achievement
+        - Address the agent directly using "you" form with present/future focus (e.g., "You need to...", "Look for...", "Focus on...")
+        - Provide situational awareness advice that helps with the current state after the failed attempt
+        - Give actionable guidance for what to do NOW when retrying the goal, not what went wrong before
+        - Consider the current app state and context the agent will face when retrying
+        - Focus on the key strategy or approach needed for success in the current situation
         - Keep it concise but precise (1-2 sentences)
 
         OUTPUT FORMAT:
@@ -207,13 +208,14 @@ class Reflector:
 
         {{
             "goal_achieved": false,
-            "advice": "Direct advice using 'you' form - be specific about what they did wrong and what they should do differently",
+            "advice": "Direct advice using 'you' form focused on current situation - what you need to do NOW when retrying",
             "summary": "Brief summary of what happened"
         }}
 
         IMPORTANT: 
         - If goal_achieved is true, set advice to null
-        - If goal_achieved is false, provide direct "you" form advice that specifically identifies the mistake and corrective action
+        - If goal_achieved is false, provide direct "you" form advice focused on what to do NOW in the current situation when retrying
+        - Advice should be forward-looking and situational, not retrospective about past mistakes
         - Always include a brief summary of the agent's performance
         - Ensure the JSON is valid and parsable
         - ONLY return the JSON object, no additional text or formatting"""
@@ -225,9 +227,9 @@ class Reflector:
         persona_content = f"""ACTOR AGENT PERSONA:
         - Name: {persona.name}
         - Description: {persona.description}
-        - System Prompt: {persona.system_prompt}
         - Available Tools: {', '.join(persona.allowed_tools)}
-        - Expertise Areas: {', '.join(persona.expertise_areas)}"""
+        - Expertise Areas: {', '.join(persona.expertise_areas)}
+        - System Prompt: {persona.system_prompt}"""
                 
         return persona_content
     
