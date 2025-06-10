@@ -367,7 +367,7 @@ class CodeActAgent(Workflow):
                 logger.debug("🔍 Retrying call to LLM...")
                 response = await self.llm.achat(messages=messages_to_send)
             else:
-                #logger.error(f"Error getting LLM response: {repr(e)}")
+                logger.error(f"Could not get an answer from LLM: {repr(e)}")
                 raise e
         logger.debug("  - Received response from LLM.")
         return response
