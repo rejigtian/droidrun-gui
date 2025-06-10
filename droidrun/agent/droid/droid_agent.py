@@ -93,8 +93,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         
         self.trajectory = Trajectory()
         self.task_manager = TaskManager()
-        self.cim = ContextInjectionManager()
-        personas = self.cim.list_personas(goal)
+        self.cim = ContextInjectionManager(personas=personas)
         self.current_episodic_memory = None
 
         logger.info("🤖 Initializing DroidAgent...")

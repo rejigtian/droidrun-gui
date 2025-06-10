@@ -134,6 +134,7 @@ class CodeActAgent(Workflow):
             if context == "screenshot" and model != "DeepSeek":
                 screenshot = (await self.tools.take_screenshot())[1]
                 ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
+                await ctx.set("screenshot", screenshot)
                 chat_history = await chat_utils.add_screenshot_image_block(screenshot, chat_history)
                 
             if context == "ui_state":
@@ -271,7 +272,8 @@ class CodeActAgent(Workflow):
             step = EpisodicMemoryStep(
                 chat_history=chat_history_str,
                 response=response_str,
-                timestamp=time.time()
+                timestamp=time.time(),
+                screenshot=(await ctx.get("screenshot", None))
             )
             
             self.episodic_memory.steps.append(step)
