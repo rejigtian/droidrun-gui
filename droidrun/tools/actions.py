@@ -450,10 +450,6 @@ class Tools:
         Common keycodes:
         - 3: HOME
         - 4: BACK
-        - 24: VOLUME UP
-        - 25: VOLUME DOWN
-        - 26: POWER
-        - 82: MENU
         
         Args:
             keycode: Android keycode to press

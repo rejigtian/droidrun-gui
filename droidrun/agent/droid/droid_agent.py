@@ -145,7 +145,6 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         persona = self.cim.get_persona(task.agent_type)
 
         logger.info(f"🔧 Executing task: {task.description}")
-        task.status = self.task_manager.STATUS_ATTEMPTING
 
         try:
             codeact_agent = CodeActAgent(
@@ -204,22 +203,21 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         ctx: Context,
         ev: ReflectionEvent
         ) -> ReasoningLogicEvent | CodeActExecuteEvent:
+
+        reflection_retry = await ctx.get("reflection_retry", 0)
+
+        if reflection_retry >= 3:
+            self.task_manager.failed_task(task)
+            return ReasoningLogicEvent()
+
         task = ev.task
         reflection = await self.reflector.reflect_on_episodic_memory(episodic_memory=self.current_episodic_memory, goal=task.description)
 
         if reflection.goal_achieved:
-            result_info = {
-                "execution_details": reflection.summary,
-                "step_executed": self.step_counter,
-            }
-            task_idx = self.tasks.index(task)
-            self.task_manager.update_status(
-                task_idx,
-                self.task_manager.STATUS_COMPLETED,
-                result_info
-            )
+            self.task_manager.complete_task(task)
             return ReasoningLogicEvent()
         
+        await ctx.set("reflection_retry", reflection_retry+1)
         return CodeActExecuteEvent(task=task, reflection=reflection)
         
 
