@@ -31,6 +31,8 @@ def configure_logging(goal: str, debug: bool):
     handler.setFormatter(
         # logging.Formatter("%(asctime)s %(levelname)s: %(message)s", "%H:%M:%S")
         logging.Formatter("%(levelname)s %(message)s", "%H:%M:%S")
+        if debug
+        else logging.Formatter("%(message)s", "%H:%M:%S")
     )
     logger.addHandler(handler)
 
