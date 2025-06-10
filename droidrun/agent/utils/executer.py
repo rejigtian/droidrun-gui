@@ -7,8 +7,11 @@ from typing import Any, Dict
 from droidrun.agent.utils.async_utils import async_to_sync
 from llama_index.core.workflow import Context
 import asyncio
+from asyncio import AbstractEventLoop
+import threading
 
 logger = logging.getLogger("droidrun")
+
 
 class SimpleCodeExecutor:
     """
@@ -20,7 +23,14 @@ class SimpleCodeExecutor:
     NOTE: not safe for production use! Use with caution.
     """
 
-    def __init__(self, loop, locals: Dict[str, Any] = {}, globals: Dict[str, Any] = {}, tools = {}, use_same_scope: bool = True):
+    def __init__(
+        self,
+        loop: AbstractEventLoop,
+        locals: Dict[str, Any] = {},
+        globals: Dict[str, Any] = {},
+        tools={},
+        use_same_scope: bool = True,
+    ):
         """
         Initialize the code executor.
 
@@ -32,10 +42,12 @@ class SimpleCodeExecutor:
 
         # loop throught tools and add them to globals, but before that check if tool value is async, if so convert it to sync. tools is a dictionary of tool name: function
         # e.g. tools = {'tool_name': tool_function}
-        
+
         # check if tools is a dictionary
         if isinstance(tools, dict):
-            logger.info(f"🔧 Initializing SimpleCodeExecutor with tools: {tools.items()}")
+            logger.info(
+                f"🔧 Initializing SimpleCodeExecutor with tools: {tools.items()}"
+            )
             for tool_name, tool_function in tools.items():
                 if asyncio.iscoroutinefunction(tool_function):
                     # If the function is async, convert it to sync
@@ -54,17 +66,20 @@ class SimpleCodeExecutor:
         else:
             raise ValueError("Tools must be a dictionary or a list of functions.")
 
-
         import time
-        globals['time'] = time
-        
+
+        globals["time"] = time
+
         self.globals = globals
         self.locals = locals
         self.loop = loop
         self.use_same_scope = use_same_scope
         if self.use_same_scope:
             # If using the same scope, set the globals and locals to the same dictionary
-            self.globals = self.locals = {**self.locals, **{k: v for k, v in self.globals.items() if k not in self.locals}}
+            self.globals = self.locals = {
+                **self.locals,
+                **{k: v for k, v in self.globals.items() if k not in self.locals},
+            }
 
     async def execute(self, ctx: Context, code: str) -> str:
         """
@@ -77,8 +92,8 @@ class SimpleCodeExecutor:
             str: Output from the execution, including print statements.
         """
         # Update UI elements before execution
-        self.globals['ui_elements'] = await ctx.get("ui_state", None)
-        
+        self.globals["ui_elements"] = await ctx.get("ui_state", None)
+
         # Capture stdout and stderr
         stdout = io.StringIO()
         stderr = io.StringIO()
@@ -86,16 +101,28 @@ class SimpleCodeExecutor:
         output = ""
         try:
             # Execute with captured output
-            with contextlib.redirect_stdout(
-                stdout
-            ), contextlib.redirect_stderr(stderr):
+            thread_exception = []
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
 
-                exec(code, self.globals, self.locals)
+                def execute_code():
+                    try:
+                        exec(code, self.globals, self.locals)
+                    except Exception as e:
+                        import traceback
+
+                        thread_exception.append((e, traceback.format_exc()))
+
+                t = threading.Thread(target=execute_code)
+                t.start()
+                t.join()
 
             # Get output
             output = stdout.getvalue()
             if stderr.getvalue():
                 output += "\n" + stderr.getvalue()
+            if thread_exception:
+                e, tb = thread_exception[0]
+                output += f"\nError: {type(e).__name__}: {str(e)}\n{tb}"
 
         except Exception as e:
             # Capture exception information
