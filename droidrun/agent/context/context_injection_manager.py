@@ -26,12 +26,16 @@ class ContextInjectionManager:
     - Providing context-aware configurations for CodeActAgent instances
     """
 
-    def __init__(self):
+    def __init__(
+            self,
+            personas: List[AgentPersona]
+        ):
         """Initialize the Context Injection Manager with predefined personas."""
-        self.client = chromadb.PersistentClient(path=str(Path.home() / ".droidrun" / "registry"))
-        self.collection = self.client.get_collection("personas")
 
-        logger.info(f"🎭 ContextInjectionManager initialized with {0} personas")
+        self.personas = {}
+        for persona in personas:
+            self.personas[persona.name] = persona
+
 
     def _load_persona(self, data: str) -> AgentPersona:
         persona = json.loads(data)
@@ -46,7 +50,7 @@ class ContextInjectionManager:
             required_context=persona['required_context'],
         )
 
-    def get_persona(self, agent_name: str) -> Optional[AgentPersona]:
+    def get_persona(self, agent_type: str) -> Optional[AgentPersona]:
         """
         Get a specific agent persona by type.
 
@@ -56,14 +60,7 @@ class ContextInjectionManager:
         Returns:
             AgentPersona instance or None if not found
         """
-        print(f"🎭 Getting persona: {agent_name}")
-        result = self.collection.get(ids=[agent_name])
-        return self._load_persona(result.get("documents")[0])
-
-    def list_personas(self, task: str) -> List[AgentPersona]:
-        logger.info(f"🎭 Listing personas for task: {task}")
-        result = self.collection.query(query_texts=[task], n_results=10)
-        logger.info(
-            f"🎭 Found {len(result.get('documents'))} personas for task: {task}"
-        )
-        return [self._load_persona(data) for data in result.get("documents")[0]]
+        return self.personas.get(agent_type)
+        
+    def get_all_personas(self) -> List[str]:
+        return self.personas
