@@ -13,7 +13,6 @@ if TYPE_CHECKING:
     from droidrun.tools import Tools
 
 logger = logging.getLogger("droidrun")
-logging.basicConfig(level=logging.INFO)
 
 def message_copy(message: ChatMessage, deep = True) -> ChatMessage:
     if deep:
@@ -119,7 +118,7 @@ async def add_task_history_block(completed_tasks: list[dict], failed_tasks: list
 
 def parse_tool_descriptions(tool_list) -> str:
     """Parses the available tools and their descriptions for the system prompt."""
-    logger.info("🛠️ Parsing tool descriptions...")
+    logger.info("🛠️  Parsing tool descriptions...")
     tool_descriptions = []
     
     for tool in tool_list.values():
