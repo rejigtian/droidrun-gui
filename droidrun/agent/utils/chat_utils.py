@@ -28,10 +28,94 @@ def message_copy(message: ChatMessage, deep = True) -> ChatMessage:
 
     return copied_message
 
+async def add_reflection_summary(reflection: Reflection, chat_history: List[ChatMessage]) -> List[ChatMessage]:
+    """Add reflection summary and advice to help the planner understand what went wrong and what to do differently."""
+    
+    reflection_text = "\n### The last task failed. You have additional information about what happenend. \nThe Reflection from Previous Attempt:\n"
+    
+    if reflection.summary:
+        reflection_text += f"**What happened:** {reflection.summary}\n\n"
+    
+    if reflection.advice:
+        reflection_text += f"**Recommended approach for this retry:** {reflection.advice}\n"
+    
+    reflection_block = TextBlock(text=reflection_text)
+    
+    # Copy chat_history and append reflection block to the last message
+    chat_history = chat_history.copy()
+    chat_history[-1] = message_copy(chat_history[-1])
+    chat_history[-1].blocks.append(reflection_block)
+    
+    return chat_history
+
+def _format_ui_elements(ui_data, level=0) -> str:
+    """Format UI elements in natural language: index. className: resourceId, text - bounds"""
+    if not ui_data:
+        return ""
+    
+    formatted_lines = []
+    indent = "  " * level  # Indentation for nested elements
+    
+    # Handle both list and single element
+    elements = ui_data if isinstance(ui_data, list) else [ui_data]
+    
+    for element in elements:
+        if not isinstance(element, dict):
+            continue
+            
+        # Extract element properties
+        index = element.get('index', '')
+        class_name = element.get('className', '')
+        resource_id = element.get('resourceId', '')
+        text = element.get('text', '')
+        bounds = element.get('bounds', '')
+        children = element.get('children', [])
+        
+        # Truncate text if it's too long
+        if text and len(text) > 100:
+            text = text[:97] + "..."
+        
+        # Format the line: index. className: resourceId, text - bounds
+        line_parts = []
+        if index != '':
+            line_parts.append(f"{index}.")
+        if class_name:
+            line_parts.append(class_name + ":")
+        
+        details = []
+        if resource_id:
+            details.append(f'"{resource_id}"')
+        if text:
+            details.append(f'"{text}"')
+        if details:
+            line_parts.append(", ".join(details))
+        
+        if bounds:
+            line_parts.append(f"- {bounds}")
+        
+        formatted_line = f"{indent}{' '.join(line_parts)}"
+        formatted_lines.append(formatted_line)
+        
+        # Recursively format children with increased indentation
+        if children:
+            child_formatted = _format_ui_elements(children, level + 1)
+            if child_formatted:
+                formatted_lines.append(child_formatted)
+    
+    return "\n".join(formatted_lines)
+
 async def add_ui_text_block(ui_state: str, chat_history: List[ChatMessage], copy = True) -> List[ChatMessage]:
     """Add UI elements to the chat history without modifying the original."""
     if ui_state:
-        ui_block = TextBlock(text="\nCurrent Clickable UI elements from the device using the custom TopViewService:\n```json\n" + json.dumps(ui_state) + "\n```\n")
+        # Parse the JSON and format it in natural language
+        try:
+            ui_data = json.loads(ui_state) if isinstance(ui_state, str) else ui_state
+            formatted_ui = _format_ui_elements(ui_data)
+            ui_block = TextBlock(text=f"\nCurrent Clickable UI elements from the device in the schema 'index. className: resourceId, text - bounds(x1,y1,x2,y2)':\n{formatted_ui}\n")
+        except (json.JSONDecodeError, TypeError):
+            # Fallback to original format if parsing fails
+            ui_block = TextBlock(text="\nCurrent Clickable UI elements from the device using the custom TopViewService:\n```json\n" + json.dumps(ui_state) + "\n```\n")
+        
         if copy:
             chat_history = chat_history.copy()
             chat_history[-1] = message_copy(chat_history[-1])
@@ -91,23 +175,23 @@ async def get_reflection_block(reflections: List[Reflection]) -> ChatMessage:
 async def add_task_history_block(completed_tasks: list[dict], failed_tasks: list[dict], chat_history: List[ChatMessage]) -> List[ChatMessage]: 
     task_history = ""
 
-    if completed_tasks:
-        task_history += "Completed Tasks:"
-        for task in completed_tasks:
-            if isinstance(task, dict):
-                task_history += f"- {task['description']}\n"
-            else:
-                task_history += f"- {task}\n"
-
-    if failed_tasks:
-        task_history += "Failed Tasks:"
-        for task in failed_tasks:
-            if isinstance(task, dict):
-                failure_reason = task.get('failure_reason', 'Unknown reason')
+    # Combine all tasks and show in chronological order
+    all_tasks = completed_tasks + failed_tasks
+    
+    if all_tasks:
+        task_history += "Task History (chronological order):\n"
+        for i, task in enumerate(all_tasks, 1):
+            if hasattr(task, 'description'):
+                status_indicator = "[success]" if hasattr(task, 'status') and task.status == "completed" else "[failed]"
+                task_history += f"{i}. {status_indicator} {task.description}\n"
+            elif isinstance(task, dict):
+                # For backward compatibility with dict format
                 task_description = task.get('description', str(task))
-                task_history += f"- {task_description} (Failed: {failure_reason})\n"
+                status_indicator = "[success]" if task in completed_tasks else "[failed]"
+                task_history += f"{i}. {status_indicator} {task_description}\n"
             else:
-                task_history += f"- {task} (Failed: Unknown reason)\n"
+                status_indicator = "[success]" if task in completed_tasks else "[failed]"
+                task_history += f"{i}. {status_indicator} {task}\n"
 
     
     task_block = TextBlock(text=f"\nTask History:\n {task_history}")
@@ -179,7 +263,6 @@ def extract_code_and_thought(response_text: str) -> Tuple[Optional[str], str]:
             extracted_code_parts.append(code_content)
 
     extracted_code = "\n\n".join(extracted_code_parts)
-    logger.debug(f"  - Combined extracted code:\n```python\n{extracted_code}\n```")
 
 
     thought_parts = []

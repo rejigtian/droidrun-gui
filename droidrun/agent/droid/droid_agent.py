@@ -11,16 +11,15 @@ from llama_index.core.workflow import step, StartEvent, StopEvent, Workflow, Con
 from droidrun.agent.droid.events import *
 from droidrun.agent.codeact import CodeActAgent
 from droidrun.agent.codeact.events import EpisodicMemoryEvent
-from droidrun.agent.context.episodic_memory import EpisodicMemory, EpisodicMemoryStep
 from droidrun.agent.planner import PlannerAgent
 from droidrun.agent.context.task_manager import TaskManager
 from droidrun.agent.utils.trajectory import Trajectory
 from droidrun.tools import load_tools
 from droidrun.agent.common.events import ScreenshotEvent
 from droidrun.agent.common.default import MockWorkflow
-from droidrun.agent.context import ContextInjectionManager, Reflection
+from droidrun.agent.context import ContextInjectionManager
 from droidrun.agent.context.agent_persona import AgentPersona
-from droidrun.agent.context.personas import UI_EXPERT, APP_STARTER_EXPERT, DEFAULT
+from droidrun.agent.context.personas import DEFAULT
 from droidrun.agent.oneflows.reflector import Reflector
 
 
@@ -93,6 +92,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         
         self.trajectory = Trajectory()
         self.task_manager = TaskManager()
+        self.task_iter = None
         self.cim = ContextInjectionManager(personas=personas)
         self.current_episodic_memory = None
 
@@ -159,6 +159,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
 
             handler = codeact_agent.run(
                 input=task.description,
+                remembered_info=self.tools_instance.memory,
                 reflection=reflection
             )
             
@@ -204,23 +205,22 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         ev: ReflectionEvent
         ) -> ReasoningLogicEvent | CodeActExecuteEvent:
 
-        reflection_retry = await ctx.get("reflection_retry", 0)
-
-        if reflection_retry >= 3:
-            self.task_manager.failed_task(task)
-            return ReasoningLogicEvent()
 
         task = ev.task
+        if ev.task.agent_type == "AppStarterExpert":
+            self.task_manager.complete_task(task)
+            return ReasoningLogicEvent()
+        
         reflection = await self.reflector.reflect_on_episodic_memory(episodic_memory=self.current_episodic_memory, goal=task.description)
 
         if reflection.goal_achieved:
             self.task_manager.complete_task(task)
             return ReasoningLogicEvent()
         
-        await ctx.set("reflection_retry", reflection_retry+1)
-        return CodeActExecuteEvent(task=task, reflection=reflection)
+        else:
+            self.task_manager.fail_task(task)
+            return ReasoningLogicEvent(reflection=reflection)
         
-
 
     @step
     async def handle_reasoning_logic(
@@ -234,17 +234,26 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
                 return FinalizeEvent(success=False, reason=f"Reached maximum number of steps ({self.max_steps})", task=self.task_manager.get_task_history(), steps=self.step_counter)
             self.step_counter += 1
 
-            logger.debug(f"Planning step {self.step_counter}/{self.max_steps}")
+            if ev.reflection:
+                handler = planner_agent.run(remembered_info=self.tools_instance.memory, reflection=ev.reflection)
+            else:
+                if self.task_iter:
+                    try:
+                        task = next(self.task_iter)
+                        return CodeActExecuteEvent(task=task, reflection=None)
+                    except StopIteration as e:
+                        logger.info("Planning next steps...")
 
-            handler = planner_agent.run(episodic_memory=self.tools_instance.memory)
-            
+                logger.debug(f"Planning step {self.step_counter}/{self.max_steps}")
+
+                handler = planner_agent.run(remembered_info=self.tools_instance.memory, reflection=None)
+
             async for nested_ev in handler.stream_events():
                 self.handle_stream_event(nested_ev, ctx)
 
             result = await handler
 
             self.tasks = self.task_manager.get_all_tasks()
-            logger.debug(f'Tasks: {self.tasks}')
             self.task_iter = iter(self.tasks)
 
             if self.task_manager.goal_completed:

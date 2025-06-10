@@ -392,11 +392,11 @@ class Tools:
 
     async def input_text(self, text: str, serial: Optional[str] = None) -> str:
         """
-        Input text on the device using Base64 encoding and broadcast intent.
+        Input text on the device.
+        Always make sure to tap on the input-element before inputting text.
         
         Args:
             text: Text to input. Can contain spaces, newlines, and special characters including non-ASCII.
-            serial: Optional device serial (for backward compatibility)
         
         Returns:
             Result message
@@ -442,14 +442,34 @@ class Tools:
             return f"Error: {str(e)}"
         except Exception as e:
             return f"Error sending text input: {str(e)}"
+        
+    async def back(self) -> str:
+        """
+        Go back on the current view. 
+        This presses the Android back button.
+        """
+        try:
+            if self.serial:
+                device_manager = DeviceManager()
+                device = await device_manager.get_device(self.serial)
+                if not device:
+                    return f"Error: Device {self.serial} not found"
+            else:
+                device = await self.get_device()
+            
+            await device.press_key(3)
+            return f"Pressed key BACK"
+        except ValueError as e:
+            return f"Error: {str(e)}"
 
     async def press_key(self, keycode: int) -> str:
         """
-        Press a key on the device.
+        Press a key on the Android device.
         
         Common keycodes:
-        - 3: HOME
         - 4: BACK
+        - 66: ENTER
+        - 67: DELETE
         
         Args:
             keycode: Android keycode to press
@@ -464,12 +484,9 @@ class Tools:
                 device = await self.get_device()
             
             key_names = {
-                3: "HOME",
+                66: "ENTER",
                 4: "BACK",
-                24: "VOLUME UP",
-                25: "VOLUME DOWN",
-                26: "POWER",
-                82: "MENU",
+                67: "DELETE",
             }
             key_name = key_names.get(keycode, str(keycode))
             
@@ -796,7 +813,7 @@ class Tools:
         """
         Store important information to remember for future context.
         
-        This information will be included in future LLM prompts to help maintain context
+        This information will be extracted and included into your next steps to maintain context
         across interactions. Use this for critical facts, observations, or user preferences
         that should influence future decisions.
         

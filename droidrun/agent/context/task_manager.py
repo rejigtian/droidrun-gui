@@ -36,6 +36,9 @@ class TaskManager:
 
     def get_all_tasks(self) -> List[Task]:
         return self.tasks
+        
+    def get_task_history(self):
+        return self.task_history
 
     def complete_task(self, task: Task):
         task = copy.deepcopy(task)
@@ -66,15 +69,6 @@ class TaskManager:
         except Exception as e:
             print(f"Error saving tasks to file: {e}")
 
-
-    def get_task_history(self):
-        """
-        Returns the history of task status changes.
-        
-        Returns:
-            list: A list of dictionaries with historical task information.
-        """
-        return self.task_history
 
 
     def set_tasks_with_agents(self, task_assignments: List[Dict[str, str]]):
