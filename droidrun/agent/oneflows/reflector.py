@@ -3,6 +3,7 @@ from droidrun.agent.context import EpisodicMemory
 from droidrun.agent.context.reflection import Reflection
 from llama_index.core.base.llms.types import ChatMessage, ImageBlock
 from droidrun.agent.utils.chat_utils import add_screenshot_image_block
+from droidrun.agent.context.agent_persona import AgentPersona
 import json
 from typing import Dict, Any, List, Optional
 import logging
@@ -22,13 +23,14 @@ class Reflector:
 
     async def reflect_on_episodic_memory(self, episodic_memory: EpisodicMemory, goal: str) -> Reflection:
         """Analyze episodic memory and provide reflection on the agent's performance."""
-        system_prompt_content = self._create_system_prompt(episodic_memory, goal)
+        system_prompt_content = self._create_system_prompt()
         system_prompt = ChatMessage(role="system", content=system_prompt_content)
 
         episodic_memory_content = self._format_episodic_memory(episodic_memory)
+        persona_content = self._format_persona(episodic_memory.persona)
         
-        # Create user message content
-        user_content = f"Goal: {goal}\n\nEpisodic Memory Steps:\n{episodic_memory_content}\n\nPlease evaluate if the goal was achieved and provide your analysis in the specified JSON format."
+        # Create user message content with persona information
+        user_content = f"{persona_content}\n\nGoal: {goal}\n\nEpisodic Memory Steps:\n{episodic_memory_content}\n\nPlease evaluate if the goal was achieved and provide your analysis in the specified JSON format."
         
         # Create user message
         user_message = ChatMessage(role="user", content=user_content)
@@ -168,24 +170,16 @@ class Reflector:
         
         return buffer.getvalue()
 
-    def _create_system_prompt(self, episodic_memory: EpisodicMemory, goal: str) -> str:
-        """Create a system prompt that includes the actor agent's persona and reflection instructions."""
-        persona = episodic_memory.persona
-        
-        system_prompt = f"""You are a Reflector AI that analyzes the performance of an Android Agent. Your role is to examine episodic memory steps and evaluate whether the agent achieved its goal.
-
-        ACTOR AGENT PERSONA:
-        - Name: {persona.name}
-        - Description: {persona.description}
-        - System Prompt: {persona.system_prompt}
-        - Available Tools: {', '.join(persona.allowed_tools)}
-        - Expertise Areas: {', '.join(persona.expertise_areas)}
+    def _create_system_prompt(self) -> str:
+        """Create a system prompt with reflection instructions."""
+        system_prompt = """You are a Reflector AI that analyzes the performance of an Android Agent. Your role is to examine episodic memory steps and evaluate whether the agent achieved its goal.
 
         EVALUATION PROCESS:
         1. First, determine if the agent achieved the stated goal based on the episodic memory steps
         2. If the goal was achieved, acknowledge the success
         3. If the goal was NOT achieved, analyze what went wrong and provide direct advice
         4. Use the provided screenshots (if any) to understand the visual context of each step
+        The screenshots show a screen the agent saw. It is in chronological order from left to right
 
         ANALYSIS AREAS (for failed goals):
         - Missed opportunities or inefficient actions
@@ -226,6 +220,17 @@ class Reflector:
 
         return system_prompt
     
+    def _format_persona(self, persona: AgentPersona) -> str:
+        """Format the agent persona information for the user prompt."""
+        persona_content = f"""ACTOR AGENT PERSONA:
+        - Name: {persona.name}
+        - Description: {persona.description}
+        - System Prompt: {persona.system_prompt}
+        - Available Tools: {', '.join(persona.allowed_tools)}
+        - Expertise Areas: {', '.join(persona.expertise_areas)}"""
+                
+        return persona_content
+    
     def _format_episodic_memory(self, episodic_memory: EpisodicMemory) -> str:
         """Format the episodic memory steps into a readable format for analysis."""
         formatted_steps = []
@@ -236,22 +241,18 @@ class Reflector:
                 chat_history = json.loads(step.chat_history)
                 response = json.loads(step.response)
                 
-                screenshot_info = "Screenshot available" if step.screenshot else "No screenshot"
                 
                 formatted_step = f"""Step {i}:
             Chat History: {json.dumps(chat_history, indent=2)}
             Response: {json.dumps(response, indent=2)}
-            Screenshot: {screenshot_info}
             Timestamp: {step.timestamp}
             ---"""
             except json.JSONDecodeError as e:
                 # Fallback to original format if JSON parsing fails
                 logger.warning(f"Failed to parse JSON for step {i}: {e}")
-                screenshot_info = "Screenshot available" if step.screenshot else "No screenshot"
                 formatted_step = f"""Step {i}:
             Chat History: {step.chat_history}
             Response: {step.response}
-            Screenshot: {screenshot_info}
             Timestamp: {step.timestamp}
             ---"""
             formatted_steps.append(formatted_step)
