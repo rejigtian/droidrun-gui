@@ -160,14 +160,80 @@ async def run_command(
 
 
 class DroidRunCLI(click.Group):
+
     def parse_args(self, ctx, args):
-        if args and not args[0].startswith("-") and args[0] not in self.commands:
+        print(args)
+        # If the first arg is not an option and not a known command, treat as 'run'
+        if args and """not args[0].startswith("-")""" and args[0] not in self.commands:
             args.insert(0, "run")
-        return super().parse_args(ctx, args)
+
+        print(args)
+
+        parsed = super().parse_args(ctx, args)
+        print(parsed)
+        return parsed
 
 
+
+@click.option("--device", "-d", help="Device serial number or IP address", default=None)
+@click.option(
+    "--provider",
+    "-p",
+    help="LLM provider (openai, ollama, anthropic, gemini, deepseek)",
+    default="Gemini",
+)
+@click.option(
+    "--model",
+    "-m",
+    help="LLM model name",
+    default="models/gemini-2.5-pro-preview-05-06",
+)
+@click.option("--temperature", type=float, help="Temperature for LLM", default=0.2)
+@click.option("--steps", type=int, help="Maximum number of steps", default=15)
+@click.option(
+    "--base_url",
+    "-u",
+    help="Base URL for API (e.g., OpenRouter or Ollama)",
+    default=None,
+)
+@click.option(
+    "--reasoning/--no-reasoning",
+    is_flag=True,
+    help="Enable/disable planning with reasoning",
+    default=False,
+)
+@click.option(
+    "--tracing", is_flag=True, help="Enable Arize Phoenix tracing", default=False
+)
+@click.option(
+    "--debug", is_flag=True, help="Enable verbose debug logging", default=False
+)
+@click.option(
+    "--save-trajectory",
+    is_flag=True,
+    help="Save agent trajectory to file",
+    default=False,
+)
+@click.option(
+    "--trajectory-dir",
+    help='Directory to save trajectory (default: "trajectories")',
+    type=click.Path(exists=False, dir_okay=True, file_okay=False),
+    default="trajectories",
+)
 @click.group(cls=DroidRunCLI)
-def cli():
+def cli(
+    device: str | None,
+    provider: str,
+    model: str,
+    steps: int,
+    base_url: str,
+    temperature: float,
+    reasoning: bool,
+    tracing: bool,
+    debug: bool,
+    save_trajectory: bool,
+    trajectory_dir: str,
+):
     """DroidRun - Control your Android device through LLM agents."""
     pass
 
