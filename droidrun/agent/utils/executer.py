@@ -45,7 +45,9 @@ class SimpleCodeExecutor:
 
         # check if tools is a dictionary
         if isinstance(tools, dict):
-            #logger.info(f"🔧 Initializing SimpleCodeExecutor with tools: {tools.items()}")
+            logger.debug(
+                f"🔧 Initializing SimpleCodeExecutor with tools: {tools.items()}"
+            )
             for tool_name, tool_function in tools.items():
                 if asyncio.iscoroutinefunction(tool_function):
                     # If the function is async, convert it to sync
@@ -53,7 +55,7 @@ class SimpleCodeExecutor:
                 # Add the tool to globals
                 globals[tool_name] = tool_function
         elif isinstance(tools, list):
-            #logger.info(f"🔧 Initializing SimpleCodeExecutor with tools: {tools}")
+            logger.debug(f"🔧 Initializing SimpleCodeExecutor with tools: {tools}")
             # If tools is a list, convert it to a dictionary with tool name as key and function as value
             for tool in tools:
                 if asyncio.iscoroutinefunction(tool):
