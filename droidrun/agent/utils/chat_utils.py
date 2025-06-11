@@ -134,7 +134,43 @@ async def add_screenshot_image_block(screenshot, chat_history: List[ChatMessage]
 
 async def add_phone_state_block(phone_state, chat_history: List[ChatMessage]) -> List[ChatMessage]:
     
-    ui_block = TextBlock(text=f"\nCurrent Phone state: {phone_state}\n```\n")
+    # Format the phone state data nicely
+    if isinstance(phone_state, dict) and 'error' not in phone_state:
+        current_app = phone_state.get('currentApp', 'Unknown')
+        package_name = phone_state.get('packageName', 'Unknown')
+        keyboard_visible = phone_state.get('keyboardVisible', False)
+        focused_element = phone_state.get('focusedElement')
+        
+        # Format the focused element
+        if focused_element:
+            element_text = focused_element.get('text', 'No text')
+            element_class = focused_element.get('className', 'Unknown')
+            element_bounds = focused_element.get('bounds', 'Unknown')
+            element_type = focused_element.get('type', 'unknown')
+            element_resource_id = focused_element.get('resourceId', '')
+            
+            # Build focused element description
+            focused_desc = f"'{element_text}' ({element_class})"
+            if element_resource_id:
+                focused_desc += f" | ID: {element_resource_id}"
+            focused_desc += f" | Bounds: {element_bounds} | Type: {element_type}"
+        else:
+            focused_desc = "None"
+        
+        phone_state_text = f"""
+**Current Phone State:**
+• **App:** {current_app} ({package_name})
+• **Keyboard:** {'Visible' if keyboard_visible else 'Hidden'}
+• **Focused Element:** {focused_desc}
+        """
+    else:
+        # Handle error cases or malformed data
+        if isinstance(phone_state, dict) and 'error' in phone_state:
+            phone_state_text = f"\n📱 **Phone State Error:** {phone_state.get('message', 'Unknown error')}\n"
+        else:
+            phone_state_text = f"\n📱 **Phone State:** {phone_state}\n"
+    
+    ui_block = TextBlock(text=phone_state_text)
     chat_history = chat_history.copy()
     chat_history[-1] = message_copy(chat_history[-1])
     chat_history[-1].blocks.append(ui_block)
