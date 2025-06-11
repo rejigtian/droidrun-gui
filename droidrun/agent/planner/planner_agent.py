@@ -238,16 +238,16 @@ class PlannerAgent(Workflow):
                 chat_history,
             )
 
-        remembered_info = await ctx.get("remembered_info", default=None)
-        if remembered_info:
-            chat_history = await chat_utils.add_memory_block(remembered_info, chat_history)
+            remembered_info = await ctx.get("remembered_info", default=None)
+            if remembered_info:
+                chat_history = await chat_utils.add_memory_block(remembered_info, chat_history)
 
-        reflection = await ctx.get("reflection", None)
-        if reflection:
-            chat_history = await chat_utils.add_reflection_summary(reflection, chat_history)
+            reflection = await ctx.get("reflection", None)
+            if reflection:
+                chat_history = await chat_utils.add_reflection_summary(reflection, chat_history)
 
-        chat_history = await chat_utils.add_phone_state_block(await ctx.get("phone_state"), chat_history)
-        chat_history = await chat_utils.add_ui_text_block(await ctx.get("ui_state"), chat_history)
+            chat_history = await chat_utils.add_phone_state_block(await ctx.get("phone_state"), chat_history)
+            chat_history = await chat_utils.add_ui_text_block(await ctx.get("ui_state"), chat_history)
 
             messages_to_send = [self.system_message] + chat_history
             messages_to_send = [
