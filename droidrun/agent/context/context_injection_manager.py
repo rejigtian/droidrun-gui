@@ -14,7 +14,6 @@ from pathlib import Path
 
 logger = logging.getLogger("droidrun")
 
-
 class ContextInjectionManager:
     """
     Manages different agent personas with specialized contexts and tool subsets.
@@ -56,7 +55,7 @@ class ContextInjectionManager:
         Returns:
             AgentPersona instance or None if not found
         """
-        print(f"🎭 Getting persona: {agent_name}")
+        logger.info(f"🎭 Getting persona: {agent_name}")
         result = self.collection.get(ids=[agent_name])
         return self._load_persona(result.get("documents")[0])
 
