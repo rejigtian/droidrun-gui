@@ -81,8 +81,8 @@ Need to first open Gmail app, then navigate to compose. The first task is app la
 **Planner Output (Round 1):**
 ```python
 set_tasks_with_agents([
-    'task': 'Precondition: None. Goal: Open the Gmail app.', 'agent': <Specialized_Agent>,
-    'task': 'Precondition: Gmail app is open and loaded. Goal: Navigate to compose new email.', 'agent': <Specialized Agents>
+    {{'task': 'Precondition: None. Goal: Open the Gmail app.', 'agent': <Specialized_Agent>}},
+    {{'task': 'Precondition: Gmail app is open and loaded. Goal: Navigate to compose new email.', 'agent': <Specialized Agents>}}
 ])
 ```
 
