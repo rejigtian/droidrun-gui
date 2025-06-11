@@ -43,10 +43,13 @@ class LogHandler(logging.Handler):
 
     def emit(self, record):
         msg = self.format(record)
-        self.logs.append(msg)
-        # Optionally, limit the log list size
-        if len(self.logs) > 100:
-            self.logs.pop(0)
+        lines = msg.splitlines()
+
+        for line in lines:
+            self.logs.append(line)
+            # Optionally, limit the log list size
+            if len(self.logs) > 100:
+                self.logs.pop(0)
 
         self.rerender()
 
