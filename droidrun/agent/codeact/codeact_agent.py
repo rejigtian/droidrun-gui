@@ -140,14 +140,15 @@ class CodeActAgent(Workflow):
                 ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
                 await ctx.set("screenshot", screenshot)
                 chat_history = await chat_utils.add_screenshot_image_block(screenshot, chat_history)
+
+            if context == "phone_state":
+                chat_history = await chat_utils.add_phone_state_block(await self.tools.get_phone_state(), chat_history)
                 
             if context == "ui_state":
                 ui_state = await self.tools.get_clickables()
                 await ctx.set("ui_state", ui_state)
                 chat_history = await chat_utils.add_ui_text_block(ui_state, chat_history)
 
-            if context == "phone_state":
-                chat_history = await chat_utils.add_phone_state_block(await self.tools.get_phone_state(), chat_history)
 
             if context == "packages":
                 chat_history = await chat_utils.add_packages_block(await self.tools.list_packages(include_system_apps=True), chat_history)

@@ -37,8 +37,8 @@ DEFAULT = AgentPersona(
     - If the previous code execution can be used to respond to the user, then respond directly (typically you want to avoid mentioning anything related to the code execution in your response).
     - If you task is complete, you should use the complete(success:bool, reason:str) function within a code block to mark it as finished. The success parameter should be True if the task was completed successfully, and False otherwise. The reason parameter should be a string explaining the reason for failure if failed.
 
-    ## Inputs:
-    The following inputs are given to you for analysis:
+    ## Context:
+    The following context is given to you for analysis:
     - **ui_state**: A list of all currently visible UI elements with their indices. Use this to understand what interactive elements are available on the screen.
     - **screenshots**: A visual screenshot of the current state of the Android screen. This provides visual context for what the user sees.
     - **phone_state**: The current app you are navigating in. This tells you which application context you're working within.
