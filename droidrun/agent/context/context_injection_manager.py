@@ -14,7 +14,6 @@ from pathlib import Path
 
 logger = logging.getLogger("droidrun")
 
-
 class ContextInjectionManager:
     """
     Manages different agent personas with specialized contexts and tool subsets.
@@ -60,6 +59,7 @@ class ContextInjectionManager:
         Returns:
             AgentPersona instance or None if not found
         """
+        
         return self.personas.get(agent_type)
         
     def get_all_personas(self) -> List[str]:
