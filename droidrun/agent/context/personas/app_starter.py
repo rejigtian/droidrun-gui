@@ -3,10 +3,9 @@ from droidrun.tools.actions import Tools
 
 APP_STARTER_EXPERT = AgentPersona(
     name="AppStarterExpert", 
-    description="Specialized in app launching and package management",
+    description="Specialized in app launching",
     expertise_areas=[
-        "app launching", "package management", "app installation",
-        "startup sequences", "app lifecycle"
+        "app launching"
     ],
     allowed_tools=[
         Tools.start_app.__name__,

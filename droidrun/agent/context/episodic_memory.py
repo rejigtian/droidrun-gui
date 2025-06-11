@@ -1,12 +1,13 @@
 from dataclasses import dataclass, field
 from droidrun.agent.context.agent_persona import AgentPersona
-from typing import List
+from typing import List, Optional
 
 @dataclass
 class EpisodicMemoryStep:
     chat_history: str
     response: str
     timestamp: float
+    screenshot: Optional[bytes]
 
 @dataclass 
 class EpisodicMemory:

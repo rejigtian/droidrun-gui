@@ -392,11 +392,11 @@ class Tools:
 
     async def input_text(self, text: str, serial: Optional[str] = None) -> str:
         """
-        Input text on the device using Base64 encoding and broadcast intent.
+        Input text on the device.
+        Always make sure that the Focused Element is not None before inputting text.
         
         Args:
             text: Text to input. Can contain spaces, newlines, and special characters including non-ASCII.
-            serial: Optional device serial (for backward compatibility)
         
         Returns:
             Result message
@@ -442,18 +442,34 @@ class Tools:
             return f"Error: {str(e)}"
         except Exception as e:
             return f"Error sending text input: {str(e)}"
+        
+    async def back(self) -> str:
+        """
+        Go back on the current view. 
+        This presses the Android back button.
+        """
+        try:
+            if self.serial:
+                device_manager = DeviceManager()
+                device = await device_manager.get_device(self.serial)
+                if not device:
+                    return f"Error: Device {self.serial} not found"
+            else:
+                device = await self.get_device()
+            
+            await device.press_key(3)
+            return f"Pressed key BACK"
+        except ValueError as e:
+            return f"Error: {str(e)}"
 
     async def press_key(self, keycode: int) -> str:
         """
-        Press a key on the device.
+        Press a key on the Android device.
         
         Common keycodes:
-        - 3: HOME
         - 4: BACK
-        - 24: VOLUME UP
-        - 25: VOLUME DOWN
-        - 26: POWER
-        - 82: MENU
+        - 66: ENTER
+        - 67: DELETE
         
         Args:
             keycode: Android keycode to press
@@ -468,12 +484,9 @@ class Tools:
                 device = await self.get_device()
             
             key_names = {
-                3: "HOME",
+                66: "ENTER",
                 4: "BACK",
-                24: "VOLUME UP",
-                25: "VOLUME DOWN",
-                26: "POWER",
-                82: "MENU",
+                67: "DELETE",
             }
             key_name = key_names.get(keycode, str(keycode))
             
@@ -764,30 +777,43 @@ class Tools:
             else:
                 device = await self.get_device()
             
-            # Get the top resumed activity
-            activity_output = await device._adb.shell(device._serial, "dumpsys activity activities | grep topResumedActivity")
+            # Clear logcat to make it easier to find our output
+            await device._adb.shell(device._serial, "logcat -c")
             
-            if not activity_output:
-                # Try alternative command for older Android versions
-                activity_output = await device._adb.shell(device._serial, "dumpsys activity activities | grep ResumedActivity")
+            # Trigger the custom service via broadcast to get phone state
+            await device._adb.shell(device._serial, "am broadcast -a com.droidrun.portal.GET_PHONE_STATE")
             
-            # Get keyboard visibility state
-            keyboard_output = await device._adb.shell(device._serial, "dumpsys input_method | grep mInputShown")
+            # Poll for the phone state data in logcat
+            start_time = asyncio.get_event_loop().time()
+            max_wait_time = 10  # Maximum wait time in seconds
+            poll_interval = 0.2  # Check every 200ms
             
-            # Process activity information
-            current_activity = "Unable to determine current activity"
-            if activity_output:
-                current_activity = activity_output.strip()
+            while asyncio.get_event_loop().time() - start_time < max_wait_time:
+                # Check logcat for the phone state data
+                logcat_output = await device._adb.shell(device._serial, "logcat -d | grep \"DROIDRUN_PHONE_STATE_DATA\" | tail -1")
+                
+                # Parse the JSON data if present
+                if "CHUNK|" in logcat_output:
+                    # Format: DROIDRUN_PHONE_STATE_DATA: CHUNK|0|1|{json_data}
+                    # Extract the JSON part after the last |
+                    parts = logcat_output.split("|")
+                    if len(parts) >= 4:
+                        json_data = "|".join(parts[3:])  # In case JSON contains | characters
+                        try:
+                            phone_state = json.loads(json_data)
+                            return phone_state
+                        except json.JSONDecodeError:
+                            # If JSON parsing failed, wait and retry
+                            await asyncio.sleep(poll_interval)
+                            continue
+                
+                # Wait before polling again
+                await asyncio.sleep(poll_interval)
             
-            # Process keyboard information
-            is_keyboard_shown = False
-            if keyboard_output:
-                is_keyboard_shown = "mInputShown=true" in keyboard_output
-            
-            # Return combined state
+            # If we couldn't get the phone state, return error
             return {
-                "current_activity": current_activity,
-                "keyboard_shown": is_keyboard_shown,
+                "error": "Timeout",
+                "message": f"Failed to get phone state data after {max_wait_time} seconds"
             }
             
         except Exception as e:
@@ -800,7 +826,7 @@ class Tools:
         """
         Store important information to remember for future context.
         
-        This information will be included in future LLM prompts to help maintain context
+        This information will be extracted and included into your next steps to maintain context
         across interactions. Use this for critical facts, observations, or user preferences
         that should influence future decisions.
         

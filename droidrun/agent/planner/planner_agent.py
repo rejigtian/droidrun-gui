@@ -24,6 +24,7 @@ from droidrun.agent.planner.events import (
     PlanThinkingEvent,
 )
 from droidrun.agent.context.agent_persona import AgentPersona
+from droidrun.agent.context.reflection import Reflection
 
 from dotenv import load_dotenv
 
@@ -58,7 +59,8 @@ class PlannerAgent(Workflow):
         self.debug = debug
 
         self.chat_memory = None
-        self.episodic_memory = None
+        self.remembered_info = None
+        self.reflection: Reflection = None
 
         self.current_retry = 0
         self.steps_counter = 0
@@ -97,23 +99,18 @@ class PlannerAgent(Workflow):
         )
         await self.chat_memory.aput(self.user_message)
 
-        if ev.episodic_memory:
-            self.episodic_memory = ev.episodic_memory
+        if ev.remembered_info:
+            self.remembered_info = ev.remembered_info
 
-        assert (
-            len(self.chat_memory.get_all()) > 0 or self.user_prompt
-        ), "Memory input, user prompt or user input cannot be empty."
-
-        await self.chat_memory.aput(
-            ChatMessage(
-                role="user",
-                content=PromptTemplate(
-                    self.user_prompt
-                    or DEFAULT_PLANNER_USER_PROMPT.format(goal=self.goal)
-                ),
-            )
-        )
-
+        if ev.reflection:
+            self.reflection = ev.reflection
+        else:
+            self.reflection = None 
+        
+        assert len(self.chat_memory.get_all()) > 0 or self.user_prompt, "Memory input, user prompt or user input cannot be empty."
+        
+        await self.chat_memory.aput(ChatMessage(role="user", content=PromptTemplate(self.user_prompt or DEFAULT_PLANNER_USER_PROMPT.format(goal=self.goal))))
+        
         input_messages = self.chat_memory.get_all()
         logger.debug(f"  - Memory contains {len(input_messages)} messages")
         return PlanInputEvent(input=input_messages)
@@ -137,7 +134,8 @@ class PlannerAgent(Workflow):
 
         await ctx.set("ui_state", await self.tools_instance.get_clickables())
         await ctx.set("phone_state", await self.tools_instance.get_phone_state())
-        await ctx.set("episodic_memory", self.episodic_memory)
+        await ctx.set("remembered_info", self.remembered_info)
+        await ctx.set("reflection", self.reflection)
 
         response = await self._get_llm_response(ctx, chat_history)
         await self.chat_memory.aput(response.message)
@@ -169,7 +167,7 @@ class PlannerAgent(Workflow):
                     )
                 )
 
-                self.episodic_memory = self.tools_instance.memory
+                self.remembered_info = self.tools_instance.memory
 
                 tasks = self.task_manager.get_all_tasks()
                 logger.info(f"📋 Current plan created with {len(tasks)} tasks:")
@@ -240,18 +238,16 @@ class PlannerAgent(Workflow):
                 chat_history,
             )
 
-            episodic_memory = await ctx.get("episodic_memory", default=None)
-            if episodic_memory:
-                chat_history = await chat_utils.add_memory_block(
-                    episodic_memory, chat_history
-                )
+        remembered_info = await ctx.get("remembered_info", default=None)
+        if remembered_info:
+            chat_history = await chat_utils.add_memory_block(remembered_info, chat_history)
 
-            chat_history = await chat_utils.add_ui_text_block(
-                await ctx.get("ui_state"), chat_history
-            )
-            chat_history = await chat_utils.add_phone_state_block(
-                await ctx.get("phone_state"), chat_history
-            )
+        reflection = await ctx.get("reflection", None)
+        if reflection:
+            chat_history = await chat_utils.add_reflection_summary(reflection, chat_history)
+
+        chat_history = await chat_utils.add_phone_state_block(await ctx.get("phone_state"), chat_history)
+        chat_history = await chat_utils.add_ui_text_block(await ctx.get("ui_state"), chat_history)
 
             messages_to_send = [self.system_message] + chat_history
             messages_to_send = [
