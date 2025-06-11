@@ -160,19 +160,12 @@ async def run_command(
 
 
 class DroidRunCLI(click.Group):
-
     def parse_args(self, ctx, args):
-        print(args)
         # If the first arg is not an option and not a known command, treat as 'run'
         if args and """not args[0].startswith("-")""" and args[0] not in self.commands:
             args.insert(0, "run")
 
-        print(args)
-
-        parsed = super().parse_args(ctx, args)
-        print(parsed)
-        return parsed
-
+        return super().parse_args(ctx, args)
 
 
 @click.option("--device", "-d", help="Device serial number or IP address", default=None)
