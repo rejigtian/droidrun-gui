@@ -156,6 +156,9 @@ class CodeActAgent(Workflow):
 
 
         response = await self._get_llm_response(ctx, chat_history)
+        if response is None:
+            return TaskEndEvent(success=False, reason="LLM response is None. This is a critical error.")
+        
         await self.chat_memory.aput(response.message)
 
         code, thoughts = chat_utils.extract_code_and_thought(response.message.content)
@@ -258,7 +261,7 @@ class CodeActAgent(Workflow):
 
         return StopEvent(result=result)
 
-    async def _get_llm_response(self, ctx: Context, chat_history: List[ChatMessage]) -> ChatResponse:
+    async def _get_llm_response(self, ctx: Context, chat_history: List[ChatMessage]) -> ChatResponse | None:
         messages_to_send = [self.system_prompt] + chat_history 
         messages_to_send = [chat_utils.message_copy(msg) for msg in messages_to_send]
         try:
@@ -303,6 +306,7 @@ class CodeActAgent(Workflow):
                     )
             else:
                 logger.error(f"Error getting LLM response: {e}")
+                return None
         logger.debug("  - Received response from LLM.")
         return response
 
