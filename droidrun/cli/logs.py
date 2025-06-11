@@ -196,7 +196,7 @@ class LogHandler(logging.Handler):
                 self.current_step = f"Plan ready ({task_count} tasks)"
                 logger.info(f"📋 Plan created with {task_count} tasks")
                 for task in event.tasks:
-                    desc = task.get("description")
+                    desc = task.description
                     logger.info(f"- {desc}")
 
         # CodeAct events
