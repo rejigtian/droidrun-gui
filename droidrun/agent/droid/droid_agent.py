@@ -170,23 +170,23 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
 
             
             if "success" in result and result["success"]:
-                return CodeActResultEvent(success=True, reason=result["reason"], task=task)
+                return CodeActResultEvent(success=True, reason=result["reason"], task=task, steps=result["codeact_steps"])
             else:
-                return CodeActResultEvent(success=False, reason=result["reason"], task=task)
+                return CodeActResultEvent(success=False, reason=result["reason"], task=task, steps=result["codeact_steps"])
                 
         except Exception as e:
             logger.error(f"Error during task execution: {e}")
             if self.debug:
                 import traceback
                 logger.error(traceback.format_exc())
-            return CodeActResultEvent(success=False, reason=f"Error: {str(e)}", task=task)
+            return CodeActResultEvent(success=False, reason=f"Error: {str(e)}", task=task, steps=result["codeact_steps"])
     
     @step
     async def handle_codeact_execute(self, ctx: Context, ev: CodeActResultEvent) -> FinalizeEvent | ReflectionEvent:
         try:
             task = ev.task
             if not self.reasoning:
-                return FinalizeEvent(success=ev.success, reason=ev.reason, task=[task], steps=1)
+                return FinalizeEvent(success=ev.success, reason=ev.reason, task=[task], steps=ev.steps)
             
             return ReflectionEvent(task=task)
 
