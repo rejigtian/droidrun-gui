@@ -9,6 +9,7 @@ class CodeActExecuteEvent(Event):
 class CodeActResultEvent(Event):
     success: bool
     reason: str
+    steps: int
 
 class ReasoningLogicEvent(Event):
     reflection: Optional[Reflection] = None
