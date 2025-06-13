@@ -70,9 +70,6 @@ def _format_ui_elements(ui_data, level=0) -> str:
         bounds = element.get('bounds', '')
         children = element.get('children', [])
         
-        # Truncate text if it's too long
-        if text and len(text) > 100:
-            text = text[:97] + "..."
         
         # Format the line: index. className: resourceId, text - bounds
         line_parts = []
@@ -90,7 +87,7 @@ def _format_ui_elements(ui_data, level=0) -> str:
             line_parts.append(", ".join(details))
         
         if bounds:
-            line_parts.append(f"- {bounds}")
+            line_parts.append(f"- ({bounds})")
         
         formatted_line = f"{indent}{' '.join(line_parts)}"
         formatted_lines.append(formatted_line)
@@ -229,7 +226,7 @@ async def add_task_history_block(completed_tasks: list[dict], failed_tasks: list
                 task_history += f"{i}. {status_indicator} {task}\n"
 
     
-    task_block = TextBlock(text=f"\nTask History:\n {task_history}")
+    task_block = TextBlock(text=f"{task_history}")
 
     chat_history = chat_history.copy()
     chat_history[-1] = message_copy(chat_history[-1])
