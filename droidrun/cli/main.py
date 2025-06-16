@@ -8,10 +8,10 @@ import os
 import logging
 import warnings
 from rich.console import Console
-from droidrun.tools import DeviceManager, Tools
 from droidrun.agent.droid import DroidAgent
 from droidrun.agent.utils.llm_picker import load_llm
-from droidrun.tools import AdbTools
+from droidrun.adb import DeviceManager
+from droidrun.tools import AdbTools, Tools
 from functools import wraps
 from droidrun.cli.logs import LogHandler
 
