@@ -557,7 +557,7 @@ class AdbTools(Tools):
         except ValueError as e:
             return f"Error: {str(e)}"
 
-    async def take_screenshot(self) -> bool:
+    async def take_screenshot(self) -> Tuple[str, bytes]:
         """
         Take a screenshot of the device.
         This function captures the current screen and adds the screenshot to context in the next message.

@@ -43,7 +43,7 @@ class Tools(ABC):
         pass
 
     @abstractmethod
-    async def take_screenshot(self) -> bool:
+    async def take_screenshot(self) -> Tuple[str, bytes]:
         pass
 
     @abstractmethod
