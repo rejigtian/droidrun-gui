@@ -388,10 +388,8 @@ class AdbTools(Tools):
                 device = await self.get_device()
 
             await device.swipe(start_x, start_y, end_x, end_y, duration_ms)
-            asyncio.sleep(1)
-            print(
-                f"Swiped from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration_ms}ms"
-            )
+            await asyncio.sleep(1)
+            print(f"Swiped from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration_ms}ms")
             return True
         except ValueError as e:
             print(f"Error: {str(e)}")
