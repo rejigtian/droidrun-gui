@@ -16,10 +16,12 @@ class Reflector:
     def __init__(
         self,
         llm: LLM,
+        debug: bool = False,
         *args,
         **kwargs
     ):
         self.llm = llm
+        self.debug = debug
 
     async def reflect_on_episodic_memory(self, episodic_memory: EpisodicMemory, goal: str) -> Reflection:
         """Analyze episodic memory and provide reflection on the agent's performance."""
@@ -149,19 +151,20 @@ class Reflector:
             resized_screenshot = screenshot.resize((cell_width, cell_height), Image.Resampling.LANCZOS)
             grid_image.paste(resized_screenshot, (x, screenshot_y))
         
-        # Save grid to disk for debugging
-        import os
-        from datetime import datetime
-        
-        # Create debug directory if it doesn't exist
-        debug_dir = "debug_screenshots"
-        os.makedirs(debug_dir, exist_ok=True)
-        
-        # Save with timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        debug_filename = os.path.join(debug_dir, f"screenshot_grid_{timestamp}.png")
-        grid_image.save(debug_filename)
-        logger.info(f"Screenshot grid saved to: {debug_filename}")
+        # Save grid to disk for debugging (only if debug flag is enabled)
+        if self.debug:
+            import os
+            from datetime import datetime
+            
+            # Create debug directory if it doesn't exist
+            debug_dir = "reflection_screenshots"
+            os.makedirs(debug_dir, exist_ok=True)
+            
+            # Save with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            debug_filename = os.path.join(debug_dir, f"screenshot_grid_{timestamp}.png")
+            grid_image.save(debug_filename)
+            logger.info(f"Screenshot grid saved to: {debug_filename}")
         
         # Convert to bytes for use with add_screenshot_image_block
         buffer = io.BytesIO()

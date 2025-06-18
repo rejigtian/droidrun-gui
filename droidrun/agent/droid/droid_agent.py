@@ -61,6 +61,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         max_steps: int = 15,
         timeout: int = 1000,
         reasoning: bool = False,
+        reflection: bool = False,
         enable_tracing: bool = False,
         debug: bool = False,
         device_serial: str = None,
@@ -78,6 +79,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
             timeout: Timeout for agent execution in seconds
             reasoning: Whether to use the PlannerAgent for complex reasoning (True) 
                       or send tasks directly to CodeActAgent (False)
+            reflection: Whether to reflect on steps the CodeActAgent did to give the PlannerAgent advice
             enable_tracing: Whether to enable Arize Phoenix tracing
             debug: Whether to enable verbose debug logging
             device_serial: Target Android device serial number
@@ -104,6 +106,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         self.max_codeact_steps = max_steps
         self.timeout = timeout
         self.reasoning = reasoning
+        self.reflection = reflection
         self.debug = debug
         self.device_serial = device_serial
 
@@ -137,7 +140,8 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
             self.add_workflows(planner_agent=self.planner_agent)
             self.max_codeact_steps = 5
 
-            self.reflector = Reflector(llm=llm)
+            if self.reflection:
+                self.reflector = Reflector(llm=llm, debug=debug)
             
         else:
             logger.debug("🚫 Planning disabled - will execute tasks directly with CodeActAgent")
@@ -208,7 +212,10 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
             if not self.reasoning:
                 return FinalizeEvent(success=ev.success, reason=ev.reason, task=[task], steps=ev.steps)
             
-            return ReflectionEvent(task=task)
+            if self.reflection:
+                return ReflectionEvent(task=task)
+            
+            return ReasoningLogicEvent()
 
         except Exception as e:
             logger.error(f"❌ Error during DroidAgent execution: {e}")
