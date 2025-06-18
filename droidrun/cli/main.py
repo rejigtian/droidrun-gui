@@ -24,20 +24,16 @@ device_manager = DeviceManager()
 
 def configure_logging(goal: str, debug: bool):
     logger = logging.getLogger("droidrun")
-    logger.handlers = []  # Remove any existing handlers
+    logger.handlers = []
 
-    # Use your custom handler for the Rich panel
     handler = LogHandler(goal)
     handler.setFormatter(
-        # logging.Formatter("%(asctime)s %(levelname)s: %(message)s", "%H:%M:%S")
         logging.Formatter("%(levelname)s %(message)s", "%H:%M:%S")
         if debug
         else logging.Formatter("%(message)s", "%H:%M:%S")
     )
     logger.addHandler(handler)
 
-    # Optionally, also add a RichHandler for direct stdout logging (if you want)
-    # logger.addHandler(RichHandler())
 
     logger.setLevel(logging.DEBUG if debug else logging.INFO)
     logger.propagate = False

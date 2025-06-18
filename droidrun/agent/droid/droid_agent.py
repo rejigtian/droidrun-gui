@@ -31,6 +31,28 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
     CodeActAgent (executes tasks) to achieve a user's goal.
     """
     
+    @staticmethod
+    def _configure_default_logging(debug: bool = False):
+        """
+        Configure default logging for DroidAgent if no handlers are present.
+        This ensures logs are visible when using DroidAgent directly.
+        """
+        # Only configure if no handlers exist (avoid duplicate configuration)
+        if not logger.handlers:
+            # Create a console handler
+            handler = logging.StreamHandler()
+            
+            # Set format
+            if debug:
+                formatter = logging.Formatter("%(asctime)s %(levelname)s: %(message)s", "%H:%M:%S")
+            else:
+                formatter = logging.Formatter("%(message)s")
+            
+            handler.setFormatter(formatter)
+            logger.addHandler(handler)
+            logger.setLevel(logging.DEBUG if debug else logging.INFO)
+            logger.propagate = False
+    
     def __init__(
         self, 
         goal: str,
@@ -64,6 +86,10 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
             **kwargs: Additional keyword arguments to pass to the agents
         """
         super().__init__(timeout=timeout ,*args,**kwargs)
+        
+        # Configure default logging if not already configured
+        self._configure_default_logging(debug=debug)
+        
         # Setup global tracing first if enabled
         if enable_tracing:
             try:
@@ -74,9 +100,6 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
                 logger.warning("⚠️ Arize Phoenix package not found, tracing disabled")
                 enable_tracing = False
 
-        if debug:
-            logger.setLevel(logging.DEBUG)
-        
         self.goal = goal
         self.llm = llm
         self.max_steps = max_steps
