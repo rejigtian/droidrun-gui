@@ -60,7 +60,6 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         personas: List[AgentPersona] = [DEFAULT],
         max_steps: int = 15,
         timeout: int = 1000,
-        max_retries: int = 3,
         reasoning: bool = True,
         enable_tracing: bool = False,
         debug: bool = False,
@@ -77,7 +76,6 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
             llm: The language model to use for both agents
             max_steps: Maximum number of steps for both agents
             timeout: Timeout for agent execution in seconds
-            max_retries: Maximum number of retries for failed tasks
             reasoning: Whether to use the PlannerAgent for complex reasoning (True) 
                       or send tasks directly to CodeActAgent (False)
             enable_tracing: Whether to enable Arize Phoenix tracing
@@ -105,7 +103,6 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         self.max_steps = max_steps
         self.max_codeact_steps = max_steps
         self.timeout = timeout
-        self.max_retries = max_retries
         self.reasoning = reasoning
         self.debug = debug
         self.device_serial = device_serial
