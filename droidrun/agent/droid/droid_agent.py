@@ -336,7 +336,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
             "steps": ev.steps,
         }
 
-        if self.trajectory:
+        if self.trajectory and self.save_trajectories:
             self.trajectory.save_trajectory()
 
         return StopEvent(result)

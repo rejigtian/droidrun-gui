@@ -61,7 +61,6 @@ async def run_command(
     tracing: bool,
     debug: bool,
     save_trajectory: bool = False,
-    trajectory_dir: str = None,
     **kwargs,
 ):
     """Run a command on your Android device using natural language."""
@@ -116,6 +115,7 @@ async def run_command(
                 enable_tracing=tracing,
                 debug=debug,
                 device_serial=device,
+                save_trajectories=save_trajectory
             )
 
             logger.info("▶️  Starting agent execution...")
@@ -202,12 +202,6 @@ class DroidRunCLI(click.Group):
     help="Save agent trajectory to file",
     default=False,
 )
-@click.option(
-    "--trajectory-dir",
-    help='Directory to save trajectory (default: "trajectories")',
-    type=click.Path(exists=False, dir_okay=True, file_okay=False),
-    default="trajectories",
-)
 @click.group(cls=DroidRunCLI)
 def cli(
     device: str | None,
@@ -220,7 +214,6 @@ def cli(
     tracing: bool,
     debug: bool,
     save_trajectory: bool,
-    trajectory_dir: str,
 ):
     """DroidRun - Control your Android device through LLM agents."""
     pass
@@ -267,11 +260,6 @@ def cli(
     help="Save agent trajectory to file",
     default=False,
 )
-@click.option(
-    "--trajectory-dir",
-    help='Directory to save trajectory (default: "trajectories")',
-    default="trajectories",
-)
 def run(
     command: str,
     device: str | None,
@@ -284,7 +272,6 @@ def run(
     tracing: bool,
     debug: bool,
     save_trajectory: bool,
-    trajectory_dir: str,
 ):
     """Run a command on your Android device using natural language."""
     # Call our standalone function
@@ -299,8 +286,7 @@ def run(
         tracing,
         debug,
         temperature=temperature,
-        save_trajectory=save_trajectory,
-        trajectory_dir=trajectory_dir,
+        save_trajectory=save_trajectory
     )
 
 
