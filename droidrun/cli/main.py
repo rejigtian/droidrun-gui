@@ -174,7 +174,7 @@ class DroidRunCLI(click.Group):
     "--model",
     "-m",
     help="LLM model name",
-    default="models/gemini-2.5-pro-preview-05-06",
+    default="models/gemini-2.5-pro",
 )
 @click.option("--temperature", type=float, help="Temperature for LLM", default=0.2)
 @click.option("--steps", type=int, help="Maximum number of steps", default=15)
@@ -232,7 +232,7 @@ def cli(
     "--model",
     "-m",
     help="LLM model name",
-    default="models/gemini-2.5-pro-preview-05-06",
+    default="models/gemini-2.5-pro",
 )
 @click.option("--temperature", type=float, help="Temperature for LLM", default=0.2)
 @click.option("--steps", type=int, help="Maximum number of steps", default=15)

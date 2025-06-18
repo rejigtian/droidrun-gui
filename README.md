@@ -188,7 +188,7 @@ async def main():
     # Load LLM
     llm = load_llm(
         provider_name="Gemini",  # Case sensitive: OpenAI, Ollama, Anthropic, Gemini, DeepSeek
-        model="models/gemini-2.5-pro-preview-05-06",
+        model="models/gemini-2.5-pro",
         temperature=0.2
     )
     
@@ -226,7 +226,7 @@ async def main():
     
     # Create LlamaIndex LLM directly
     llm = Gemini(
-        model="models/gemini-2.5-pro-preview-05-06",
+        model="models/gemini-2.5-pro",
         temperature=0.2
     )
     
