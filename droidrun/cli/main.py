@@ -112,7 +112,6 @@ async def run_command(
                 llm=llm,
                 max_steps=steps,
                 timeout=1000,
-                max_retries=3,
                 reasoning=reasoning,
                 enable_tracing=tracing,
                 debug=debug,

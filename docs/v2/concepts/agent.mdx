@@ -145,7 +145,6 @@ agent = DroidAgent(
     reasoning=True,                 # Enable planning
     max_steps=15,                   # Maximum planning steps
     timeout=1000,                   # Overall timeout
-    max_retries=3,                  # Retry attempts
     enable_tracing=True,            # Execution tracing
     debug=False                     # Debug mode
 )
@@ -223,7 +222,6 @@ print(f"Task history: {result['task_history']}")
    - Consider device performance
 
 4. **Handle Errors Properly**
-   - Configure max_retries for robustness
    - Check task_history for debugging
 
 5. **Memory Usage**
