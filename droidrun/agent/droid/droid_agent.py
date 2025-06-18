@@ -60,7 +60,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         personas: List[AgentPersona] = [DEFAULT],
         max_steps: int = 15,
         timeout: int = 1000,
-        reasoning: bool = True,
+        reasoning: bool = False,
         enable_tracing: bool = False,
         debug: bool = False,
         device_serial: str = None,
