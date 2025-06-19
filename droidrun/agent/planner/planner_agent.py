@@ -170,14 +170,15 @@ class PlannerAgent(Workflow):
                 self.remembered_info = self.tools_instance.memory
 
                 tasks = self.task_manager.get_all_tasks()
-                logger.info(f"📋 Current plan created with {len(tasks)} tasks:")
-                for i, task in enumerate(tasks):
-                    logger.info(
-                        f"  Task {i}: [{task.status.upper()}] [{task.agent_type}] {task.description}"
-                    )
-
                 event = PlanCreatedEvent(tasks=tasks)
-                ctx.write_event_to_stream(event)
+
+                if not self.task_manager.goal_completed:
+                    logger.info(f"📋 Current plan created with {len(tasks)} tasks:")
+                    for i, task in enumerate(tasks):
+                        logger.info(
+                            f"  Task {i}: [{task.status.upper()}] [{task.agent_type}] {task.description}"
+                        )
+                    ctx.write_event_to_stream(event)
 
                 return event
 
