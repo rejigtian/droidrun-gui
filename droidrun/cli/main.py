@@ -25,20 +25,16 @@ device_manager = DeviceManager()
 
 def configure_logging(goal: str, debug: bool):
     logger = logging.getLogger("droidrun")
-    logger.handlers = []  # Remove any existing handlers
+    logger.handlers = []
 
-    # Use your custom handler for the Rich panel
     handler = LogHandler(goal)
     handler.setFormatter(
-        # logging.Formatter("%(asctime)s %(levelname)s: %(message)s", "%H:%M:%S")
         logging.Formatter("%(levelname)s %(message)s", "%H:%M:%S")
         if debug
         else logging.Formatter("%(message)s", "%H:%M:%S")
     )
     logger.addHandler(handler)
 
-    # Optionally, also add a RichHandler for direct stdout logging (if you want)
-    # logger.addHandler(RichHandler())
 
     logger.setLevel(logging.DEBUG if debug else logging.INFO)
     logger.propagate = False
@@ -66,7 +62,6 @@ async def run_command(
     tracing: bool,
     debug: bool,
     save_trajectory: bool = False,
-    trajectory_dir: str = None,
     **kwargs,
 ):
     """Run a command on your Android device using natural language."""
@@ -120,11 +115,11 @@ async def run_command(
                 tools=tools,
                 max_steps=steps,
                 timeout=1000,
-                max_retries=3,
                 reasoning=reasoning,
                 enable_tracing=tracing,
                 debug=debug,
                 device_serial=device,
+                save_trajectories=save_trajectory
             )
 
             logger.info("▶️  Starting agent execution...")
@@ -183,7 +178,7 @@ class DroidRunCLI(click.Group):
     "--model",
     "-m",
     help="LLM model name",
-    default="models/gemini-2.5-pro-preview-05-06",
+    default="models/gemini-2.5-pro",
 )
 @click.option("--temperature", type=float, help="Temperature for LLM", default=0.2)
 @click.option("--steps", type=int, help="Maximum number of steps", default=15)
@@ -211,12 +206,6 @@ class DroidRunCLI(click.Group):
     help="Save agent trajectory to file",
     default=False,
 )
-@click.option(
-    "--trajectory-dir",
-    help='Directory to save trajectory (default: "trajectories")',
-    type=click.Path(exists=False, dir_okay=True, file_okay=False),
-    default="trajectories",
-)
 @click.group(cls=DroidRunCLI)
 def cli(
     device: str | None,
@@ -229,7 +218,6 @@ def cli(
     tracing: bool,
     debug: bool,
     save_trajectory: bool,
-    trajectory_dir: str,
 ):
     """DroidRun - Control your Android device through LLM agents."""
     pass
@@ -248,7 +236,7 @@ def cli(
     "--model",
     "-m",
     help="LLM model name",
-    default="models/gemini-2.5-pro-preview-05-06",
+    default="models/gemini-2.5-pro",
 )
 @click.option("--temperature", type=float, help="Temperature for LLM", default=0.2)
 @click.option("--steps", type=int, help="Maximum number of steps", default=15)
@@ -276,11 +264,6 @@ def cli(
     help="Save agent trajectory to file",
     default=False,
 )
-@click.option(
-    "--trajectory-dir",
-    help='Directory to save trajectory (default: "trajectories")',
-    default="trajectories",
-)
 def run(
     command: str,
     device: str | None,
@@ -293,7 +276,6 @@ def run(
     tracing: bool,
     debug: bool,
     save_trajectory: bool,
-    trajectory_dir: str,
 ):
     """Run a command on your Android device using natural language."""
     # Call our standalone function
@@ -308,8 +290,7 @@ def run(
         tracing,
         debug,
         temperature=temperature,
-        save_trajectory=save_trajectory,
-        trajectory_dir=trajectory_dir,
+        save_trajectory=save_trajectory
     )
 
 

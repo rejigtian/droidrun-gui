@@ -50,7 +50,7 @@ from droidrun.tools import load_tools
 
 async def main():
     tool_list, tools_instance = await load_tools()
-    llm = load_llm(provider_name="Gemini", model="models/gemini-2.5-pro-preview-05-06")
+    llm = load_llm(provider_name="Gemini", model="models/gemini-2.5-pro")
     
     # Enable tracing
     agent = DroidAgent(
