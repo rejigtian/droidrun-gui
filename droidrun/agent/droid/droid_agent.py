@@ -14,7 +14,7 @@ from droidrun.agent.codeact.events import EpisodicMemoryEvent
 from droidrun.agent.planner import PlannerAgent
 from droidrun.agent.context.task_manager import TaskManager
 from droidrun.agent.utils.trajectory import Trajectory
-from droidrun.tools import load_tools
+from droidrun.tools import Tools, describe_tools
 from droidrun.agent.common.events import ScreenshotEvent
 from droidrun.agent.common.default import MockWorkflow
 from droidrun.agent.context import ContextInjectionManager
@@ -57,6 +57,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         self, 
         goal: str,
         llm: LLM,
+        tools: Tools,
         personas: List[AgentPersona] = [DEFAULT],
         max_steps: int = 15,
         timeout: int = 1000,
@@ -121,9 +122,8 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
 
         logger.info("🤖 Initializing DroidAgent...")
         
-        tool_list, tools_instance = load_tools(serial=device_serial)
-        self.tool_list = tool_list
-        self.tools_instance = tools_instance
+        self.tool_list = describe_tools(tools)
+        self.tools_instance = tools
 
 
         if self.reasoning:
@@ -133,7 +133,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
                 llm=llm,
                 personas=personas,
                 task_manager=self.task_manager,
-                tools_instance=tools_instance,
+                tools_instance=tools,
                 timeout=timeout,
                 debug=debug
             )
