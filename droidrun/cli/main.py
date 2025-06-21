@@ -8,9 +8,10 @@ import os
 import logging
 import warnings
 from rich.console import Console
-from droidrun.tools import DeviceManager, Tools
 from droidrun.agent.droid import DroidAgent
 from droidrun.agent.utils.llm_picker import load_llm
+from droidrun.adb import DeviceManager
+from droidrun.tools import AdbTools, Tools
 from functools import wraps
 from droidrun.cli.logs import LogHandler
 
@@ -90,6 +91,8 @@ async def run_command(
             else:
                 logger.info(f"📱 Using device: {device}")
 
+            tools = AdbTools(serial=device)
+
             # LLM setup
             log_handler.update_step("Initializing LLM...")
             llm = load_llm(
@@ -109,6 +112,7 @@ async def run_command(
             droid_agent = DroidAgent(
                 goal=command,
                 llm=llm,
+                tools=tools,
                 max_steps=steps,
                 timeout=1000,
                 reasoning=reasoning,
