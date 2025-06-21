@@ -1,0 +1,118 @@
+---
+title: 'Introduction'
+description: 'Welcome to DroidRun - Control Android devices with LLM agents'
+---
+
+# Welcome to DroidRun
+
+DroidRun is a powerful framework that enables you to control Android devices through LLM agents. It provides a simple and intuitive way to automate Android and iOS device interactions using natural language commands.
+
+## Features
+
+<CardGroup cols={2}>
+  <Card title="Natural Language Control" icon="wand-magic-sparkles">
+    Control your Android device using natural language commands
+  </Card>
+  <Card title="Multiple LLM Support" icon="brain">
+    Support for OpenAI, Anthropic, Gemini, Ollama, and Deepseek
+  </Card>
+  <Card title="Advanced Planning" icon="diagram-project">
+    Optional planning and reasoning capabilities
+  </Card>
+  <Card title="Self Reflection" icon="eye">
+    Built-in reflection capabilities for self correction
+  </Card>
+  <Card title="Simple CLI" icon="terminal">
+    Rich terminal UI with live updates
+  </Card>
+  <Card title="Python SDK" icon="code">
+    Comprehensive SDK for custom automation tasks
+  </Card>
+</CardGroup>
+
+## Quick Example
+
+```bash
+# Simple CLI usage
+droidrun "Open the settings app"
+
+# With specific provider and model
+droidrun "Open calculator app" --provider Gemini --model models/gemini-2.5-pro
+
+# With vision and planning capabilities
+droidrun "Open Calculator and take a screenshot" --vision --reasoning
+```
+
+Or with Python:
+
+```python
+import asyncio
+from droidrun import DroidAgent, load_llm, AdbTools
+
+async def main():
+    # Load tools and LLM
+    tools = AdbTools()
+    llm = load_llm(
+        provider_name="Gemini",  # OpenAI, ollama, Anthropic, Gemini, DeepSeek
+        model="models/gemini-2.5-pro",
+        temperature=0.2
+    )
+    
+    # Create and run the agent
+    agent = DroidAgent(
+        goal="Open the Settings app",
+        llm=llm,
+        tools=tools,
+        reflection=True,      # Enable reflection capabilities
+        reasoning=True,   # Enable planning mode
+        enable_tracing=True  # Enable execution tracing
+    )
+    
+    result = await agent.run()
+    print(f"Success: {result['success']}")
+    if result.get('output'):
+        print(f"Output: {result['output']}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+## Prerequisites
+
+- API key for at least one LLM provider
+
+## for Android
+- Android device connected via USB or ADB over TCP/IP
+- ADB (Android Debug Bridge) installed
+- DroidRun Portal app installed and accessibility service enabled
+
+## for iOS
+- Droidrun iOS Portal up and running 
+
+## Getting Started
+
+<CardGroup cols={3}>
+  <Card title="Quickstart" icon="rocket" href="/v3/quickstart">
+    Get up and running with DroidRun in minutes
+  </Card>
+</CardGroup>
+
+## Core Concepts
+
+<CardGroup cols={2}>
+  <Card title="Agent" icon="robot" href="/v3/concepts/agent">
+    Learn about the DroidAgent system
+  </Card>
+  <Card title="Android Control" icon="mobile" href="/v3/concepts/android-control">
+    Explore Android device interactions
+  </Card>
+  <Card title="Planning" icon="diagram-project" href="/v3/concepts/planning">
+    Understanding planning and reasoning
+  </Card>
+  <Card title="Portal App" icon="door-open" href="/v3/concepts/portal-app">
+    DroidRun Portal accessibility service
+  </Card>
+  <Card title="Tracing" icon="bug" href="/v3/concepts/tracing">
+    Debug and analyze execution with Phoenix
+  </Card>
+</CardGroup> 
