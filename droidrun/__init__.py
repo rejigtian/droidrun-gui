@@ -12,6 +12,7 @@ from droidrun.agent.utils.llm_picker import load_llm
 from droidrun.adb.manager import DeviceManager
 from droidrun.tools.tools import Tools
 from droidrun.tools.adb import AdbTools
+from droidrun.tools.ios import IOSTools
 from droidrun.agent.droid import DroidAgent
 
 
@@ -26,4 +27,5 @@ __all__ = [
     "SimpleCodeExecutor",
     "Tools",
     "AdbTools",
+    "IOSTools",
 ]
