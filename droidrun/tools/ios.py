@@ -12,13 +12,33 @@ from droidrun.tools.tools import Tools
 
 logger = logging.getLogger("IOS")
 
+SYSTEM_BUNDLE_IDENTIFIERS = [
+    "ai.droidrun.droidrun-ios-portal",
+    "com.apple.Bridge",
+    "com.apple.DocumentsApp",
+    "com.apple.Fitness",
+    "com.apple.Health",
+    "com.apple.Maps",
+    "com.apple.MobileAddressBook",
+    "com.apple.MobileSMS",
+    "com.apple.Passbook",
+    "com.apple.Passwords",
+    "com.apple.Preferences",
+    "com.apple.PreviewShell",
+    "com.apple.mobilecal",
+    "com.apple.mobilesafari",
+    "com.apple.mobileslideshow",
+    "com.apple.news",
+    "com.apple.reminders",
+    "com.apple.shortcuts",
+    "com.apple.webapp",
+]
+
+
 class IOSTools(Tools):
     """Core UI interaction tools for iOS device control."""
 
-    def __init__(
-        self,
-        url: str,
-    ) -> None:
+    def __init__(self, url: str, bundle_identifiers: List[str] = []) -> None:
         self.clickable_elements_cache: List[Dict[str, Any]] = []
         self.url = url
         self.last_screenshot = None
@@ -30,6 +50,7 @@ class IOSTools(Tools):
         self.last_tapped_rect: Optional[str] = (
             None  # Store last tapped element's rect for text input
         )
+        self.bundle_identifiers = bundle_identifiers
         logger.info(f"iOS device URL: {url}")
 
     async def get_clickables(
@@ -275,6 +296,25 @@ class IOSTools(Tools):
         except Exception as e:
             return f"Error: {str(e)}"
 
+    """async def tap_by_coordinates(self, x: int, y: int) -> bool:
+         # Format rect in iOS format: {{x,y},{w,h}}
+        width = 1
+        height = 1
+        ios_rect = f"{{{{{x},{y}}},{{{width},{height}}}}}"
+
+        # Make the tap request
+        async with aiohttp.ClientSession() as session:
+            tap_url = f"{self.url}/gestures/tap"
+            payload = {"rect": ios_rect, "count": 1, "longPress": False}
+
+            logger.info(f"payload {payload}")
+
+            async with session.post(tap_url, json=payload) as response:
+                if response.status == 200:
+                    return True
+                else:
+                    return False"""
+
     async def tap(self, index: int) -> str:
         """
         Tap on a UI element by its index.
@@ -362,7 +402,7 @@ class IOSTools(Tools):
 
         except Exception as e:
             return f"Error sending text input: {str(e)}"
-        
+
     async def back(self) -> str:
         raise NotImplementedError("Back is not yet implemented for iOS")
 
@@ -487,6 +527,16 @@ class IOSTools(Tools):
 
         except Exception as e:
             return {"error": str(e), "message": f"Error getting phone state: {str(e)}"}
+
+    async def list_packages(self, include_system_apps: bool = True) -> List[str]:
+        all_packages = set(self.bundle_identifiers)
+        if include_system_apps:
+            all_packages.update(SYSTEM_BUNDLE_IDENTIFIERS)
+        return sorted(list(all_packages))
+
+    async def extract(self, filename: str | None = None) -> str:
+        # TODO
+        return "not implemented"
 
     async def remember(self, information: str) -> str:
         """

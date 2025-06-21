@@ -90,7 +90,7 @@ async def run_command(
                 device = devices[0].serial
                 logger.info(f"📱 Using device: {device}")
             elif device is None and ios:
-                raise ValueError("iOS device not specified. Please specify the device base url (ip of the device)")
+                raise ValueError("iOS device not specified. Please specify the device base url (http://device-ip:6643) via --device")
             else:
                 logger.info(f"📱 Using device: {device}")
 
