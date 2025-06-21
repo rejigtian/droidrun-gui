@@ -16,9 +16,9 @@ class Tools(ABC):
     async def tap_by_index(self, index: int) -> bool:
         pass
 
-    @abstractmethod
-    async def tap_by_coordinates(self, x: int, y: int) -> bool:
-        pass
+    #@abstractmethod
+    #async def tap_by_coordinates(self, x: int, y: int) -> bool:
+    #    pass
 
     @abstractmethod
     async def swipe(
