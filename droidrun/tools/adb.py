@@ -19,7 +19,7 @@ from droidrun.tools.tools import Tools
 class AdbTools(Tools):
     """Core UI interaction tools for Android device control."""
 
-    def __init__(self, serial: str) -> None:
+    def __init__(self, serial: str = "emulator-5554") -> None:
         # Instance‐level cache for clickable elements (index-based tapping)
         self.clickable_elements_cache: List[Dict[str, Any]] = []
         self.serial = serial
