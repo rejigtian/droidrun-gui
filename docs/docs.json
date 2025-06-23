@@ -26,6 +26,7 @@
               "v3/concepts/agent",
               "v3/concepts/planning",
               "v3/concepts/android-control",
+              "v3/concepts/ios-control",
               "v3/concepts/portal-app",
               "v3/concepts/tracing"
             ]
