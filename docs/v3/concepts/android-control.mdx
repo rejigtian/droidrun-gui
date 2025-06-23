@@ -35,18 +35,16 @@ Before controlling a device, establish a connection:
 DroidRun uses a modular tool system for device control:
 
 ```python
-from droidrun.tools import load_tools
-from droidrun.agent.droid import DroidAgent
+from droidrun import DroidAgent, AdbTools
 
 # Load tools for a device
-tool_list, tools_instance = await load_tools(serial="device_id")
+tools = AdbTools(serial="device_id")
 
 # Create agent with tools
 agent = DroidAgent(
     goal="Your task",
     llm=llm,
-    tools_instance=tools_instance,
-    tool_list=tool_list
+    tools=tools
 )
 ```
 

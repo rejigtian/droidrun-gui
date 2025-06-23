@@ -13,8 +13,8 @@ The DroidAgent architecture consists of:
 
 - **Planning System**: Optional planning capabilities provided by PlannerAgent
 - **Execution System**: CodeActAgent for executing tasks
-- **Tool System**: Modular tools for Android device control
-- **Vision Integration**: Optional screen analysis capabilities
+- **Tool System**: Modular tools for Android and iOS device control
+- **Reflection Integration**: Optional screen analysis capabilities
 
 ## 🔄 Execution Flow
 
@@ -72,7 +72,7 @@ The DroidAgent has access to these core tools:
 
 ## 📸 Reflection System
 
-The vision system enhances the agent's capabilities:
+The reflection system enhances the agent's capabilities:
 
 ```python
 agent = DroidAgent(
@@ -80,7 +80,7 @@ agent = DroidAgent(
     llm=llm,
     tools_instance=tools,
     reasoning=True,
-    reflection=True  # Enable vision
+    reflection=True  # Enable reflection
 )
 ```
 
@@ -130,19 +130,17 @@ For detailed information, see the [Execution Tracing](/v2/concepts/tracing) docu
 ## ⚙️ Configuration
 
 ```python
-from droidrun.agent.droid import DroidAgent
-from droidrun.tools import load_tools
+from droidrun import AdbTools, DroidAgent
 
 # Load tools
-tool_list, tools_instance = await load_tools(serial="device_id")
+tools = AdbTools(serial="device_id")
 
 # Create agent
 agent = DroidAgent(
     goal="Open Settings and enable dark mode",
     llm=llm,                        # Language model
-    tools_instance=tools_instance,  # Tool provider
-    tool_list=tool_list,            # Available tools
-    vision=True,                    # Enable vision
+    tools=tools,                    # Tool provider
+    reflection=True,                # Enable reflection
     reasoning=True,                 # Enable planning
     max_steps=15,                   # Maximum planning steps
     timeout=1000,                   # Overall timeout
@@ -164,8 +162,7 @@ DroidAgent supports two execution modes:
 agent = DroidAgent(
     goal="Take a screenshot",
     llm=llm,
-    tools_instance=tools_instance,
-    tool_list=tool_list,
+    tools=tools,
     reasoning=False  # No planning
 )
 ```
@@ -180,8 +177,7 @@ agent = DroidAgent(
 agent = DroidAgent(
     goal="Find and install Twitter app",
     llm=llm,
-    tools_instance=tools_instance,
-    tool_list=tool_list,
+    tools=tools,
     reasoning=True  # With planning
 )
 ```
@@ -214,7 +210,7 @@ print(f"Task history: {result['task_history']}")
    - Enable reasoning for multi-step operations
    - Direct mode is faster for simple tasks
 
-2. **Enable Vision When Needed**
+2. **Enable Reflection When Needed**
    - Use for UI-heavy interactions
    - Provides better screen understanding
 
