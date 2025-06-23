@@ -240,14 +240,15 @@ class CodeActAgent(Workflow):
             result = await self.executor.execute(ctx, code)
             logger.info(f"💡 Code execution successful. Result: {result}")
 
-            status = await self.tools.get_status()
-            if status["finished"] == True:
+            if self.tools.finished == True:
                 logger.debug("  - Task completed.")
-                event = TaskEndEvent(success=status["success"], reason=status["reason"])
+                event = TaskEndEvent(
+                    success=self.tools.success, reason=self.tools.reason
+                )
                 ctx.write_event_to_stream(event)
                 return event
             
-            self.remembered_info = await self.tools.get_memory()
+            self.remembered_info = self.tools.memory
             
             event = TaskExecutionResultEvent(output=str(result))
             ctx.write_event_to_stream(event)
@@ -291,7 +292,7 @@ class CodeActAgent(Workflow):
     @step
     async def finalize(self, ev: TaskEndEvent, ctx: Context) -> StopEvent:
         """Finalize the workflow."""
-        #self.tools.finished = False
+        self.tools.finished = False
         await ctx.set("chat_memory", self.chat_memory)
         
         # Add final state observation to episodic memory
