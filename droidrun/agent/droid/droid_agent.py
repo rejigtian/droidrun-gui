@@ -181,9 +181,10 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
                 timeout=self.timeout,
             )
 
+            memory = await self.tools_instance.get_memory()
             handler = codeact_agent.run(
                 input=task.description,
-                remembered_info=self.tools_instance.memory,
+                remembered_info=memory,
                 reflection=reflection
             )
             
@@ -261,8 +262,9 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
                 return FinalizeEvent(success=False, reason=f"Reached maximum number of steps ({self.max_steps})", task=self.task_manager.get_task_history(), steps=self.step_counter)
             self.step_counter += 1
 
+            memory = await self.tools_instance.get_memory()
             if ev.reflection:
-                handler = planner_agent.run(remembered_info=self.tools_instance.memory, reflection=ev.reflection)
+                handler = planner_agent.run(remembered_info=memory, reflection=ev.reflection)
             else:
                 if self.task_iter:
                     try:
@@ -273,7 +275,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
 
                 logger.debug(f"Planning step {self.step_counter}/{self.max_steps}")
 
-                handler = planner_agent.run(remembered_info=self.tools_instance.memory, reflection=None)
+                handler = planner_agent.run(remembered_info=memory, reflection=None)
 
             async for nested_ev in handler.stream_events():
                 self.handle_stream_event(nested_ev, ctx)
@@ -312,6 +314,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         
         self.step_counter = 0
         self.retry_counter = 0
+        self.tools_instance.set_context(ctx)
     
         if not self.reasoning:
             logger.info(f"🔄 Direct execution mode - executing goal: {self.goal}")

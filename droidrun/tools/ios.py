@@ -41,12 +41,6 @@ class IOSTools(Tools):
     def __init__(self, url: str, bundle_identifiers: List[str] = []) -> None:
         self.clickable_elements_cache: List[Dict[str, Any]] = []
         self.url = url
-        self.last_screenshot = None
-        self.reason = None
-        self.success = None
-        self.finished = False
-        self.memory: List[str] = []
-        self.screenshots: List[Dict[str, Any]] = []
         self.last_tapped_rect: Optional[str] = (
             None  # Store last tapped element's rect for text input
         )
@@ -472,13 +466,13 @@ class IOSTools(Tools):
                     if response.status == 200:
                         screenshot_data = await response.read()
 
-                        # Store screenshot with timestamp
-                        screenshot_info = {
-                            "timestamp": time.time(),
-                            "data": screenshot_data,
-                        }
-                        self.screenshots.append(screenshot_info)
-                        self.last_screenshot = screenshot_data
+                        self._append_screenshot(
+                            {
+                                "timestamp": time.time(),
+                                "image_data": screenshot_data,
+                                "format": "PNG",
+                            }
+                        )
 
                         logger.info(
                             f"Screenshot captured successfully, size: {len(screenshot_data)} bytes"
@@ -537,58 +531,3 @@ class IOSTools(Tools):
     async def extract(self, filename: str | None = None) -> str:
         # TODO
         return "not implemented"
-
-    async def remember(self, information: str) -> str:
-        """
-        Store important information to remember for future context.
-
-        This information will be included in future LLM prompts to help maintain context
-        across interactions. Use this for critical facts, observations, or user preferences
-        that should influence future decisions.
-
-        Args:
-            information: The information to remember
-
-        Returns:
-            Confirmation message
-        """
-        if not information or not isinstance(information, str):
-            return "Error: Please provide valid information to remember."
-
-        # Add the information to memory
-        self.memory.append(information.strip())
-
-        # Limit memory size to prevent context overflow (keep most recent items)
-        max_memory_items = 10
-        if len(self.memory) > max_memory_items:
-            self.memory = self.memory[-max_memory_items:]
-
-        return f"Remembered: {information}"
-
-    def get_memory(self) -> List[str]:
-        """
-        Retrieve all stored memory items.
-
-        Returns:
-            List of stored memory items
-        """
-        return self.memory.copy()
-
-    def complete(self, success: bool, reason: str = ""):
-        """
-        Mark the task as finished.
-
-        Args:
-            success: Indicates if the task was successful.
-            reason: Reason for failure/success
-        """
-        if success:
-            self.success = True
-            self.reason = reason or "Task completed successfully."
-            self.finished = True
-        else:
-            self.success = False
-            if not reason:
-                raise ValueError("Reason for failure is required if success is False.")
-            self.reason = reason
-            self.finished = True

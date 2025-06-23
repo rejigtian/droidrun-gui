@@ -1,13 +1,120 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple, Dict, Callable, Any, Optional, TypedDict
 import logging
-from typing import Tuple, Dict, Callable, Any, Optional
+import asyncio
+from llama_index.core.workflow import Context
 
 # Get a logger for this module
 logger = logging.getLogger(__name__)
 
+class Screenshot(TypedDict):
+    timestamp: float
+    image_data: bytes
+    format: str
 
 class Tools(ABC):
+    def __init__(self) -> None:
+        self.ctx: Context = None
+
+    def set_context(self, ctx: Context) -> None:
+        self.ctx = ctx
+
+    async def _append_screenshot(self, screenshot: Screenshot) -> None:
+        if not self.ctx:
+            raise RuntimeError("Tools Context is not set")
+
+        async with self.ctx.lock:
+            screenshots = await self.ctx.get("screenshots", [])
+            screenshots.append(screenshot)
+            await self.ctx.set("screenshots", screenshots)
+    
+    async def get_screenshots(self) -> List[Screenshot]:
+        if not self.ctx:
+            raise RuntimeError("Tools Context is not set")
+        
+        async with self.ctx.lock:
+            return await self.ctx.get("screenshots", [])
+
+
+    async def remember(self, information: str) -> str:
+        """
+        Store important information to remember for future context.
+
+        This information will be extracted and included into your next steps to maintain context
+        across interactions. Use this for critical facts, observations, or user preferences
+        that should influence future decisions.
+
+        Args:
+            information: The information to remember
+
+        Returns:
+            Confirmation message
+        """
+        if not self.ctx:
+            raise RuntimeError("Tools Context is not set")
+        
+        if not information or not isinstance(information, str):
+            return "Error: Please provide valid information to remember."
+
+        async with self.ctx.lock:
+            memory = await self.ctx.get("memory", [])
+
+            # Add the information to memory
+            memory.append(information.strip())
+
+            # Limit memory size to prevent context overflow (keep most recent items)
+            # max_memory_items = 10
+            # if len(self.memory) > max_memory_items:
+            #    self.memory = self.memory[-max_memory_items:]
+
+            await self.ctx.set("memory", memory)
+
+            return f"Remembered: {information}"
+
+    async def get_memory(self) -> List[str]:
+        """
+        Retrieve all stored memory items.
+
+        Returns:
+            List of stored memory items
+        """
+
+        if not self.ctx:
+            raise RuntimeError("Tools Context is not set")
+
+        async with self.ctx.lock:
+            memory = await self.ctx.get("memory", [])
+            return memory.copy()
+
+    async def complete(self, success: bool, reason: str = ""):
+        """
+        Mark the task as finished.
+
+        Args:
+            success: Indicates if the task was successful.
+            reason: Reason for failure/success
+        """
+        if not self.ctx:
+            raise RuntimeError("Tools Context is not set")
+
+        async with self.ctx.lock:
+            await asyncio.gather(
+                *[
+                    self.ctx.set("success", success),
+                    self.ctx.set(
+                        "reason",
+                        reason
+                        or (
+                            "Task completed successfully."
+                            if success
+                            else "Task failed."
+                        ),
+                    ),
+                    self.ctx.set("finished", True),
+                ]
+            )
+            self.ctx = None
+
     @abstractmethod
     async def get_clickables(self) -> str:
         pass
@@ -16,8 +123,8 @@ class Tools(ABC):
     async def tap_by_index(self, index: int) -> bool:
         pass
 
-    #@abstractmethod
-    #async def tap_by_coordinates(self, x: int, y: int) -> bool:
+    # @abstractmethod
+    # async def tap_by_coordinates(self, x: int, y: int) -> bool:
     #    pass
 
     @abstractmethod
@@ -55,19 +162,7 @@ class Tools(ABC):
         pass
 
     @abstractmethod
-    async def remember(self, information: str) -> str:
-        pass
-
-    @abstractmethod
-    async def get_memory(self) -> List[str]:
-        pass
-
-    @abstractmethod
     async def extract(self, filename: Optional[str] = None) -> str:
-        pass
-
-    @abstractmethod
-    def complete(self, success: bool, reason: str = "") -> bool:
         pass
 
 
