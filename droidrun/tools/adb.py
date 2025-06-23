@@ -14,15 +14,24 @@ from typing import Optional, Dict, Tuple, List, Any
 from droidrun.adb.device import Device
 from droidrun.adb.manager import DeviceManager
 from droidrun.tools.tools import Tools
-from llama_index.core.workflow import Context
 
 
 class AdbTools(Tools):
     """Core UI interaction tools for Android device control."""
 
     def __init__(self, serial: str = "emulator-5554") -> None:
+        # Instance‐level cache for clickable elements (index-based tapping)
+        self.clickable_elements_cache: List[Dict[str, Any]] = []
         self.serial = serial
         self.device_manager = DeviceManager()
+        self.last_screenshot = None
+        self.reason = None
+        self.success = None
+        self.finished = False
+        # Memory storage for remembering important information
+        self.memory: List[str] = []
+        # Store all screenshots with timestamps
+        self.screenshots: List[Dict[str, Any]] = []
 
     def get_device_serial(self) -> str:
         """Get the device serial from the instance or environment variable."""
@@ -380,9 +389,7 @@ class AdbTools(Tools):
 
             await device.swipe(start_x, start_y, end_x, end_y, duration_ms)
             await asyncio.sleep(1)
-            print(
-                f"Swiped from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration_ms}ms"
-            )
+            print(f"Swiped from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration_ms}ms")
             return True
         except ValueError as e:
             print(f"Error: {str(e)}")
@@ -565,9 +572,10 @@ class AdbTools(Tools):
             else:
                 device = await self.get_device()
             screen_tuple = await device.take_screenshot()
+            self.last_screenshot = screen_tuple[1]
 
             # Store screenshot with timestamp
-            self._append_screenshot(
+            self.screenshots.append(
                 {
                     "timestamp": time.time(),
                     "image_data": screen_tuple[1],
@@ -746,6 +754,25 @@ class AdbTools(Tools):
         except Exception as e:
             raise ValueError(f"Error getting all UI elements: {e}")
 
+    def complete(self, success: bool, reason: str = ""):
+        """
+        Mark the task as finished.
+
+        Args:
+            success: Indicates if the task was successful.
+            reason: Reason for failure/success
+        """
+        if success:
+            self.success = True
+            self.reason = reason or "Task completed successfully."
+            self.finished = True
+        else:
+            self.success = False
+            if not reason:
+                raise ValueError("Reason for failure is required if success is False.")
+            self.reason = reason
+            self.finished = True
+
     async def get_phone_state(self, serial: Optional[str] = None) -> Dict[str, Any]:
         """
         Get the current phone state including current activity and keyboard visibility.
@@ -814,3 +841,39 @@ class AdbTools(Tools):
 
         except Exception as e:
             return {"error": str(e), "message": f"Error getting phone state: {str(e)}"}
+
+    async def remember(self, information: str) -> str:
+        """
+        Store important information to remember for future context.
+
+        This information will be extracted and included into your next steps to maintain context
+        across interactions. Use this for critical facts, observations, or user preferences
+        that should influence future decisions.
+
+        Args:
+            information: The information to remember
+
+        Returns:
+            Confirmation message
+        """
+        if not information or not isinstance(information, str):
+            return "Error: Please provide valid information to remember."
+
+        # Add the information to memory
+        self.memory.append(information.strip())
+
+        # Limit memory size to prevent context overflow (keep most recent items)
+        max_memory_items = 10
+        if len(self.memory) > max_memory_items:
+            self.memory = self.memory[-max_memory_items:]
+
+        return f"Remembered: {information}"
+
+    def get_memory(self) -> List[str]:
+        """
+        Retrieve all stored memory items.
+
+        Returns:
+            List of stored memory items
+        """
+        return self.memory.copy()
