@@ -19,10 +19,10 @@ Before controlling an iOS device, establish a connection:
     Connect via USB and trust your computer when prompted
   </Step>
   <Step title="Install iOS Portal">
-    Install the DroidRun iOS Portal app via Xcode or TestFlight
+    Clone and run the [DroidRun iOS Portal](https://github.com/droidrun/droidrun-ios-portal) via XCode or ./device.sh "iPhone Name"
   </Step>
   <Step title="Verify Connection">
-    The portal will start an HTTP server on port 6643
+    The portal will start an HTTP server on port 6643 on your iOS device. You can find your device's ip under Settings > Wifi > Info
   </Step>
 </Steps>
 
@@ -31,10 +31,10 @@ Before controlling an iOS device, establish a connection:
 DroidRun communicates with iOS devices through HTTP API calls to the portal:
 
 ```python
-from droidrun import DroidAgent, iOSTools
+from droidrun import DroidAgent, IOSTools
 
-# Load tools for an iOS device
-tools = iOSTools(device_ip="192.168.1.100", port=6643)
+# Load tools for an iOS device 
+tools = IOSTools(url="http://i-phone-ip:6643")
 
 # Create agent with iOS tools
 agent = DroidAgent(
@@ -66,33 +66,30 @@ agent = DroidAgent(
 <AccordionGroup>
   <Accordion title="Touch Gestures">
     ```python
-    # Tap at coordinates
-    await tools_instance.tap(x=100, y=200, count=1)
+    # Get indexed clickable elements
+    elements = await tools.get_clickables()
     
-    # Long press
-    await tools_instance.tap(x=100, y=200, long_press=True)
+    # Tap at index
+    await tools.tap(index=0)
     
     # Swipe gestures
-    await tools_instance.swipe(x=100, y=200, direction="up")
-    await tools_instance.swipe(x=100, y=200, direction="down")
-    await tools_instance.swipe(x=100, y=200, direction="left")
-    await tools_instance.swipe(x=100, y=200, direction="right")
+    await tools.swipe(start_x=100, start_y=200, end_x=100, end_y=300)
     ```
   </Accordion>
   
   <Accordion title="Text Input">
     ```python
     # Type text into focused field
-    await tools_instance.type_text(x=100, y=200, text="Hello world")
+    await tools.input_text(text="Hello world")
     ```
   </Accordion>
   
   <Accordion title="Hardware Keys">
     ```python
     # Press device keys
-    await tools_instance.press_key(0)  # Home button
-    await tools_instance.press_key(4)  # Action button
-    await tools_instance.press_key(5)  # Camera button
+    await tools.press_key(0)  # Home button
+    await tools.press_key(4)  # Action button
+    await tools.press_key(5)  # Camera button
     ```
   </Accordion>
 </AccordionGroup>
@@ -103,8 +100,8 @@ Launch and manage iOS applications:
 
 ```python
 # Launch app by bundle identifier
-await tools_instance.launch_app("com.apple.mobilesafari")
-await tools_instance.launch_app("com.example.myapp")
+await tools.start_app("com.apple.mobilesafari")
+await tools.start_app("com.example.myapp")
 ```
 
 ## 🔍 UI Analysis
@@ -112,18 +109,13 @@ await tools_instance.launch_app("com.example.myapp")
 Extract device state and UI information:
 
 ```python
-# Get device information
-device_info = await tools_instance.get_device_info()
-
 # Get current phone state
-state = await tools_instance.get_phone_state()
-# Returns: {"activity": "com.example.app - Screen Title", "keyboardShown": false}
-
-# Get accessibility tree
-a11y_tree = await tools_instance.get_accessibility_tree()
+state = await tools.get_phone_state()
+# Returns: {"current_activity": "com.example.app - Screen Title", "keyboard_shown": false}
 
 # Take screenshot
-screenshot = await tools_instance.take_screenshot()  # Returns PNG data
+type, screenshot = await tools.take_screenshot()  # Returns PNG data
+# type = "PNG" screenshot = bytes
 ```
 
 ## 🧠 Memory and Task Management
