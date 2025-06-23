@@ -18,6 +18,7 @@ from droidrun.cli.logs import LogHandler
 # Suppress all warnings
 warnings.filterwarnings("ignore")
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ["GRPC_ENABLE_FORK_SUPPORT"] = "false"
 
 console = Console()
 device_manager = DeviceManager()
