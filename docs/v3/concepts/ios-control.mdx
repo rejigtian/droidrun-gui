@@ -1,0 +1,192 @@
+---
+title: 'iOS Control'
+description: 'Understanding iOS device control in DroidRun'
+---
+
+# 📱 iOS Control
+
+DroidRun provides capabilities for controlling and interacting with iOS devices through the iOS Portal, which exposes device automation through a RESTful HTTP API.
+
+## 🔌 Device Connection
+
+Before controlling an iOS device, establish a connection:
+
+<Steps>
+  <Step title="Enable Developer Mode">
+    Enable Developer Mode in Settings → Privacy & Security → Developer Mode (iOS 16+)
+  </Step>
+  <Step title="Trust Computer">
+    Connect via USB and trust your computer when prompted
+  </Step>
+  <Step title="Install iOS Portal">
+    Clone and run the [DroidRun iOS Portal](https://github.com/droidrun/droidrun-ios-portal) via XCode or ./device.sh "iPhone Name"
+  </Step>
+  <Step title="Verify Connection">
+    The portal will start an HTTP server on port 6643 on your iOS device. You can find your device's ip under Settings > Wifi > Info
+  </Step>
+</Steps>
+
+## 🛠️ Tool System
+
+DroidRun communicates with iOS devices through HTTP API calls to the portal:
+
+```python
+from droidrun import DroidAgent, IOSTools
+
+# Load tools for an iOS device 
+tools = IOSTools(url="http://i-phone-ip:6643")
+
+# Create agent with iOS tools
+agent = DroidAgent(
+    goal="Your task",
+    llm=llm,
+    tools=tools
+)
+```
+
+## 🎯 Core Capabilities
+
+<CardGroup cols={2}>
+  <Card title="UI State Extraction" icon="magnifying-glass">
+    Accessibility trees, screenshots, and app state
+  </Card>
+  <Card title="Touch Interactions" icon="hand-pointer">
+    Taps, swipes, and gestures
+  </Card>
+  <Card title="App Management" icon="mobile-screen">
+    Launch apps by bundle identifier
+  </Card>
+  <Card title="Text Input" icon="keyboard">
+    Automated typing with keyboard handling
+  </Card>
+</CardGroup>
+
+## 🖱️ Interaction Tools
+
+<AccordionGroup>
+  <Accordion title="Touch Gestures">
+    ```python
+    # Get indexed clickable elements
+    elements = await tools.get_clickables()
+    
+    # Tap at index
+    await tools.tap(index=0)
+    
+    # Swipe gestures
+    await tools.swipe(start_x=100, start_y=200, end_x=100, end_y=300)
+    ```
+  </Accordion>
+  
+  <Accordion title="Text Input">
+    ```python
+    # Type text into focused field
+    await tools.input_text(text="Hello world")
+    ```
+  </Accordion>
+  
+  <Accordion title="Hardware Keys">
+    ```python
+    # Press device keys
+    await tools.press_key(0)  # Home button
+    await tools.press_key(4)  # Action button
+    await tools.press_key(5)  # Camera button
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## 📱 App Management
+
+Launch and manage iOS applications:
+
+```python
+# Launch app by bundle identifier
+await tools.start_app("com.apple.mobilesafari")
+await tools.start_app("com.example.myapp")
+```
+
+## 🔍 UI Analysis
+
+Extract device state and UI information:
+
+```python
+# Get current phone state
+state = await tools.get_phone_state()
+# Returns: {"current_activity": "com.example.app - Screen Title", "keyboard_shown": false}
+
+# Take screenshot
+type, screenshot = await tools.take_screenshot()  # Returns PNG data
+# type = "PNG" screenshot = bytes
+```
+
+## 🧠 Memory and Task Management
+
+Store important information for future use:
+
+```python
+# Remember important information
+await tools_instance.remember("User logged in successfully")
+
+# Get all remembered information
+memory = tools_instance.get_memory()
+
+# Mark task as complete
+tools_instance.complete(success=True, reason="Task completed successfully")
+
+# Mark task as failed
+tools_instance.complete(success=False, reason="Could not complete the task")
+```
+
+## 💡 Best Practices
+
+1. **Use Coordinate-Based Interactions**
+   - The iOS Portal uses coordinate-based tapping and swiping
+   - Extract coordinates from accessibility tree or screenshots
+
+2. **Handle App State**
+   ```python
+   # Check current app state before interactions
+   state = await tools.get_phone_state()
+   if "com.example.app" in state["activity"]:
+       # App is active, proceed with interactions
+       pass
+   ```
+
+3. **Use Screenshots for Visual Verification**
+   ```python
+   # Take screenshot to verify UI state
+   screenshot = await tools.take_screenshot()
+   # Process screenshot for visual confirmation
+   ```
+
+## 🔧 Troubleshooting
+
+1. **Connection Issues**
+   - Ensure iOS device is in Developer Mode
+   - Check device trust relationship
+   - Verify iOS Portal app is installed and running
+   - Confirm HTTP server is accessible on port 6643
+
+2. **Interaction Problems**
+   - Use correct coordinate system (iOS points, not pixels)
+   - Ensure target elements are visible and not covered
+   - Check accessibility tree for accurate coordinates
+
+3. **App Control Issues**
+   - Use correct bundle identifiers
+   - Ensure app is properly installed
+   - Check for iOS permission restrictions
+
+## 🌐 iOS Portal App
+
+The DroidRun iOS Portal is a comprehensive iOS automation portal that provides HTTP API access to iOS device UI state extraction and automated interactions. It consists of two main components:
+
+1. **Portal App** (`droidrun-ios-portal`): A minimal SwiftUI application that serves as the host
+2. **Portal Server** (`droidrun-ios-portalUITests`): XCTest-based HTTP server providing automation APIs
+
+The portal runs an HTTP server on port 6643 and offers RESTful endpoints for:
+- **UI State Extraction**: Accessibility trees, screenshots, and app state
+- **Automation Capabilities**: Touch interactions, gestures, text input, and hardware keys
+- **App Management**: Launch apps by bundle identifier and manage app lifecycle
+- **Smart Features**: Automatic app switching, keyboard detection, and error handling
+
+For complete technical details and API reference, visit the [iOS Portal GitHub repository](https://github.com/droidrun/ios-portal). 

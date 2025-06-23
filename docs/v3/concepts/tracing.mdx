@@ -44,20 +44,17 @@ droidrun "Open settings and enable dark mode" --tracing
 Set `enable_tracing=True` when creating the DroidAgent:
 
 ```python
-from droidrun.agent.droid import DroidAgent
-from droidrun.agent.utils.llm_picker import load_llm
-from droidrun.tools import load_tools
+from droidrun import DroidAgent, load_llm, AdbTools
 
 async def main():
-    tool_list, tools_instance = await load_tools()
+    tools = AdbTools()
     llm = load_llm(provider_name="Gemini", model="models/gemini-2.5-pro")
     
     # Enable tracing
     agent = DroidAgent(
         goal="Your task",
         llm=llm,
-        tools_instance=tools_instance,
-        tool_list=tool_list,
+        tools=tools,
         enable_tracing=True  # This activates Phoenix tracing
     )
     

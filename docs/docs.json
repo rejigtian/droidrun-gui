@@ -11,6 +11,29 @@
   "navigation": {
     "versions": [
       {
+        "version": "0.3.0",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "v3/overview",
+              "v3/quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "v3/concepts/agent",
+              "v3/concepts/planning",
+              "v3/concepts/android-control",
+              "v3/concepts/ios-control",
+              "v3/concepts/portal-app",
+              "v3/concepts/tracing"
+            ]
+          }
+        ]
+      },
+      {
         "version": "0.2.0",
         "groups": [
           {
@@ -63,6 +86,10 @@
       {
         "label": "GitHub",
         "href": "https://github.com/droidrun/droidrun"
+      },
+      {
+        "label": "Benchmark",
+        "href": "https://droidrun.ai/benchmark"
       }
     ],
     "primary": {
@@ -73,7 +100,8 @@
   },
   "footer": {
     "socials": {
-      "github": "https://github.com/droidrun/droidrun"
+      "github": "https://github.com/droidrun/droidrun",
+      "x": "https://x.com/droid_run"
     }
   }
 }

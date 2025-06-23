@@ -3,8 +3,7 @@ import logging
 from typing import Any
 from llama_index.core.llms.llm import LLM
 # Configure logging
-logger = logging.getLogger(__name__)
-logger.addHandler(logging.NullHandler())
+logger = logging.getLogger("droidrun")
 
 def load_llm(provider_name: str, **kwargs: Any) -> LLM:
     """
@@ -46,9 +45,9 @@ def load_llm(provider_name: str, **kwargs: Any) -> LLM:
     install_package_name = f"llama-index-llms-{module_provider_part.replace('_', '-')}"
 
     try:
-        logger.info(f"Attempting to import module: {module_path}")
+        logger.debug(f"Attempting to import module: {module_path}")
         llm_module = importlib.import_module(module_path)
-        logger.info(f"Successfully imported module: {module_path}")
+        logger.debug(f"Successfully imported module: {module_path}")
 
     except ModuleNotFoundError:
         logger.error(f"Module '{module_path}' not found. Try: pip install {install_package_name}")
@@ -57,9 +56,9 @@ def load_llm(provider_name: str, **kwargs: Any) -> LLM:
         ) from None
 
     try:
-        logger.info(f"Attempting to get class '{provider_name}' from module {module_path}")
+        logger.debug(f"Attempting to get class '{provider_name}' from module {module_path}")
         llm_class = getattr(llm_module, provider_name)
-        logger.info(f"Found class: {llm_class.__name__}")
+        logger.debug(f"Found class: {llm_class.__name__}")
 
         # Verify the class is a subclass of LLM
         if not isinstance(llm_class, type) or not issubclass(llm_class, LLM):
@@ -69,9 +68,9 @@ def load_llm(provider_name: str, **kwargs: Any) -> LLM:
         filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None}
         
         # Initialize
-        logger.info(f"Initializing {llm_class.__name__} with kwargs: {list(filtered_kwargs.keys())}")
+        logger.debug(f"Initializing {llm_class.__name__} with kwargs: {list(filtered_kwargs.keys())}")
         llm_instance = llm_class(**filtered_kwargs)
-        logger.info(f"Successfully loaded and initialized LLM: {provider_name}")
+        logger.debug(f"Successfully loaded and initialized LLM: {provider_name}")
         if not llm_instance:
             raise RuntimeError(f"Failed to initialize LLM instance for {provider_name}.")
         return llm_instance
