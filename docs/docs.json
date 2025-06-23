@@ -86,6 +86,10 @@
       {
         "label": "GitHub",
         "href": "https://github.com/droidrun/droidrun"
+      },
+      {
+        "label": "Benchmark",
+        "href": "https://droidrun.ai/benchmark"
       }
     ],
     "primary": {
@@ -96,7 +100,8 @@
   },
   "footer": {
     "socials": {
-      "github": "https://github.com/droidrun/droidrun"
+      "github": "https://github.com/droidrun/droidrun",
+      "x": "https://x.com/droid_run"
     }
   }
 }
