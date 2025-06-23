@@ -124,7 +124,6 @@ async def run_command(
                 reflection=reflection,
                 enable_tracing=tracing,
                 debug=debug,
-                device_serial=device,
                 save_trajectories=save_trajectory
             )
 
