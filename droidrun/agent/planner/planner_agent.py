@@ -167,7 +167,7 @@ class PlannerAgent(Workflow):
                     )
                 )
 
-                self.remembered_info = await self.tools_instance.get_memory()
+                self.remembered_info = self.tools_instance.memory
 
                 tasks = self.task_manager.get_all_tasks()
                 event = PlanCreatedEvent(tasks=tasks)
