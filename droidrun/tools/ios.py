@@ -466,7 +466,7 @@ class IOSTools(Tools):
                     if response.status == 200:
                         screenshot_data = await response.read()
 
-                        await self._append_screenshot(
+                        self._append_screenshot(
                             {
                                 "timestamp": time.time(),
                                 "image_data": screenshot_data,
