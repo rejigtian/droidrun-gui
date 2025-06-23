@@ -171,8 +171,8 @@ droidrun "Open the settings app"
 # Using specific provider and model
 droidrun "Open calculator" --provider Gemini --model models/gemini-2.5-pro
 
-# With vision and planning
-droidrun "Take a screenshot and describe what's on the screen" --vision --reasoning
+# With reflection and planning
+droidrun "Take a screenshot and describe what's on the screen" --reflection --reasoning
 
 # Using local Ollama
 droidrun "Check battery level" --provider Ollama --model llama2
@@ -189,8 +189,8 @@ droidrun "Open Chrome" --device your_device_serial
 # Set max steps
 droidrun "Open settings" --steps 20
 
-# Enable vision
-droidrun "Analyze screen" --vision
+# Enable reflection
+droidrun "Analyze screen" --reflection
 
 # Enable planning mode
 droidrun "Complex task" --reasoning
@@ -209,13 +209,11 @@ For complex automation, create a Python script:
 ```python
 #!/usr/bin/env python3
 import asyncio
-from droidrun.agent.droid import DroidAgent
-from droidrun.agent.utils.llm_picker import load_llm
-from droidrun.tools import load_tools
+from droidrun import AdbTools, load_llm, DroidAgent
 
 async def main():
     # Load tools and LLM
-    tool_list, tools_instance = await load_tools()
+    tools = AdbTools()
     llm = load_llm(
         provider_name="Gemini",  # Case sensitive: OpenAI, Ollama, Anthropic, Gemini, DeepSeek
         model="models/gemini-2.5-pro",
@@ -226,9 +224,8 @@ async def main():
     agent = DroidAgent(
         goal="Open Settings and check battery level",
         llm=llm,
-        tools_instance=tools_instance,
-        tool_list=tool_list,
-        vision=True,
+        tools=tools,
+        reflection=True,
         reasoning=True,
         enable_tracing=True  # Requires running 'phoenix serve' in a separate terminal first
     )
@@ -249,7 +246,6 @@ DroidRun v2 uses LlamaIndex for LLM integration, providing more flexibility:
 
 ```python
 import asyncio
-from llama_index.core.llms import LLM
 from llama_index.llms.gemini import Gemini
 from droidrun import DroidAgent, AdbTools
 
@@ -282,13 +278,6 @@ async def main():
 if __name__ == "__main__":
     asyncio.run(main())
 ```
-
-## 🔎 Vision Capabilities
-
-When vision is enabled:
-
-- The agent can take and analyze screenshots
-- Ideal for UI-based tasks that require visual context
 
 ## 🕵️ Tracing and Debugging
 
