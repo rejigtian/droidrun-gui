@@ -59,6 +59,7 @@ async def run_command(
     steps: int,
     base_url: str,
     reasoning: bool,
+    reflection: bool,
     tracing: bool,
     debug: bool,
     save_trajectory: bool = False,
@@ -119,6 +120,7 @@ async def run_command(
                 max_steps=steps,
                 timeout=1000,
                 reasoning=reasoning,
+                reflection=reflection,
                 enable_tracing=tracing,
                 debug=debug,
                 device_serial=device,
@@ -192,10 +194,10 @@ class DroidRunCLI(click.Group):
     default=None,
 )
 @click.option(
-    "--reasoning/--no-reasoning",
-    is_flag=True,
-    help="Enable/disable planning with reasoning",
-    default=False,
+    "--reasoning", is_flag=True, help="Enable/disable planning with reasoning", default=False
+)
+@click.option(
+    "--reflection", is_flag=True, help="Enable reflection step for higher reasoning", default=False
 )
 @click.option(
     "--tracing", is_flag=True, help="Enable Arize Phoenix tracing", default=False
@@ -218,6 +220,7 @@ def cli(
     base_url: str,
     temperature: float,
     reasoning: bool,
+    reflection: bool,
     tracing: bool,
     debug: bool,
     save_trajectory: bool,
@@ -250,10 +253,10 @@ def cli(
     default=None,
 )
 @click.option(
-    "--reasoning/--no-reasoning",
-    is_flag=True,
-    help="Enable/disable planning with reasoning",
-    default=False,
+    "--reasoning", is_flag=True, help="Enable/disable planning with reasoning", default=False
+)
+@click.option(
+    "--reflection", is_flag=True, help="Enable reflection step for higher reasoning", default=False
 )
 @click.option(
     "--tracing", is_flag=True, help="Enable Arize Phoenix tracing", default=False
@@ -279,6 +282,7 @@ def run(
     base_url: str,
     temperature: float,
     reasoning: bool,
+    reflection: bool,
     tracing: bool,
     debug: bool,
     save_trajectory: bool,
@@ -294,6 +298,7 @@ def run(
         steps,
         base_url,
         reasoning,
+        reflection,
         tracing,
         debug,
         temperature=temperature,
@@ -442,11 +447,12 @@ if __name__ == "__main__":
     command = "Open the settings app"
     device = None
     provider = "GoogleGenAI"
-    model = "models/gemini-2.5-flash-preview-05-20"
+    model = "models/gemini-2.5-flash"
     temperature = 0
     api_key = os.getenv("GEMINI_API_KEY")
     steps = 15
     reasoning = True
+    reflection = False
     tracing = True
     debug = True
     base_url = None
@@ -459,6 +465,7 @@ if __name__ == "__main__":
         steps=steps,
         temperature=temperature,
         reasoning=reasoning,
+        reflection=reflection,
         tracing=tracing,
         debug=debug,
         base_url=base_url,
