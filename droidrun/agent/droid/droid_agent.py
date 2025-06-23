@@ -65,7 +65,6 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         reflection: bool = False,
         enable_tracing: bool = False,
         debug: bool = False,
-        device_serial: str = None,
         save_trajectories: bool = False,
         *args,
         **kwargs
@@ -83,7 +82,6 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
             reflection: Whether to reflect on steps the CodeActAgent did to give the PlannerAgent advice
             enable_tracing: Whether to enable Arize Phoenix tracing
             debug: Whether to enable verbose debug logging
-            device_serial: Target Android device serial number
             **kwargs: Additional keyword arguments to pass to the agents
         """
         super().__init__(timeout=timeout ,*args,**kwargs)
@@ -109,7 +107,6 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         self.reasoning = reasoning
         self.reflection = reflection
         self.debug = debug
-        self.device_serial = device_serial
 
         self.event_counter = 0
         self.save_trajectories = save_trajectories
