@@ -567,7 +567,7 @@ class AdbTools(Tools):
             screen_tuple = await device.take_screenshot()
 
             # Store screenshot with timestamp
-            self._append_screenshot(
+            await self._append_screenshot(
                 {
                     "timestamp": time.time(),
                     "image_data": screen_tuple[1],
