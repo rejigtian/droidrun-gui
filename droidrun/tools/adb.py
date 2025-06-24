@@ -10,11 +10,13 @@ import tempfile
 import asyncio
 import aiofiles
 import contextlib
+import logging
 from typing import Optional, Dict, Tuple, List, Any
 from droidrun.adb.device import Device
 from droidrun.adb.manager import DeviceManager
 from droidrun.tools.tools import Tools
 
+logger = logging.getLogger("droidrun-adb-tools")
 
 class AdbTools(Tools):
     """Core UI interaction tools for Android device control."""
@@ -100,113 +102,115 @@ class AdbTools(Tools):
                 device = await self.get_device()
 
             # Create a temporary file for the JSON
-            with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as temp:
+            with tempfile.NamedTemporaryFile(suffix=".json") as temp:
                 local_path = temp.name
 
-            try:
-                # Set retry parameters
-                max_total_time = 30  # Maximum total time to try in seconds
-                retry_interval = 1.0  # Time between retries in seconds
-                start_total_time = asyncio.get_event_loop().time()
+                try:
+                    # Set retry parameters
+                    max_total_time = 30  # Maximum total time to try in seconds
+                    retry_interval = 1.0  # Time between retries in seconds
+                    start_total_time = asyncio.get_event_loop().time()
 
-                while True:
-                    # Check if we've exceeded total time
-                    current_time = asyncio.get_event_loop().time()
-                    if current_time - start_total_time > max_total_time:
-                        raise ValueError(
-                            f"Failed to get UI elements after {max_total_time} seconds of retries"
-                        )
+                    while True:
+                        # Check if we've exceeded total time
+                        current_time = asyncio.get_event_loop().time()
+                        if current_time - start_total_time > max_total_time:
+                            raise ValueError(
+                                f"Failed to get UI elements after {max_total_time} seconds of retries"
+                            )
 
-                    # Clear logcat to make it easier to find our output
-                    await device._adb.shell(device._serial, "logcat -c")
+                        # Clear logcat to make it easier to find our output
+                        await device._adb.shell(device._serial, "logcat -c")
 
-                    # Trigger the custom service via broadcast to get only interactive elements
-                    await device._adb.shell(
-                        device._serial,
-                        "am broadcast -a com.droidrun.portal.GET_ELEMENTS",
-                    )
-
-                    # Poll for the JSON file path
-                    start_time = asyncio.get_event_loop().time()
-                    max_wait_time = 10  # Maximum wait time in seconds
-                    poll_interval = 0.2  # Check every 200ms
-
-                    device_path = None
-                    while asyncio.get_event_loop().time() - start_time < max_wait_time:
-                        # Check logcat for the file path
-                        logcat_output = await device._adb.shell(
+                        # Trigger the custom service via broadcast to get only interactive elements
+                        await device._adb.shell(
                             device._serial,
-                            'logcat -d | grep "DROIDRUN_FILE" | grep "JSON data written to" | tail -1',
+                            "am broadcast -a com.droidrun.portal.GET_ELEMENTS",
                         )
 
-                        # Parse the file path if present
-                        match = re.search(r"JSON data written to: (.*)", logcat_output)
-                        if match:
-                            device_path = match.group(1).strip()
-                            break
+                        # Poll for the JSON file path
+                        start_time = asyncio.get_event_loop().time()
+                        max_wait_time = 10  # Maximum wait time in seconds
+                        poll_interval = 0.2  # Check every 200ms
 
-                        # Wait before polling again
-                        await asyncio.sleep(poll_interval)
+                        device_path = None
+                        while asyncio.get_event_loop().time() - start_time < max_wait_time:
+                            # Check logcat for the file path
+                            logcat_output = await device._adb.shell(
+                                device._serial,
+                                'logcat -d | grep "DROIDRUN_FILE" | grep "JSON data written to" | tail -1',
+                            )
 
-                    # Check if we found the file path
-                    if not device_path:
-                        await asyncio.sleep(retry_interval)
-                        continue
+                            # Parse the file path if present
+                            match = re.search(r"JSON data written to: (.*)", logcat_output)
+                            if match:
+                                device_path = match.group(1).strip()
+                                break
 
-                    # Pull the JSON file from the device
-                    await device._adb.pull_file(device._serial, device_path, local_path)
+                            # Wait before polling again
+                            await asyncio.sleep(poll_interval)
 
-                    # Read the JSON file
-                    async with aiofiles.open(local_path, "r", encoding="utf-8") as f:
-                        json_content = await f.read()
+                        # Check if we found the file path
+                        if not device_path:
+                            await asyncio.sleep(retry_interval)
+                            continue
 
-                    # Try to parse the JSON
-                    try:
-                        ui_data = json.loads(json_content)
+                        logger.debug(f"Found file path: {device_path}")
 
-                        # Filter out the "type" attribute from all elements
-                        filtered_data = []
-                        for element in ui_data:
-                            # Create a copy of the element without the "type" attribute
-                            filtered_element = {
-                                k: v for k, v in element.items() if k != "type"
-                            }
+                        # Pull the JSON file from the device
+                        await device._adb.pull_file(device._serial, device_path, local_path)
 
-                            # Also filter children if present
-                            if "children" in filtered_element:
-                                filtered_element["children"] = [
-                                    {k: v for k, v in child.items() if k != "type"}
-                                    for child in filtered_element["children"]
-                                ]
+                        # Read the JSON file
+                        async with aiofiles.open(local_path, "r", encoding="utf-8") as f:
+                            json_content = await f.read()
 
-                            filtered_data.append(filtered_element)
+                        # Try to parse the JSON
+                        try:
+                            ui_data = json.loads(json_content)
 
-                        # If we got elements, store them and return
-                        if filtered_data:
-                            # Store the filtered UI data in cache
-                            global CLICKABLE_ELEMENTS_CACHE
-                            CLICKABLE_ELEMENTS_CACHE = filtered_data
+                            # Filter out the "type" attribute from all elements
+                            filtered_data = []
+                            for element in ui_data:
+                                # Create a copy of the element without the "type" attribute
+                                filtered_element = {
+                                    k: v for k, v in element.items() if k != "type"
+                                }
 
-                            # Add a small sleep to ensure UI is fully loaded/processed
-                            await asyncio.sleep(0.5)  # 500ms sleep
+                                # Also filter children if present
+                                if "children" in filtered_element:
+                                    filtered_element["children"] = [
+                                        {k: v for k, v in child.items() if k != "type"}
+                                        for child in filtered_element["children"]
+                                    ]
 
-                            # Convert the dictionary to a JSON string before returning
+                                filtered_data.append(filtered_element)
 
-                            return filtered_data
+                            # If we got elements, store them and return
+                            if filtered_data:
+                                # Store the filtered UI data in cache
+                                global CLICKABLE_ELEMENTS_CACHE
+                                CLICKABLE_ELEMENTS_CACHE = filtered_data
 
-                        # If no elements found, wait and retry
-                        await asyncio.sleep(retry_interval)
+                                # Add a small sleep to ensure UI is fully loaded/processed
+                                await asyncio.sleep(0.5)  # 500ms sleep
 
-                    except json.JSONDecodeError:
-                        # If JSON parsing failed, wait and retry
-                        await asyncio.sleep(retry_interval)
-                        continue
+                                # Convert the dictionary to a JSON string before returning
 
-            except Exception as e:
-                # Clean up in case of error
-                with contextlib.suppress(OSError):
-                    os.unlink(local_path)
-                raise ValueError(f"Error retrieving clickable elements: {e}")
+                                return filtered_data
+
+                            # If no elements found, wait and retry
+                            await asyncio.sleep(retry_interval)
+
+                        except json.JSONDecodeError:
+                            # If JSON parsing failed, wait and retry
+                            await asyncio.sleep(retry_interval)
+                            continue
+
+                except Exception as e:
+                    # Clean up in case of error
+                    with contextlib.suppress(OSError):
+                        os.unlink(local_path)
+                    raise ValueError(f"Error retrieving clickable elements: {e}")
 
         except Exception as e:
             raise ValueError(f"Error getting clickable elements: {e}")
@@ -675,81 +679,82 @@ class AdbTools(Tools):
                 raise ValueError(f"Device {self.serial} not found")
 
             # Create a temporary file for the JSON
-            with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as temp:
+            with tempfile.NamedTemporaryFile(suffix=".json") as temp:
                 local_path = temp.name
 
-            try:
-                # Clear logcat to make it easier to find our output
-                await device._adb.shell(device._serial, "logcat -c")
-
-                # Trigger the custom service via broadcast to get ALL elements
-                await device._adb.shell(
-                    device._serial,
-                    "am broadcast -a com.droidrun.portal.GET_ALL_ELEMENTS",
-                )
-
-                # Poll for the JSON file path
-                start_time = asyncio.get_event_loop().time()
-                max_wait_time = 10  # Maximum wait time in seconds
-                poll_interval = 0.2  # Check every 200ms
-
-                device_path = None
-                while asyncio.get_event_loop().time() - start_time < max_wait_time:
-                    # Check logcat for the file path
-                    logcat_output = await device._adb.shell(
-                        device._serial,
-                        'logcat -d | grep "DROIDRUN_FILE" | grep "JSON data written to" | tail -1',
-                    )
-
-                    # Parse the file path if present
-                    match = re.search(r"JSON data written to: (.*)", logcat_output)
-                    if match:
-                        device_path = match.group(1).strip()
-                        break
-
-                    # Wait before polling again
-                    await asyncio.sleep(poll_interval)
-
-                # Check if we found the file path
-                if not device_path:
-                    raise ValueError(
-                        f"Failed to find the JSON file path in logcat after {max_wait_time} seconds"
-                    )
-
-                # Pull the JSON file from the device
-                await device._adb.pull_file(device._serial, device_path, local_path)
-
-                # Read the JSON file
-                async with aiofiles.open(local_path, "r", encoding="utf-8") as f:
-                    json_content = await f.read()
-
-                # Clean up the temporary file
-                with contextlib.suppress(OSError):
-                    os.unlink(local_path)
-
-                # Try to parse the JSON
-                import json
-
                 try:
-                    ui_data = json.loads(json_content)
+                    # Clear logcat to make it easier to find our output
+                    await device._adb.shell(device._serial, "logcat -c")
 
-                    return {
-                        "all_elements": ui_data,
-                        "count": (
-                            len(ui_data)
-                            if isinstance(ui_data, list)
-                            else sum(1 for _ in ui_data.get("elements", []))
-                        ),
-                        "message": "Retrieved all UI elements from the device screen",
-                    }
-                except json.JSONDecodeError:
-                    raise ValueError("Failed to parse UI elements JSON data")
+                    # Trigger the custom service via broadcast to get ALL elements
+                    await device._adb.shell(
+                        device._serial,
+                        "am broadcast -a com.droidrun.portal.GET_ALL_ELEMENTS",
+                    )
 
-            except Exception as e:
-                # Clean up in case of error
-                with contextlib.suppress(OSError):
-                    os.unlink(local_path)
-                raise ValueError(f"Error retrieving all UI elements: {e}")
+                    # Poll for the JSON file path
+                    start_time = asyncio.get_event_loop().time()
+                    max_wait_time = 10  # Maximum wait time in seconds
+                    poll_interval = 0.2  # Check every 200ms
+
+                    device_path = None
+                    while asyncio.get_event_loop().time() - start_time < max_wait_time:
+                        # Check logcat for the file path
+                        logcat_output = await device._adb.shell(
+                            device._serial,
+                            'logcat -d | grep "DROIDRUN_FILE" | grep "JSON data written to" | tail -1',
+                        )
+
+                        # Parse the file path if present
+                        match = re.search(r"JSON data written to: (.*)", logcat_output)
+                        if match:
+                            device_path = match.group(1).strip()
+                            break
+
+                        # Wait before polling again
+                        await asyncio.sleep(poll_interval)
+
+                    # Check if we found the file path
+                    if not device_path:
+                        raise ValueError(
+                            f"Failed to find the JSON file path in logcat after {max_wait_time} seconds"
+                        )
+
+                    logger.debug(f"Pulling file from {device_path} to {local_path}")
+                    # Pull the JSON file from the device
+                    await device._adb.pull_file(device._serial, device_path, local_path)
+
+                    # Read the JSON file
+                    async with aiofiles.open(local_path, "r", encoding="utf-8") as f:
+                        json_content = await f.read()
+
+                    # Clean up the temporary file
+                    with contextlib.suppress(OSError):
+                        os.unlink(local_path)
+
+                    # Try to parse the JSON
+                    import json
+
+                    try:
+                        ui_data = json.loads(json_content)
+
+                        return {
+                            "all_elements": ui_data,
+                            "count": (
+                                len(ui_data)
+                                if isinstance(ui_data, list)
+                                else sum(1 for _ in ui_data.get("elements", []))
+                            ),
+                            "message": "Retrieved all UI elements from the device screen",
+                        }
+                    except json.JSONDecodeError:
+                        raise ValueError("Failed to parse UI elements JSON data")
+
+                except Exception as e:
+                    # Clean up in case of error
+                    with contextlib.suppress(OSError):
+                        os.unlink(local_path)
+                    raise ValueError(f"Error retrieving all UI elements: {e}")
 
         except Exception as e:
             raise ValueError(f"Error getting all UI elements: {e}")
@@ -877,3 +882,10 @@ class AdbTools(Tools):
             List of stored memory items
         """
         return self.memory.copy()
+
+if __name__ == "__main__":
+    async def main():
+        tools = AdbTools()
+        print(await tools.get_clickables())
+
+    asyncio.run(main())
