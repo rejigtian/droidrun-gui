@@ -11,7 +11,7 @@ from rich.console import Console
 from droidrun.agent.droid import DroidAgent
 from droidrun.agent.utils.llm_picker import load_llm
 from droidrun.adb import DeviceManager
-from droidrun.tools import AdbTools, IOSTools, Tools
+from droidrun.tools import AdbTools, IOSTools
 from functools import wraps
 from droidrun.cli.logs import LogHandler
 
@@ -381,9 +381,9 @@ async def setup(path: str, device: str | None):
                 f"[bold red]Error:[/] Could not get device object for {device}"
             )
             return
-        tools = Tools(serial=device)
+        
         console.print(f"[bold blue]Step 1/2: Installing APK:[/] {path}")
-        result = await tools.install_app(path, False, True)
+        result = await device_obj.install_app(path, False, True)
 
         if "Error" in result:
             console.print(f"[bold red]Installation failed:[/] {result}")
