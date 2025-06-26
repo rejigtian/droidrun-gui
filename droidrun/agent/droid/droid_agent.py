@@ -306,6 +306,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
             Dict containing the execution result
         """
         logger.info(f"🚀 Running DroidAgent to achieve goal: {self.goal}")
+        ctx.write_event_to_stream(ev)
         
         self.step_counter = 0
         self.retry_counter = 0
