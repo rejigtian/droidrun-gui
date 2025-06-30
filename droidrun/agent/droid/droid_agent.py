@@ -61,6 +61,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         personas: List[AgentPersona] = [DEFAULT],
         max_steps: int = 15,
         timeout: int = 1000,
+        vision: bool = False,
         reasoning: bool = False,
         reflection: bool = False,
         enable_tracing: bool = False,
@@ -101,6 +102,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
 
         self.goal = goal
         self.llm = llm
+        self.vision = vision
         self.max_steps = max_steps
         self.max_codeact_steps = max_steps
         self.timeout = timeout
@@ -128,6 +130,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
             self.planner_agent = PlannerAgent(
                 goal=goal,
                 llm=llm,
+                vision=vision,
                 personas=personas,
                 task_manager=self.task_manager,
                 tools_instance=tools,
@@ -171,6 +174,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
             codeact_agent = CodeActAgent(
                 llm=self.llm,
                 persona=persona,
+                vision=self.vision,
                 max_steps=self.max_codeact_steps,
                 all_tools_list=self.tool_list,
                 tools_instance=self.tools_instance,
@@ -200,7 +204,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
             if self.debug:
                 import traceback
                 logger.error(traceback.format_exc())
-            return CodeActResultEvent(success=False, reason=f"Error: {str(e)}", task=task, steps=result["codeact_steps"])
+            return CodeActResultEvent(success=False, reason=f"Error: {str(e)}", task=task, steps=[])
     
     @step
     async def handle_codeact_execute(self, ctx: Context, ev: CodeActResultEvent) -> FinalizeEvent | ReflectionEvent:

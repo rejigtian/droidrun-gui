@@ -45,6 +45,7 @@ class CodeActAgent(Workflow):
         self,
         llm: LLM,
         persona: AgentPersona,
+        vision: bool,
         tools_instance: "Tools",
         all_tools_list: Dict[str, Callable[..., Any]],
         max_steps: int = 5,
@@ -61,6 +62,8 @@ class CodeActAgent(Workflow):
 
         self.user_prompt = persona.user_prompt
         self.no_thoughts_prompt = None
+
+        self.vision = vision
 
         self.chat_memory = None
         self.episodic_memory = EpisodicMemory(persona=persona)
@@ -161,7 +164,7 @@ class CodeActAgent(Workflow):
             chat_history = await chat_utils.add_memory_block(self.remembered_info, chat_history)
 
         for context in self.required_context:
-            if context == "screenshot" and model != "DeepSeek":
+            if self.vision == True and context == "screenshot" and model != "DeepSeek":
                 screenshot = (await self.tools.take_screenshot())[1]
                 ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
 
