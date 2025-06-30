@@ -42,6 +42,7 @@ class PlannerAgent(Workflow):
         self,
         goal: str,
         llm: LLM,
+        vision: bool,
         personas: List[AgentPersona],
         task_manager: TaskManager,
         tools_instance: Tools,
@@ -57,6 +58,7 @@ class PlannerAgent(Workflow):
         self.goal = goal
         self.task_manager = task_manager
         self.debug = debug
+        self.vision = vision
 
         self.chat_memory = None
         self.remembered_info = None
@@ -128,12 +130,19 @@ class PlannerAgent(Workflow):
         self.steps_counter += 1
         logger.info(f"🧠 Thinking about how to plan the goal...")
 
-        screenshot = (await self.tools_instance.take_screenshot())[1]
-        ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
-        await ctx.set("screenshot", screenshot)
+        if self.vision:
+            screenshot = (await self.tools_instance.take_screenshot())[1]
+            ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
+            await ctx.set("screenshot", screenshot)
 
-        await ctx.set("ui_state", await self.tools_instance.get_clickables())
-        await ctx.set("phone_state", await self.tools_instance.get_phone_state())
+        try:
+            state = await self.tools_instance.get_state()
+            await ctx.set("ui_state", state["a11y_tree"])
+            await ctx.set("phone_state", state["phone_state"])
+        except Exception as e:
+            logger.warning(f"⚠️ Error retrieving state from the connected device. Is the Accessibility Service enabled?")
+
+
         await ctx.set("remembered_info", self.remembered_info)
         await ctx.set("reflection", self.reflection)
 
@@ -187,7 +196,11 @@ class PlannerAgent(Workflow):
                 await self.chat_memory.aput(
                     ChatMessage(
                         role="user",
-                        content=f"Please either set new tasks using set_tasks_with_agents() or mark the goal as complete using complete_goal() if done.",
+                        content="""Please either set new tasks using set_tasks_with_agents() or mark the goal as complete using complete_goal() if done.
+wrap your code inside this:
+```python
+<YOUR CODE HERE>
+```""",
                     )
                 )
                 logger.debug("🔄 Waiting for next plan or completion.")
@@ -196,7 +209,11 @@ class PlannerAgent(Workflow):
             await self.chat_memory.aput(
                 ChatMessage(
                     role="user",
-                    content=f"Please either set new tasks using set_tasks_with_agents() or mark the goal as complete using complete_goal() if done.",
+                    content="""Please either set new tasks using set_tasks_with_agents() or mark the goal as complete using complete_goal() if done.
+wrap your code inside this:
+```python
+<YOUR CODE HERE>
+```""",
                 )
             )
             logger.debug("🔄 Waiting for next plan or completion.")
@@ -224,14 +241,17 @@ class PlannerAgent(Workflow):
             logger.debug(f"  - Sending {len(chat_history)} messages to LLM.")
 
             model = self.llm.class_name()
-            if model != "DeepSeek":
-                chat_history = await chat_utils.add_screenshot_image_block(
-                    await ctx.get("screenshot"), chat_history
-                )
-            else:
+            if model == "DeepSeek":
                 logger.warning(
                     "[yellow]DeepSeek doesnt support images. Disabling screenshots[/]"
                 )
+
+            elif self.vision == True:
+                chat_history = await chat_utils.add_screenshot_image_block(
+                    await ctx.get("screenshot"), chat_history
+                )                   
+
+
 
             chat_history = await chat_utils.add_task_history_block(
                 self.task_manager.get_completed_tasks(),

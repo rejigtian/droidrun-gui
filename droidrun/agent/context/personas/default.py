@@ -21,7 +21,6 @@ DEFAULT = AgentPersona(
     required_context=[
         "ui_state",
         "screenshot",
-        "phone_state"
     ],
     user_prompt="""
     **Current Request:**
@@ -46,6 +45,7 @@ DEFAULT = AgentPersona(
     - **screenshots**: A visual screenshot of the current state of the Android screen. This provides visual context for what the user sees. screenshots won't be saved in the chat history. So, make sure to describe what you see and explain the key parts of your plan in your thoughts, as those will be saved and used to assist you in future steps.
     - **phone_state**: The current app you are navigating in. This tells you which application context you're working within.
     - **chat history**: You are also given the history of your actions (if any) from your previous steps.
+    - **execution result**: The result of your last Action
     NOTE: you don't have access to these inputs in your tool calling context
 
     ## Response Format:

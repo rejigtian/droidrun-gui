@@ -59,6 +59,8 @@ async def run_command(
     model: str,
     steps: int,
     base_url: str,
+    api_base: str,
+    vision: bool,
     reasoning: bool,
     reflection: bool,
     tracing: bool,
@@ -101,7 +103,7 @@ async def run_command(
             # LLM setup
             log_handler.update_step("Initializing LLM...")
             llm = load_llm(
-                provider_name=provider, model=model, base_url=base_url, **kwargs
+                provider_name=provider, model=model, base_url=base_url, api_base=api_base, **kwargs
             )
             logger.info(f"🧠 LLM ready: {provider}/{model}")
 
@@ -120,6 +122,7 @@ async def run_command(
                 tools=tools,
                 max_steps=steps,
                 timeout=1000,
+                vision=vision,
                 reasoning=reasoning,
                 reflection=reflection,
                 enable_tracing=tracing,
@@ -176,14 +179,14 @@ class DroidRunCLI(click.Group):
 @click.option(
     "--provider",
     "-p",
-    help="LLM provider (OpenAI, Ollama, Anthropic, Gemini, DeepSeek)",
-    default="Gemini",
+    help="LLM provider (OpenAI, Ollama, Anthropic, GoogleGenAI, DeepSeek)",
+    default="GoogleGenAI",
 )
 @click.option(
     "--model",
     "-m",
     help="LLM model name",
-    default="models/gemini-2.5-pro",
+    default="models/gemini-2.5-flash",
 )
 @click.option("--temperature", type=float, help="Temperature for LLM", default=0.2)
 @click.option("--steps", type=int, help="Maximum number of steps", default=15)
@@ -194,7 +197,15 @@ class DroidRunCLI(click.Group):
     default=None,
 )
 @click.option(
-    "--reasoning", is_flag=True, help="Enable/disable planning with reasoning", default=False
+    "--api_base",
+    help="Base URL for API (e.g., OpenAI, OpenAI-Like)",
+    default=None,
+)
+@click.option(
+    "--vision", is_flag=True, help="Enable vision capabilites by using screenshots", default=False
+)
+@click.option(
+    "--reasoning", is_flag=True, help="Enable planning with reasoning", default=False
 )
 @click.option(
     "--reflection", is_flag=True, help="Enable reflection step for higher reasoning", default=False
@@ -218,7 +229,9 @@ def cli(
     model: str,
     steps: int,
     base_url: str,
+    api_base: str,
     temperature: float,
+    vision: bool,
     reasoning: bool,
     reflection: bool,
     tracing: bool,
@@ -235,14 +248,14 @@ def cli(
 @click.option(
     "--provider",
     "-p",
-    help="LLM provider (OpenAI, Ollama, Anthropic, Gemini, DeepSeek)",
-    default="Gemini",
+    help="LLM provider (OpenAI, Ollama, Anthropic, GoogleGenAI, DeepSeek)",
+    default="GoogleGenAI",
 )
 @click.option(
     "--model",
     "-m",
     help="LLM model name",
-    default="models/gemini-2.5-pro",
+    default="models/gemini-2.5-flash",
 )
 @click.option("--temperature", type=float, help="Temperature for LLM", default=0.2)
 @click.option("--steps", type=int, help="Maximum number of steps", default=15)
@@ -253,7 +266,15 @@ def cli(
     default=None,
 )
 @click.option(
-    "--reasoning", is_flag=True, help="Enable/disable planning with reasoning", default=False
+    "--api_base",
+    help="Base URL for API (e.g., OpenAI or OpenAI-Like)",
+    default=None,
+)
+@click.option(
+    "--vision", is_flag=True, help="Enable vision capabilites by using screenshots", default=False
+)
+@click.option(
+    "--reasoning", is_flag=True, help="Enable planning with reasoning", default=False
 )
 @click.option(
     "--reflection", is_flag=True, help="Enable reflection step for higher reasoning", default=False
@@ -280,7 +301,9 @@ def run(
     model: str,
     steps: int,
     base_url: str,
+    api_base: str,
     temperature: float,
+    vision: bool,
     reasoning: bool,
     reflection: bool,
     tracing: bool,
@@ -297,6 +320,8 @@ def run(
         model,
         steps,
         base_url,
+        api_base,
+        vision,
         reasoning,
         reflection,
         tracing,
@@ -449,13 +474,15 @@ if __name__ == "__main__":
     provider = "GoogleGenAI"
     model = "models/gemini-2.5-flash"
     temperature = 0
-    api_key = os.getenv("GEMINI_API_KEY")
+    api_key = os.getenv("GOOGLE_API_KEY")
     steps = 15
+    vision = True
     reasoning = True
     reflection = False
     tracing = True
     debug = True
     base_url = None
+    api_base = None
     ios = False
     run_command(
         command=command,
@@ -464,11 +491,13 @@ if __name__ == "__main__":
         model=model,
         steps=steps,
         temperature=temperature,
+        vision=vision,
         reasoning=reasoning,
         reflection=reflection,
         tracing=tracing,
         debug=debug,
         base_url=base_url,
+        api_base=api_base,
         api_key=api_key,
         ios=ios
     )
