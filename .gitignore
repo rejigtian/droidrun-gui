@@ -19,4 +19,5 @@ messages_log.json
 .idea/*
 .vscode/*
 patch_apis.py
-.*
+.git
+.arize-phoenix
