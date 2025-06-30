@@ -45,6 +45,7 @@ class CodeActAgent(Workflow):
         self,
         llm: LLM,
         persona: AgentPersona,
+        vision: bool,
         tools_instance: "Tools",
         all_tools_list: Dict[str, Callable[..., Any]],
         max_steps: int = 5,
@@ -61,6 +62,8 @@ class CodeActAgent(Workflow):
 
         self.user_prompt = persona.user_prompt
         self.no_thoughts_prompt = None
+
+        self.vision = vision
 
         self.chat_memory = None
         self.episodic_memory = EpisodicMemory(persona=persona)
@@ -161,22 +164,28 @@ class CodeActAgent(Workflow):
             chat_history = await chat_utils.add_memory_block(self.remembered_info, chat_history)
 
         for context in self.required_context:
-            if context == "screenshot" and model != "DeepSeek":
+            if model == "DeepSeek":
+                logger.warning(
+                    "[yellow]DeepSeek doesnt support images. Disabling screenshots[/]"
+                )
+            elif self.vision == True and context == "screenshot":
                 screenshot = (await self.tools.take_screenshot())[1]
                 ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
 
                 await ctx.set("screenshot", screenshot)
                 chat_history = await chat_utils.add_screenshot_image_block(screenshot, chat_history)
 
-            if context == "phone_state":
-                chat_history = await chat_utils.add_phone_state_block(await self.tools.get_phone_state(), chat_history)
-                
             if context == "ui_state":
-                ui_state = await self.tools.get_clickables()
-                await ctx.set("ui_state", ui_state)
-                chat_history = await chat_utils.add_ui_text_block(
-                    ui_state, chat_history
-                )
+                try:
+                    state = await self.tools.get_state()
+                    await ctx.set("ui_state", state["a11y_tree"])
+                    chat_history = await chat_utils.add_ui_text_block(
+                        state["a11y_tree"], chat_history
+                    )
+                    chat_history = await chat_utils.add_phone_state_block(state["phone_state"], chat_history)
+                except Exception as e:
+                    logger.warning(f"⚠️ Error retrieving state from the connected device. Is the Accessibility Service enabled?")
+
 
             if context == "packages":
                 chat_history = await chat_utils.add_packages_block(
@@ -394,7 +403,7 @@ class CodeActAgent(Workflow):
                 logger.warning(f"Failed to capture final screenshot: {e}")
             
             try:
-                ui_state = await self.tools.get_clickables()
+                (a11y_tree, phone_state) = await self.tools.get_state()
             except Exception as e:
                 logger.warning(f"Failed to capture final UI state: {e}")
             
@@ -402,7 +411,7 @@ class CodeActAgent(Workflow):
             final_chat_history = [{"role": "system", "content": "Final state observation after task completion"}]
             final_response = {
                 "role": "user", 
-                "content": f"Final State Observation:\nUI State: {ui_state}\nScreenshot: {'Available' if screenshot else 'Not available'}"
+                "content": f"Final State Observation:\nUI State: {a11y_tree}\nScreenshot: {'Available' if screenshot else 'Not available'}"
             }
             
             # Create final episodic memory step

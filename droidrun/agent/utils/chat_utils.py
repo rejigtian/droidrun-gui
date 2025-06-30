@@ -132,24 +132,21 @@ async def add_phone_state_block(phone_state, chat_history: List[ChatMessage]) ->
     
     # Format the phone state data nicely
     if isinstance(phone_state, dict) and 'error' not in phone_state:
-        current_app = phone_state.get('currentApp', 'Unknown')
+        current_app = phone_state.get('currentApp', '')
         package_name = phone_state.get('packageName', 'Unknown')
         keyboard_visible = phone_state.get('keyboardVisible', False)
         focused_element = phone_state.get('focusedElement')
         
         # Format the focused element
         if focused_element:
-            element_text = focused_element.get('text', 'No text')
-            element_class = focused_element.get('className', 'Unknown')
-            element_bounds = focused_element.get('bounds', 'Unknown')
-            element_type = focused_element.get('type', 'unknown')
+            element_text = focused_element.get('text', '')
+            element_class = focused_element.get('className', '')
             element_resource_id = focused_element.get('resourceId', '')
             
             # Build focused element description
-            focused_desc = f"'{element_text}' ({element_class})"
+            focused_desc = f"'{element_text}' {element_class}"
             if element_resource_id:
                 focused_desc += f" | ID: {element_resource_id}"
-            focused_desc += f" | Bounds: {element_bounds} | Type: {element_type}"
         else:
             focused_desc = "None"
         
