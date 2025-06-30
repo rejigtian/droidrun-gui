@@ -172,12 +172,15 @@ class CodeActAgent(Workflow):
                 chat_history = await chat_utils.add_screenshot_image_block(screenshot, chat_history)
 
             if context == "ui_state":
-                state = await self.tools.get_state()
-                await ctx.set("ui_state", state["a11y_tree"])
-                chat_history = await chat_utils.add_ui_text_block(
-                    state["a11y_tree"], chat_history
-                )
-                chat_history = await chat_utils.add_phone_state_block(state["phone_state"], chat_history)
+                try:
+                    state = await self.tools.get_state()
+                    await ctx.set("ui_state", state["a11y_tree"])
+                    chat_history = await chat_utils.add_ui_text_block(
+                        state["a11y_tree"], chat_history
+                    )
+                    chat_history = await chat_utils.add_phone_state_block(state["phone_state"], chat_history)
+                except Exception as e:
+                    logger.warning(f"⚠️ Error retrieving state from the connected device. Is the Accessibility Service enabled?")
 
 
             if context == "packages":

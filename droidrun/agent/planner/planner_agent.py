@@ -135,9 +135,14 @@ class PlannerAgent(Workflow):
             ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
             await ctx.set("screenshot", screenshot)
 
-        state = await self.tools_instance.get_state()
-        await ctx.set("ui_state", state["a11y_tree"])
-        await ctx.set("phone_state", state["phone_state"])
+        try:
+            state = await self.tools_instance.get_state()
+            await ctx.set("ui_state", state["a11y_tree"])
+            await ctx.set("phone_state", state["phone_state"])
+        except Exception as e:
+            logger.warning(f"⚠️ Error retrieving state from the connected device. Is the Accessibility Service enabled?")
+
+
         await ctx.set("remembered_info", self.remembered_info)
         await ctx.set("reflection", self.reflection)
 
