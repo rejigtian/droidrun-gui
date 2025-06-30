@@ -179,14 +179,14 @@ class DroidRunCLI(click.Group):
 @click.option(
     "--provider",
     "-p",
-    help="LLM provider (OpenAI, Ollama, Anthropic, Gemini, DeepSeek)",
-    default="Gemini",
+    help="LLM provider (OpenAI, Ollama, Anthropic, GoogleGenAI, DeepSeek)",
+    default="GoogleGenAI",
 )
 @click.option(
     "--model",
     "-m",
     help="LLM model name",
-    default="models/gemini-2.5-pro",
+    default="models/gemini-2.5-flash",
 )
 @click.option("--temperature", type=float, help="Temperature for LLM", default=0.2)
 @click.option("--steps", type=int, help="Maximum number of steps", default=15)
@@ -248,14 +248,14 @@ def cli(
 @click.option(
     "--provider",
     "-p",
-    help="LLM provider (OpenAI, Ollama, Anthropic, Gemini, DeepSeek)",
-    default="Gemini",
+    help="LLM provider (OpenAI, Ollama, Anthropic, GoogleGenAI, DeepSeek)",
+    default="GoogleGenAI",
 )
 @click.option(
     "--model",
     "-m",
     help="LLM model name",
-    default="models/gemini-2.5-pro",
+    default="models/gemini-2.5-flash",
 )
 @click.option("--temperature", type=float, help="Temperature for LLM", default=0.2)
 @click.option("--steps", type=int, help="Maximum number of steps", default=15)
@@ -474,7 +474,7 @@ if __name__ == "__main__":
     provider = "GoogleGenAI"
     model = "models/gemini-2.5-flash"
     temperature = 0
-    api_key = os.getenv("GEMINI_API_KEY")
+    api_key = os.getenv("GOOGLE_API_KEY")
     steps = 15
     vision = True
     reasoning = True

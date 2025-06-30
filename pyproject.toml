@@ -19,7 +19,7 @@ dependencies = [
     "arize-phoenix",
     "llama-index-llms-openai",
     "llama-index-llms-openai-like",
-    "llama-index-llms-gemini",
+    "llama-index-llms-google-genai",
     "llama-index-llms-deepseek",
     "llama-index-llms-anthropic",
     "llama-index-llms-ollama",
