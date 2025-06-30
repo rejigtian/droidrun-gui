@@ -59,6 +59,7 @@ async def run_command(
     model: str,
     steps: int,
     base_url: str,
+    vision: bool,
     reasoning: bool,
     reflection: bool,
     tracing: bool,
@@ -120,6 +121,7 @@ async def run_command(
                 tools=tools,
                 max_steps=steps,
                 timeout=1000,
+                vision=vision,
                 reasoning=reasoning,
                 reflection=reflection,
                 enable_tracing=tracing,
@@ -194,7 +196,10 @@ class DroidRunCLI(click.Group):
     default=None,
 )
 @click.option(
-    "--reasoning", is_flag=True, help="Enable/disable planning with reasoning", default=False
+    "--vision", is_flag=True, help="Enable vision capabilites by using screenshots", default=False
+)
+@click.option(
+    "--reasoning", is_flag=True, help="Enable planning with reasoning", default=False
 )
 @click.option(
     "--reflection", is_flag=True, help="Enable reflection step for higher reasoning", default=False
@@ -219,6 +224,7 @@ def cli(
     steps: int,
     base_url: str,
     temperature: float,
+    vision: bool,
     reasoning: bool,
     reflection: bool,
     tracing: bool,
@@ -253,7 +259,10 @@ def cli(
     default=None,
 )
 @click.option(
-    "--reasoning", is_flag=True, help="Enable/disable planning with reasoning", default=False
+    "--vision", is_flag=True, help="Enable vision capabilites by using screenshots", default=False
+)
+@click.option(
+    "--reasoning", is_flag=True, help="Enable planning with reasoning", default=False
 )
 @click.option(
     "--reflection", is_flag=True, help="Enable reflection step for higher reasoning", default=False
@@ -281,6 +290,7 @@ def run(
     steps: int,
     base_url: str,
     temperature: float,
+    vision: bool,
     reasoning: bool,
     reflection: bool,
     tracing: bool,
@@ -297,6 +307,7 @@ def run(
         model,
         steps,
         base_url,
+        vision,
         reasoning,
         reflection,
         tracing,
@@ -451,6 +462,7 @@ if __name__ == "__main__":
     temperature = 0
     api_key = os.getenv("GEMINI_API_KEY")
     steps = 15
+    vision = True
     reasoning = True
     reflection = False
     tracing = True
@@ -464,6 +476,7 @@ if __name__ == "__main__":
         model=model,
         steps=steps,
         temperature=temperature,
+        vision=vision,
         reasoning=reasoning,
         reflection=reflection,
         tracing=tracing,
