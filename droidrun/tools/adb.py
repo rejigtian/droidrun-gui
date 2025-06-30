@@ -516,7 +516,8 @@ class AdbTools(Tools):
             packages = self.parse_package_list(output)
             # Format package list for better readability
             package_list = [pack["package"] for pack in packages]
-            print(f"Returning {len(package_list)} packages")
+            for package in package_list:
+                print(package)
             return package_list
         except ValueError as e:
             raise ValueError(f"Error listing packages: {str(e)}")
