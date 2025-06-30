@@ -59,6 +59,7 @@ async def run_command(
     model: str,
     steps: int,
     base_url: str,
+    api_base: str,
     vision: bool,
     reasoning: bool,
     reflection: bool,
@@ -102,7 +103,7 @@ async def run_command(
             # LLM setup
             log_handler.update_step("Initializing LLM...")
             llm = load_llm(
-                provider_name=provider, model=model, base_url=base_url, **kwargs
+                provider_name=provider, model=model, base_url=base_url, api_base=api_base, **kwargs
             )
             logger.info(f"🧠 LLM ready: {provider}/{model}")
 
@@ -196,6 +197,11 @@ class DroidRunCLI(click.Group):
     default=None,
 )
 @click.option(
+    "--api_base",
+    help="Base URL for API (e.g., OpenAI, OpenAI-Like)",
+    default=None,
+)
+@click.option(
     "--vision", is_flag=True, help="Enable vision capabilites by using screenshots", default=False
 )
 @click.option(
@@ -223,6 +229,7 @@ def cli(
     model: str,
     steps: int,
     base_url: str,
+    api_base: str,
     temperature: float,
     vision: bool,
     reasoning: bool,
@@ -259,6 +266,11 @@ def cli(
     default=None,
 )
 @click.option(
+    "--api_base",
+    help="Base URL for API (e.g., OpenAI or OpenAI-Like)",
+    default=None,
+)
+@click.option(
     "--vision", is_flag=True, help="Enable vision capabilites by using screenshots", default=False
 )
 @click.option(
@@ -289,6 +301,7 @@ def run(
     model: str,
     steps: int,
     base_url: str,
+    api_base: str,
     temperature: float,
     vision: bool,
     reasoning: bool,
@@ -307,6 +320,7 @@ def run(
         model,
         steps,
         base_url,
+        api_base,
         vision,
         reasoning,
         reflection,
@@ -468,6 +482,7 @@ if __name__ == "__main__":
     tracing = True
     debug = True
     base_url = None
+    api_base = None
     ios = False
     run_command(
         command=command,
@@ -482,6 +497,7 @@ if __name__ == "__main__":
         tracing=tracing,
         debug=debug,
         base_url=base_url,
+        api_base=api_base,
         api_key=api_key,
         ios=ios
     )
