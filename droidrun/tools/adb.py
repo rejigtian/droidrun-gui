@@ -483,6 +483,7 @@ class AdbTools(Tools):
         Press a key on the Android device.
 
         Common keycodes:
+        - 3: HOME
         - 4: BACK
         - 66: ENTER
         - 67: DELETE
@@ -502,6 +503,7 @@ class AdbTools(Tools):
             key_names = {
                 66: "ENTER",
                 4: "BACK",
+                3: "HOME",
                 67: "DELETE",
             }
             key_name = key_names.get(keycode, str(keycode))
