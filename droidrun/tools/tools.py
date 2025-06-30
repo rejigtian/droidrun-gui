@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 class Tools(ABC):
     @abstractmethod
-    async def get_clickables(self) -> str:
+    async def get_state(self) -> Dict[str, Any]:
         pass
 
     @abstractmethod
@@ -44,10 +44,6 @@ class Tools(ABC):
 
     @abstractmethod
     async def take_screenshot(self) -> Tuple[str, bytes]:
-        pass
-
-    @abstractmethod
-    async def get_phone_state(self) -> Dict[str, Any]:
         pass
 
     @abstractmethod

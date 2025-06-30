@@ -171,15 +171,14 @@ class CodeActAgent(Workflow):
                 await ctx.set("screenshot", screenshot)
                 chat_history = await chat_utils.add_screenshot_image_block(screenshot, chat_history)
 
-            if context == "phone_state":
-                chat_history = await chat_utils.add_phone_state_block(await self.tools.get_phone_state(), chat_history)
-                
             if context == "ui_state":
-                ui_state = await self.tools.get_clickables()
-                await ctx.set("ui_state", ui_state)
+                state = await self.tools.get_state()
+                await ctx.set("ui_state", state["a11y_tree"])
                 chat_history = await chat_utils.add_ui_text_block(
-                    ui_state, chat_history
+                    state["a11y_tree"], chat_history
                 )
+                chat_history = await chat_utils.add_phone_state_block(state["phone_state"], chat_history)
+
 
             if context == "packages":
                 chat_history = await chat_utils.add_packages_block(
@@ -397,7 +396,7 @@ class CodeActAgent(Workflow):
                 logger.warning(f"Failed to capture final screenshot: {e}")
             
             try:
-                ui_state = await self.tools.get_clickables()
+                (a11y_tree, phone_state) = await self.tools.get_state()
             except Exception as e:
                 logger.warning(f"Failed to capture final UI state: {e}")
             
@@ -405,7 +404,7 @@ class CodeActAgent(Workflow):
             final_chat_history = [{"role": "system", "content": "Final state observation after task completion"}]
             final_response = {
                 "role": "user", 
-                "content": f"Final State Observation:\nUI State: {ui_state}\nScreenshot: {'Available' if screenshot else 'Not available'}"
+                "content": f"Final State Observation:\nUI State: {a11y_tree}\nScreenshot: {'Available' if screenshot else 'Not available'}"
             }
             
             # Create final episodic memory step

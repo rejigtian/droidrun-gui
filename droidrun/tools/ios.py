@@ -53,7 +53,7 @@ class IOSTools(Tools):
         self.bundle_identifiers = bundle_identifiers
         logger.info(f"iOS device URL: {url}")
 
-    async def get_clickables(
+    async def get_state(
         self, serial: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
@@ -80,7 +80,9 @@ class IOSTools(Tools):
                         # Cache the elements for tap_by_index usage
                         self.clickable_elements_cache = elements
 
-                        return self.clickable_elements_cache
+                        return {
+                            "a11y_tree":self.clickable_elements_cache
+                        }
                     else:
                         logger.error(
                             f"Failed to get accessibility data: HTTP {response.status}"

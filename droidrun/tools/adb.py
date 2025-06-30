@@ -121,82 +121,6 @@ class AdbTools(Tools):
         except json.JSONDecodeError:
             return None
 
-    async def get_clickables(self, serial: Optional[str] = None) -> str:
-        """
-        Get all clickable UI elements from the device using the ContentProvider.
-
-        This function interacts with the ContentProvider to capture UI elements
-        using ADB content query and returns the results directly.
-
-        Args:
-            serial: Optional device serial number
-
-        Returns:
-            List containing UI elements extracted from the device screen
-        """
-
-        try:
-            # Get the device
-            if serial:
-                device_manager = DeviceManager()
-                device = await device_manager.get_device(serial)
-                if not device:
-                    raise ValueError(f"Device {serial} not found")
-            else:
-                device = await self.get_device()
-
-            # Execute the ADB content query command
-            adb_output = await device._adb.shell(
-                device._serial,
-                'content query --uri content://com.droidrun.portal --where \'{"action":"a11y_tree"}\''
-            )
-
-            # Parse the output to extract JSON data
-            ui_data = self._parse_content_provider_output(adb_output)
-            
-            if ui_data is None:
-                raise ValueError("Failed to parse UI data from ContentProvider response")
-
-            # Handle ContentProvider response format: {"status": "success", "data": "[{...}]"}
-            if isinstance(ui_data, dict) and "data" in ui_data:
-                # The data field contains a JSON string that needs to be parsed again
-                data_str = ui_data["data"]
-                try:
-                    elements = json.loads(data_str)
-                except json.JSONDecodeError:
-                    raise ValueError("Failed to parse JSON data from ContentProvider data field")
-            elif isinstance(ui_data, dict) and "elements" in ui_data:
-                elements = ui_data["elements"]
-            elif isinstance(ui_data, list):
-                elements = ui_data
-            else:
-                raise ValueError(f"Unexpected UI data format: {type(ui_data)}")
-
-            # Filter out the "type" attribute from all elements
-            filtered_data = []
-            for element in elements:
-                # Create a copy of the element without the "type" attribute
-                filtered_element = {
-                    k: v for k, v in element.items() if k != "type"
-                }
-
-                # Also filter children if present
-                if "children" in filtered_element:
-                    filtered_element["children"] = [
-                        {k: v for k, v in child.items() if k != "type"}
-                        for child in filtered_element["children"]
-                    ]
-
-                filtered_data.append(filtered_element)
-
-            # Store the filtered UI data in cache
-            self.clickable_elements_cache = filtered_data
-
-            return filtered_data
-
-        except Exception as e:
-            raise ValueError(f"Error getting clickable elements: {e}")
-
     async def tap_by_index(self, index: int, serial: Optional[str] = None) -> str:
         """
         Tap on a UI element by its index.
@@ -237,7 +161,7 @@ class AdbTools(Tools):
         try:
             # Check if we have cached elements
             if not self.clickable_elements_cache:
-                return "Error: No UI elements cached. Call get_clickables first."
+                return "Error: No UI elements cached. Call get_state first."
 
             # Find the element with the given index (including in children)
             element = find_element_by_index(self.clickable_elements_cache, index)
@@ -271,8 +195,7 @@ class AdbTools(Tools):
 
             # Get the device and tap at the coordinates
             if serial:
-                device_manager = DeviceManager()
-                device = await device_manager.get_device(serial)
+                device = await self.device_manager.get_device(serial)
                 if not device:
                     return f"Error: Device {serial} not found"
             else:
@@ -319,8 +242,7 @@ class AdbTools(Tools):
         """
         try:
             if self.serial:
-                device_manager = DeviceManager()
-                device = await device_manager.get_device(self.serial)
+                device = await self.device_manager.get_device(self.serial)
                 if not device:
                     return f"Error: Device {self.serial} not found"
             else:
@@ -366,8 +288,7 @@ class AdbTools(Tools):
         """
         try:
             if self.serial:
-                device_manager = DeviceManager()
-                device = await device_manager.get_device(self.serial)
+                device = await self.device_manager.get_device(self.serial)
                 if not device:
                     return f"Error: Device {self.serial} not found"
             else:
@@ -394,8 +315,7 @@ class AdbTools(Tools):
         """
         try:
             if serial:
-                device_manager = DeviceManager()
-                device = await device_manager.get_device(serial)
+                device = await self.device_manager.get_device(serial)
                 if not device:
                     return f"Error: Device {serial} not found"
             else:
@@ -425,7 +345,7 @@ class AdbTools(Tools):
 
             encoded_text = base64.b64encode(text.encode()).decode()
 
-            cmd = f'content insert --uri "content://com.droidrun.portal/" --bind action:s:keyboard_input --bind base64_text:s:"{encoded_text}"'
+            cmd = f'content insert --uri "content://com.droidrun.portal/keyboard/input" --bind base64_text:s:"{encoded_text}"'
             await device._adb.shell(device._serial, cmd)
 
             # Wait for text input to complete
@@ -448,8 +368,7 @@ class AdbTools(Tools):
         """
         try:
             if self.serial:
-                device_manager = DeviceManager()
-                device = await device_manager.get_device(self.serial)
+                device = await self.device_manager.get_device(self.serial)
                 if not device:
                     return f"Error: Device {self.serial} not found"
             else:
@@ -474,8 +393,7 @@ class AdbTools(Tools):
         """
         try:
             if self.serial:
-                device_manager = DeviceManager()
-                device = await device_manager.get_device(self.serial)
+                device = await self.device_manager.get_device(self.serial)
                 if not device:
                     return f"Error: Device {self.serial} not found"
             else:
@@ -503,8 +421,7 @@ class AdbTools(Tools):
         """
         try:
             if self.serial:
-                device_manager = DeviceManager()
-                device = await device_manager.get_device(self.serial)
+                device = await self.device_manager.get_device(self.serial)
                 if not device:
                     return f"Error: Device {self.serial} not found"
             else:
@@ -528,8 +445,7 @@ class AdbTools(Tools):
         """
         try:
             if self.serial:
-                device_manager = DeviceManager()
-                device = await device_manager.get_device(self.serial)
+                device = await self.device_manager.get_device(self.serial)
                 if not device:
                     return f"Error: Device {self.serial} not found"
             else:
@@ -551,8 +467,7 @@ class AdbTools(Tools):
         """
         try:
             if self.serial:
-                device_manager = DeviceManager()
-                device = await device_manager.get_device(self.serial)
+                device = await self.device_manager.get_device(self.serial)
                 if not device:
                     raise ValueError(f"Device {self.serial} not found")
             else:
@@ -584,8 +499,7 @@ class AdbTools(Tools):
         """
         try:
             if self.serial:
-                device_manager = DeviceManager()
-                device = await device_manager.get_device(self.serial)
+                device = await self.device_manager.get_device(self.serial)
                 if not device:
                     raise ValueError(f"Device {self.serial} not found")
             else:
@@ -655,8 +569,7 @@ class AdbTools(Tools):
         """
         try:
             # Get the device
-            device_manager = DeviceManager()
-            device = await device_manager.get_device(self.serial)
+            device = await self.device_manager.get_device(self.serial)
             if not device:
                 raise ValueError(f"Device {self.serial} not found")
 
@@ -760,65 +673,6 @@ class AdbTools(Tools):
             self.reason = reason
             self.finished = True
 
-    async def get_phone_state(self, serial: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Get the current phone state including current activity and keyboard visibility.
-
-        Args:
-            serial: Optional device serial number
-
-        Returns:
-            Dictionary with current phone state information
-        """
-        try:
-            # Get the device
-            if serial:
-                device_manager = DeviceManager()
-                device = await device_manager.get_device(serial)
-                if not device:
-                    raise ValueError(f"Device {serial} not found")
-            else:
-                device = await self.get_device()
-
-            # Execute the ADB content query command
-            adb_output = await device._adb.shell(
-                device._serial,
-                'content query --uri content://com.droidrun.portal --where \'{"action":"phone_state"}\''
-            )
-
-            # Parse the output to extract JSON data
-            phone_data = self._parse_content_provider_output(adb_output)
-            
-            if phone_data is None:
-                return {
-                    "error": "Parse Error",
-                    "message": "Failed to parse phone state data from ContentProvider response"
-                }
-
-            # Handle ContentProvider response format: {"status": "success", "data": "{...}"}
-            if isinstance(phone_data, dict) and "data" in phone_data:
-                # The data field contains a JSON string that needs to be parsed again
-                data_str = phone_data["data"]
-                try:
-                    phone_state = json.loads(data_str)
-                    return phone_state
-                except json.JSONDecodeError:
-                    return {
-                        "error": "Parse Error",
-                        "message": "Failed to parse JSON data from ContentProvider data field"
-                    }
-            elif isinstance(phone_data, dict):
-                # Direct phone state data
-                return phone_data
-            else:
-                return {
-                    "error": "Format Error",
-                    "message": f"Unexpected phone state data format: {type(phone_data)}"
-                }
-
-        except Exception as e:
-            return {"error": str(e), "message": f"Error getting phone state: {str(e)}"}
-
     async def remember(self, information: str) -> str:
         """
         Store important information to remember for future context.
@@ -855,9 +709,96 @@ class AdbTools(Tools):
         """
         return self.memory.copy()
 
+    async def get_state(self, serial: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get both the a11y tree and phone state in a single call using the combined /state endpoint.
+
+        Args:
+            serial: Optional device serial number
+
+        Returns:
+            Dictionary containing both 'a11y_tree' and 'phone_state' data
+        """
+        
+        try:
+            if serial:
+                device = await self.device_manager.get_device(serial)
+                if not device:
+                    raise ValueError(f"Device {serial} not found")
+            else:
+                device = await self.get_device()
+
+            adb_output = await device._adb.shell(
+                device._serial,
+                'content query --uri content://com.droidrun.portal/state'
+            )
+
+            state_data = self._parse_content_provider_output(adb_output)
+            
+            if state_data is None:
+                return {
+                    "error": "Parse Error",
+                    "message": "Failed to parse state data from ContentProvider response"
+                }
+
+            if isinstance(state_data, dict) and "data" in state_data:
+                data_str = state_data["data"]
+                try:
+                    combined_data = json.loads(data_str)
+                except json.JSONDecodeError:
+                    return {
+                        "error": "Parse Error",
+                        "message": "Failed to parse JSON data from ContentProvider data field"
+                    }
+            else:
+                return {
+                    "error": "Format Error",
+                    "message": f"Unexpected state data format: {type(state_data)}"
+                }
+
+            # Validate that both a11y_tree and phone_state are present
+            if "a11y_tree" not in combined_data:
+                return {
+                    "error": "Missing Data",
+                    "message": "a11y_tree not found in combined state data"
+                }
+            
+            if "phone_state" not in combined_data:
+                return {
+                    "error": "Missing Data", 
+                    "message": "phone_state not found in combined state data"
+                }
+
+            # Filter out the "type" attribute from all a11y_tree elements
+            elements = combined_data["a11y_tree"]
+            filtered_elements = []
+            for element in elements:
+                # Create a copy of the element without the "type" attribute
+                filtered_element = {
+                    k: v for k, v in element.items() if k != "type"
+                }
+
+                # Also filter children if present
+                if "children" in filtered_element:
+                    filtered_element["children"] = [
+                        {k: v for k, v in child.items() if k != "type"}
+                        for child in filtered_element["children"]
+                    ]
+
+                filtered_elements.append(filtered_element)
+            
+            self.clickable_elements_cache = filtered_elements
+            
+            return {
+                "a11y_tree": filtered_elements,
+                "phone_state": combined_data["phone_state"]
+            }
+
+        except Exception as e:
+            return {"error": str(e), "message": f"Error getting combined state: {str(e)}"}
+
 if __name__ == "__main__":
     async def main():
         tools = AdbTools()
-        print(await tools.get_clickables())
 
     asyncio.run(main())
