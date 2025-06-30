@@ -196,7 +196,11 @@ class PlannerAgent(Workflow):
                 await self.chat_memory.aput(
                     ChatMessage(
                         role="user",
-                        content=f"Please either set new tasks using set_tasks_with_agents() or mark the goal as complete using complete_goal() if done.",
+                        content="""Please either set new tasks using set_tasks_with_agents() or mark the goal as complete using complete_goal() if done.
+wrap your code inside this:
+```python
+<YOUR CODE HERE>
+```""",
                     )
                 )
                 logger.debug("🔄 Waiting for next plan or completion.")
@@ -205,7 +209,11 @@ class PlannerAgent(Workflow):
             await self.chat_memory.aput(
                 ChatMessage(
                     role="user",
-                    content=f"Please either set new tasks using set_tasks_with_agents() or mark the goal as complete using complete_goal() if done.",
+                    content="""Please either set new tasks using set_tasks_with_agents() or mark the goal as complete using complete_goal() if done.
+wrap your code inside this:
+```python
+<YOUR CODE HERE>
+```""",
                 )
             )
             logger.debug("🔄 Waiting for next plan or completion.")
