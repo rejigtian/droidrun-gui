@@ -164,7 +164,11 @@ class CodeActAgent(Workflow):
             chat_history = await chat_utils.add_memory_block(self.remembered_info, chat_history)
 
         for context in self.required_context:
-            if self.vision == True and context == "screenshot" and model != "DeepSeek":
+            if model == "DeepSeek":
+                logger.warning(
+                    "[yellow]DeepSeek doesnt support images. Disabling screenshots[/]"
+                )
+            elif self.vision == True and context == "screenshot":
                 screenshot = (await self.tools.take_screenshot())[1]
                 ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
 
