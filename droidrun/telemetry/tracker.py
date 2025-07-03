@@ -36,6 +36,8 @@ def print_telemetry_message():
     else:
         droidrun_logger.info(TELEMETRY_DISABLED_MESSAGE)
 
+# Print telemetry message on import
+print_telemetry_message()
 
 def get_user_id() -> str:
     try:
