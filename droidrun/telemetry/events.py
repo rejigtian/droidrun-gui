@@ -1,7 +1,8 @@
-from typing import TypedDict, List
+from typing import List
 from droidrun.agent.context import Task
+from pydantic import BaseModel
 
-class TelemetryEvent(TypedDict):
+class TelemetryEvent(BaseModel):
     pass
 
 class DroidAgentInitEvent(TelemetryEvent):
@@ -21,7 +22,6 @@ class DroidAgentInitEvent(TelemetryEvent):
 
 class DroidAgentFinalizeEvent(TelemetryEvent):
     tasks: List[Task]
-    reflection: str
     success: bool
     reason: str
     steps: int
