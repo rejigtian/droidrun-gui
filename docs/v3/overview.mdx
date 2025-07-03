@@ -18,7 +18,7 @@ We have published our latest benchmark results at [droidrun.ai/benchmark](https:
     Control your Android device using natural language commands
   </Card>
   <Card title="Multiple LLM Support" icon="brain">
-    Support for OpenAI, Anthropic, Gemini, Ollama, and Deepseek
+    Support for OpenAI, Anthropic, GoogleGenAI, Ollama, and Deepseek
   </Card>
   <Card title="Advanced Planning" icon="diagram-project">
     Optional planning and reasoning capabilities
@@ -41,7 +41,7 @@ We have published our latest benchmark results at [droidrun.ai/benchmark](https:
 droidrun "Open the settings app"
 
 # With specific provider and model
-droidrun "Open calculator app" --provider Gemini --model models/gemini-2.5-pro
+droidrun "Open calculator app" --provider GoogleGenAI --model models/gemini-2.5-pro
 
 # With reflection and planning capabilities
 droidrun "Open Calculator and take a screenshot" --reflection --reasoning
@@ -55,9 +55,9 @@ from droidrun import DroidAgent, load_llm, AdbTools
 
 async def main():
     # Load tools and LLM
-    tools = AdbTools()
+    tools = AdbTools(serial=<YOUR DEVICE SERIAL>)
     llm = load_llm(
-        provider_name="Gemini",  # OpenAI, ollama, Anthropic, Gemini, DeepSeek
+        provider_name="GoogleGenAI",  # OpenAI, ollama, Anthropic, GoogleGenAI, DeepSeek
         model="models/gemini-2.5-pro",
         temperature=0.2
     )
