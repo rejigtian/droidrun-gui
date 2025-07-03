@@ -30,6 +30,14 @@
               "v3/concepts/portal-app",
               "v3/concepts/tracing"
             ]
+          },
+          {
+            "group": "SDK Reference",
+            "pages": [
+              "v3/sdk/agent",
+              "v3/sdk/tools",
+              "v3/sdk/adb"
+            ]
           }
         ]
       },
