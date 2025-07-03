@@ -21,11 +21,11 @@ logger = logging.getLogger("droidrun-adb-tools")
 class AdbTools(Tools):
     """Core UI interaction tools for Android device control."""
 
-    def __init__(self, serial: str = "emulator-5554") -> None:
+    def __init__(self, serial: str) -> None:
+        self.device_manager = DeviceManager()
         # Instance‐level cache for clickable elements (index-based tapping)
         self.clickable_elements_cache: List[Dict[str, Any]] = []
         self.serial = serial
-        self.device_manager = DeviceManager()
         self.last_screenshot = None
         self.reason = None
         self.success = None
@@ -34,6 +34,17 @@ class AdbTools(Tools):
         self.memory: List[str] = []
         # Store all screenshots with timestamps
         self.screenshots: List[Dict[str, Any]] = []
+
+    @classmethod
+    async def create(serial: str = None) -> "AdbTools":
+        if not serial:
+            dvm = DeviceManager()
+            devices = await dvm.list_devices()
+            if not devices or len(devices) < 1:
+                raise ValueError("No devices found")
+            serial = devices[0].serial
+
+        return AdbTools(serial)
 
     def get_device_serial(self) -> str:
         """Get the device serial from the instance or environment variable."""
@@ -802,6 +813,7 @@ class AdbTools(Tools):
 
 if __name__ == "__main__":
     async def main():
-        tools = AdbTools()
+        tools = await AdbTools.create()
+        print(tools.serial)
 
     asyncio.run(main())
