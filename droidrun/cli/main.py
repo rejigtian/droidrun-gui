@@ -20,7 +20,7 @@ from droidrun.portal import (
     download_portal_apk,
     enable_portal_accessibility,
     PORTAL_PACKAGE_NAME,
-    ping_portal
+    ping_portal,
 )
 
 # Suppress all warnings
@@ -374,17 +374,17 @@ async def devices():
 
 
 @cli.command()
-@click.argument("ip_address")
+@click.argument("serial")
 @click.option("--port", "-p", default=5555, help="ADB port (default: 5555)")
 @coro
-async def connect(ip_address: str, port: int):
+async def connect(serial: str, port: int):
     """Connect to a device over TCP/IP."""
     try:
-        device = await device_manager.connect(ip_address, port)
+        device = await device_manager.connect(serial, port)
         if device:
-            console.print(f"[green]Successfully connected to {ip_address}:{port}[/]")
+            console.print(f"[green]Successfully connected to {serial}:{port}[/]")
         else:
-            console.print(f"[red]Failed to connect to {ip_address}:{port}[/]")
+            console.print(f"[red]Failed to connect to {serial}:{port}[/]")
     except Exception as e:
         console.print(f"[red]Error connecting to device: {e}[/]")
 
@@ -405,14 +405,14 @@ async def disconnect(serial: str):
 
 
 @cli.command()
-@click.option("--path", help="Path to the APK file to install", default=None)
 @click.option("--device", "-d", help="Device serial number or IP address", default=None)
+@click.option("--path", help="Path to the Droidrun Portal APK to install on the device. If not provided, the latest portal apk version will be downloaded and installed.", default=None)
 @click.option(
     "--debug", is_flag=True, help="Enable verbose debug logging", default=False
 )
 @coro
 async def setup(path: str | None, device: str | None, debug: bool):
-    """Install an APK file and enable it as an accessibility service."""
+    """Install and enable the DroidRun Portal on a device."""
     try:
         if not device:
             devices = await device_manager.list_devices()
@@ -497,6 +497,7 @@ async def setup(path: str | None, device: str | None, debug: bool):
 
             traceback.print_exc()
 
+
 @cli.command()
 @click.option("--device", "-d", help="Device serial number or IP address", default=None)
 @click.option(
@@ -504,19 +505,22 @@ async def setup(path: str | None, device: str | None, debug: bool):
 )
 @coro
 async def ping(device: str | None, debug: bool):
-    """Ping the Droidrun Portal to check if it is installed and accessible."""
+    """Ping a device to check if it is ready and accessible."""
     try:
         device_obj = await device_manager.get_device(device)
         if not device_obj:
             console.print(f"[bold red]Error:[/] Could not find device {device}")
             return
-        
+
         await ping_portal(device_obj, debug)
-        console.print("[bold green]Portal is installed and accessible. You're good to go![/]")
+        console.print(
+            "[bold green]Portal is installed and accessible. You're good to go![/]"
+        )
     except Exception as e:
         console.print(f"[bold red]Error:[/] {e}")
         if debug:
             import traceback
+
             traceback.print_exc()
 
 
