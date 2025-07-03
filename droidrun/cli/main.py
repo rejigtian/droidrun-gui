@@ -7,6 +7,7 @@ import click
 import os
 import logging
 import warnings
+from contextlib import nullcontext
 from rich.console import Console
 from droidrun.agent.droid import DroidAgent
 from droidrun.agent.utils.llm_picker import load_llm
@@ -15,6 +16,7 @@ from droidrun.tools import AdbTools, IOSTools
 from functools import wraps
 from droidrun.cli.logs import LogHandler
 from droidrun.telemetry import print_telemetry_message
+from droidrun.portal import download_portal_apk
 
 # Suppress all warnings
 warnings.filterwarnings("ignore")
@@ -383,16 +385,15 @@ async def disconnect(serial: str):
 
 
 @cli.command()
-@click.option("--path", required=True, help="Path to the APK file to install")
+@click.option("--path", help="Path to the APK file to install", default=None)
 @click.option("--device", "-d", help="Device serial number or IP address", default=None)
+@click.option(
+    "--debug", is_flag=True, help="Enable verbose debug logging", default=False
+)
 @coro
-async def setup(path: str, device: str | None):
+async def setup(path: str | None, device: str | None, debug: bool):
     """Install an APK file and enable it as an accessibility service."""
     try:
-        if not os.path.exists(path):
-            console.print(f"[bold red]Error:[/] APK file not found at {path}")
-            return
-
         if not device:
             devices = await device_manager.list_devices()
             if not devices:
@@ -409,65 +410,79 @@ async def setup(path: str, device: str | None):
             )
             return
         
-        console.print(f"[bold blue]Step 1/2: Installing APK:[/] {path}")
-        result = await device_obj.install_app(path, False, True)
-
-        if "Error" in result:
-            console.print(f"[bold red]Installation failed:[/] {result}")
-            return
+        if not path:
+            console.print("[bold blue]Downloading DroidRun Portal APK...[/]")
+            apk_context = download_portal_apk(debug)
         else:
-            console.print(f"[bold green]Installation successful![/]")
+            console.print(f"[bold blue]Using provided APK:[/] {path}")
+            apk_context = nullcontext(path)
 
-        console.print(f"[bold blue]Step 2/2: Enabling accessibility service[/]")
+        with apk_context as apk_path:
+            if not os.path.exists(apk_path):
+                console.print(f"[bold red]Error:[/] APK file not found at {apk_path}")
+                return
+ 
+            console.print(f"[bold blue]Step 1/2: Installing APK:[/] {apk_path}")
+            result = await device_obj.install_app(apk_path, True, True)
 
-        package = "com.droidrun.portal"
+            if "Error" in result:
+                console.print(f"[bold red]Installation failed:[/] {result}")
+                return
+            else:
+                console.print(f"[bold green]Installation successful![/]")
 
-        try:
-            await device_obj._adb.shell(
-                device,
-                "settings put secure enabled_accessibility_services com.droidrun.portal/com.droidrun.portal.DroidrunPortalService",
-            )
+            console.print(f"[bold blue]Step 2/2: Enabling accessibility service[/]")
 
-            await device_obj._adb.shell(
-                device, "settings put secure accessibility_enabled 1"
-            )
+            package = "com.droidrun.portal"
 
-            console.print("[green]Accessibility service enabled successfully![/]")
-            console.print(
-                "\n[bold green]Setup complete![/] The DroidRun Portal is now installed and ready to use."
-            )
+            try:
+                await device_obj._adb.shell(
+                    device,
+                    "settings put secure enabled_accessibility_services com.droidrun.portal/com.droidrun.portal.DroidrunPortalService",
+                )
 
-        except Exception as e:
-            console.print(
-                f"[yellow]Could not automatically enable accessibility service: {e}[/]"
-            )
-            console.print(
-                "[yellow]Opening accessibility settings for manual configuration...[/]"
-            )
+                await device_obj._adb.shell(
+                    device, "settings put secure accessibility_enabled 1"
+                )
 
-            await device_obj._adb.shell(
-                device, "am start -a android.settings.ACCESSIBILITY_SETTINGS"
-            )
+                console.print("[green]Accessibility service enabled successfully![/]")
+                console.print(
+                    "\n[bold green]Setup complete![/] The DroidRun Portal is now installed and ready to use."
+                )
 
-            console.print(
-                "\n[yellow]Please complete the following steps on your device:[/]"
-            )
-            console.print(
-                f"1. Find [bold]{package}[/] in the accessibility services list"
-            )
-            console.print("2. Tap on the service name")
-            console.print("3. Toggle the switch to [bold]ON[/] to enable the service")
-            console.print("4. Accept any permission dialogs that appear")
+            except Exception as e:
+                console.print(
+                    f"[yellow]Could not automatically enable accessibility service: {e}[/]"
+                )
+                console.print(
+                    "[yellow]Opening accessibility settings for manual configuration...[/]"
+                )
 
-            console.print(
-                "\n[bold green]APK installation complete![/] Please manually enable the accessibility service using the steps above."
-            )
+                await device_obj._adb.shell(
+                    device, "am start -a android.settings.ACCESSIBILITY_SETTINGS"
+                )
+
+                console.print(
+                    "\n[yellow]Please complete the following steps on your device:[/]"
+                )
+                console.print(
+                    f"1. Find [bold]{package}[/] in the accessibility services list"
+                )
+                console.print("2. Tap on the service name")
+                console.print("3. Toggle the switch to [bold]ON[/] to enable the service")
+                console.print("4. Accept any permission dialogs that appear")
+
+                console.print(
+                    "\n[bold green]APK installation complete![/] Please manually enable the accessibility service using the steps above."
+                )
 
     except Exception as e:
         console.print(f"[bold red]Error:[/] {e}")
-        import traceback
 
-        traceback.print_exc()
+        if debug:
+            import traceback
+
+            traceback.print_exc()
 
 
 if __name__ == "__main__":
