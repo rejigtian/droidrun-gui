@@ -16,8 +16,12 @@ class ReasoningLogicEvent(Event):
 
 class FinalizeEvent(Event):
     success: bool
+    # deprecated. use output instead.
     reason: str
+    output: str
+    # deprecated. use tasks instead.
     task: List[Task]
+    tasks: List[Task]
     steps: int = 1
 
 class TaskRunnerEvent(Event):
