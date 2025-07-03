@@ -11,7 +11,7 @@ import asyncio
 import aiofiles
 import contextlib
 import logging
-from typing import Optional, Dict, Tuple, List, Any
+from typing import Optional, Dict, Tuple, List, Any, Type, Self
 from droidrun.adb.device import Device
 from droidrun.adb.manager import DeviceManager
 from droidrun.tools.tools import Tools
@@ -36,7 +36,7 @@ class AdbTools(Tools):
         self.screenshots: List[Dict[str, Any]] = []
 
     @classmethod
-    async def create(serial: str = None) -> "AdbTools":
+    async def create(cls: Type[Self], serial: str = None) -> Self:
         if not serial:
             dvm = DeviceManager()
             devices = await dvm.list_devices()
