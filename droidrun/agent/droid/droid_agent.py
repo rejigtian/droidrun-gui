@@ -87,23 +87,6 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
             **kwargs: Additional keyword arguments to pass to the agents
         """
         super().__init__(timeout=timeout ,*args,**kwargs)
-        capture(
-            DroidAgentInitEvent(
-                goal=goal,
-                llm=llm,
-                tools=tools,
-                personas=personas,
-                max_steps=max_steps,
-                timeout=timeout,
-                vision=vision,
-                reasoning=reasoning,
-                reflection=reflection,
-                enable_tracing=enable_tracing,
-                debug=debug,
-                save_trajectories=save_trajectories,
-            )
-        )
-
         # Configure default logging if not already configured
         self._configure_default_logging(debug=debug)
         
@@ -163,6 +146,24 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         else:
             logger.debug("🚫 Planning disabled - will execute tasks directly with CodeActAgent")
             self.planner_agent = None
+
+        capture(
+            DroidAgentInitEvent(
+                goal=goal,
+                llm=llm.class_name(),
+                tools=",".join(self.tool_list),
+                personas=",".join([p.name for p in personas]),
+                max_steps=max_steps,
+                timeout=timeout,
+                vision=vision,
+                reasoning=reasoning,
+                reflection=reflection,
+                enable_tracing=enable_tracing,
+                debug=debug,
+                save_trajectories=save_trajectories,
+            )
+        )
+
         
         logger.info("✅ DroidAgent initialized successfully.")
     

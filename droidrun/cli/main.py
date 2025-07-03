@@ -14,6 +14,7 @@ from droidrun.adb import DeviceManager
 from droidrun.tools import AdbTools, IOSTools
 from functools import wraps
 from droidrun.cli.logs import LogHandler
+from droidrun.telemetry import print_telemetry_message
 
 # Suppress all warnings
 warnings.filterwarnings("ignore")
@@ -78,6 +79,7 @@ async def run_command(
     with log_handler.render() as live:
         try:
             logger.info(f"🚀 Starting: {command}")
+            print_telemetry_message()
 
             if not kwargs.get("temperature"):
                 kwargs["temperature"] = 0

@@ -1,16 +1,20 @@
 from posthog import Posthog
 from pathlib import Path
 from uuid import uuid4
-from typing import TypedDict
 import os
 import logging
 from .events import TelemetryEvent
 
 logger = logging.getLogger("droidrun-telemetry")
+droidrun_logger = logging.getLogger("droidrun")
 
 PROJECT_API_KEY = "phc_XyD3HKIsetZeRkmnfaBughs8fXWYArSUFc30C0HmRiO"
 HOST = "https://eu.i.posthog.com"
 USER_ID_PATH = Path.home() / ".droidrun" / "user_id"
+RUN_ID = str(uuid4())
+
+TELEMETRY_ENABLED_MESSAGE = "🕵️  Anonymized telemetry enabled. We collect anonymous usage data to help us improve DroidRun."
+TELEMETRY_DISABLED_MESSAGE = "🛑 Anonymized telemetry disabled. Consider setting the DROIDRUN_TELEMETRY_ENABLED environment variable to 'true' to enable telemetry and help us improve DroidRun."
 
 posthog = Posthog(
     project_api_key=PROJECT_API_KEY,
@@ -24,6 +28,13 @@ def is_telemetry_enabled():
     enabled = telemetry_enabled.lower() in ["true", "1", "yes", "y"]
     logger.debug(f"Telemetry enabled: {enabled}")
     return enabled
+
+def print_telemetry_message():
+    if is_telemetry_enabled():
+        droidrun_logger.info(TELEMETRY_ENABLED_MESSAGE)
+
+    else:
+        droidrun_logger.info(TELEMETRY_DISABLED_MESSAGE)
 
 
 def get_user_id() -> str:
@@ -43,8 +54,16 @@ def capture(event: TelemetryEvent):
         if not is_telemetry_enabled():
             logger.debug(f"Telemetry disabled, skipping capture of {event}")
             return
-        event_name = event.__class__.__name__
-        posthog.capture(get_user_id(), event_name, event)
+        event_name = type(event).__name__
+        properties = event.model_dump()
+        posthog.capture(
+            get_user_id(),
+            event_name,
+            {
+                "run_id": RUN_ID,
+                **properties,
+            },
+        )
         logger.debug(f"Captured event: {event_name} with properties: {event}")
     except Exception as e:
         logger.error(f"Error capturing event: {e}")
