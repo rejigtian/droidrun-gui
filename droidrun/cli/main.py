@@ -16,7 +16,12 @@ from droidrun.tools import AdbTools, IOSTools
 from functools import wraps
 from droidrun.cli.logs import LogHandler
 from droidrun.telemetry import print_telemetry_message
-from droidrun.portal import download_portal_apk
+from droidrun.portal import (
+    download_portal_apk,
+    enable_portal_accessibility,
+    PORTAL_PACKAGE_NAME,
+    ping_portal
+)
 
 # Suppress all warnings
 warnings.filterwarnings("ignore")
@@ -38,7 +43,6 @@ def configure_logging(goal: str, debug: bool):
         else logging.Formatter("%(message)s", "%H:%M:%S")
     )
     logger.addHandler(handler)
-
 
     logger.setLevel(logging.DEBUG if debug else logging.INFO)
     logger.propagate = False
@@ -98,7 +102,9 @@ async def run_command(
                 device = devices[0].serial
                 logger.info(f"📱 Using device: {device}")
             elif device is None and ios:
-                raise ValueError("iOS device not specified. Please specify the device base url (http://device-ip:6643) via --device")
+                raise ValueError(
+                    "iOS device not specified. Please specify the device base url (http://device-ip:6643) via --device"
+                )
             else:
                 logger.info(f"📱 Using device: {device}")
 
@@ -107,7 +113,11 @@ async def run_command(
             # LLM setup
             log_handler.update_step("Initializing LLM...")
             llm = load_llm(
-                provider_name=provider, model=model, base_url=base_url, api_base=api_base, **kwargs
+                provider_name=provider,
+                model=model,
+                base_url=base_url,
+                api_base=api_base,
+                **kwargs,
             )
             logger.info(f"🧠 LLM ready: {provider}/{model}")
 
@@ -131,7 +141,7 @@ async def run_command(
                 reflection=reflection,
                 enable_tracing=tracing,
                 debug=debug,
-                save_trajectories=save_trajectory
+                save_trajectories=save_trajectory,
             )
 
             logger.info("▶️  Starting agent execution...")
@@ -206,13 +216,19 @@ class DroidRunCLI(click.Group):
     default=None,
 )
 @click.option(
-    "--vision", is_flag=True, help="Enable vision capabilites by using screenshots", default=False
+    "--vision",
+    is_flag=True,
+    help="Enable vision capabilites by using screenshots",
+    default=False,
 )
 @click.option(
     "--reasoning", is_flag=True, help="Enable planning with reasoning", default=False
 )
 @click.option(
-    "--reflection", is_flag=True, help="Enable reflection step for higher reasoning", default=False
+    "--reflection",
+    is_flag=True,
+    help="Enable reflection step for higher reasoning",
+    default=False,
 )
 @click.option(
     "--tracing", is_flag=True, help="Enable Arize Phoenix tracing", default=False
@@ -275,13 +291,19 @@ def cli(
     default=None,
 )
 @click.option(
-    "--vision", is_flag=True, help="Enable vision capabilites by using screenshots", default=False
+    "--vision",
+    is_flag=True,
+    help="Enable vision capabilites by using screenshots",
+    default=False,
 )
 @click.option(
     "--reasoning", is_flag=True, help="Enable planning with reasoning", default=False
 )
 @click.option(
-    "--reflection", is_flag=True, help="Enable reflection step for higher reasoning", default=False
+    "--reflection",
+    is_flag=True,
+    help="Enable reflection step for higher reasoning",
+    default=False,
 )
 @click.option(
     "--tracing", is_flag=True, help="Enable Arize Phoenix tracing", default=False
@@ -295,9 +317,7 @@ def cli(
     help="Save agent trajectory to file",
     default=False,
 )
-@click.option(
-    "--ios", is_flag=True, help="Run on iOS device", default=False
-)
+@click.option("--ios", is_flag=True, help="Run on iOS device", default=False)
 def run(
     command: str,
     device: str | None,
@@ -332,7 +352,7 @@ def run(
         debug,
         temperature=temperature,
         save_trajectory=save_trajectory,
-        ios=ios
+        ios=ios,
     )
 
 
@@ -409,7 +429,7 @@ async def setup(path: str | None, device: str | None, debug: bool):
                 f"[bold red]Error:[/] Could not get device object for {device}"
             )
             return
-        
+
         if not path:
             console.print("[bold blue]Downloading DroidRun Portal APK...[/]")
             apk_context = download_portal_apk(debug)
@@ -421,7 +441,7 @@ async def setup(path: str | None, device: str | None, debug: bool):
             if not os.path.exists(apk_path):
                 console.print(f"[bold red]Error:[/] APK file not found at {apk_path}")
                 return
- 
+
             console.print(f"[bold blue]Step 1/2: Installing APK:[/] {apk_path}")
             result = await device_obj.install_app(apk_path, True, True)
 
@@ -433,17 +453,8 @@ async def setup(path: str | None, device: str | None, debug: bool):
 
             console.print(f"[bold blue]Step 2/2: Enabling accessibility service[/]")
 
-            package = "com.droidrun.portal"
-
             try:
-                await device_obj._adb.shell(
-                    device,
-                    "settings put secure enabled_accessibility_services com.droidrun.portal/com.droidrun.portal.DroidrunPortalService",
-                )
-
-                await device_obj._adb.shell(
-                    device, "settings put secure accessibility_enabled 1"
-                )
+                await enable_portal_accessibility(device_obj)
 
                 console.print("[green]Accessibility service enabled successfully![/]")
                 console.print(
@@ -458,18 +469,20 @@ async def setup(path: str | None, device: str | None, debug: bool):
                     "[yellow]Opening accessibility settings for manual configuration...[/]"
                 )
 
-                await device_obj._adb.shell(
-                    device, "am start -a android.settings.ACCESSIBILITY_SETTINGS"
+                await device_obj.shell(
+                    "am start -a android.settings.ACCESSIBILITY_SETTINGS"
                 )
 
                 console.print(
                     "\n[yellow]Please complete the following steps on your device:[/]"
                 )
                 console.print(
-                    f"1. Find [bold]{package}[/] in the accessibility services list"
+                    f"1. Find [bold]{PORTAL_PACKAGE_NAME}[/] in the accessibility services list"
                 )
                 console.print("2. Tap on the service name")
-                console.print("3. Toggle the switch to [bold]ON[/] to enable the service")
+                console.print(
+                    "3. Toggle the switch to [bold]ON[/] to enable the service"
+                )
                 console.print("4. Accept any permission dialogs that appear")
 
                 console.print(
@@ -482,6 +495,28 @@ async def setup(path: str | None, device: str | None, debug: bool):
         if debug:
             import traceback
 
+            traceback.print_exc()
+
+@cli.command()
+@click.option("--device", "-d", help="Device serial number or IP address", default=None)
+@click.option(
+    "--debug", is_flag=True, help="Enable verbose debug logging", default=False
+)
+@coro
+async def ping(device: str | None, debug: bool):
+    """Ping the Droidrun Portal to check if it is installed and accessible."""
+    try:
+        device_obj = await device_manager.get_device(device)
+        if not device_obj:
+            console.print(f"[bold red]Error:[/] Could not find device {device}")
+            return
+        
+        await ping_portal(device_obj, debug)
+        console.print("[bold green]Portal is installed and accessible. You're good to go![/]")
+    except Exception as e:
+        console.print(f"[bold red]Error:[/] {e}")
+        if debug:
+            import traceback
             traceback.print_exc()
 
 
@@ -516,5 +551,5 @@ if __name__ == "__main__":
         base_url=base_url,
         api_base=api_base,
         api_key=api_key,
-        ios=ios
+        ios=ios,
     )

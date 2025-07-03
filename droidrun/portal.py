@@ -2,10 +2,16 @@ import requests
 import tempfile
 import os
 import contextlib
+from droidrun.adb import Device, DeviceManager
+import asyncio
 
 REPO = "droidrun/droidrun-portal"
 ASSET_NAME = "droidrun-portal"
 GITHUB_API_HOSTS = ["https://api.github.com", "https://ungh.cc"]
+
+PORTAL_PACKAGE_NAME = "com.droidrun.portal"
+A11Y_SERVICE_NAME = f"{PORTAL_PACKAGE_NAME}/com.droidrun.portal.DroidrunAccessibilityService"
+
 
 def get_latest_release_assets(debug: bool = False):
     for host in GITHUB_API_HOSTS:
@@ -25,6 +31,7 @@ def get_latest_release_assets(debug: bool = False):
         assets = latest_release.get("assets", [])
 
     return assets
+
 
 @contextlib.contextmanager
 def download_portal_apk(debug: bool = False):
@@ -65,6 +72,63 @@ def download_portal_apk(debug: bool = False):
             os.unlink(tmp.name)
 
 
+async def enable_portal_accessibility(device: Device):
+    await device.shell(
+        f"settings put secure enabled_accessibility_services {A11Y_SERVICE_NAME}"
+    )
+    await device.shell("settings put secure accessibility_enabled 1")
+
+
+async def check_portal_accessibility(device: Device, debug: bool = False) -> bool:
+    a11y_services = await device.shell(
+        "settings get secure enabled_accessibility_services"
+    )
+    if not A11Y_SERVICE_NAME in a11y_services:
+        if debug:
+            print(a11y_services)
+        return False
+
+    a11y_enabled = await device.shell("settings get secure accessibility_enabled")
+    if a11y_enabled != "1":
+        if debug:
+            print(a11y_enabled)
+        return False
+
+    return True
+
+
+async def ping_portal(device: Device, debug: bool = False):
+    """
+    Ping the Droidrun Portal to check if it is installed and accessible.
+    """
+    try:
+        packages = await device.list_packages()
+    except Exception as e:
+        raise Exception(f"Failed to list packages: {e}")
+
+    if not PORTAL_PACKAGE_NAME in packages:
+        if debug:
+            print(packages)
+        raise Exception("Portal is not installed on the device")
+
+    if not await check_portal_accessibility(device, debug):
+        raise Exception("Droidrun Portal is not enabled on the device")
+
+    try:
+        state = await device.shell(
+            "content query --uri content://com.droidrun.portal/state"
+        )
+        if not "Row: 0 result=" in state:
+            raise Exception("Failed to get state from Droidrun Portal")
+
+    except Exception as e:
+        raise Exception(f"Droidrun Portal is not reachable: {e}")
+
+
+async def test():
+    device = await DeviceManager().get_device()
+    await ping_portal(device, debug=False)
+
+
 if __name__ == "__main__":
-    with download_portal_apk() as apk_path:
-        print(apk_path)
+    asyncio.run(test())
