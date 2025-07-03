@@ -59,10 +59,6 @@ class Tools(ABC):
         pass
 
     @abstractmethod
-    async def extract(self, filename: Optional[str] = None) -> str:
-        pass
-
-    @abstractmethod
     def complete(self, success: bool, reason: str = "") -> bool:
         pass
 
@@ -89,7 +85,6 @@ def describe_tools(tools: Tools) -> Dict[str, Callable[..., Any]]:
         "start_app": tools.start_app,
         "list_packages": tools.list_packages,
         # state management
-        "extract": tools.extract,
         "remember": tools.remember,
         "complete": tools.complete,
     }

@@ -536,9 +536,6 @@ class IOSTools(Tools):
             all_packages.update(SYSTEM_BUNDLE_IDENTIFIERS)
         return sorted(list(all_packages))
 
-    async def extract(self, filename: str | None = None) -> str:
-        # TODO
-        return "not implemented"
 
     async def remember(self, information: str) -> str:
         """
