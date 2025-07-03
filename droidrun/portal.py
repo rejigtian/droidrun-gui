@@ -5,7 +5,7 @@ import contextlib
 
 REPO = "droidrun/droidrun-portal"
 ASSET_NAME = "droidrun-portal"
-GITHUB_API_HOSTS = ["https://ungh.cc"]
+GITHUB_API_HOSTS = ["https://api.github.com", "https://ungh.cc"]
 
 def get_latest_release_assets(debug: bool = False):
     for host in GITHUB_API_HOSTS:
