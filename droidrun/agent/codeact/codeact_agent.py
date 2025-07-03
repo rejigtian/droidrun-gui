@@ -312,6 +312,7 @@ class CodeActAgent(Workflow):
             {
                 "success": ev.success,
                 "reason": ev.reason,
+                "output": ev.reason,
                 "codeact_steps": self.steps_counter,
                 "code_executions": self.code_exec_counter,
             }
@@ -321,7 +322,7 @@ class CodeActAgent(Workflow):
             EpisodicMemoryEvent(episodic_memory=self.episodic_memory)
         )
 
-        return StopEvent(result=result)
+        return StopEvent(result)
 
     async def _get_llm_response(
         self, ctx: Context, chat_history: List[ChatMessage]
