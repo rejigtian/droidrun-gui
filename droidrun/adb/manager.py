@@ -42,7 +42,7 @@ class DeviceManager:
                 
         return list(self._devices.values())
 
-    async def get_device(self, serial: str) -> Optional[Device]:
+    async def get_device(self, serial: str | None = None) -> Optional[Device]:
         """Get a specific device.
         
         Args:
@@ -51,13 +51,13 @@ class DeviceManager:
         Returns:
             Device instance if found, None otherwise
         """
-        if serial in self._devices:
+        if serial and serial in self._devices:
             return self._devices[serial]
             
         # Try to find the device
         devices = await self.list_devices()
         for device in devices:
-            if device.serial == serial:
+            if device.serial == serial or not serial:
                 return device
                 
         return None

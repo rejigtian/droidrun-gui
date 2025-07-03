@@ -299,30 +299,47 @@ class Device:
             except OSError:
                 pass
             raise RuntimeError(f"Screenshot capture failed: {str(e)}")
-
-    async def list_packages(
-        self, include_system_apps: bool = False
-    ) -> List[Dict[str, str]]:
-        """List installed packages on the device.
+        
+    def _parse_package_list(self, output: str) -> List[Dict[str, str]]:
+        """Parse the output of 'pm list packages -f' command.
 
         Args:
-            include_system_apps: Whether to include system apps
+            output: Raw command output from 'pm list packages -f'
 
         Returns:
-            List of package dictionaries with 'package' and 'path' keys
+            List of dictionaries containing package info with 'package' and 'path' keys
         """
+        apps = []
+        for line in output.splitlines():
+            if line.startswith("package:"):
+                # Format is: "package:/path/to/base.apk=com.package.name"
+                path_and_pkg = line[8:]  # Strip "package:"
+                if "=" in path_and_pkg:
+                    path, package = path_and_pkg.rsplit("=", 1)
+                    apps.append({"package": package.strip(), "path": path.strip()})
+        return apps
+
+    async def list_packages(self, include_system_apps: bool = False) -> List[str]:
+        """
+        List installed packages on the device.
+
+        Args:
+            include_system_apps: Whether to include system apps (default: False)
+
+        Returns:
+            List of package names
+        """
+        # Use the direct ADB command to get packages with paths
         cmd = ["pm", "list", "packages", "-f"]
         if not include_system_apps:
             cmd.append("-3")
 
-        output = await self._adb.shell(self._serial, " ".join(cmd))
+        output = await self.shell(" ".join(cmd))
 
-        packages = []
-        for line in output.splitlines():
-            if line.startswith("package:"):
-                parts = line[8:].split("=")
-                if len(parts) == 2:
-                    path, package = parts
-                    packages.append({"package": package, "path": path})
-
-        return packages
+        # Parse the package list using the function
+        packages = self._parse_package_list(output)
+        # Format package list for better readability
+        package_list = [pack["package"] for pack in packages]
+        #for package in package_list:
+        #    print(package)
+        return package_list
