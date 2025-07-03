@@ -351,7 +351,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         ctx.write_event_to_stream(ev)
         capture(
             DroidAgentFinalizeEvent(
-                tasks=ev.task,
+                tasks=",".join([f"{t.agent_type}:{t.description}" for t in ev.task]),
                 success=ev.success,
                 reason=ev.reason,
                 steps=ev.steps,

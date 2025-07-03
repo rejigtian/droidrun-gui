@@ -21,7 +21,7 @@ class DroidAgentInitEvent(TelemetryEvent):
 
 
 class DroidAgentFinalizeEvent(TelemetryEvent):
-    tasks: List[Task]
+    tasks: str
     success: bool
     reason: str
     steps: int
