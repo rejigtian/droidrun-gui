@@ -87,3 +87,44 @@ select = [
     "I",  # isort
     "B",  # flake8-bugbear
 ] 
+
+[[tool.pydoc-markdown.loaders]]
+type = "python"
+packages = [ "droidrun" ]
+modules = [ "droidrun" ]
+
+[tool.pydoc-markdown.renderer]
+type = "hugo"
+content_directory = "../../docs/v3/sdk"
+
+[tool.pydoc-markdown.renderer.markdown]
+classdef_with_decorators = false
+signature_with_decorators = false
+data_code_block = true
+descriptive_class_title = false
+render_module_header = true
+format_code_style = "facebook"
+add_full_prefix = true
+sub_prefix = true
+header_level_by_type = {Module = 1, Class = 2, Method = 4, Function = 4, Variable = 4}
+
+[[tool.pydoc-markdown.renderer.pages]]
+title = "Agent"
+name = "agent"
+contents = [ 
+    "droidrun.agent.*",
+]
+
+[[tool.pydoc-markdown.renderer.pages]]
+title = "Tools"
+name = "tools"
+contents = [
+    "droidrun.tools.*",
+]
+
+[[tool.pydoc-markdown.renderer.pages]]
+title = "Adb"
+name = "adb"
+contents = [
+    "droidrun.adb.*",
+]
