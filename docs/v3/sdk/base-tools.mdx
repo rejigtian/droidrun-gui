@@ -19,7 +19,7 @@ This class provides a common interface for all tools to implement.
 
 <a id="droidrun.tools.tools.Tools.get_state"></a>
 
-#### get\_state
+#### Tools.get\_state
 
 ```python
 async def get_state() -> Dict[str, Any]
@@ -29,7 +29,7 @@ Get the current state of the tool.
 
 <a id="droidrun.tools.tools.Tools.tap_by_index"></a>
 
-#### tap\_by\_index
+#### Tools.tap\_by\_index
 
 ```python
 async def tap_by_index(index: int) -> bool
@@ -39,7 +39,7 @@ Tap the element at the given index.
 
 <a id="droidrun.tools.tools.Tools.swipe"></a>
 
-#### swipe
+#### Tools.swipe
 
 ```python
 async def swipe(
@@ -55,7 +55,7 @@ Swipe from the given start coordinates to the given end coordinates.
 
 <a id="droidrun.tools.tools.Tools.input_text"></a>
 
-#### input\_text
+#### Tools.input\_text
 
 ```python
 async def input_text(text: str) -> bool
@@ -65,7 +65,7 @@ Input the given text into a focused input field.
 
 <a id="droidrun.tools.tools.Tools.back"></a>
 
-#### back
+#### Tools.back
 
 ```python
 async def back() -> bool
@@ -75,7 +75,7 @@ Press the back button.
 
 <a id="droidrun.tools.tools.Tools.press_key"></a>
 
-#### press\_key
+#### Tools.press\_key
 
 ```python
 async def press_key(keycode: int) -> bool
@@ -85,7 +85,7 @@ Enter the given keycode.
 
 <a id="droidrun.tools.tools.Tools.start_app"></a>
 
-#### start\_app
+#### Tools.start\_app
 
 ```python
 async def start_app(package: str, activity: str = "") -> bool
@@ -95,7 +95,7 @@ Start the given app.
 
 <a id="droidrun.tools.tools.Tools.take_screenshot"></a>
 
-#### take\_screenshot
+#### Tools.take\_screenshot
 
 ```python
 async def take_screenshot() -> Tuple[str, bytes]
@@ -105,7 +105,7 @@ Take a screenshot of the device.
 
 <a id="droidrun.tools.tools.Tools.list_packages"></a>
 
-#### list\_packages
+#### Tools.list\_packages
 
 ```python
 async def list_packages(include_system_apps: bool = False) -> List[str]
@@ -115,7 +115,7 @@ List all packages on the device.
 
 <a id="droidrun.tools.tools.Tools.remember"></a>
 
-#### remember
+#### Tools.remember
 
 ```python
 async def remember(information: str) -> str
@@ -125,7 +125,7 @@ Remember the given information. This is used to store information in the tool's 
 
 <a id="droidrun.tools.tools.Tools.get_memory"></a>
 
-#### get\_memory
+#### Tools.get\_memory
 
 ```python
 async def get_memory() -> List[str]
@@ -135,7 +135,7 @@ Get the memory of the tool.
 
 <a id="droidrun.tools.tools.Tools.complete"></a>
 
-#### complete
+#### Tools.complete
 
 ```python
 def complete(success: bool, reason: str = "") -> bool

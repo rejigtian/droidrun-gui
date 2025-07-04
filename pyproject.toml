@@ -121,6 +121,8 @@ descriptive_class_title = false
 render_module_header = true
 format_code_style = "facebook"
 add_module_prefix = false
+add_method_class_prefix = true
+
 header_level_by_type = {Module = 1, Class = 2, Method = 4, Function = 4, Variable = 4}
 
 
