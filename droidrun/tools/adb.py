@@ -3,13 +3,9 @@ UI Actions - Core UI interaction tools for Android device control.
 """
 
 import os
-import re
 import json
 import time
-import tempfile
 import asyncio
-import aiofiles
-import contextlib
 import logging
 from typing import Optional, Dict, Tuple, List, Any, Type, Self
 from droidrun.adb.device import Device
