@@ -19,6 +19,11 @@ class AdbTools(Tools):
     """Core UI interaction tools for Android device control."""
 
     def __init__(self, serial: str) -> None:
+        """Initialize the AdbTools instance.
+
+        Args:
+            serial: Device serial number
+        """
         self.device_manager = DeviceManager()
         # Instance‐level cache for clickable elements (index-based tapping)
         self.clickable_elements_cache: List[Dict[str, Any]] = []
