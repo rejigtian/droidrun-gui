@@ -14,21 +14,25 @@
         "version": "0.3.1",
         "groups": [
           {
-            "group": "Getting Started",
+            "group": "Introduction",
             "pages": [
               "v3/overview",
               "v3/quickstart"
             ]
           },
           {
+            "group": "Examples",
+            "pages": [
+              "v3/examples/overview"
+            ]
+          },
+          {
             "group": "Core Concepts",
             "pages": [
               "v3/concepts/agent",
-              "v3/concepts/planning",
+              "v3/concepts/models",
               "v3/concepts/android-control",
-              "v3/concepts/ios-control",
-              "v3/concepts/portal-app",
-              "v3/concepts/tracing"
+              "v3/concepts/portal-app"
             ]
           },
           {
