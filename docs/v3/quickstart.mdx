@@ -54,14 +54,16 @@ For complex automation, create a Python script:
 ```python
 #!/usr/bin/env python3
 import asyncio
-from droidrun import AdbTools, load_llm, DroidAgent
+from droidrun import AdbTools, DroidAgent
+from llama_index.llms.google_genai import GoogleGenAI
 
 async def main():
-    # Load tools and LLM
-    tools = AdbTools(serial="device_serial")
-    llm = load_llm(
-        provider_name="OpenAI",  # Case sensitive
-        model="gpt-4o"
+    # Load tools
+    tools = await AdbTools.create()
+    # set up google gemini llm
+    llm = GoogleGenAI(
+        api_key="YOUR_GEMINI_API_KEY",  # Replace with your Gemini API key
+        model="gemini-2.5-flash",  # or "gemini-2.5-pro" for enhanced reasoning
     )
     
     # Create agent
