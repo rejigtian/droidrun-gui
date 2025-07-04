@@ -113,14 +113,16 @@
     ],
     "primary": {
       "type": "button",
-      "label": "Get Started",
-      "href": "https://github.com/droidrun/droidrun"
+      "label": "Join Discord",
+      "href": "https://discord.gg/gdekvkJFvn"
     }
   },
   "footer": {
     "socials": {
       "github": "https://github.com/droidrun/droidrun",
-      "x": "https://x.com/droid_run"
+      "x": "https://x.com/droid_run",
+      "discord": "https://discord.gg/gdekvkJFvn",
+      "website": "https://droidrun.ai"
     }
   },
   "errors": {
