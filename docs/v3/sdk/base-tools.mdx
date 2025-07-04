@@ -1,0 +1,164 @@
+---
+title: Tools
+---
+
+<a id="droidrun.tools.tools"></a>
+
+# tools
+
+<a id="droidrun.tools.tools.Tools"></a>
+
+## Tools
+
+```python
+class Tools(ABC)
+```
+
+Abstract base class for all tools.
+This class provides a common interface for all tools to implement.
+
+<a id="droidrun.tools.tools.Tools.get_state"></a>
+
+#### get\_state
+
+```python
+async def get_state() -> Dict[str, Any]
+```
+
+Get the current state of the tool.
+
+<a id="droidrun.tools.tools.Tools.tap_by_index"></a>
+
+#### tap\_by\_index
+
+```python
+async def tap_by_index(index: int) -> bool
+```
+
+Tap the element at the given index.
+
+<a id="droidrun.tools.tools.Tools.swipe"></a>
+
+#### swipe
+
+```python
+async def swipe(
+    start_x: int,
+    start_y: int,
+    end_x: int,
+    end_y: int,
+    duration_ms: int = 300
+) -> bool
+```
+
+Swipe from the given start coordinates to the given end coordinates.
+
+<a id="droidrun.tools.tools.Tools.input_text"></a>
+
+#### input\_text
+
+```python
+async def input_text(text: str) -> bool
+```
+
+Input the given text into a focused input field.
+
+<a id="droidrun.tools.tools.Tools.back"></a>
+
+#### back
+
+```python
+async def back() -> bool
+```
+
+Press the back button.
+
+<a id="droidrun.tools.tools.Tools.press_key"></a>
+
+#### press\_key
+
+```python
+async def press_key(keycode: int) -> bool
+```
+
+Enter the given keycode.
+
+<a id="droidrun.tools.tools.Tools.start_app"></a>
+
+#### start\_app
+
+```python
+async def start_app(package: str, activity: str = "") -> bool
+```
+
+Start the given app.
+
+<a id="droidrun.tools.tools.Tools.take_screenshot"></a>
+
+#### take\_screenshot
+
+```python
+async def take_screenshot() -> Tuple[str, bytes]
+```
+
+Take a screenshot of the device.
+
+<a id="droidrun.tools.tools.Tools.list_packages"></a>
+
+#### list\_packages
+
+```python
+async def list_packages(include_system_apps: bool = False) -> List[str]
+```
+
+List all packages on the device.
+
+<a id="droidrun.tools.tools.Tools.remember"></a>
+
+#### remember
+
+```python
+async def remember(information: str) -> str
+```
+
+Remember the given information. This is used to store information in the tool's memory.
+
+<a id="droidrun.tools.tools.Tools.get_memory"></a>
+
+#### get\_memory
+
+```python
+async def get_memory() -> List[str]
+```
+
+Get the memory of the tool.
+
+<a id="droidrun.tools.tools.Tools.complete"></a>
+
+#### complete
+
+```python
+def complete(success: bool, reason: str = "") -> bool
+```
+
+Complete the tool. This is used to indicate that the tool has completed its task.
+
+<a id="droidrun.tools.tools.describe_tools"></a>
+
+#### describe\_tools
+
+```python
+def describe_tools(tools: Tools) -> Dict[str, Callable[..., Any]]
+```
+
+Describe the tools available for the given Tools instance.
+
+**Arguments**:
+
+- `tools` - The Tools instance to describe.
+  
+
+**Returns**:
+
+  A dictionary mapping tool names to their descriptions.
+

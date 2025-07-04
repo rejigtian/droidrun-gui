@@ -1,0 +1,60 @@
+---
+title: DroidAgent
+---
+
+<a id="droidrun.agent.droid.droid_agent"></a>
+
+# droid\_agent
+
+DroidAgent - A wrapper class that coordinates the planning and execution of tasks
+to achieve a user's goal on an Android device.
+
+<a id="droidrun.agent.droid.droid_agent.DroidAgent"></a>
+
+## DroidAgent
+
+```python
+class DroidAgent(Workflow)
+```
+
+A wrapper class that coordinates between PlannerAgent (creates plans) and 
+    CodeActAgent (executes tasks) to achieve a user's goal.
+
+<a id="droidrun.agent.droid.droid_agent.DroidAgent.__init__"></a>
+
+#### \_\_init\_\_
+
+```python
+def __init__(
+    goal: str,
+    llm: LLM,
+    tools: Tools,
+    personas: List[AgentPersona] = [DEFAULT],
+    max_steps: int = 15,
+    timeout: int = 1000,
+    vision: bool = False,
+    reasoning: bool = False,
+    reflection: bool = False,
+    enable_tracing: bool = False,
+    debug: bool = False,
+    save_trajectories: bool = False,
+    *args,
+    **kwargs
+)
+```
+
+Initialize the DroidAgent wrapper.
+
+**Arguments**:
+
+- `goal` - The user's goal or command to execute
+- `llm` - The language model to use for both agents
+- `max_steps` - Maximum number of steps for both agents
+- `timeout` - Timeout for agent execution in seconds
+- `reasoning` - Whether to use the PlannerAgent for complex reasoning (True)
+  or send tasks directly to CodeActAgent (False)
+- `reflection` - Whether to reflect on steps the CodeActAgent did to give the PlannerAgent advice
+- `enable_tracing` - Whether to enable Arize Phoenix tracing
+- `debug` - Whether to enable verbose debug logging
+- `**kwargs` - Additional keyword arguments to pass to the agents
+

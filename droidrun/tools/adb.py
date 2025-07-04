@@ -38,6 +38,14 @@ class AdbTools(Tools):
 
     @classmethod
     async def create(cls: Type[Self], serial: str = None) -> Self:
+        """Create an AdbTools instance.
+
+        Args:
+            serial: Optional device serial number. If not provided, the first device found will be used.
+
+        Returns:
+            AdbTools instance
+        """
         if not serial:
             dvm = DeviceManager()
             devices = await dvm.list_devices()
@@ -47,19 +55,19 @@ class AdbTools(Tools):
 
         return AdbTools(serial)
 
-    def get_device_serial(self) -> str:
+    def _get_device_serial(self) -> str:
         """Get the device serial from the instance or environment variable."""
         # First try using the instance's serial
         if self.serial:
             return self.serial
 
-    async def get_device(self) -> Optional[Device]:
+    async def _get_device(self) -> Optional[Device]:
         """Get the device instance using the instance's serial or from environment variable.
 
         Returns:
             Device instance or None if not found
         """
-        serial = self.get_device_serial()
+        serial = self._get_device_serial()
         if not serial:
             raise ValueError("No device serial specified - set device_serial parameter")
 
@@ -194,7 +202,7 @@ class AdbTools(Tools):
                 if not device:
                     return f"Error: Device {serial} not found"
             else:
-                device = await self.get_device()
+                device = await self._get_device()
 
             await device.tap(x, y)
 
@@ -241,7 +249,7 @@ class AdbTools(Tools):
                 if not device:
                     return f"Error: Device {self.serial} not found"
             else:
-                device = await self.get_device()
+                device = await self._get_device()
 
             await device.tap(x, y)
             print(f"Tapped at coordinates ({x}, {y})")
@@ -287,7 +295,7 @@ class AdbTools(Tools):
                 if not device:
                     return f"Error: Device {self.serial} not found"
             else:
-                device = await self.get_device()
+                device = await self._get_device()
 
             await device.swipe(start_x, start_y, end_x, end_y, duration_ms)
             await asyncio.sleep(1)
@@ -316,7 +324,7 @@ class AdbTools(Tools):
                 if not device:
                     return f"Error: Device {serial} not found"
             else:
-                device = await self.get_device()
+                device = await self._get_device()
 
             # Save the current keyboard
             original_ime = await device._adb.shell(
@@ -369,7 +377,7 @@ class AdbTools(Tools):
                 if not device:
                     return f"Error: Device {self.serial} not found"
             else:
-                device = await self.get_device()
+                device = await self._get_device()
 
             await device.press_key(3)
             return f"Pressed key BACK"
@@ -395,7 +403,7 @@ class AdbTools(Tools):
                 if not device:
                     return f"Error: Device {self.serial} not found"
             else:
-                device = await self.get_device()
+                device = await self._get_device()
 
             key_names = {
                 66: "ENTER",
@@ -424,7 +432,7 @@ class AdbTools(Tools):
                 if not device:
                     return f"Error: Device {self.serial} not found"
             else:
-                device = await self.get_device()
+                device = await self._get_device()
 
             result = await device.start_app(package, activity)
             return result
@@ -448,7 +456,7 @@ class AdbTools(Tools):
                 if not device:
                     return f"Error: Device {self.serial} not found"
             else:
-                device = await self.get_device()
+                device = await self._get_device()
 
             if not os.path.exists(apk_path):
                 return f"Error: APK file not found at {apk_path}"
@@ -470,7 +478,7 @@ class AdbTools(Tools):
                 if not device:
                     raise ValueError(f"Device {self.serial} not found")
             else:
-                device = await self.get_device()
+                device = await self._get_device()
             screen_tuple = await device.take_screenshot()
             self.last_screenshot = screen_tuple[1]
 
@@ -502,7 +510,7 @@ class AdbTools(Tools):
                 if not device:
                     raise ValueError(f"Device {self.serial} not found")
             else:
-                device = await self.get_device()
+                device = await self._get_device()
 
             return await device.list_packages(include_system_apps)
         except ValueError as e:
@@ -580,7 +588,7 @@ class AdbTools(Tools):
                 if not device:
                     raise ValueError(f"Device {serial} not found")
             else:
-                device = await self.get_device()
+                device = await self._get_device()
 
             adb_output = await device._adb.shell(
                 device._serial,
