@@ -1,190 +1,16 @@
 ---
-title: Adb
+title: Adb Utils
 ---
-
-<a id="droidrun.adb.wrapper"></a>
-
-# droidrun.adb.wrapper
-
-ADB Wrapper - Lightweight wrapper around ADB for Android device control.
-
-<a id="droidrun.adb.wrapper.ADBWrapper"></a>
-
-## droidrun.adb.wrapper.ADBWrapper
-
-```python
-class ADBWrapper()
-```
-
-Lightweight wrapper around ADB for Android device control.
-
-<a id="droidrun.adb.wrapper.ADBWrapper.__init__"></a>
-
-#### \_\_init\_\_
-
-```python
-def __init__(adb_path: Optional[str] = None)
-```
-
-Initialize ADB wrapper.
-
-**Arguments**:
-
-- `adb_path` - Path to ADB binary (defaults to 'adb' in PATH)
-
-<a id="droidrun.adb.wrapper.ADBWrapper.get_devices"></a>
-
-#### get\_devices
-
-```python
-async def get_devices() -> List[Dict[str, str]]
-```
-
-Get list of connected devices.
-
-**Returns**:
-
-  List of device info dictionaries with 'serial' and 'status' keys
-
-<a id="droidrun.adb.wrapper.ADBWrapper.connect"></a>
-
-#### connect
-
-```python
-async def connect(host: str, port: int = 5555) -> str
-```
-
-Connect to a device over TCP/IP.
-
-**Arguments**:
-
-- `host` - Device IP address
-- `port` - Device port
-  
-
-**Returns**:
-
-  Device serial number (host:port)
-
-<a id="droidrun.adb.wrapper.ADBWrapper.disconnect"></a>
-
-#### disconnect
-
-```python
-async def disconnect(serial: str) -> bool
-```
-
-Disconnect from a device.
-
-**Arguments**:
-
-- `serial` - Device serial number
-  
-
-**Returns**:
-
-  True if disconnected successfully
-
-<a id="droidrun.adb.wrapper.ADBWrapper.shell"></a>
-
-#### shell
-
-```python
-async def shell(
-    serial: str, command: str, timeout: Optional[float] = None
-) -> str
-```
-
-Run a shell command on the device.
-
-**Arguments**:
-
-- `serial` - Device serial number
-- `command` - Shell command to run
-- `timeout` - Command timeout in seconds
-  
-
-**Returns**:
-
-  Command output
-
-<a id="droidrun.adb.wrapper.ADBWrapper.get_properties"></a>
-
-#### get\_properties
-
-```python
-async def get_properties(serial: str) -> Dict[str, str]
-```
-
-Get device properties.
-
-**Arguments**:
-
-- `serial` - Device serial number
-  
-
-**Returns**:
-
-  Dictionary of device properties
-
-<a id="droidrun.adb.wrapper.ADBWrapper.install_app"></a>
-
-#### install\_app
-
-```python
-async def install_app(
-    serial: str,
-    apk_path: str,
-    reinstall: bool = False,
-    grant_permissions: bool = True
-) -> Tuple[str, str]
-```
-
-Install an APK on the device.
-
-**Arguments**:
-
-- `serial` - Device serial number
-- `apk_path` - Path to the APK file
-- `reinstall` - Whether to reinstall if app exists
-- `grant_permissions` - Whether to grant all permissions
-  
-
-**Returns**:
-
-  Tuple of (stdout, stderr)
-
-<a id="droidrun.adb.wrapper.ADBWrapper.pull_file"></a>
-
-#### pull\_file
-
-```python
-async def pull_file(serial: str, device_path: str,
-                    local_path: str) -> Tuple[str, str]
-```
-
-Pull a file from the device.
-
-**Arguments**:
-
-- `serial` - Device serial number
-- `device_path` - Path on the device
-- `local_path` - Path on the local machine
-  
-
-**Returns**:
-
-  Tuple of (stdout, stderr)
 
 <a id="droidrun.adb.device"></a>
 
-# droidrun.adb.device
+# device
 
 Device - High-level representation of an Android device.
 
 <a id="droidrun.adb.device.Device"></a>
 
-## droidrun.adb.device.Device
+## Device
 
 ```python
 class Device()
@@ -479,13 +305,13 @@ List installed packages on the device.
 
 <a id="droidrun.adb.manager"></a>
 
-# droidrun.adb.manager
+# manager
 
 Device Manager - Manages Android device connections.
 
 <a id="droidrun.adb.manager.DeviceManager"></a>
 
-## droidrun.adb.manager.DeviceManager
+## DeviceManager
 
 ```python
 class DeviceManager()

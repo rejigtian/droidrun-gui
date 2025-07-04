@@ -34,9 +34,11 @@
           {
             "group": "SDK Reference",
             "pages": [
-              "v3/sdk/agent",
-              "v3/sdk/tools",
-              "v3/sdk/adb"
+              "v3/sdk/droid-agent",
+              "v3/sdk/adb-tools",
+              "v3/sdk/ios-tools",
+              "v3/sdk/base-tools",
+              "v3/sdk/adb-utils"
             ]
           }
         ]
@@ -110,6 +112,11 @@
     "socials": {
       "github": "https://github.com/droidrun/droidrun",
       "x": "https://x.com/droid_run"
+    }
+  },
+  "errors": {
+    "404": {
+      "redirect": false
     }
   }
 }
