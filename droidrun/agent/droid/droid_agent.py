@@ -8,6 +8,7 @@ from typing import List
 
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import step, StartEvent, StopEvent, Workflow, Context
+from llama_index.core.workflow.handler import WorkflowHandler
 from droidrun.agent.droid.events import *
 from droidrun.agent.codeact import CodeActAgent
 from droidrun.agent.codeact.events import EpisodicMemoryEvent
@@ -166,6 +167,12 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
 
         
         logger.info("✅ DroidAgent initialized successfully.")
+
+    def run(self) -> WorkflowHandler:
+        """
+        Run the DroidAgent workflow.
+        """
+        return super().run()
     
     @step
     async def execute_task(

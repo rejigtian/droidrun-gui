@@ -1,4 +1,4 @@
-md5 2335e803e3d0c322aa1ebe9afdad5854 v3/sdk/droid-agent.mdx
+md5 bdb72cb46fdb21eb8cf21490a518d147 v3/sdk/droid-agent.mdx
 md5 b738577063b0f4eb15cac6f1bdd9d74f v3/sdk/base-tools.mdx
 md5 dec6bf5c806cd659761efe32bdf75512 v3/sdk/adb-tools.mdx
 md5 39f0942cf4daf59c6879d81d86ac397e v3/sdk/ios-tools.mdx
