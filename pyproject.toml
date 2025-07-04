@@ -95,7 +95,6 @@ modules = [ "droidrun" ]
 
 [[tool.pydoc-markdown.processors]]
 type = "filter"
-[expression]
 documented_only = false
 do_not_filter_modules = true
 skip_empty_modules = true
@@ -118,7 +117,7 @@ classdef_with_decorators = false
 signature_with_decorators = false
 data_code_block = true
 descriptive_class_title = false
-render_module_header = true
+render_module_header = false
 format_code_style = "facebook"
 add_module_prefix = false
 add_method_class_prefix = true
@@ -139,7 +138,8 @@ contents = [
 title = "Tools"
 name = "base-tools"
 contents = [
-    "droidrun.tools.tools.*",
+    "droidrun.tools.tools.Tools.*",
+    "droidrun.tools.tools.describe_tools",
 ]
 
 [[tool.pydoc-markdown.renderer.pages]]
