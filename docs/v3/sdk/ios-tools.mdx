@@ -2,10 +2,6 @@
 title: IOSTools
 ---
 
-<a id="droidrun.tools.ios"></a>
-
-# ios
-
 UI Actions - Core UI interaction tools for iOS device control.
 
 <a id="droidrun.tools.ios.IOSTools"></a>
@@ -145,6 +141,14 @@ Input text on the iOS device.
 
   Result message
 
+<a id="droidrun.tools.ios.IOSTools.back"></a>
+
+#### IOSTools.back
+
+```python
+async def back() -> str
+```
+
 <a id="droidrun.tools.ios.IOSTools.press_key"></a>
 
 #### IOSTools.press\_key
@@ -209,6 +213,14 @@ Get the current phone state including current activity and keyboard visibility.
 **Returns**:
 
   Dictionary with current phone state information
+
+<a id="droidrun.tools.ios.IOSTools.list_packages"></a>
+
+#### IOSTools.list\_packages
+
+```python
+async def list_packages(include_system_apps: bool = True) -> List[str]
+```
 
 <a id="droidrun.tools.ios.IOSTools.remember"></a>
 

@@ -1,5 +1,5 @@
-md5 dd928b9ff888c84ddf569332a41f2b6e v3/sdk/droid-agent.mdx
-md5 9e25c46f7ce83fd8c2a29d668f4fe207 v3/sdk/base-tools.mdx
-md5 cdea9c91773214744050c881db01558f v3/sdk/adb-tools.mdx
-md5 b1a36739a19619e3fb749244114173fc v3/sdk/ios-tools.mdx
-md5 fd6a415162358dc9c60be35de7c49b21 v3/sdk/adb-utils.mdx
+md5 1075080038db59977da1586c48d421fb v3/sdk/droid-agent.mdx
+md5 cbccf5efa2fd001f990078cbb05a8d98 v3/sdk/base-tools.mdx
+md5 58f64ddcf2c976b6804894c5c4798a6f v3/sdk/adb-tools.mdx
+md5 3e8a7d303e264b8a8f22b16f45fbde1a v3/sdk/ios-tools.mdx
+md5 fa5a80e8c823f705fce0ea914b85ea41 v3/sdk/adb-utils.mdx
