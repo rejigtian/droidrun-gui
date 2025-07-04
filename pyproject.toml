@@ -108,8 +108,8 @@ type = "crossref"
 
 [tool.pydoc-markdown.renderer]
 type = "hugo"
-build_directory = "docs/v3"
-content_directory = "sdk"
+build_directory = "docs"
+content_directory = "v3/sdk"
 clean_render = true
 
 
