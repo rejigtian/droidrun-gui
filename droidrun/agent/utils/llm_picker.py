@@ -31,6 +31,7 @@ def load_llm(provider_name: str, **kwargs: Any) -> LLM:
         raise ValueError("provider_name cannot be empty.")
     if provider_name == "OpenAILike":
         module_provider_part = "openai_like"
+        kwargs.setdefault("is_chat_model", True)
     elif provider_name == "GoogleGenAI":
         module_provider_part = "google_genai"
     else:
