@@ -23,6 +23,7 @@ dependencies = [
     "llama-index-llms-deepseek",
     "llama-index-llms-anthropic",
     "llama-index-llms-ollama",
+    "posthog==6.0.2"
 ]
 requires-python = ">=3.10"
 readme = "README.md"
@@ -86,3 +87,79 @@ select = [
     "I",  # isort
     "B",  # flake8-bugbear
 ] 
+
+[[tool.pydoc-markdown.loaders]]
+type = "python"
+packages = [ "droidrun" ]
+modules = [ "droidrun" ]
+
+[[tool.pydoc-markdown.processors]]
+type = "filter"
+documented_only = false
+do_not_filter_modules = true
+skip_empty_modules = true
+
+[[tool.pydoc-markdown.processors]]
+type = "smart"
+
+[[tool.pydoc-markdown.processors]]
+type = "crossref"
+
+[tool.pydoc-markdown.renderer]
+type = "hugo"
+build_directory = "docs"
+content_directory = "v3/sdk"
+clean_render = true
+
+
+[tool.pydoc-markdown.renderer.markdown]
+classdef_with_decorators = false
+signature_with_decorators = false
+data_code_block = true
+descriptive_class_title = false
+render_module_header = false
+format_code_style = "facebook"
+add_module_prefix = false
+add_method_class_prefix = true
+
+header_level_by_type = {Module = 1, Class = 2, Method = 4, Function = 4, Variable = 4}
+
+
+[[tool.pydoc-markdown.renderer.pages]]
+title = "DroidAgent"
+name = "droid-agent"
+contents = [ 
+    "droidrun.agent.droid.droid_agent.DroidAgent",
+    "droidrun.agent.droid.droid_agent.DroidAgent.__init__",
+    "droidrun.agent.droid.droid_agent.DroidAgent.run",
+]
+
+[[tool.pydoc-markdown.renderer.pages]]
+title = "Tools"
+name = "base-tools"
+contents = [
+    "droidrun.tools.tools.Tools.*",
+    "droidrun.tools.tools.describe_tools",
+]
+
+[[tool.pydoc-markdown.renderer.pages]]
+title = "AdbTools"
+name = "adb-tools"
+contents = [
+    "droidrun.tools.adb.AdbTools.*",
+]
+
+[[tool.pydoc-markdown.renderer.pages]]
+title = "IOSTools"
+name = "ios-tools"
+contents = [
+    "droidrun.tools.ios.IOSTools.*",
+]
+
+[[tool.pydoc-markdown.renderer.pages]]
+title = "Adb Utils"
+name = "adb-utils"
+contents = [
+    "droidrun.adb.manager.DeviceManager.*",
+    "droidrun.adb.device.Device.*",
+]

@@ -39,6 +39,12 @@ class IOSTools(Tools):
     """Core UI interaction tools for iOS device control."""
 
     def __init__(self, url: str, bundle_identifiers: List[str] = []) -> None:
+        """Initialize the IOSTools instance.
+
+        Args:
+            url: iOS device URL. This is the URL of the iOS device. It is used to send requests to the iOS device.
+            bundle_identifiers: List of bundle identifiers to include in the list of packages
+        """
         self.clickable_elements_cache: List[Dict[str, Any]] = []
         self.url = url
         self.last_screenshot = None

@@ -7,6 +7,7 @@ import click
 import os
 import logging
 import warnings
+from contextlib import nullcontext
 from rich.console import Console
 from droidrun.agent.droid import DroidAgent
 from droidrun.agent.utils.llm_picker import load_llm
@@ -14,6 +15,13 @@ from droidrun.adb import DeviceManager
 from droidrun.tools import AdbTools, IOSTools
 from functools import wraps
 from droidrun.cli.logs import LogHandler
+from droidrun.telemetry import print_telemetry_message
+from droidrun.portal import (
+    download_portal_apk,
+    enable_portal_accessibility,
+    PORTAL_PACKAGE_NAME,
+    ping_portal,
+)
 
 # Suppress all warnings
 warnings.filterwarnings("ignore")
@@ -35,7 +43,6 @@ def configure_logging(goal: str, debug: bool):
         else logging.Formatter("%(message)s", "%H:%M:%S")
     )
     logger.addHandler(handler)
-
 
     logger.setLevel(logging.DEBUG if debug else logging.INFO)
     logger.propagate = False
@@ -78,6 +85,7 @@ async def run_command(
     with log_handler.render() as live:
         try:
             logger.info(f"🚀 Starting: {command}")
+            print_telemetry_message()
 
             if not kwargs.get("temperature"):
                 kwargs["temperature"] = 0
@@ -94,7 +102,9 @@ async def run_command(
                 device = devices[0].serial
                 logger.info(f"📱 Using device: {device}")
             elif device is None and ios:
-                raise ValueError("iOS device not specified. Please specify the device base url (http://device-ip:6643) via --device")
+                raise ValueError(
+                    "iOS device not specified. Please specify the device base url (http://device-ip:6643) via --device"
+                )
             else:
                 logger.info(f"📱 Using device: {device}")
 
@@ -103,7 +113,11 @@ async def run_command(
             # LLM setup
             log_handler.update_step("Initializing LLM...")
             llm = load_llm(
-                provider_name=provider, model=model, base_url=base_url, api_base=api_base, **kwargs
+                provider_name=provider,
+                model=model,
+                base_url=base_url,
+                api_base=api_base,
+                **kwargs,
             )
             logger.info(f"🧠 LLM ready: {provider}/{model}")
 
@@ -127,7 +141,7 @@ async def run_command(
                 reflection=reflection,
                 enable_tracing=tracing,
                 debug=debug,
-                save_trajectories=save_trajectory
+                save_trajectories=save_trajectory,
             )
 
             logger.info("▶️  Starting agent execution...")
@@ -202,13 +216,19 @@ class DroidRunCLI(click.Group):
     default=None,
 )
 @click.option(
-    "--vision", is_flag=True, help="Enable vision capabilites by using screenshots", default=False
+    "--vision",
+    is_flag=True,
+    help="Enable vision capabilites by using screenshots",
+    default=False,
 )
 @click.option(
     "--reasoning", is_flag=True, help="Enable planning with reasoning", default=False
 )
 @click.option(
-    "--reflection", is_flag=True, help="Enable reflection step for higher reasoning", default=False
+    "--reflection",
+    is_flag=True,
+    help="Enable reflection step for higher reasoning",
+    default=False,
 )
 @click.option(
     "--tracing", is_flag=True, help="Enable Arize Phoenix tracing", default=False
@@ -271,13 +291,19 @@ def cli(
     default=None,
 )
 @click.option(
-    "--vision", is_flag=True, help="Enable vision capabilites by using screenshots", default=False
+    "--vision",
+    is_flag=True,
+    help="Enable vision capabilites by using screenshots",
+    default=False,
 )
 @click.option(
     "--reasoning", is_flag=True, help="Enable planning with reasoning", default=False
 )
 @click.option(
-    "--reflection", is_flag=True, help="Enable reflection step for higher reasoning", default=False
+    "--reflection",
+    is_flag=True,
+    help="Enable reflection step for higher reasoning",
+    default=False,
 )
 @click.option(
     "--tracing", is_flag=True, help="Enable Arize Phoenix tracing", default=False
@@ -291,9 +317,7 @@ def cli(
     help="Save agent trajectory to file",
     default=False,
 )
-@click.option(
-    "--ios", is_flag=True, help="Run on iOS device", default=False
-)
+@click.option("--ios", is_flag=True, help="Run on iOS device", default=False)
 def run(
     command: str,
     device: str | None,
@@ -328,7 +352,7 @@ def run(
         debug,
         temperature=temperature,
         save_trajectory=save_trajectory,
-        ios=ios
+        ios=ios,
     )
 
 
@@ -350,17 +374,17 @@ async def devices():
 
 
 @cli.command()
-@click.argument("ip_address")
+@click.argument("serial")
 @click.option("--port", "-p", default=5555, help="ADB port (default: 5555)")
 @coro
-async def connect(ip_address: str, port: int):
+async def connect(serial: str, port: int):
     """Connect to a device over TCP/IP."""
     try:
-        device = await device_manager.connect(ip_address, port)
+        device = await device_manager.connect(serial, port)
         if device:
-            console.print(f"[green]Successfully connected to {ip_address}:{port}[/]")
+            console.print(f"[green]Successfully connected to {serial}:{port}[/]")
         else:
-            console.print(f"[red]Failed to connect to {ip_address}:{port}[/]")
+            console.print(f"[red]Failed to connect to {serial}:{port}[/]")
     except Exception as e:
         console.print(f"[red]Error connecting to device: {e}[/]")
 
@@ -381,16 +405,15 @@ async def disconnect(serial: str):
 
 
 @cli.command()
-@click.option("--path", required=True, help="Path to the APK file to install")
 @click.option("--device", "-d", help="Device serial number or IP address", default=None)
+@click.option("--path", help="Path to the Droidrun Portal APK to install on the device. If not provided, the latest portal apk version will be downloaded and installed.", default=None)
+@click.option(
+    "--debug", is_flag=True, help="Enable verbose debug logging", default=False
+)
 @coro
-async def setup(path: str, device: str | None):
-    """Install an APK file and enable it as an accessibility service."""
+async def setup(path: str | None, device: str | None, debug: bool):
+    """Install and enable the DroidRun Portal on a device."""
     try:
-        if not os.path.exists(path):
-            console.print(f"[bold red]Error:[/] APK file not found at {path}")
-            return
-
         if not device:
             devices = await device_manager.list_devices()
             if not devices:
@@ -406,66 +429,99 @@ async def setup(path: str, device: str | None):
                 f"[bold red]Error:[/] Could not get device object for {device}"
             )
             return
-        
-        console.print(f"[bold blue]Step 1/2: Installing APK:[/] {path}")
-        result = await device_obj.install_app(path, False, True)
 
-        if "Error" in result:
-            console.print(f"[bold red]Installation failed:[/] {result}")
-            return
+        if not path:
+            console.print("[bold blue]Downloading DroidRun Portal APK...[/]")
+            apk_context = download_portal_apk(debug)
         else:
-            console.print(f"[bold green]Installation successful![/]")
+            console.print(f"[bold blue]Using provided APK:[/] {path}")
+            apk_context = nullcontext(path)
 
-        console.print(f"[bold blue]Step 2/2: Enabling accessibility service[/]")
+        with apk_context as apk_path:
+            if not os.path.exists(apk_path):
+                console.print(f"[bold red]Error:[/] APK file not found at {apk_path}")
+                return
 
-        package = "com.droidrun.portal"
+            console.print(f"[bold blue]Step 1/2: Installing APK:[/] {apk_path}")
+            result = await device_obj.install_app(apk_path, True, True)
 
-        try:
-            await device_obj._adb.shell(
-                device,
-                "settings put secure enabled_accessibility_services com.droidrun.portal/com.droidrun.portal.DroidrunPortalService",
-            )
+            if "Error" in result:
+                console.print(f"[bold red]Installation failed:[/] {result}")
+                return
+            else:
+                console.print(f"[bold green]Installation successful![/]")
 
-            await device_obj._adb.shell(
-                device, "settings put secure accessibility_enabled 1"
-            )
+            console.print(f"[bold blue]Step 2/2: Enabling accessibility service[/]")
 
-            console.print("[green]Accessibility service enabled successfully![/]")
-            console.print(
-                "\n[bold green]Setup complete![/] The DroidRun Portal is now installed and ready to use."
-            )
+            try:
+                await enable_portal_accessibility(device_obj)
 
-        except Exception as e:
-            console.print(
-                f"[yellow]Could not automatically enable accessibility service: {e}[/]"
-            )
-            console.print(
-                "[yellow]Opening accessibility settings for manual configuration...[/]"
-            )
+                console.print("[green]Accessibility service enabled successfully![/]")
+                console.print(
+                    "\n[bold green]Setup complete![/] The DroidRun Portal is now installed and ready to use."
+                )
 
-            await device_obj._adb.shell(
-                device, "am start -a android.settings.ACCESSIBILITY_SETTINGS"
-            )
+            except Exception as e:
+                console.print(
+                    f"[yellow]Could not automatically enable accessibility service: {e}[/]"
+                )
+                console.print(
+                    "[yellow]Opening accessibility settings for manual configuration...[/]"
+                )
 
-            console.print(
-                "\n[yellow]Please complete the following steps on your device:[/]"
-            )
-            console.print(
-                f"1. Find [bold]{package}[/] in the accessibility services list"
-            )
-            console.print("2. Tap on the service name")
-            console.print("3. Toggle the switch to [bold]ON[/] to enable the service")
-            console.print("4. Accept any permission dialogs that appear")
+                await device_obj.shell(
+                    "am start -a android.settings.ACCESSIBILITY_SETTINGS"
+                )
 
-            console.print(
-                "\n[bold green]APK installation complete![/] Please manually enable the accessibility service using the steps above."
-            )
+                console.print(
+                    "\n[yellow]Please complete the following steps on your device:[/]"
+                )
+                console.print(
+                    f"1. Find [bold]{PORTAL_PACKAGE_NAME}[/] in the accessibility services list"
+                )
+                console.print("2. Tap on the service name")
+                console.print(
+                    "3. Toggle the switch to [bold]ON[/] to enable the service"
+                )
+                console.print("4. Accept any permission dialogs that appear")
+
+                console.print(
+                    "\n[bold green]APK installation complete![/] Please manually enable the accessibility service using the steps above."
+                )
 
     except Exception as e:
         console.print(f"[bold red]Error:[/] {e}")
-        import traceback
 
-        traceback.print_exc()
+        if debug:
+            import traceback
+
+            traceback.print_exc()
+
+
+@cli.command()
+@click.option("--device", "-d", help="Device serial number or IP address", default=None)
+@click.option(
+    "--debug", is_flag=True, help="Enable verbose debug logging", default=False
+)
+@coro
+async def ping(device: str | None, debug: bool):
+    """Ping a device to check if it is ready and accessible."""
+    try:
+        device_obj = await device_manager.get_device(device)
+        if not device_obj:
+            console.print(f"[bold red]Error:[/] Could not find device {device}")
+            return
+
+        await ping_portal(device_obj, debug)
+        console.print(
+            "[bold green]Portal is installed and accessible. You're good to go![/]"
+        )
+    except Exception as e:
+        console.print(f"[bold red]Error:[/] {e}")
+        if debug:
+            import traceback
+
+            traceback.print_exc()
 
 
 if __name__ == "__main__":
@@ -499,5 +555,5 @@ if __name__ == "__main__":
         base_url=base_url,
         api_base=api_base,
         api_key=api_key,
-        ios=ios
+        ios=ios,
     )
