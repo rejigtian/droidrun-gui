@@ -20,7 +20,7 @@ High-level representation of an Android device.
 
 <a id="droidrun.adb.device.Device.__init__"></a>
 
-#### \_\_init\_\_
+#### Device.\_\_init\_\_
 
 ```python
 def __init__(serial: str, adb: ADBWrapper)
@@ -35,7 +35,7 @@ Initialize device.
 
 <a id="droidrun.adb.device.Device.serial"></a>
 
-#### serial
+#### Device.serial
 
 ```python
 def serial() -> str
@@ -45,7 +45,7 @@ Get device serial number.
 
 <a id="droidrun.adb.device.Device.get_properties"></a>
 
-#### get\_properties
+#### Device.get\_properties
 
 ```python
 async def get_properties() -> Dict[str, str]
@@ -55,7 +55,7 @@ Get all device properties.
 
 <a id="droidrun.adb.device.Device.get_property"></a>
 
-#### get\_property
+#### Device.get\_property
 
 ```python
 async def get_property(name: str) -> str
@@ -65,7 +65,7 @@ Get a specific device property.
 
 <a id="droidrun.adb.device.Device.model"></a>
 
-#### model
+#### Device.model
 
 ```python
 async def model() -> str
@@ -75,7 +75,7 @@ Get device model.
 
 <a id="droidrun.adb.device.Device.brand"></a>
 
-#### brand
+#### Device.brand
 
 ```python
 async def brand() -> str
@@ -85,7 +85,7 @@ Get device brand.
 
 <a id="droidrun.adb.device.Device.android_version"></a>
 
-#### android\_version
+#### Device.android\_version
 
 ```python
 async def android_version() -> str
@@ -95,7 +95,7 @@ Get Android version.
 
 <a id="droidrun.adb.device.Device.sdk_level"></a>
 
-#### sdk\_level
+#### Device.sdk\_level
 
 ```python
 async def sdk_level() -> str
@@ -105,7 +105,7 @@ Get SDK level.
 
 <a id="droidrun.adb.device.Device.shell"></a>
 
-#### shell
+#### Device.shell
 
 ```python
 async def shell(command: str, timeout: float | None = None) -> str
@@ -115,7 +115,7 @@ Execute a shell command on the device.
 
 <a id="droidrun.adb.device.Device.tap"></a>
 
-#### tap
+#### Device.tap
 
 ```python
 async def tap(x: int, y: int) -> None
@@ -130,7 +130,7 @@ Tap at coordinates.
 
 <a id="droidrun.adb.device.Device.swipe"></a>
 
-#### swipe
+#### Device.swipe
 
 ```python
 async def swipe(
@@ -154,7 +154,7 @@ Perform swipe gesture.
 
 <a id="droidrun.adb.device.Device.input_text"></a>
 
-#### input\_text
+#### Device.input\_text
 
 ```python
 async def input_text(text: str) -> None
@@ -168,7 +168,7 @@ Input text.
 
 <a id="droidrun.adb.device.Device.press_key"></a>
 
-#### press\_key
+#### Device.press\_key
 
 ```python
 async def press_key(keycode: int) -> None
@@ -182,7 +182,7 @@ Press a key.
 
 <a id="droidrun.adb.device.Device.start_activity"></a>
 
-#### start\_activity
+#### Device.start\_activity
 
 ```python
 async def start_activity(
@@ -202,7 +202,7 @@ Start an app activity.
 
 <a id="droidrun.adb.device.Device.start_app"></a>
 
-#### start\_app
+#### Device.start\_app
 
 ```python
 async def start_app(package: str, activity: str = "") -> str
@@ -222,7 +222,7 @@ Start an app on the device.
 
 <a id="droidrun.adb.device.Device.install_app"></a>
 
-#### install\_app
+#### Device.install\_app
 
 ```python
 async def install_app(
@@ -247,7 +247,7 @@ Install an APK on the device.
 
 <a id="droidrun.adb.device.Device.uninstall_app"></a>
 
-#### uninstall\_app
+#### Device.uninstall\_app
 
 ```python
 async def uninstall_app(package: str, keep_data: bool = False) -> str
@@ -267,7 +267,7 @@ Uninstall an app from the device.
 
 <a id="droidrun.adb.device.Device.take_screenshot"></a>
 
-#### take\_screenshot
+#### Device.take\_screenshot
 
 ```python
 async def take_screenshot(quality: int = 75) -> Tuple[str, bytes]
@@ -286,7 +286,7 @@ Take a screenshot of the device and compress it.
 
 <a id="droidrun.adb.device.Device.list_packages"></a>
 
-#### list\_packages
+#### Device.list\_packages
 
 ```python
 async def list_packages(include_system_apps: bool = False) -> List[str]
@@ -321,7 +321,7 @@ Manages Android device connections.
 
 <a id="droidrun.adb.manager.DeviceManager.__init__"></a>
 
-#### \_\_init\_\_
+#### DeviceManager.\_\_init\_\_
 
 ```python
 def __init__(adb_path: Optional[str] = None)
@@ -335,7 +335,7 @@ Initialize device manager.
 
 <a id="droidrun.adb.manager.DeviceManager.list_devices"></a>
 
-#### list\_devices
+#### DeviceManager.list\_devices
 
 ```python
 async def list_devices() -> List[Device]
@@ -349,7 +349,7 @@ List connected devices.
 
 <a id="droidrun.adb.manager.DeviceManager.get_device"></a>
 
-#### get\_device
+#### DeviceManager.get\_device
 
 ```python
 async def get_device(serial: str | None = None) -> Optional[Device]
@@ -368,7 +368,7 @@ Get a specific device.
 
 <a id="droidrun.adb.manager.DeviceManager.connect"></a>
 
-#### connect
+#### DeviceManager.connect
 
 ```python
 async def connect(host: str, port: int = 5555) -> Optional[Device]
@@ -388,7 +388,7 @@ Connect to a device over TCP/IP.
 
 <a id="droidrun.adb.manager.DeviceManager.disconnect"></a>
 
-#### disconnect
+#### DeviceManager.disconnect
 
 ```python
 async def disconnect(serial: str) -> bool

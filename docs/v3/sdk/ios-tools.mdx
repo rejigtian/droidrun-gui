@@ -20,7 +20,7 @@ Core UI interaction tools for iOS device control.
 
 <a id="droidrun.tools.ios.IOSTools.__init__"></a>
 
-#### \_\_init\_\_
+#### IOSTools.\_\_init\_\_
 
 ```python
 def __init__(url: str, bundle_identifiers: List[str] = []) -> None
@@ -35,7 +35,7 @@ Initialize the IOSTools instance.
 
 <a id="droidrun.tools.ios.IOSTools.get_state"></a>
 
-#### get\_state
+#### IOSTools.get\_state
 
 ```python
 async def get_state(serial: Optional[str] = None) -> List[Dict[str, Any]]
@@ -54,7 +54,7 @@ Get all clickable UI elements from the iOS device using accessibility API.
 
 <a id="droidrun.tools.ios.IOSTools.tap_by_index"></a>
 
-#### tap\_by\_index
+#### IOSTools.tap\_by\_index
 
 ```python
 async def tap_by_index(index: int, serial: Optional[str] = None) -> str
@@ -76,7 +76,7 @@ to find the element with the given index and tap on its center coordinates.
 
 <a id="droidrun.tools.ios.IOSTools.tap"></a>
 
-#### tap
+#### IOSTools.tap
 
 ```python
 async def tap(index: int) -> str
@@ -98,7 +98,7 @@ to find the element with the given index and tap on its center coordinates.
 
 <a id="droidrun.tools.ios.IOSTools.swipe"></a>
 
-#### swipe
+#### IOSTools.swipe
 
 ```python
 async def swipe(
@@ -127,7 +127,7 @@ To perform a hold (long press), set the start and end coordinates to the same va
 
 <a id="droidrun.tools.ios.IOSTools.input_text"></a>
 
-#### input\_text
+#### IOSTools.input\_text
 
 ```python
 async def input_text(text: str, serial: Optional[str] = None) -> str
@@ -147,7 +147,7 @@ Input text on the iOS device.
 
 <a id="droidrun.tools.ios.IOSTools.press_key"></a>
 
-#### press\_key
+#### IOSTools.press\_key
 
 ```python
 async def press_key(keycode: int) -> str
@@ -166,7 +166,7 @@ iOS Key codes:
 
 <a id="droidrun.tools.ios.IOSTools.start_app"></a>
 
-#### start\_app
+#### IOSTools.start\_app
 
 ```python
 async def start_app(package: str, activity: str = "") -> str
@@ -181,7 +181,7 @@ Start an app on the iOS device.
 
 <a id="droidrun.tools.ios.IOSTools.take_screenshot"></a>
 
-#### take\_screenshot
+#### IOSTools.take\_screenshot
 
 ```python
 async def take_screenshot() -> Tuple[str, bytes]
@@ -193,7 +193,7 @@ Also stores the screenshot in the screenshots list with timestamp for later GIF 
 
 <a id="droidrun.tools.ios.IOSTools.get_phone_state"></a>
 
-#### get\_phone\_state
+#### IOSTools.get\_phone\_state
 
 ```python
 async def get_phone_state(serial: Optional[str] = None) -> Dict[str, Any]
@@ -212,7 +212,7 @@ Get the current phone state including current activity and keyboard visibility.
 
 <a id="droidrun.tools.ios.IOSTools.remember"></a>
 
-#### remember
+#### IOSTools.remember
 
 ```python
 async def remember(information: str) -> str
@@ -235,7 +235,7 @@ that should influence future decisions.
 
 <a id="droidrun.tools.ios.IOSTools.get_memory"></a>
 
-#### get\_memory
+#### IOSTools.get\_memory
 
 ```python
 def get_memory() -> List[str]
@@ -249,7 +249,7 @@ Retrieve all stored memory items.
 
 <a id="droidrun.tools.ios.IOSTools.complete"></a>
 
-#### complete
+#### IOSTools.complete
 
 ```python
 def complete(success: bool, reason: str = "")
