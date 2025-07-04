@@ -29,6 +29,7 @@ def is_telemetry_enabled():
     logger.debug(f"Telemetry enabled: {enabled}")
     return enabled
 
+
 def print_telemetry_message():
     if is_telemetry_enabled():
         droidrun_logger.info(TELEMETRY_ENABLED_MESSAGE)
@@ -36,8 +37,10 @@ def print_telemetry_message():
     else:
         droidrun_logger.info(TELEMETRY_DISABLED_MESSAGE)
 
+
 # Print telemetry message on import
 print_telemetry_message()
+
 
 def get_user_id() -> str:
     try:
@@ -57,15 +60,13 @@ def capture(event: TelemetryEvent):
             logger.debug(f"Telemetry disabled, skipping capture of {event}")
             return
         event_name = type(event).__name__
-        properties = event.model_dump()
-        posthog.capture(
-            get_user_id(),
-            event_name,
-            {
-                "run_id": RUN_ID,
-                **properties,
-            },
-        )
+        event_data = event.model_dump()
+        properties = {
+            "run_id": RUN_ID,
+            **event_data,
+        }
+
+        posthog.capture(event_name, distinct_id=get_user_id(), properties=properties)
         logger.debug(f"Captured event: {event_name} with properties: {event}")
     except Exception as e:
         logger.error(f"Error capturing event: {e}")
