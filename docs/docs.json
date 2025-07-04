@@ -21,9 +21,14 @@
             ]
           },
           {
-            "group": "Examples",
+            "group": "Guides",
             "pages": [
-              "v3/examples/overview"
+              "v3/guides/overview",
+              "v3/guides/cli",
+              "v3/guides/gemini",
+              "v3/guides/ollama",
+              "v3/guides/openailike",
+              "v3/guides/telemetry"
             ]
           },
           {
