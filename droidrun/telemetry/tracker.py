@@ -13,7 +13,7 @@ HOST = "https://eu.i.posthog.com"
 USER_ID_PATH = Path.home() / ".droidrun" / "user_id"
 RUN_ID = str(uuid4())
 
-TELEMETRY_ENABLED_MESSAGE = "🕵️  Anonymized telemetry enabled. We collect anonymous usage data to help us improve DroidRun."
+TELEMETRY_ENABLED_MESSAGE = "🕵️  Anonymized telemetry enabled. See https://docs.droidrun.ai/v3/guides/telemetry for more information."
 TELEMETRY_DISABLED_MESSAGE = "🛑 Anonymized telemetry disabled. Consider setting the DROIDRUN_TELEMETRY_ENABLED environment variable to 'true' to enable telemetry and help us improve DroidRun."
 
 posthog = Posthog(
