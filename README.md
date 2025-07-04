@@ -14,6 +14,8 @@
 
 DroidRun is a powerful framework for controlling Android and iOS devices through LLM agents. It allows you to automate device interactions using natural language commands. [Checkout our benchmark results](https://droidrun.ai/benchmark)
 
+## Why Droidrun?
+
 - 🤖 Control Android and iOS devices with natural language commands
 - 🔀 Supports multiple LLM providers (OpenAI, Anthropic, Gemini, Ollama, DeepSeek)
 - 🧠 Planning capabilities for complex multi-step tasks
@@ -29,22 +31,24 @@ pip install droidrun
 ```
 
 ## 🚀 Quickstart
-Read on how to get droidrun up and running within seconds in [our docs](https://docs.droidrun.ai/v3/quickstart)!
+Read on how to get droidrun up and running within seconds in [our docs](https://docs.droidrun.ai/v3/quickstart)!   
 
+[![Quickstart Video](https://img.youtube.com/vi/4WT7FXJah2I/0.jpg)](https://www.youtube.com/watch?v=4WT7FXJah2I)
 
 ## 🎬 Demo Videos
 
-1. **Shopping Assistant**: Watch how DroidRun searches Amazon for headphones and sends the top 3 products to a colleague on WhatsApp.
-   
-   Prompt: "Go to Amazon, search for headphones and write the top 3 products to my colleague on WhatsApp."
-   
-   [![Shopping Assistant Demo](https://img.youtube.com/vi/VQK3JcifgwU/0.jpg)](https://www.youtube.com/watch?v=VQK3JcifgwU)
+1. **Group Chat Summarization**: Let DroidRun summarize an escalated group chat for you.   
 
-2. **Social Media Automation**: See DroidRun open X (Twitter) and post "Hello World".
-   
-   Prompt: "Open up X and post Hello World."
-   
-   [![Social Media Automation Demo](https://img.youtube.com/vi/i4-sDQhzt_M/0.jpg)](https://www.youtube.com/watch?v=i4-sDQhzt_M)
+   [![Group Chat Summarizer](https://img.youtube.com/vi/ofEnSUHHxX8/0.jpg)](https://www.youtube.com/watch?v=ofEnSUHHxX8)
+
+2. **Travel Search Assistant**: Wittness DroidRun looking for the cheapest stay and share it with a colleague on telegram.    
+
+   [![Travel Search Assistant](https://img.youtube.com/vi/QgtRaLS3NBM/0.jpg)](https://www.youtube.com/watch?v=QgtRaLS3NBM)
+
+3. **Automate TikTok Shopping**: See how DroidRun looks for a stanley cup on TikTok Shop and send the product details via email.    
+
+    [![TikTok Shopping Assistant](https://img.youtube.com/vi/ol3bivBAmn4/0.jpg)](https://www.youtube.com/watch?v=ol3bivBAmn4)
+
 
 ## 💡 Example Use Cases
 
@@ -53,22 +57,6 @@ Read on how to get droidrun up and running within seconds in [our docs](https://
 - Automating repetitive tasks on mobile devices
 - Remote assistance for less technical users
 - Exploring mobile UI with natural language commands
-
-## 🗺️ Roadmap
-
-### 🤖 Agent:
-- **Improve memory**: Enhance context retention for complex multi-step tasks
-- **Expand planning capabilities**: Add support for more complex reasoning strategies
-- **Add Integrations**: Support more LLM providers and agent frameworks (LangChain, Agno etc.)
-
-### ⚙️ Automations:
-- **Create Automation Scripts**: Generate reusable scripts from agent actions that can be scheduled or shared
-
-### ☁️ Cloud:
-- **Hosted version**: Remote device control via web interface without local setup
-- **Add-Ons**: Marketplace for extensions serving specific use cases
-- **Proxy Hours**: Cloud compute time with tiered pricing for running automations
-- **Droidrun AppStore**: Simple installation of Apps on your hosted devices
 
 ## 👥 Contributing
 
