@@ -10,7 +10,9 @@ ASSET_NAME = "droidrun-portal"
 GITHUB_API_HOSTS = ["https://api.github.com", "https://ungh.cc"]
 
 PORTAL_PACKAGE_NAME = "com.droidrun.portal"
-A11Y_SERVICE_NAME = f"{PORTAL_PACKAGE_NAME}/com.droidrun.portal.DroidrunAccessibilityService"
+A11Y_SERVICE_NAME = (
+    f"{PORTAL_PACKAGE_NAME}/com.droidrun.portal.DroidrunAccessibilityService"
+)
 
 
 def get_latest_release_assets(debug: bool = False):
@@ -112,7 +114,10 @@ async def ping_portal(device: Device, debug: bool = False):
         raise Exception("Portal is not installed on the device")
 
     if not await check_portal_accessibility(device, debug):
-        raise Exception("Droidrun Portal is not enabled on the device")
+        await device.shell("am start -a android.settings.ACCESSIBILITY_SETTINGS")
+        raise Exception(
+            "Droidrun Portal is not enabled as an accessibility service on the device"
+        )
 
     try:
         state = await device.shell(
