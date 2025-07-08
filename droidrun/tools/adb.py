@@ -7,10 +7,13 @@ import json
 import time
 import asyncio
 import logging
+from llama_index.core.workflow import Context
 from typing import Optional, Dict, Tuple, List, Any, Type, Self
 from droidrun.adb.device import Device
 from droidrun.adb.manager import DeviceManager
 from droidrun.tools.tools import Tools
+from droidrun.agent.common.events import TapActionEvent, KeyPressActionEvent, SwipeActionEvent, InputTextActionEvent
+
 
 logger = logging.getLogger("droidrun-adb-tools")
 
@@ -24,6 +27,7 @@ class AdbTools(Tools):
         Args:
             serial: Device serial number
         """
+        self._ctx = None
         self.device_manager = DeviceManager()
         # Instance‐level cache for clickable elements (index-based tapping)
         self.clickable_elements_cache: List[Dict[str, Any]] = []
@@ -55,6 +59,9 @@ class AdbTools(Tools):
             serial = devices[0].serial
 
         return AdbTools(serial)
+    
+    def _set_context(self, ctx: Context):
+        self._ctx = ctx
 
     def _get_device_serial(self) -> str:
         """Get the device serial from the instance or environment variable."""
@@ -207,6 +214,24 @@ class AdbTools(Tools):
 
             await device.tap(x, y)
 
+            # Emit coordinate action event for trajectory recording
+            
+            if self._ctx:
+                element_text = element.get("text", "No text")
+                element_class = element.get("className", "Unknown class")
+                
+                tap_event = TapActionEvent(
+                    action_type="tap",
+                    timestamp=time.time(),
+                    description=f"Tap element at index {index}: '{element_text}' ({element_class}) at coordinates ({x}, {y})",
+                    x=x,
+                    y=y,
+                    element_index=index,
+                    element_text=element_text,
+                    element_bounds=bounds_str
+                )
+                self._ctx.write_event_to_stream(tap_event)
+
             # Add a small delay to allow UI to update
             await asyncio.sleep(0.5)
 
@@ -299,6 +324,20 @@ class AdbTools(Tools):
                 device = await self._get_device()
 
             await device.swipe(start_x, start_y, end_x, end_y, duration_ms)
+            
+            if self._ctx:
+                swipe_event = SwipeActionEvent(
+                    action_type="swipe",
+                    timestamp=time.time(),
+                    description=f"Swipe from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration_ms}ms",
+                    start_x=start_x,
+                    start_y=start_y,
+                    end_x=end_x,
+                    end_y=end_y,
+                    duration_ms=duration_ms
+                )
+                self._ctx.write_event_to_stream(swipe_event)
+        
             await asyncio.sleep(1)
             print(
                 f"Swiped from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration_ms}ms"
@@ -356,6 +395,15 @@ class AdbTools(Tools):
 
             # Wait for text input to complete
             await asyncio.sleep(0.5)
+
+            if self._ctx:
+                input_event = InputTextActionEvent(
+                    action_type="input_text",
+                    timestamp=time.time(),
+                    description=f"Input text: '{text[:50]}{'...' if len(text) > 50 else ''}'",
+                    text=text
+                )
+                self._ctx.write_event_to_stream(input_event)
 
             # Restore the original keyboard
             if original_ime and "com.droidrun.portal" not in original_ime:
@@ -415,6 +463,17 @@ class AdbTools(Tools):
             key_name = key_names.get(keycode, str(keycode))
 
             await device.press_key(keycode)
+            
+            if self._ctx:
+                key_event = KeyPressActionEvent(
+                    action_type="key_press",
+                    timestamp=time.time(),
+                    description=f"Pressed key {key_name}",
+                    keycode=keycode,
+                    key_name=key_name
+                )
+                self._ctx.write_event_to_stream(key_event)
+            
             return f"Pressed key {key_name}"
         except ValueError as e:
             return f"Error: {str(e)}"

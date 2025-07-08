@@ -9,6 +9,7 @@ from llama_index.core.workflow import Context
 import asyncio
 from asyncio import AbstractEventLoop
 import threading
+from droidrun.tools.adb import AdbTools
 
 logger = logging.getLogger("droidrun")
 
@@ -29,6 +30,7 @@ class SimpleCodeExecutor:
         locals: Dict[str, Any] = {},
         globals: Dict[str, Any] = {},
         tools={},
+        tools_instance=None,
         use_same_scope: bool = True,
     ):
         """
@@ -38,7 +40,10 @@ class SimpleCodeExecutor:
             locals: Local variables to use in the execution context
             globals: Global variables to use in the execution context
             tools: List of tools available for execution
+            tools_instance: Original tools instance (e.g., AdbTools instance)
         """
+
+        self.tools_instance = tools_instance
 
         # loop throught tools and add them to globals, but before that check if tool value is async, if so convert it to sync. tools is a dictionary of tool name: function
         # e.g. tools = {'tool_name': tool_function}
@@ -74,6 +79,7 @@ class SimpleCodeExecutor:
         self.locals = locals
         self.loop = loop
         self.use_same_scope = use_same_scope
+        self.tools = tools
         if self.use_same_scope:
             # If using the same scope, set the globals and locals to the same dictionary
             self.globals = self.locals = {
@@ -93,8 +99,10 @@ class SimpleCodeExecutor:
         """
         # Update UI elements before execution
         self.globals['ui_state'] = await ctx.get("ui_state", None)
-        
-        # Capture stdout and stderr
+
+        if self.tools_instance and isinstance(self.tools_instance, AdbTools):
+            self.tools_instance._set_context(ctx)
+
         stdout = io.StringIO()
         stderr = io.StringIO()
 
