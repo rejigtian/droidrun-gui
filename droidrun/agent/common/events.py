@@ -6,7 +6,6 @@ class ScreenshotEvent(Event):
 class MacroEvent(Event):
     """Base class for coordinate-based action events"""
     action_type: str
-    timestamp: float
     description: str
 
 class TapActionEvent(MacroEvent):
@@ -33,3 +32,7 @@ class KeyPressActionEvent(MacroEvent):
     """Event for key press actions"""
     keycode: int
     key_name: str = ""
+
+class StartAppEvent(MacroEvent):
+    """"Event for starting an app"""
+    package: str

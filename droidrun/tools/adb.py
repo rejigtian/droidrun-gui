@@ -12,7 +12,7 @@ from typing import Optional, Dict, Tuple, List, Any, Type, Self
 from droidrun.adb.device import Device
 from droidrun.adb.manager import DeviceManager
 from droidrun.tools.tools import Tools
-from droidrun.agent.common.events import TapActionEvent, KeyPressActionEvent, SwipeActionEvent, InputTextActionEvent
+from droidrun.agent.common.events import TapActionEvent, KeyPressActionEvent, SwipeActionEvent, InputTextActionEvent, StartAppEvent
 
 
 logger = logging.getLogger("droidrun-adb-tools")
@@ -222,7 +222,6 @@ class AdbTools(Tools):
                 
                 tap_event = TapActionEvent(
                     action_type="tap",
-                    timestamp=time.time(),
                     description=f"Tap element at index {index}: '{element_text}' ({element_class}) at coordinates ({x}, {y})",
                     x=x,
                     y=y,
@@ -328,7 +327,6 @@ class AdbTools(Tools):
             if self._ctx:
                 swipe_event = SwipeActionEvent(
                     action_type="swipe",
-                    timestamp=time.time(),
                     description=f"Swipe from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration_ms}ms",
                     start_x=start_x,
                     start_y=start_y,
@@ -399,7 +397,6 @@ class AdbTools(Tools):
             if self._ctx:
                 input_event = InputTextActionEvent(
                     action_type="input_text",
-                    timestamp=time.time(),
                     description=f"Input text: '{text[:50]}{'...' if len(text) > 50 else ''}'",
                     text=text
                 )
@@ -467,7 +464,6 @@ class AdbTools(Tools):
             if self._ctx:
                 key_event = KeyPressActionEvent(
                     action_type="key_press",
-                    timestamp=time.time(),
                     description=f"Pressed key {key_name}",
                     keycode=keycode,
                     key_name=key_name
@@ -493,8 +489,17 @@ class AdbTools(Tools):
                     return f"Error: Device {self.serial} not found"
             else:
                 device = await self._get_device()
-
+                
             result = await device.start_app(package, activity)
+
+            if self._ctx:
+                start_app_event = StartAppEvent(
+                    action_type="start_app",
+                    description=f"Start app {package}",
+                    package=package
+                )
+                self._ctx.write_event_to_stream(start_app_event)
+
             return result
         except ValueError as e:
             return f"Error: {str(e)}"
