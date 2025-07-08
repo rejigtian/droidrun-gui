@@ -85,7 +85,13 @@ class MacroPlayer:
         action_type = action.get("action_type", action.get("type", "unknown"))
         
         try:
-            if action_type == "tap":
+
+            if action_type == "start_app":
+                package = action.get("package")
+                await tools.start_app(package)
+                return True
+            
+            elif action_type == "tap":
                 x = action.get("x", 0)
                 y = action.get("y", 0)
                 element_text = action.get("element_text", "")
