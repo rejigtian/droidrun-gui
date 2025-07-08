@@ -10,6 +10,9 @@ from droidrun.adb.manager import DeviceManager
 from droidrun.tools import Tools, AdbTools, IOSTools
 from droidrun.agent.droid import DroidAgent
 
+# Import macro functionality
+from droidrun.macro import MacroPlayer, replay_macro_file, replay_macro_folder
+
 
 # Make main components available at package level
 __all__ = [
@@ -19,4 +22,7 @@ __all__ = [
     "Tools",
     "AdbTools",
     "IOSTools",
+    "MacroPlayer",
+    "replay_macro_file",
+    "replay_macro_folder",
 ]
