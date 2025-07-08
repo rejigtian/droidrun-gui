@@ -16,7 +16,7 @@ from droidrun.agent.planner import PlannerAgent
 from droidrun.agent.context.task_manager import TaskManager
 from droidrun.agent.utils.trajectory import Trajectory
 from droidrun.tools import Tools, describe_tools
-from droidrun.agent.common.events import ScreenshotEvent
+from droidrun.agent.common.events import ScreenshotEvent, MacroEvent
 from droidrun.agent.common.default import MockWorkflow
 from droidrun.agent.context import ContextInjectionManager
 from droidrun.agent.context.agent_persona import AgentPersona
@@ -114,7 +114,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         self.event_counter = 0
         self.save_trajectories = save_trajectories
         
-        self.trajectory = Trajectory()
+        self.trajectory = Trajectory(goal=goal)
         self.task_manager = TaskManager()
         self.task_iter = None
         self.cim = ContextInjectionManager(personas=personas)
@@ -391,13 +391,16 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         if isinstance(ev, EpisodicMemoryEvent):
             self.current_episodic_memory = ev.episodic_memory
             return
+        
+  
 
         if not isinstance(ev, StopEvent):
             ctx.write_event_to_stream(ev)
             
             if isinstance(ev, ScreenshotEvent):
                 self.trajectory.screenshots.append(ev.screenshot)
-
+            elif isinstance(ev, MacroEvent):
+                self.trajectory.macro.append(ev)
             else:
                 self.trajectory.events.append(ev)
 
