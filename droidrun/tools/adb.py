@@ -391,7 +391,7 @@ class AdbTools(Tools):
                 return f"Error: APK file not found at {apk_path}"
 
             logger.debug(f"Installing app: {apk_path} with reinstall: {reinstall} and grant_permissions: {grant_permissions}")
-            result = self.device.install(apk_path, nolaunch=True, uninstall=reinstall, flags=["-g"] if grant_permissions else [])
+            result = self.device.install(apk_path, nolaunch=True, uninstall=reinstall, flags=["-g"] if grant_permissions else [], silent=True)
             logger.debug(f"Installed app: {apk_path} with result: {result}")
             return result
         except ValueError as e:

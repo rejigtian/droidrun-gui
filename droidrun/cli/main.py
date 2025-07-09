@@ -443,13 +443,13 @@ def setup(path: str | None, device: str | None, debug: bool):
                 return
 
             console.print(f"[bold blue]Step 1/2: Installing APK:[/] {apk_path}")
-            result = device_obj.install(apk_path, uninstall=True, flags=["-g"])
-
-            if "Error" in result:
-                console.print(f"[bold red]Installation failed:[/] {result}")
+            try:
+                device_obj.install(apk_path, uninstall=True, flags=["-g"], silent=True)
+            except Exception as e:
+                console.print(f"[bold red]Installation failed:[/] {e}")
                 return
-            else:
-                console.print(f"[bold green]Installation successful![/]")
+
+            console.print(f"[bold green]Installation successful![/]")
 
             console.print(f"[bold blue]Step 2/2: Enabling accessibility service[/]")
 
