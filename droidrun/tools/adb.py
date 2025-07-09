@@ -16,7 +16,7 @@ logger = logging.getLogger("droidrun-tools")
 class AdbTools(Tools):
     """Core UI interaction tools for Android device control."""
 
-    def __init__(self, serial: str) -> None:
+    def __init__(self, serial: str | None = None) -> None:
         """Initialize the AdbTools instance.
 
         Args:
@@ -25,7 +25,6 @@ class AdbTools(Tools):
         self.device = adb.device(serial=serial)
         # Instance‐level cache for clickable elements (index-based tapping)
         self.clickable_elements_cache: List[Dict[str, Any]] = []
-        self.serial = serial
         self.last_screenshot = None
         self.reason = None
         self.success = None
@@ -34,24 +33,6 @@ class AdbTools(Tools):
         self.memory: List[str] = []
         # Store all screenshots with timestamps
         self.screenshots: List[Dict[str, Any]] = []
-
-    @classmethod
-    def create(cls: Type[Self], serial: str = None) -> Self:
-        """Create an AdbTools instance.
-
-        Args:
-            serial: Optional device serial number. If not provided, the first device found will be used.
-
-        Returns:
-            AdbTools instance
-        """
-        if not serial:
-            devices = adb.list()
-            if not devices or len(devices) < 1:
-                raise ValueError("No devices found")
-            serial = devices[0].serial
-
-        return AdbTools(serial)
 
     def _parse_content_provider_output(
         self, raw_output: str
