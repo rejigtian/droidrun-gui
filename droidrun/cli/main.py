@@ -383,10 +383,10 @@ def connect(serial: str):
     """Connect to a device over TCP/IP."""
     try:
         device = adb.connect(serial)
-        if device:
+        if device.count("already connected"):
             console.print(f"[green]Successfully connected to {serial}[/]")
         else:
-            console.print(f"[red]Failed to connect to {serial}[/]")
+            console.print(f"[red]Failed to connect to {serial}: {device}[/]")
     except Exception as e:
         console.print(f"[red]Error connecting to device: {e}[/]")
 
@@ -396,7 +396,7 @@ def connect(serial: str):
 def disconnect(serial: str):
     """Disconnect from a device."""
     try:
-        success = adb.disconnect(serial)
+        success = adb.disconnect(serial, raise_error=True)
         if success:
             console.print(f"[green]Successfully disconnected from {serial}[/]")
         else:
