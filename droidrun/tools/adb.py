@@ -556,7 +556,45 @@ class AdbTools(Tools):
             }
 
 
+def _shell_test_cli(serial: str, command: str) -> tuple[str, float]:
+    """
+    Run an adb shell command using the adb CLI and measure execution time.
+    Args:
+        serial: Device serial number
+        command: Shell command to run
+    Returns:
+        Tuple of (output, elapsed_time)
+    """
+    import time
+    import subprocess
+    adb_cmd = ["adb", "-s", serial, "shell", command]
+    start = time.perf_counter()
+    result = subprocess.run(adb_cmd, capture_output=True, text=True)
+    elapsed = time.perf_counter() - start
+    output = result.stdout.strip() if result.returncode == 0 else result.stderr.strip()
+    return output, elapsed
+
+
+def _shell_test():
+    device = adb.device("emulator-5554")
+    # Native Python adb client
+    start = time.time()
+    res = device.shell("echo 'Hello, World!'")
+    end = time.time()
+    print(f"[Native] Shell execution took {end - start:.3f} seconds: {res}")
+
+    start = time.time()
+    res = device.shell("content query --uri content://com.droidrun.portal/state")
+    end = time.time()
+    print(f"[Native] Shell execution took {end - start:.3f} seconds: phone_state")
+
+    # CLI version
+    output, elapsed = _shell_test_cli("emulator-5554", "echo 'Hello, World!'")
+    print(f"[CLI] Shell execution took {elapsed:.3f} seconds: {output}")
+
+    output, elapsed = _shell_test_cli("emulator-5554", "content query --uri content://com.droidrun.portal/state")
+    print(f"[CLI] Shell execution took {elapsed:.3f} seconds: phone_state")
+
+
 if __name__ == "__main__":
-    tools = AdbTools.create()
-    print(tools.serial)
-    print(tools.get_state())
+    _shell_test()
