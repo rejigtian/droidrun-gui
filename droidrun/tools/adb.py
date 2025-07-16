@@ -395,10 +395,10 @@ class AdbTools(Tools):
                 {
                     "timestamp": time.time(),
                     "image_data": self.last_screenshot,
-                    "format": "PNG",  # Usually 'PNG'
+                    "format": img.format,  # Usually 'PNG'
                 }
             )
-            return self.last_screenshot
+            return img.format, self.last_screenshot
         except ValueError as e:
             raise ValueError(f"Error taking screenshot: {str(e)}")
 
