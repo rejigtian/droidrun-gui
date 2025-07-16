@@ -398,13 +398,13 @@ class CodeActAgent(Workflow):
             ui_state = None
             
             try:
-                _, screenshot_bytes = await self.tools.take_screenshot()
+                _, screenshot_bytes = self.tools.take_screenshot()
                 screenshot = screenshot_bytes
             except Exception as e:
                 logger.warning(f"Failed to capture final screenshot: {e}")
             
             try:
-                (a11y_tree, phone_state) = await self.tools.get_state()
+                (a11y_tree, phone_state) = self.tools.get_state()
             except Exception as e:
                 logger.warning(f"Failed to capture final UI state: {e}")
             
