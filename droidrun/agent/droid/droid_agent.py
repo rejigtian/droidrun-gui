@@ -125,6 +125,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         self.tool_list = describe_tools(tools)
         self.tools_instance = tools
 
+        self.user_id =kwargs.get("user_id")
 
         if self.reasoning:
             logger.info("📝 Initializing Planner Agent...")
@@ -162,7 +163,8 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
                 enable_tracing=enable_tracing,
                 debug=debug,
                 save_trajectories=save_trajectories,
-            )
+            ),
+            self.user_id
         )
 
         
@@ -369,7 +371,8 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
                 success=ev.success,
                 output=ev.output,
                 steps=ev.steps,
-            )
+            ),
+            self.user_id
         )
         flush()
 
