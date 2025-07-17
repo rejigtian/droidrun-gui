@@ -87,6 +87,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
             debug: Whether to enable verbose debug logging
             **kwargs: Additional keyword arguments to pass to the agents
         """
+        self.user_id = kwargs.pop("user_id", None)
         super().__init__(timeout=timeout ,*args,**kwargs)
         # Configure default logging if not already configured
         self._configure_default_logging(debug=debug)
@@ -125,7 +126,6 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         self.tool_list = describe_tools(tools)
         self.tools_instance = tools
 
-        self.user_id =kwargs.get("user_id")
 
         if self.reasoning:
             logger.info("📝 Initializing Planner Agent...")
