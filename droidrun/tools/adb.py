@@ -3,6 +3,7 @@ UI Actions - Core UI interaction tools for Android device control.
 """
 
 import os
+import io
 import json
 import time
 import logging
@@ -387,18 +388,20 @@ class AdbTools(Tools):
         try:
             logger.debug("Taking screenshot")
             img = self.device.screenshot()
-            self.last_screenshot = img.tobytes()
+            img_buf = io.BytesIO()
+            img_format = "PNG"
+            img.save(img_buf, format=img_format)
             logger.debug("Screenshot taken")
 
             # Store screenshot with timestamp
             self.screenshots.append(
                 {
                     "timestamp": time.time(),
-                    "image_data": self.last_screenshot,
-                    "format": img.format,  # Usually 'PNG'
+                    "image_data": img_buf.getvalue(),
+                    "format": img_format,  # Usually 'PNG'
                 }
             )
-            return img.format, self.last_screenshot
+            return img_format, img_buf.getvalue()
         except ValueError as e:
             raise ValueError(f"Error taking screenshot: {str(e)}")
 
