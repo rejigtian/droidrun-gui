@@ -154,7 +154,9 @@ class AdbTools(Tools):
             x = (left + right) // 2
             y = (top + bottom) // 2
 
-            logger.debug(f"Tapping element with index {index} at coordinates ({x}, {y})")
+            logger.debug(
+                f"Tapping element with index {index} at coordinates ({x}, {y})"
+            )
             # Get the device and tap at the coordinates
             self.device.click(x, y)
             logger.debug(f"Tapped element with index {index} at coordinates ({x}, {y})")
@@ -237,10 +239,14 @@ class AdbTools(Tools):
             Bool indicating success or failure
         """
         try:
-            logger.debug(f"Swiping from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration} seconds")
+            logger.debug(
+                f"Swiping from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration} seconds"
+            )
             self.device.swipe(start_x, start_y, end_x, end_y, duration)
             time.sleep(duration)
-            logger.debug(f"Swiped from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration} seconds")
+            logger.debug(
+                f"Swiped from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration} seconds"
+            )
             return True
         except ValueError as e:
             print(f"Error: {str(e)}")
@@ -260,20 +266,14 @@ class AdbTools(Tools):
         try:
             logger.debug(f"Inputting text: {text}")
             # Save the current keyboard
-            original_ime = self.device.shell(
-                "settings get secure default_input_method"
-            )
+            original_ime = self.device.shell("settings get secure default_input_method")
             original_ime = original_ime.strip()
 
             # Enable the Droidrun keyboard
-            self.device.shell(
-                "ime enable com.droidrun.portal/.DroidrunKeyboardIME"
-            )
+            self.device.shell("ime enable com.droidrun.portal/.DroidrunKeyboardIME")
 
             # Set the Droidrun keyboard as the default
-            self.device.shell(
-                "ime set com.droidrun.portal/.DroidrunKeyboardIME"
-            )
+            self.device.shell("ime set com.droidrun.portal/.DroidrunKeyboardIME")
 
             # Wait for keyboard to change
             time.sleep(1)
@@ -293,7 +293,9 @@ class AdbTools(Tools):
             if original_ime and "com.droidrun.portal" not in original_ime:
                 self.device.shell(f"ime set {original_ime}")
 
-            logger.debug(f"Text input completed: {text[:50]}{'...' if len(text) > 50 else ''}")
+            logger.debug(
+                f"Text input completed: {text[:50]}{'...' if len(text) > 50 else ''}"
+            )
             return f"Text input completed: {text[:50]}{'...' if len(text) > 50 else ''}"
         except ValueError as e:
             return f"Error: {str(e)}"
@@ -341,7 +343,7 @@ class AdbTools(Tools):
         except ValueError as e:
             return f"Error: {str(e)}"
 
-    def start_app(self, package: str, activity: str = "") -> str:
+    def start_app(self, package: str, activity: str | None = None) -> str:
         """
         Start an app on the device.
 
@@ -351,10 +353,17 @@ class AdbTools(Tools):
         """
         try:
             logger.debug(f"Starting app {package} with activity {activity}")
+            if not activity:
+                # Find launcher activity from dumpsys
+                dumpsys_output = self.device.shell(f"cmd package resolve-activity --brief {package}") 
+                activity = dumpsys_output.splitlines()[1].split("/")[1]
+
+            print(f"Activity: {activity}")
+
             self.device.app_start(package, activity)
             logger.debug(f"App started: {package} with activity {activity}")
             return f"App started: {package} with activity {activity}"
-        except ValueError as e:
+        except Exception as e:
             return f"Error: {str(e)}"
 
     def install_app(
@@ -372,8 +381,16 @@ class AdbTools(Tools):
             if not os.path.exists(apk_path):
                 return f"Error: APK file not found at {apk_path}"
 
-            logger.debug(f"Installing app: {apk_path} with reinstall: {reinstall} and grant_permissions: {grant_permissions}")
-            result = self.device.install(apk_path, nolaunch=True, uninstall=reinstall, flags=["-g"] if grant_permissions else [], silent=True)
+            logger.debug(
+                f"Installing app: {apk_path} with reinstall: {reinstall} and grant_permissions: {grant_permissions}"
+            )
+            result = self.device.install(
+                apk_path,
+                nolaunch=True,
+                uninstall=reinstall,
+                flags=["-g"] if grant_permissions else [],
+                silent=True,
+            )
             logger.debug(f"Installed app: {apk_path} with result: {result}")
             return result
         except ValueError as e:
@@ -417,7 +434,7 @@ class AdbTools(Tools):
         """
         try:
             logger.debug("Listing packages")
-            return self.device.list_packages()
+            return self.device.list_packages(["-3"] if not include_system_apps else [])
         except ValueError as e:
             raise ValueError(f"Error listing packages: {str(e)}")
 
@@ -570,6 +587,7 @@ def _shell_test_cli(serial: str, command: str) -> tuple[str, float]:
     """
     import time
     import subprocess
+
     adb_cmd = ["adb", "-s", serial, "shell", command]
     start = time.perf_counter()
     result = subprocess.run(adb_cmd, capture_output=True, text=True)
@@ -595,9 +613,21 @@ def _shell_test():
     output, elapsed = _shell_test_cli("emulator-5554", "echo 'Hello, World!'")
     print(f"[CLI] Shell execution took {elapsed:.3f} seconds: {output}")
 
-    output, elapsed = _shell_test_cli("emulator-5554", "content query --uri content://com.droidrun.portal/state")
+    output, elapsed = _shell_test_cli(
+        "emulator-5554", "content query --uri content://com.droidrun.portal/state"
+    )
     print(f"[CLI] Shell execution took {elapsed:.3f} seconds: phone_state")
 
 
+def _list_packages():
+    tools = AdbTools()
+    print(tools.list_packages())
+
+
+def _start_app():
+    tools = AdbTools()
+    tools.start_app("com.android.settings", ".Settings")
+
+
 if __name__ == "__main__":
-    _shell_test()
+    _start_app()
