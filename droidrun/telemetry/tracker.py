@@ -45,6 +45,7 @@ print_telemetry_message()
 def get_user_id() -> str:
     try:
         if not USER_ID_PATH.exists():
+            USER_ID_PATH.parent.mkdir(parents=True, exist_ok=True)
             USER_ID_PATH.touch()
             USER_ID_PATH.write_text(str(uuid4()))
         logger.debug(f"User ID: {USER_ID_PATH.read_text()}")
