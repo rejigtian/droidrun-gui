@@ -37,14 +37,11 @@ class MacroPlayer:
         self.delay_between_actions = delay_between_actions
         self.adb_tools = None
         
-    async def _initialize_tools(self) -> AdbTools:
+    def _initialize_tools(self) -> AdbTools:
         """Initialize ADB tools for the target device."""
         if self.adb_tools is None:
-            if self.device_serial:
-                self.adb_tools = AdbTools(serial=self.device_serial)
-            else:
-                self.adb_tools = await AdbTools.create()
-            logger.info(f"🤖 Initialized ADB tools for device: {self.adb_tools.serial}")
+            self.adb_tools = AdbTools(serial=self.device_serial)
+            logger.info(f"🤖 Initialized ADB tools for device: {self.device_serial}")
         return self.adb_tools
     
     def load_macro_from_file(self, macro_file_path: str) -> Dict[str, Any]:
@@ -71,7 +68,7 @@ class MacroPlayer:
         """
         return Trajectory.load_macro_sequence(trajectory_folder)
     
-    async def replay_action(self, action: Dict[str, Any]) -> bool:
+    def replay_action(self, action: Dict[str, Any]) -> bool:
         """
         Replay a single action.
         
@@ -81,14 +78,15 @@ class MacroPlayer:
         Returns:
             True if action was executed successfully, False otherwise
         """
-        tools = await self._initialize_tools()
+        tools = self._initialize_tools()
         action_type = action.get("action_type", action.get("type", "unknown"))
         
         try:
 
             if action_type == "start_app":
                 package = action.get("package")
-                await tools.start_app(package)
+                activity = action.get("activity", None)
+                tools.start_app(package, activity)
                 return True
             
             elif action_type == "tap":
@@ -97,7 +95,7 @@ class MacroPlayer:
                 element_text = action.get("element_text", "")
                 
                 logger.info(f"🫰 Tapping at ({x}, {y}) - Element: '{element_text}'")
-                result = await tools.tap_by_coordinates(x, y)
+                result = tools.tap_by_coordinates(x, y)
                 logger.debug(f"   Result: {result}")
                 return True
                 
@@ -108,8 +106,8 @@ class MacroPlayer:
                 end_y = action.get("end_y", 0)
                 duration_ms = action.get("duration_ms", 300)
                 
-                logger.info(f"👆 Swiping from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration_ms}ms")
-                result = await tools.swipe(start_x, start_y, end_x, end_y, duration_ms)
+                logger.info(f"👆 Swiping from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration_ms} milliseconds")
+                result = tools.swipe(start_x, start_y, end_x, end_y, duration_ms)
                 logger.debug(f"   Result: {result}")
                 return True
                 
@@ -117,7 +115,7 @@ class MacroPlayer:
                 text = action.get("text", "")
                 
                 logger.info(f"⌨️  Inputting text: '{text}'")
-                result = await tools.input_text(text)
+                result = tools.input_text(text)
                 logger.debug(f"   Result: {result}")
                 return True
                 
@@ -126,13 +124,13 @@ class MacroPlayer:
                 key_name = action.get("key_name", "UNKNOWN")
                 
                 logger.info(f"🔘 Pressing key: {key_name} (keycode: {keycode})")
-                result = await tools.press_key(keycode)
+                result = tools.press_key(keycode)
                 logger.debug(f"   Result: {result}")
                 return True
                 
             elif action_type == "back":
                 logger.info(f"⬅️  Pressing back button")
-                result = await tools.back()
+                result = tools.back()
                 logger.debug(f"   Result: {result}")
                 return True
                 
@@ -190,7 +188,7 @@ class MacroPlayer:
                 logger.info(f"   Description: {description_text}")
             
             # Execute the action
-            success = await self.replay_action(action)
+            success = self.replay_action(action)
             
             if success:
                 success_count += 1

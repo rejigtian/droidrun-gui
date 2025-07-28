@@ -36,3 +36,4 @@ class KeyPressActionEvent(MacroEvent):
 class StartAppEvent(MacroEvent):
     """"Event for starting an app"""
     package: str
+    activity: str = None

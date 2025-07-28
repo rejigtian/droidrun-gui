@@ -6,31 +6,36 @@ import asyncio
 import click
 import logging
 import os
+from typing import Optional
 from rich.console import Console
-from rich.panel import Panel
 from rich.table import Table
 from droidrun.macro.replay import MacroPlayer, replay_macro_file, replay_macro_folder
 from droidrun.agent.utils.trajectory import Trajectory
+from adbutils import adb
 
 console = Console()
 
 
-def setup_logging(debug: bool = False):
-    """Setup logging for the macro CLI."""
+def configure_logging(debug: bool = False):
+    """Configure logging for the macro CLI."""
     logger = logging.getLogger("droidrun-macro")
+    logger.handlers = []
+    
     handler = logging.StreamHandler()
     
     if debug:
         level = logging.DEBUG
-        formatter = logging.Formatter("%(asctime)s %(levelname)s: %(message)s", "%H:%M:%S")
+        formatter = logging.Formatter("%(levelname)s %(name)s %(message)s", "%H:%M:%S")
     else:
         level = logging.INFO
-        formatter = logging.Formatter("%(message)s")
+        formatter = logging.Formatter("%(message)s", "%H:%M:%S")
     
     handler.setFormatter(formatter)
     logger.addHandler(handler)
     logger.setLevel(level)
     logger.propagate = False
+    
+    return logger
 
 
 @click.group()
@@ -47,36 +52,45 @@ def macro_cli():
 @click.option("--max-steps", "-m", help="Maximum steps to execute", default=None, type=int)
 @click.option("--debug", is_flag=True, help="Enable debug logging", default=False)
 @click.option("--dry-run", is_flag=True, help="Show actions without executing", default=False)
-def replay(path: str, device: str, delay: float, start_from: int, max_steps: int, debug: bool, dry_run: bool):
+def replay(path: str, device: Optional[str], delay: float, start_from: int, max_steps: Optional[int], debug: bool, dry_run: bool):
     """Replay a macro from a file or trajectory folder."""
-    setup_logging(debug)
+    logger = configure_logging(debug)
     
-    console.print(Panel(f"🎬 [bold green]DroidRun Macro Replay[/bold green]", expand=False))
+    logger.info("🎬 DroidRun Macro Replay")
     
     # Convert start_from from 1-based to 0-based
     start_from_zero = max(0, start_from - 1)
     
-    asyncio.run(_replay_async(path, device, delay, start_from_zero, max_steps, dry_run))
+    if device is None:
+        logger.info("🔍 Finding connected device...")
+        devices = adb.list()
+        if not devices:
+            raise ValueError("No connected devices found.")
+        device = devices[0].serial
+        logger.info(f"📱 Using device: {device}")
+    else:
+        logger.info(f"📱 Using device: {device}")
+    
+    asyncio.run(_replay_async(path, device, delay, start_from_zero, max_steps, dry_run, logger))
 
 
-async def _replay_async(path: str, device: str, delay: float, start_from: int, max_steps: int, dry_run: bool):
+async def _replay_async(path: str, device: str, delay: float, start_from: int, max_steps: Optional[int], dry_run: bool, logger: logging.Logger):
     """Async function to handle macro replay."""
     try:
-        # Determine if path is a file or folder
         if os.path.isfile(path):
-            console.print(f"📄 Loading macro from file: {path}")
+            logger.info(f"📄 Loading macro from file: {path}")
             player = MacroPlayer(device_serial=device, delay_between_actions=delay)
             macro_data = player.load_macro_from_file(path)
         elif os.path.isdir(path):
-            console.print(f"📁 Loading macro from folder: {path}")
+            logger.info(f"📁 Loading macro from folder: {path}")
             player = MacroPlayer(device_serial=device, delay_between_actions=delay)
             macro_data = player.load_macro_from_folder(path)
         else:
-            console.print(f"❌ [red]Invalid path: {path}[/red]")
+            logger.error(f"❌ Invalid path: {path}")
             return
         
         if not macro_data:
-            console.print("❌ [red]Failed to load macro data[/red]")
+            logger.error("❌ Failed to load macro data")
             return
         
         # Show macro information
@@ -84,34 +98,38 @@ async def _replay_async(path: str, device: str, delay: float, start_from: int, m
         total_actions = macro_data.get("total_actions", 0)
         version = macro_data.get("version", "unknown")
         
-        console.print(f"\n📋 [bold]Macro Information:[/bold]")
-        console.print(f"   Description: {description}")
-        console.print(f"   Version: {version}")
-        console.print(f"   Total actions: {total_actions}")
-        console.print(f"   Device: {device or 'Auto-detect'}")
-        console.print(f"   Delay between actions: {delay}s")
+        logger.info("📋 Macro Information:")
+        logger.info(f"   Description: {description}")
+        logger.info(f"   Version: {version}")
+        logger.info(f"   Total actions: {total_actions}")
+        logger.info(f"   Device: {device}")
+        logger.info(f"   Delay between actions: {delay}s")
         
         if start_from > 0:
-            console.print(f"   Starting from step: {start_from + 1}")
+            logger.info(f"   Starting from step: {start_from + 1}")
         if max_steps:
-            console.print(f"   Maximum steps: {max_steps}")
+            logger.info(f"   Maximum steps: {max_steps}")
         
         if dry_run:
-            console.print(f"\n🔍 [yellow]DRY RUN MODE - Actions will be shown but not executed[/yellow]")
-            await _show_dry_run(macro_data, start_from, max_steps)
+            logger.info("🔍 DRY RUN MODE - Actions will be shown but not executed")
+            await _show_dry_run(macro_data, start_from, max_steps, logger)
         else:
+            logger.info("▶️  Starting macro replay...")
             success = await player.replay_macro(macro_data, start_from_step=start_from, max_steps=max_steps)
             
             if success:
-                console.print(f"\n🎉 [green]Macro replay completed successfully![/green]")
+                logger.info("🎉 Macro replay completed successfully!")
             else:
-                console.print(f"\n💥 [red]Macro replay completed with errors[/red]")
+                logger.error("💥 Macro replay completed with errors")
     
     except Exception as e:
-        console.print(f"❌ [red]Error: {e}[/red]")
+        logger.error(f"💥 Error: {e}")
+        if logger.isEnabledFor(logging.DEBUG):
+            import traceback
+            logger.debug(traceback.format_exc())
 
 
-async def _show_dry_run(macro_data: dict, start_from: int, max_steps: int):
+async def _show_dry_run(macro_data: dict, start_from: int, max_steps: Optional[int], logger: logging.Logger):
     """Show what actions would be executed in dry run mode."""
     actions = macro_data.get("actions", [])
     
@@ -120,6 +138,8 @@ async def _show_dry_run(macro_data: dict, start_from: int, max_steps: int):
         actions = actions[start_from:]
     if max_steps:
         actions = actions[:max_steps]
+    
+    logger.info(f"📋 Found {len(actions)} actions to execute:")
     
     table = Table(title="Actions to Execute")
     table.add_column("Step", style="cyan")
@@ -149,16 +169,18 @@ async def _show_dry_run(macro_data: dict, start_from: int, max_steps: int):
         description = action.get("description", "")
         table.add_row(str(i), action_type, details, description[:50] + "..." if len(description) > 50 else description)
     
+    # Still use console for table display as it's structured data
     console.print(table)
 
 
 @macro_cli.command()
 @click.argument("directory", type=click.Path(exists=True), default="trajectories")
-def list(directory: str):
+@click.option("--debug", is_flag=True, help="Enable debug logging", default=False)
+def list(directory: str, debug: bool):
     """List available trajectory folders in a directory."""
-    setup_logging(False)
+    logger = configure_logging(debug)
     
-    console.print(f"📁 Scanning directory: {directory}")
+    logger.info(f"📁 Scanning directory: {directory}")
     
     try:
         folders = []
@@ -173,12 +195,15 @@ def list(directory: str):
                         description = macro_data.get("description", "No description")
                         total_actions = macro_data.get("total_actions", 0)
                         folders.append((item, description, total_actions))
-                    except:
+                    except Exception as e:
+                        logger.debug(f"Error loading macro from {item}: {e}")
                         folders.append((item, "Error loading", 0))
         
         if not folders:
-            console.print("📭 No trajectory folders found")
+            logger.info("📭 No trajectory folders found")
             return
+        
+        logger.info(f"🎯 Found {len(folders)} trajectory(s):")
         
         table = Table(title=f"Available Trajectories in {directory}")
         table.add_column("Folder", style="cyan")
@@ -188,11 +213,15 @@ def list(directory: str):
         for folder, description, actions in sorted(folders):
             table.add_row(folder, description[:80] + "..." if len(description) > 80 else description, str(actions))
         
+        # Still use console for table display as it's structured data
         console.print(table)
-        console.print(f"\n💡 Use 'droidrun-macro replay {directory}/<folder>' to replay a trajectory")
+        logger.info(f"💡 Use 'droidrun-macro replay {directory}/<folder>' to replay a trajectory")
     
     except Exception as e:
-        console.print(f"❌ [red]Error: {e}[/red]")
+        logger.error(f"💥 Error: {e}")
+        if logger.isEnabledFor(logging.DEBUG):
+            import traceback
+            logger.debug(traceback.format_exc())
 
 
 if __name__ == "__main__":
