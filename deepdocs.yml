@@ -1,0 +1,4 @@
+target:  
+  - url: "docs/"
+include: ["droidrun"]
+reinit: "random-string"
