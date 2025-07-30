@@ -41,19 +41,19 @@ Read on how to get droidrun up and running within seconds in [our docs](https://
 
 1. **Accommodation booking**: Let Droidrun search for an apartment for you
 
-   <img src="https://media.droidrun.ai/Droidrun_Expedia.gif" alt="Droidrun Accommodation Booking Demo on Expedia" width="600">
+   [![Droidrun Accommodation Booking Demo](https://img.youtube.com/vi/VUpCyq1PSXw/0.jpg)](https://youtu.be/VUpCyq1PSXw)
 
 <br>
 
 2. **Trend Hunter**: Let Droidrun hunt down trending posts
 
-   <img src="https://media.droidrun.ai/Droidrun_Reddit.gif" alt="Droidrun Trend Hunter Demo on Reddit" width="600">
+   [![Droidrun Trend Hunter Demo](https://img.youtube.com/vi/7V8S2f8PnkQ/0.jpg)](https://youtu.be/7V8S2f8PnkQ)
 
 <br>
 
 3. **Streak Saver**: Let Droidrun save your streak on your favorite language learning app
 
-   <img src="https://media.droidrun.ai/Droidrun_Duolingo.gif" alt="Droidrun Streak Saver Demo on Duolingo" width="600">
+   [![Droidrun Streak Saver Demo](https://img.youtube.com/vi/B5q2B467HKw/0.jpg)](https://youtu.be/B5q2B467HKw)
 
 
 ## 💡 Example Use Cases
