@@ -39,17 +39,21 @@ Read on how to get droidrun up and running within seconds in [our docs](https://
 
 ## 🎬 Demo Videos
 
-1. **Group Chat Summarization**: Let DroidRun summarize an escalated group chat for you.   
+1. **Accommodation booking**: Let Droidrun search for an apartment for you
 
-   [![Group Chat Summarizer](https://img.youtube.com/vi/ofEnSUHHxX8/0.jpg)](https://www.youtube.com/watch?v=ofEnSUHHxX8)
+   <img src="https://media.droidrun.ai/Droidrun_Expedia.gif" alt="Droidrun Accommodation Booking Demo on Expedia" width="600">
 
-2. **Travel Search Assistant**: Wittness DroidRun looking for the cheapest stay and share it with a colleague on telegram.    
+<br>
 
-   [![Travel Search Assistant](https://img.youtube.com/vi/QgtRaLS3NBM/0.jpg)](https://www.youtube.com/watch?v=QgtRaLS3NBM)
+2. **Trend Hunter**: Let Droidrun hunt down trending posts
 
-3. **Automate TikTok Shopping**: See how DroidRun looks for a stanley cup on TikTok Shop and send the product details via email.    
+   <img src="https://media.droidrun.ai/Droidrun_Reddit.gif" alt="Droidrun Trend Hunter Demo on Reddit" width="600">
 
-    [![TikTok Shopping Assistant](https://img.youtube.com/vi/ol3bivBAmn4/0.jpg)](https://www.youtube.com/watch?v=ol3bivBAmn4)
+<br>
+
+3. **Streak Saver**: Let Droidrun save your streak on your favorite language learning app
+
+   <img src="https://media.droidrun.ai/Droidrun_Duolingo.gif" alt="Droidrun Streak Saver Demo on Duolingo" width="600">
 
 
 ## 💡 Example Use Cases
