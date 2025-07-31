@@ -28,7 +28,7 @@ dependencies = [
     "adbutils==2.9.3",
     "apkutils==2.0.0"
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 readme = "README.md"
 license = {text = "MIT"}
 classifiers = [
