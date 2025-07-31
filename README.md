@@ -10,7 +10,11 @@
 [![Benchmark](https://img.shields.io/badge/Benchmark-🏅-teal)](https://droidrun.ai/benchmark)
 [![Twitter Follow](https://img.shields.io/twitter/follow/droid_run?style=social)](https://x.com/droid_run)
 
-<a href="https://www.producthunt.com/products/droidrun-framework-for-mobile-agent?embed=true&utm_source=badge-featured&utm_medium=badge&utm_source=badge-droidrun&#0045;framework&#0045;for&#0045;mobile&#0045;ai&#0045;agents" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=983810&theme=light&t=1751740003156" alt="Droidrun&#0032;Framework&#0032;for&#0032;mobile&#0032;AI&#0032;Agents&#0032; - Droidrun&#0032;–The&#0032;Missing&#0032;Bridge&#0032;Between&#0032;LLMs&#0032;and&#0032;Mobile&#0032;Devices | Product Hunt" style="width: 200px; height: 43px;" width="200" height="43" /></a>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://api.producthunt.com/widgets/embed-image/v1/top-post-badge.svg?post_id=983810&theme=dark&period=daily&t=1753948032207">
+  <source media="(prefers-color-scheme: light)" srcset="https://api.producthunt.com/widgets/embed-image/v1/top-post-badge.svg?post_id=983810&theme=neutral&period=daily&t=1753948125523">
+  <a href="https://www.producthunt.com/products/droidrun-framework-for-mobile-agent?embed=true&utm_source=badge-top-post-badge&utm_medium=badge&utm_source=badge-droidrun" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/top-post-badge.svg?post_id=983810&theme=neutral&period=daily&t=1753948125523" alt="Droidrun - Give&#0032;AI&#0032;native&#0032;control&#0032;of&#0032;physical&#0032;&#0038;&#0032;virtual&#0032;phones&#0046; | Product Hunt" style="width: 200px; height: 54px;" width="200" height="54" /></a>
+</picture>
 
 
 
