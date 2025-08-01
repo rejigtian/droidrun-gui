@@ -41,6 +41,15 @@ class Tools(ABC):
         pass
 
     @abstractmethod
+    def drag(
+        self, start_x: int, start_y: int, end_x: int, end_y: int, duration_ms: int = 3000
+    ) -> bool:
+        """
+        Drag from the given start coordinates to the given end coordinates.
+        """
+        pass
+
+    @abstractmethod
     def input_text(self, text: str) -> bool:
         """
         Input the given text into a focused input field.
@@ -115,7 +124,7 @@ def describe_tools(tools: Tools) -> Dict[str, Callable[..., Any]]:
         A dictionary mapping tool names to their descriptions.
     """
 
-    return {
+    description = {
         # UI interaction
         "swipe": tools.swipe,
         "input_text": tools.input_text,
@@ -128,3 +137,7 @@ def describe_tools(tools: Tools) -> Dict[str, Callable[..., Any]]:
         "remember": tools.remember,
         "complete": tools.complete,
     }
+    
+    if hasattr(tools, "drag"):
+        description["drag"] = tools.drag
+    return description
