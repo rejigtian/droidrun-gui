@@ -252,6 +252,34 @@ class AdbTools(Tools):
             print(f"Error: {str(e)}")
             return False
 
+    def drag(
+        self, start_x: int, start_y: int, end_x: int, end_y: int, duration: float = 3
+    ) -> bool:
+        """
+        Performs a straight-line drag and drop gesture on the device screen.
+        Args:
+            start_x: Starting X coordinate
+            start_y: Starting Y coordinate
+            end_x: Ending X coordinate
+            end_y: Ending Y coordinate
+            duration: Duration of swipe in seconds
+        Returns:
+            Bool indicating success or failure
+        """
+        try:
+            logger.debug(
+                f"Dragging from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration} seconds"
+            )
+            self.device.drag(start_x, start_y, end_x, end_y, duration)
+            time.sleep(duration)
+            logger.debug(
+                f"Dragged from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration} seconds"
+            )
+            return True
+        except ValueError as e:
+            print(f"Error: {str(e)}")
+            return False
+
     def input_text(self, text: str) -> str:
         """
         Input text on the device.

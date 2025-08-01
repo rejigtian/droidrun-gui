@@ -25,7 +25,7 @@ dependencies = [
     "llama-index-llms-ollama",
     "posthog==6.0.2",
     "typing_extensions",
-    "adbutils==2.9.3",
+    "adbutils==2.10.0",
     "apkutils==2.0.0"
 ]
 requires-python = ">=3.11"

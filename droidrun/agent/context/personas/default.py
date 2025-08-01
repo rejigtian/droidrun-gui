@@ -13,6 +13,7 @@ DEFAULT = AgentPersona(
         Tools.input_text.__name__,
         Tools.press_key.__name__,
         Tools.tap_by_index.__name__,
+        Tools.drag.__name__,
         Tools.start_app.__name__,
         Tools.list_packages.__name__,
         Tools.remember.__name__,
