@@ -13,6 +13,7 @@ from adbutils import adb
 from droidrun.agent.droid import DroidAgent
 from droidrun.agent.utils.llm_picker import load_llm
 from droidrun.tools import AdbTools, IOSTools
+from droidrun.agent.context.personas import DEFAULT, BIG_AGENT
 from functools import wraps
 from droidrun.cli.logs import LogHandler
 from droidrun.telemetry import print_telemetry_message
@@ -79,6 +80,7 @@ async def run_command(
     debug: bool,
     save_trajectory: bool = False,
     ios: bool = False,
+    allow_drag: bool = False,
     **kwargs,
 ):
     """Run a command on your Android device using natural language."""
@@ -114,6 +116,11 @@ async def run_command(
                 logger.info(f"📱 Using device: {device}")
 
             tools = AdbTools(serial=device) if not ios else IOSTools(url=device)
+            # Set excluded tools based on CLI flags
+            excluded_tools = [] if allow_drag else ["drag"]
+            
+            # Select personas based on --drag flag
+            personas = [BIG_AGENT] if allow_drag else [DEFAULT]
 
             # LLM setup
             log_handler.update_step("Initializing LLM...")
@@ -135,10 +142,13 @@ async def run_command(
             if tracing:
                 logger.info("🔍 Tracing enabled")
 
+
             droid_agent = DroidAgent(
                 goal=command,
                 llm=llm,
                 tools=tools,
+                personas=personas,
+                excluded_tools=excluded_tools,
                 max_steps=steps,
                 timeout=1000,
                 vision=vision,
@@ -322,6 +332,13 @@ def cli(
     help="Save agent trajectory to file",
     default=False,
 )
+@click.option(
+    "--drag",
+    "allow_drag",
+    is_flag=True,
+    help="Enable drag tool",
+    default=False,
+)
 @click.option("--ios", is_flag=True, help="Run on iOS device", default=False)
 def run(
     command: str,
@@ -338,6 +355,7 @@ def run(
     tracing: bool,
     debug: bool,
     save_trajectory: bool,
+    allow_drag: bool,
     ios: bool,
 ):
     """Run a command on your Android device using natural language."""
@@ -357,6 +375,7 @@ def run(
         debug,
         temperature=temperature,
         save_trajectory=save_trajectory,
+        allow_drag=allow_drag,
         ios=ios,
     )
 
@@ -539,6 +558,7 @@ if __name__ == "__main__":
     base_url = None
     api_base = None
     ios = False
+    allow_drag = False
     run_command(
         command=command,
         device=device,
@@ -554,5 +574,6 @@ if __name__ == "__main__":
         base_url=base_url,
         api_base=api_base,
         api_key=api_key,
+        allow_drag=allow_drag,
         ios=ios,
     )

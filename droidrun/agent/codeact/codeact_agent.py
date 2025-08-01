@@ -242,7 +242,7 @@ class CodeActAgent(Workflow):
         code = ev.code
         assert code, "Code cannot be empty."
         logger.info(f"⚡ Executing action...")
-        logger.debug(f"Code to execute:\n```python\n{code}\n```")
+        logger.info(f"Code to execute:\n```python\n{code}\n```")
 
         try:
             self.code_exec_counter += 1

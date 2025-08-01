@@ -113,16 +113,18 @@ class Tools(ABC):
         pass
 
 
-def describe_tools(tools: Tools) -> Dict[str, Callable[..., Any]]:
+def describe_tools(tools: Tools, exclude_tools: Optional[List[str]] = None) -> Dict[str, Callable[..., Any]]:
     """
     Describe the tools available for the given Tools instance.
 
     Args:
         tools: The Tools instance to describe.
+        exclude_tools: List of tool names to exclude from the description.
 
     Returns:
         A dictionary mapping tool names to their descriptions.
     """
+    exclude_tools = exclude_tools or []
 
     description = {
         # UI interaction
@@ -138,5 +140,9 @@ def describe_tools(tools: Tools) -> Dict[str, Callable[..., Any]]:
         "remember": tools.remember,
         "complete": tools.complete,
     }
+
+    # Remove excluded tools
+    for tool_name in exclude_tools:
+        description.pop(tool_name, None)
 
     return description
