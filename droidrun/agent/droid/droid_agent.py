@@ -69,6 +69,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         enable_tracing: bool = False,
         debug: bool = False,
         save_trajectories: bool = False,
+        excluded_tools: List[str] = None,
         *args,
         **kwargs
     ):
@@ -118,12 +119,14 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         self.trajectory = Trajectory()
         self.task_manager = TaskManager()
         self.task_iter = None
+
+        
         self.cim = ContextInjectionManager(personas=personas)
         self.current_episodic_memory = None
 
         logger.info("🤖 Initializing DroidAgent...")
         
-        self.tool_list = describe_tools(tools)
+        self.tool_list = describe_tools(tools, excluded_tools)
         self.tools_instance = tools
 
 

@@ -1,9 +1,9 @@
 from droidrun.agent.context.agent_persona import AgentPersona
 from droidrun.tools import Tools
 
-DEFAULT = AgentPersona(
-    name="Default",
-    description="Default Agent. Use this as your Default",
+BIG_AGENT = AgentPersona(
+    name="Big Agent",
+    description="Big Agent. Use this as your Big Agent",
     expertise_areas=[
         "UI navigation", "button interactions", "text input", 
         "menu navigation", "form filling", "scrolling", "app launching"
@@ -12,6 +12,7 @@ DEFAULT = AgentPersona(
         Tools.swipe.__name__,
         Tools.input_text.__name__,
         Tools.press_key.__name__,
+        Tools.drag.__name__,
         Tools.tap_by_index.__name__,
         Tools.start_app.__name__,
         Tools.list_packages.__name__,
