@@ -463,7 +463,7 @@ def setup(path: str | None, device: str | None, debug: bool):
 
             console.print(f"[bold blue]Step 1/2: Installing APK:[/] {apk_path}")
             try:
-                device_obj.install(apk_path, uninstall=True, flags=["-g"], silent=True)
+                device_obj.install(apk_path, uninstall=True, flags=["-g"], silent=not debug)
             except Exception as e:
                 console.print(f"[bold red]Installation failed:[/] {e}")
                 return
