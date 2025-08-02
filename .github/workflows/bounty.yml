@@ -116,17 +116,19 @@ jobs:
           GH_TOKEN: ${{ env.PROJECT_TOKEN }}
         run: |
           gh api graphql -f query='
-            mutation($proj:ID!,$item:ID!,$field:ID!,$opt:ID!){
-              updateProjectV2ItemFieldValue(input:{
-                projectId:$proj,
-                itemId:$item,
-                fieldId:$field,
-                value:{ singleSelectOptionId:$opt }
-              }){
-                projectV2Item{ id }
+          mutation($proj:ID!,$item:ID!,$field:ID!,$opt:String!){
+            updateProjectV2ItemFieldValue(input:{
+              projectId: $proj,
+              itemId: $item,
+              fieldId: $field,
+              value: {
+                singleSelectOptionId: $opt
               }
-            }' \
-            -f proj="${PROJECT_ID}" \
-            -f item="${ITEM_ID}" \
-            -f field="${STATUS_FIELD_ID}" \
-            -f opt="${OPTION_ID}"
+            }) {
+              projectV2Item { id }
+            }
+          }' \
+          -f proj="${PROJECT_ID}" \
+          -f item="${ITEM_ID}" \
+          -f field="${STATUS_FIELD_ID}" \
+          -f opt="${OPTION_ID}"
