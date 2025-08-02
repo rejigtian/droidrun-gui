@@ -5,17 +5,14 @@ on:
     types: [labeled]
 
 env:
-  ORG: droidrun      # ← replace
-  PROJECT_NUMBER: 2              # ← replace with your “Bounty Board” project number
+  ORG: droidrun 
+  PROJECT_NUMBER: 2 
   PROJECT_TOKEN: ${{ secrets.BOUNTY_SECRET }}
 
 jobs:
   update_status:
     runs-on: ubuntu-latest
     steps:
-
-      - name: Install GitHub CLI
-        uses: cli/cli@v2
 
       - name: Fetch project & field metadata
         id: metadata
