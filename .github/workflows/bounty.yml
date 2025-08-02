@@ -5,8 +5,8 @@ on:
     types: [labeled]
 
 env:
-  ORG: droidrun      # ← replace
-  PROJECT_NUMBER: 2              # ← replace with your "Bounty Board" project number
+  ORG: droidrun
+  PROJECT_NUMBER: 2
   PROJECT_TOKEN: ${{ secrets.BOUNTY_SECRET }}
 
 jobs:
@@ -84,10 +84,10 @@ jobs:
             }' \
             -f owner="${{ github.repository_owner }}" \
             -f repo="${{ github.event.repository.name }}" \
-            -f number=${{ github.event.issue.number }} \
+            -F number=${{ github.event.issue.number }} \
             --jq '.data.repository.issue as $i |
                    { issueId: $i.id,
-                     itemId: ($i.projectItems.nodes[0]?.id // "") } }'
+                     itemId: ($i.projectItems.nodes[0]?.id // "") } )'
           echo "$ISSUE_NODE_ID" > issue.json
           ISSUE_ID=$(jq -r .issueId issue.json)
           ITEM_ID=$(jq -r .itemId issue.json)
