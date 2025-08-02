@@ -87,7 +87,7 @@ jobs:
             -F number=${{ github.event.issue.number }} \
             --jq '.data.repository.issue as $i |
                    { issueId: $i.id,
-                     itemId: ($i.projectItems.nodes[0]?.id // "") } )'
+                     itemId: ($i.projectItems.nodes[0]?.id // "") }'
           echo "$ISSUE_NODE_ID" > issue.json
           ISSUE_ID=$(jq -r .issueId issue.json)
           ITEM_ID=$(jq -r .itemId issue.json)
