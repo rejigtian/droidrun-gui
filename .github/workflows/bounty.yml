@@ -15,7 +15,7 @@ jobs:
     steps:
 
       - name: Install GitHub CLI
-        uses: cli/cli-action@v2
+        uses: cli/cli@v2
 
       - name: Fetch project & field metadata
         id: metadata
