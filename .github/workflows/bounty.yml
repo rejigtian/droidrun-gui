@@ -64,9 +64,9 @@ jobs:
           LABEL="${{ github.event.label.name }}"
           # map label→ field option name
           case "$LABEL" in
-            eligible)      OPT_NAME="Eligible"      ;;
-            bounty) OPT_NAME="Bounty" ;;
-            claimed)       OPT_NAME="In Progress"   ;;
+            bug)      OPT_NAME="Eligible"      ;;
+            duplicate) OPT_NAME="Bounty" ;;
+            question)       OPT_NAME="In Progress"   ;;
             *) echo "No matching status for $LABEL"; exit 0 ;;
           esac
 
