@@ -77,17 +77,24 @@ jobs:
           GH_TOKEN: ${{ env.PROJECT_TOKEN }}
         run: |
           ISSUE_NODE_ID=$(gh api graphql -f query='
-            query($owner:String!,$repo:String!,$number:Int!){
-              repository(owner:$owner, name:$repo){
-                issue(number:$number){ id, projectItems(first:1){ nodes{ id } } }
+          query($owner:String!,$repo:String!,$number:Int!){
+            repository(owner:$owner, name:$repo){
+              issue(number:$number){
+                id
+                projectItems(first:1){
+                  nodes{ id }
+                }
               }
-            }' \
-            -f owner="${{ github.repository_owner }}" \
-            -f repo="${{ github.event.repository.name }}" \
-            -F number=${{ github.event.issue.number }} \
-            --jq '.data.repository.issue as $i |
-                   { issueId: $i.id,
-                     itemId: ($i.projectItems.nodes[0]?.id // "") }'
+            }
+          }' \
+          -f owner="droidrun" \
+          -f repo="droidrun" \
+          -F number=104 \
+          --jq '.data.repository.issue as $i |
+          { issueId: $i.id,
+            itemId: ($i.projectItems.nodes[0]?.id // "") }' )
+
+          # Save to file
           echo "$ISSUE_NODE_ID" > issue.json
           ISSUE_ID=$(jq -r .issueId issue.json)
           ITEM_ID=$(jq -r .itemId issue.json)
