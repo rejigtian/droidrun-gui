@@ -247,7 +247,10 @@ class CodeActAgent(Workflow):
         try:
             self.code_exec_counter += 1
             result = await self.executor.execute(ctx, code)
-            logger.info(f"💡 Code execution successful. Result: {result}")
+            logger.info(f"💡 Code execution successful. Result: {result['output']}")
+            screenshots = result['screenshots']
+            for screenshot in screenshots[:-1]: # the last screenshot will be captured by next step
+                ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
 
             if self.tools.finished == True:
                 logger.debug("  - Task completed.")
@@ -259,7 +262,7 @@ class CodeActAgent(Workflow):
             
             self.remembered_info = self.tools.memory
             
-            event = TaskExecutionResultEvent(output=str(result))
+            event = TaskExecutionResultEvent(output=str(result['output']))
             ctx.write_event_to_stream(event)
             return event
 
