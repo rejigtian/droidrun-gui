@@ -168,11 +168,15 @@ class PlannerAgent(Workflow):
             try:
                 result = await self.executer.execute(ctx, code)
                 logger.info(f"📝 Planning complete")
-                logger.debug(f"  - Planning code executed. Result: {result}")
+                logger.debug(f"  - Planning code executed. Result: {result['output']}")
+
+                screenshots = result['screenshots']
+                for screenshot in screenshots[:-1]: # the last screenshot will be captured by next step
+                    ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
 
                 await self.chat_memory.aput(
                     ChatMessage(
-                        role="user", content=f"Execution Result:\n```\n{result}\n```"
+                        role="user", content=f"Execution Result:\n```\n{result['output']}\n```"
                     )
                 )
 

@@ -4,12 +4,14 @@ UI Actions - Core UI interaction tools for Android device control.
 
 import os
 import io
+import sys
 import json
 import time
 import logging
 from typing_extensions import Optional, Dict, Tuple, List, Any, Type, Self
 from droidrun.tools.tools import Tools
 from adbutils import adb
+from functools import wraps
 
 logger = logging.getLogger("droidrun-tools")
 
@@ -34,6 +36,30 @@ class AdbTools(Tools):
         self.memory: List[str] = []
         # Store all screenshots with timestamps
         self.screenshots: List[Dict[str, Any]] = []
+
+    @staticmethod
+    def ui_action(func):
+        """"
+        Decorator to capture screenshots and UI states for actions that modify the UI.
+        """
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            self = args[0]
+            result = func(*args, **kwargs)
+            
+            frame = sys._getframe(1)
+            caller_globals = frame.f_globals
+            
+            step_screenshots = caller_globals.get('step_screenshots')
+            step_ui_states = caller_globals.get('step_ui_states')
+            
+            if step_screenshots is not None:
+                step_screenshots.append(self.take_screenshot()[1])
+            if step_ui_states is not None:
+                step_ui_states.append(self.get_state())
+            
+            return result
+        return wrapper
 
     def _parse_content_provider_output(
         self, raw_output: str
@@ -82,6 +108,7 @@ class AdbTools(Tools):
         except json.JSONDecodeError:
             return None
 
+    @ui_action
     def tap_by_index(self, index: int) -> str:
         """
         Tap on a UI element by its index.
@@ -223,6 +250,7 @@ class AdbTools(Tools):
         """
         return self.tap_by_index(index)
 
+    @ui_action
     def swipe(
         self, start_x: int, start_y: int, end_x: int, end_y: int, duration: float = 0.3
     ) -> bool:
@@ -252,6 +280,7 @@ class AdbTools(Tools):
             print(f"Error: {str(e)}")
             return False
 
+    @ui_action
     def drag(
         self, start_x: int, start_y: int, end_x: int, end_y: int, duration: float = 3
     ) -> bool:
@@ -280,6 +309,7 @@ class AdbTools(Tools):
             print(f"Error: {str(e)}")
             return False
 
+    @ui_action
     def input_text(self, text: str) -> str:
         """
         Input text on the device.
@@ -330,6 +360,7 @@ class AdbTools(Tools):
         except Exception as e:
             return f"Error sending text input: {str(e)}"
 
+    @ui_action
     def back(self) -> str:
         """
         Go back on the current view.
@@ -342,6 +373,7 @@ class AdbTools(Tools):
         except ValueError as e:
             return f"Error: {str(e)}"
 
+    @ui_action
     def press_key(self, keycode: int) -> str:
         """
         Press a key on the Android device.
@@ -371,6 +403,7 @@ class AdbTools(Tools):
         except ValueError as e:
             return f"Error: {str(e)}"
 
+    @ui_action
     def start_app(self, package: str, activity: str | None = None) -> str:
         """
         Start an app on the device.
@@ -466,6 +499,7 @@ class AdbTools(Tools):
         except ValueError as e:
             raise ValueError(f"Error listing packages: {str(e)}")
 
+    @ui_action
     def complete(self, success: bool, reason: str = ""):
         """
         Mark the task as finished.
