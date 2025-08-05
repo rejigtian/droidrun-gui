@@ -23,6 +23,7 @@ from droidrun.portal import (
     PORTAL_PACKAGE_NAME,
     ping_portal,
 )
+from droidrun.macro.cli import macro_cli
 
 # Suppress all warnings
 warnings.filterwarnings("ignore")
@@ -550,6 +551,10 @@ def ping(device: str | None, debug: bool):
             import traceback
 
             traceback.print_exc()
+
+
+# Add macro commands as a subgroup
+cli.add_command(macro_cli, name="macro")
 
 
 if __name__ == "__main__":

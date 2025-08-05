@@ -7,11 +7,13 @@ import io
 import json
 import time
 import logging
-import requests
-import base64
+from llama_index.core.workflow import Context
 from typing_extensions import Optional, Dict, Tuple, List, Any, Type, Self
+from droidrun.agent.common.events import InputTextActionEvent, KeyPressActionEvent, StartAppEvent, SwipeActionEvent, TapActionEvent
 from droidrun.tools.tools import Tools
 from adbutils import adb
+import requests
+import base64
 
 logger = logging.getLogger("droidrun-tools")
 
@@ -33,6 +35,7 @@ class AdbTools(Tools):
         self.tcp_base_url = f"http://localhost:{tcp_port}"
         self.tcp_forwarded = False
         
+        self._ctx = None
         # Instance‐level cache for clickable elements (index-based tapping)
         self.clickable_elements_cache: List[Dict[str, Any]] = []
         self.last_screenshot = None
@@ -103,6 +106,10 @@ class AdbTools(Tools):
         """Cleanup when the object is destroyed."""
         if hasattr(self, 'tcp_forwarded') and self.tcp_forwarded:
             self.teardown_tcp_forward()
+
+            
+    def _set_context(self, ctx: Context):
+        self._ctx = ctx
 
     def _parse_content_provider_output(
         self, raw_output: str
@@ -230,6 +237,23 @@ class AdbTools(Tools):
             self.device.click(x, y)
             logger.debug(f"Tapped element with index {index} at coordinates ({x}, {y})")
 
+            # Emit coordinate action event for trajectory recording
+            
+            if self._ctx:
+                element_text = element.get("text", "No text")
+                element_class = element.get("className", "Unknown class")
+                
+                tap_event = TapActionEvent(
+                    action_type="tap",
+                    description=f"Tap element at index {index}: '{element_text}' ({element_class}) at coordinates ({x}, {y})",
+                    x=x,
+                    y=y,
+                    element_index=index,
+                    element_text=element_text,
+                    element_bounds=bounds_str
+                )
+                self._ctx.write_event_to_stream(tap_event)
+
             # Add a small delay to allow UI to update
             time.sleep(0.5)
 
@@ -293,7 +317,7 @@ class AdbTools(Tools):
         return self.tap_by_index(index)
 
     def swipe(
-        self, start_x: int, start_y: int, end_x: int, end_y: int, duration: float = 0.3
+        self, start_x: int, start_y: int, end_x: int, end_y: int, duration_ms: float = 300
     ) -> bool:
         """
         Performs a straight-line swipe gesture on the device screen.
@@ -308,13 +332,23 @@ class AdbTools(Tools):
             Bool indicating success or failure
         """
         try:
+            
+            if self._ctx:
+                swipe_event = SwipeActionEvent(
+                    action_type="swipe",
+                    description=f"Swipe from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration_ms} milliseconds",
+                    start_x=start_x,
+                    start_y=start_y,
+                    end_x=end_x,
+                    end_y=end_y,
+                    duration_ms=duration_ms
+                )
+                self._ctx.write_event_to_stream(swipe_event)
+        
+            self.device.swipe(start_x, start_y, end_x, end_y, float(duration_ms / 1000))
+            time.sleep(duration_ms / 1000)
             logger.debug(
-                f"Swiping from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration} seconds"
-            )
-            self.device.swipe(start_x, start_y, end_x, end_y, duration)
-            time.sleep(duration)
-            logger.debug(
-                f"Swiped from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration} seconds"
+                f"Swiped from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration_ms} milliseconds"
             )
             return True
         except ValueError as e:
@@ -377,13 +411,9 @@ class AdbTools(Tools):
                 
                 logger.debug(f"Keyboard input TCP response: {response.status_code}, {response.text}")
                 
-                if response.status_code == 200:
-                    logger.debug(
-                        f"Text input completed via TCP: {text[:50]}{'...' if len(text) > 50 else ''}"
-                    )
-                    return f"Text input completed: {text[:50]}{'...' if len(text) > 50 else ''}"
-                else:
+                if response.status_code != 200:
                     return f"Error: HTTP request failed with status {response.status_code}: {response.text}"
+                
                     
             else:
                 # Fallback to content provider method
@@ -417,6 +447,19 @@ class AdbTools(Tools):
                     f"Text input completed: {text[:50]}{'...' if len(text) > 50 else ''}"
                 )
                 return f"Text input completed: {text[:50]}{'...' if len(text) > 50 else ''}"
+
+            if self._ctx:
+                input_event = InputTextActionEvent(
+                    action_type="input_text",
+                    description=f"Input text: '{text[:50]}{'...' if len(text) > 50 else ''}'",
+                    text=text
+                )
+                self._ctx.write_event_to_stream(input_event)
+
+            logger.debug(
+                f"Text input completed: {text[:50]}{'...' if len(text) > 50 else ''}"
+            )
+            return f"Text input completed: {text[:50]}{'...' if len(text) > 50 else ''}"
                 
         except requests.exceptions.RequestException as e:
             return f"Error: TCP request failed: {str(e)}"
@@ -459,6 +502,15 @@ class AdbTools(Tools):
             }
             key_name = key_names.get(keycode, str(keycode))
 
+            if self._ctx:
+                key_event = KeyPressActionEvent(
+                    action_type="key_press",
+                    description=f"Pressed key {key_name}",
+                    keycode=keycode,
+                    key_name=key_name
+                )
+                self._ctx.write_event_to_stream(key_event)
+            
             logger.debug(f"Pressing key {key_name}")
             self.device.keyevent(keycode)
             logger.debug(f"Pressed key {key_name}")
@@ -475,11 +527,22 @@ class AdbTools(Tools):
             activity: Optional activity name
         """
         try:
+
+
             logger.debug(f"Starting app {package} with activity {activity}")
             if not activity:
-                # Find launcher activity from dumpsys
                 dumpsys_output = self.device.shell(f"cmd package resolve-activity --brief {package}") 
                 activity = dumpsys_output.splitlines()[1].split("/")[1]
+
+
+            if self._ctx:
+                start_app_event = StartAppEvent(
+                    action_type="start_app",
+                    description=f"Start app {package}",
+                    package=package,
+                    activity=activity
+                )
+                self._ctx.write_event_to_stream(start_app_event)
 
             print(f"Activity: {activity}")
 
@@ -915,6 +978,59 @@ class AdbTools(Tools):
                 "status": "error",
                 "message": f"Error during ping: {str(e)}",
             }
+
+
+def _shell_test_cli(serial: str, command: str) -> tuple[str, float]:
+    """
+    Run an adb shell command using the adb CLI and measure execution time.
+    Args:
+        serial: Device serial number
+        command: Shell command to run
+    Returns:
+        Tuple of (output, elapsed_time)
+    """
+    import time
+    import subprocess
+
+    adb_cmd = ["adb", "-s", serial, "shell", command]
+    start = time.perf_counter()
+    result = subprocess.run(adb_cmd, capture_output=True, text=True)
+    elapsed = time.perf_counter() - start
+    output = result.stdout.strip() if result.returncode == 0 else result.stderr.strip()
+    return output, elapsed
+
+
+def _shell_test():
+    device = adb.device("emulator-5554")
+    # Native Python adb client
+    start = time.time()
+    res = device.shell("echo 'Hello, World!'")
+    end = time.time()
+    print(f"[Native] Shell execution took {end - start:.3f} seconds: {res}")
+
+    start = time.time()
+    res = device.shell("content query --uri content://com.droidrun.portal/state")
+    end = time.time()
+    print(f"[Native] Shell execution took {end - start:.3f} seconds: phone_state")
+
+    # CLI version
+    output, elapsed = _shell_test_cli("emulator-5554", "echo 'Hello, World!'")
+    print(f"[CLI] Shell execution took {elapsed:.3f} seconds: {output}")
+
+    output, elapsed = _shell_test_cli(
+        "emulator-5554", "content query --uri content://com.droidrun.portal/state"
+    )
+    print(f"[CLI] Shell execution took {elapsed:.3f} seconds: phone_state")
+
+
+def _list_packages():
+    tools = AdbTools()
+    print(tools.list_packages())
+
+
+def _start_app():
+    tools = AdbTools()
+    tools.start_app("com.android.settings", ".Settings")
 
 
 def _shell_test_cli(serial: str, command: str) -> tuple[str, float]:
