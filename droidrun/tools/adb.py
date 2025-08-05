@@ -527,23 +527,60 @@ class AdbTools(Tools):
         """
         try:
             logger.debug("Taking screenshot")
-            img = self.device.screenshot()
-            img_buf = io.BytesIO()
-            img_format = "PNG"
-            img.save(img_buf, format=img_format)
-            logger.debug("Screenshot taken")
+            
+            if self.use_tcp and self.tcp_forwarded:
+                # Use TCP communication
+                response = requests.get(f"{self.tcp_base_url}/screenshot", timeout=15)
+                
+                if response.status_code == 200:
+                    tcp_response = response.json()
+                    
+                    # Check if response has the expected format with data field
+                    if isinstance(tcp_response, dict) and "data" in tcp_response:
+                        base64_data = tcp_response["data"]
+                        try:
+                            # Decode base64 to get image bytes
+                            image_bytes = base64.b64decode(base64_data)
+                            img_format = "PNG"  # Assuming PNG format from TCP endpoint
+                            logger.debug("Screenshot taken via TCP")
+                        except Exception as e:
+                            raise ValueError(f"Failed to decode base64 screenshot data: {str(e)}")
+                    else:
+                        # Fallback: assume direct base64 format
+                        try:
+                            image_bytes = base64.b64decode(tcp_response)
+                            img_format = "PNG"
+                            logger.debug("Screenshot taken via TCP (direct base64)")
+                        except Exception as e:
+                            raise ValueError(f"Failed to decode screenshot response: {str(e)}")
+                else:
+                    raise ValueError(f"HTTP request failed with status {response.status_code}: {response.text}")
+                    
+            else:
+                # Fallback to ADB screenshot method
+                img = self.device.screenshot()
+                img_buf = io.BytesIO()
+                img_format = "PNG"
+                img.save(img_buf, format=img_format)
+                image_bytes = img_buf.getvalue()
+                logger.debug("Screenshot taken via ADB")
 
             # Store screenshot with timestamp
             self.screenshots.append(
                 {
                     "timestamp": time.time(),
-                    "image_data": img_buf.getvalue(),
-                    "format": img_format,  # Usually 'PNG'
+                    "image_data": image_bytes,
+                    "format": img_format,
                 }
             )
-            return img_format, img_buf.getvalue()
+            return img_format, image_bytes
+            
+        except requests.exceptions.RequestException as e:
+            raise ValueError(f"Error taking screenshot via TCP: {str(e)}")
         except ValueError as e:
             raise ValueError(f"Error taking screenshot: {str(e)}")
+        except Exception as e:
+            raise ValueError(f"Unexpected error taking screenshot: {str(e)}")
 
     def list_packages(self, include_system_apps: bool = False) -> List[str]:
         """
