@@ -130,9 +130,10 @@ class PlannerAgent(Workflow):
         self.steps_counter += 1
         logger.info(f"🧠 Thinking about how to plan the goal...")
 
+        # if vision is disabled, screenshot should save to trajectory
+        screenshot = (self.tools_instance.take_screenshot())[1]
+        ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
         if self.vision:
-            screenshot = (self.tools_instance.take_screenshot())[1]
-            ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
             await ctx.set("screenshot", screenshot)
 
         try:

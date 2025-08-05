@@ -2,6 +2,8 @@ from abc import ABC, abstractmethod
 from typing import List, Optional, Dict, Any
 import logging
 from typing import Tuple, Dict, Callable, Any, Optional
+from functools import wraps
+import sys
 
 # Get a logger for this module
 logger = logging.getLogger(__name__)
@@ -12,6 +14,30 @@ class Tools(ABC):
     Abstract base class for all tools.
     This class provides a common interface for all tools to implement.
     """
+
+    @staticmethod
+    def ui_action(func):
+        """"
+        Decorator to capture screenshots and UI states for actions that modify the UI.
+        """
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            self = args[0]
+            result = func(*args, **kwargs)
+            
+            frame = sys._getframe(1)
+            caller_globals = frame.f_globals
+            
+            step_screenshots = caller_globals.get('step_screenshots')
+            step_ui_states = caller_globals.get('step_ui_states')
+            
+            if step_screenshots is not None:
+                step_screenshots.append(self.take_screenshot()[1])
+            if step_ui_states is not None:
+                step_ui_states.append(self.get_state())
+            
+            return result
+        return wrapper
 
     @abstractmethod
     def get_state(self) -> Dict[str, Any]:

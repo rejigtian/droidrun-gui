@@ -168,12 +168,14 @@ class CodeActAgent(Workflow):
                 logger.warning(
                     "[yellow]DeepSeek doesnt support images. Disabling screenshots[/]"
                 )
-            elif self.vision == True and context == "screenshot":
+            elif context == "screenshot":
+                # if vision is disabled, screenshot should save to trajectory
                 screenshot = (self.tools.take_screenshot())[1]
                 ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
 
                 await ctx.set("screenshot", screenshot)
-                chat_history = await chat_utils.add_screenshot_image_block(screenshot, chat_history)
+                if self.vision == True: # if vision is enabled, add screenshot to chat history
+                    chat_history = await chat_utils.add_screenshot_image_block(screenshot, chat_history)
 
             if context == "ui_state":
                 try:
