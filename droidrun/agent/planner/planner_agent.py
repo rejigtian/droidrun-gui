@@ -246,15 +246,15 @@ wrap your code inside this:
             logger.debug(f"  - Sending {len(chat_history)} messages to LLM.")
 
             model = self.llm.class_name()
-            if model == "DeepSeek":
-                logger.warning(
-                    "[yellow]DeepSeek doesnt support images. Disabling screenshots[/]"
-                )
-
-            elif self.vision == True:
-                chat_history = await chat_utils.add_screenshot_image_block(
-                    await ctx.get("screenshot"), chat_history
-                )                   
+            if self.vision == True:
+                if model == "DeepSeek":
+                    logger.warning(
+                        "[yellow]DeepSeek doesnt support images. Disabling screenshots[/]"
+                    )
+                else:
+                    chat_history = await chat_utils.add_screenshot_image_block(
+                        await ctx.get("screenshot"), chat_history
+                    )                   
 
 
 
