@@ -25,16 +25,18 @@ class Tools(ABC):
             self = args[0]
             result = func(*args, **kwargs)
             
-            frame = sys._getframe(1)
-            caller_globals = frame.f_globals
-            
-            step_screenshots = caller_globals.get('step_screenshots')
-            step_ui_states = caller_globals.get('step_ui_states')
-            
-            if step_screenshots is not None:
-                step_screenshots.append(self.take_screenshot()[1])
-            if step_ui_states is not None:
-                step_ui_states.append(self.get_state())
+            # Check if save_trajectories attribute exists and is set to "action"
+            if hasattr(self, 'save_trajectories') and self.save_trajectories == "action":
+                frame = sys._getframe(1)
+                caller_globals = frame.f_globals
+                
+                step_screenshots = caller_globals.get('step_screenshots')
+                step_ui_states = caller_globals.get('step_ui_states')
+                
+                if step_screenshots is not None:
+                    step_screenshots.append(self.take_screenshot()[1])
+                if step_ui_states is not None:
+                    step_ui_states.append(self.get_state())
             
             return result
         return wrapper

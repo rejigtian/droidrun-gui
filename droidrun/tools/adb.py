@@ -36,6 +36,8 @@ class AdbTools(Tools):
         self.memory: List[str] = []
         # Store all screenshots with timestamps
         self.screenshots: List[Dict[str, Any]] = []
+        # Trajectory saving level
+        self.save_trajectories = "none"
 
     def _parse_content_provider_output(
         self, raw_output: str
