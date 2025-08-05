@@ -19,12 +19,12 @@ logger = logging.getLogger("droidrun-tools")
 class AdbTools(Tools):
     """Core UI interaction tools for Android device control."""
 
-    def __init__(self, serial: str | None = None, use_tcp: bool = True, tcp_port: int = 8080) -> None:
+    def __init__(self, serial: str | None = None, use_tcp: bool = False, tcp_port: int = 8080) -> None:
         """Initialize the AdbTools instance.
 
         Args:
             serial: Device serial number
-            use_tcp: Whether to use TCP communication (default: True)
+            use_tcp: Whether to use TCP communication (default: False)
             tcp_port: TCP port for communication (default: 8080)
         """
         self.device = adb.device(serial=serial)
