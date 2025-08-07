@@ -190,11 +190,11 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         
         logger.info("✅ DroidAgent initialized successfully.")
 
-    def run(self) -> WorkflowHandler:
+    def run(self, *args, **kwargs) -> WorkflowHandler:
         """
         Run the DroidAgent workflow.
         """
-        return super().run()
+        return super().run(*args, **kwargs)
     
     @step
     async def execute_task(
