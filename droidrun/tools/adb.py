@@ -8,10 +8,20 @@ import sys
 import json
 import time
 import logging
+from llama_index.core.workflow import Context
 from typing_extensions import Optional, Dict, Tuple, List, Any, Type, Self
+from droidrun.agent.common.events import (
+    InputTextActionEvent,
+    KeyPressActionEvent,
+    StartAppEvent,
+    SwipeActionEvent,
+    TapActionEvent,
+    DragActionEvent,
+)
 from droidrun.tools.tools import Tools
 from adbutils import adb
-from functools import wraps
+import requests
+import base64
 
 logger = logging.getLogger("droidrun-tools")
 
@@ -19,13 +29,23 @@ logger = logging.getLogger("droidrun-tools")
 class AdbTools(Tools):
     """Core UI interaction tools for Android device control."""
 
-    def __init__(self, serial: str | None = None) -> None:
+    def __init__(
+        self, serial: str | None = None, use_tcp: bool = False, tcp_port: int = 8080
+    ) -> None:
         """Initialize the AdbTools instance.
 
         Args:
             serial: Device serial number
+            use_tcp: Whether to use TCP communication (default: False)
+            tcp_port: TCP port for communication (default: 8080)
         """
         self.device = adb.device(serial=serial)
+        self.use_tcp = use_tcp
+        self.tcp_port = tcp_port
+        self.tcp_base_url = f"http://localhost:{tcp_port}"
+        self.tcp_forwarded = False
+
+        self._ctx = None
         # Instance‐level cache for clickable elements (index-based tapping)
         self.clickable_elements_cache: List[Dict[str, Any]] = []
         self.last_screenshot = None
@@ -38,6 +58,73 @@ class AdbTools(Tools):
         self.screenshots: List[Dict[str, Any]] = []
         # Trajectory saving level
         self.save_trajectories = "none"
+
+        # Set up TCP forwarding if requested
+        if self.use_tcp:
+            self.setup_tcp_forward()
+
+    def setup_tcp_forward(self) -> bool:
+        """
+        Set up ADB TCP port forwarding for communication with the portal app.
+
+        Returns:
+            bool: True if forwarding was set up successfully, False otherwise
+        """
+        try:
+            logger.debug(
+                f"Setting up TCP port forwarding: tcp:{self.tcp_port} tcp:{self.tcp_port}"
+            )
+            # Use adb forward command to set up port forwarding
+            result = self.device.forward(f"tcp:{self.tcp_port}", f"tcp:{self.tcp_port}")
+            self.tcp_forwarded = True
+            logger.debug(f"TCP port forwarding set up successfully: {result}")
+
+            # Test the connection with a ping
+            try:
+                response = requests.get(f"{self.tcp_base_url}/ping", timeout=5)
+                if response.status_code == 200:
+                    logger.debug("TCP connection test successful")
+                    return True
+                else:
+                    logger.warning(
+                        f"TCP connection test failed with status: {response.status_code}"
+                    )
+                    return False
+            except requests.exceptions.RequestException as e:
+                logger.warning(f"TCP connection test failed: {e}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Failed to set up TCP port forwarding: {e}")
+            self.tcp_forwarded = False
+            return False
+
+    def teardown_tcp_forward(self) -> bool:
+        """
+        Remove ADB TCP port forwarding.
+
+        Returns:
+            bool: True if forwarding was removed successfully, False otherwise
+        """
+        try:
+            if self.tcp_forwarded:
+                logger.debug(f"Removing TCP port forwarding for port {self.tcp_port}")
+                result = self.device.forward_remove(f"tcp:{self.tcp_port}")
+                self.tcp_forwarded = False
+                logger.debug(f"TCP port forwarding removed: {result}")
+                return True
+            return True
+        except Exception as e:
+            logger.error(f"Failed to remove TCP port forwarding: {e}")
+            return False
+
+    def __del__(self):
+        """Cleanup when the object is destroyed."""
+        if hasattr(self, "tcp_forwarded") and self.tcp_forwarded:
+            self.teardown_tcp_forward()
+
+    def _set_context(self, ctx: Context):
+        self._ctx = ctx
 
     def _parse_content_provider_output(
         self, raw_output: str
@@ -166,6 +253,23 @@ class AdbTools(Tools):
             self.device.click(x, y)
             logger.debug(f"Tapped element with index {index} at coordinates ({x}, {y})")
 
+            # Emit coordinate action event for trajectory recording
+
+            if self._ctx:
+                element_text = element.get("text", "No text")
+                element_class = element.get("className", "Unknown class")
+
+                tap_event = TapActionEvent(
+                    action_type="tap",
+                    description=f"Tap element at index {index}: '{element_text}' ({element_class}) at coordinates ({x}, {y})",
+                    x=x,
+                    y=y,
+                    element_index=index,
+                    element_text=element_text,
+                    element_bounds=bounds_str,
+                )
+                self._ctx.write_event_to_stream(tap_event)
+
             # Add a small delay to allow UI to update
             time.sleep(0.5)
 
@@ -230,7 +334,12 @@ class AdbTools(Tools):
 
     @Tools.ui_action
     def swipe(
-        self, start_x: int, start_y: int, end_x: int, end_y: int, duration: float = 0.3
+        self,
+        start_x: int,
+        start_y: int,
+        end_x: int,
+        end_y: int,
+        duration_ms: float = 300,
     ) -> bool:
         """
         Performs a straight-line swipe gesture on the device screen.
@@ -245,13 +354,23 @@ class AdbTools(Tools):
             Bool indicating success or failure
         """
         try:
+
+            if self._ctx:
+                swipe_event = SwipeActionEvent(
+                    action_type="swipe",
+                    description=f"Swipe from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration_ms} milliseconds",
+                    start_x=start_x,
+                    start_y=start_y,
+                    end_x=end_x,
+                    end_y=end_y,
+                    duration_ms=duration_ms,
+                )
+                self._ctx.write_event_to_stream(swipe_event)
+
+            self.device.swipe(start_x, start_y, end_x, end_y, float(duration_ms / 1000))
+            time.sleep(duration_ms / 1000)
             logger.debug(
-                f"Swiping from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration} seconds"
-            )
-            self.device.swipe(start_x, start_y, end_x, end_y, duration)
-            time.sleep(duration)
-            logger.debug(
-                f"Swiped from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration} seconds"
+                f"Swiped from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration_ms} milliseconds"
             )
             return True
         except ValueError as e:
@@ -278,6 +397,19 @@ class AdbTools(Tools):
                 f"Dragging from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration} seconds"
             )
             self.device.drag(start_x, start_y, end_x, end_y, duration)
+
+            if self._ctx:
+                drag_event = DragActionEvent(
+                    action_type="drag",
+                    description=f"Drag from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration} seconds",
+                    start_x=start_x,
+                    start_y=start_y,
+                    end_x=end_x,
+                    end_y=end_y,
+                    duration=duration,
+                )
+                self._ctx.write_event_to_stream(drag_event)
+
             time.sleep(duration)
             logger.debug(
                 f"Dragged from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration} seconds"
@@ -301,38 +433,76 @@ class AdbTools(Tools):
         """
         try:
             logger.debug(f"Inputting text: {text}")
-            # Save the current keyboard
-            original_ime = self.device.shell("settings get secure default_input_method")
-            original_ime = original_ime.strip()
 
-            # Enable the Droidrun keyboard
-            self.device.shell("ime enable com.droidrun.portal/.DroidrunKeyboardIME")
+            if self.use_tcp and self.tcp_forwarded:
+                # Use TCP communication
+                encoded_text = base64.b64encode(text.encode()).decode()
 
-            # Set the Droidrun keyboard as the default
-            self.device.shell("ime set com.droidrun.portal/.DroidrunKeyboardIME")
+                payload = {"base64_text": encoded_text}
+                response = requests.post(
+                    f"{self.tcp_base_url}/keyboard/input",
+                    json=payload,
+                    headers={"Content-Type": "application/json"},
+                    timeout=10,
+                )
 
-            # Wait for keyboard to change
-            time.sleep(1)
+                logger.debug(
+                    f"Keyboard input TCP response: {response.status_code}, {response.text}"
+                )
 
-            # Encode the text to Base64
-            import base64
+                if response.status_code != 200:
+                    return f"Error: HTTP request failed with status {response.status_code}: {response.text}"
 
-            encoded_text = base64.b64encode(text.encode()).decode()
+            else:
+                # Fallback to content provider method
+                # Save the current keyboard
+                original_ime = self.device.shell(
+                    "settings get secure default_input_method"
+                )
+                original_ime = original_ime.strip()
 
-            cmd = f'content insert --uri "content://com.droidrun.portal/keyboard/input" --bind base64_text:s:"{encoded_text}"'
-            self.device.shell(cmd)
+                # Enable the Droidrun keyboard
+                self.device.shell("ime enable com.droidrun.portal/.DroidrunKeyboardIME")
 
-            # Wait for text input to complete
-            time.sleep(0.5)
+                # Set the Droidrun keyboard as the default
+                self.device.shell("ime set com.droidrun.portal/.DroidrunKeyboardIME")
 
-            # Restore the original keyboard
-            if original_ime and "com.droidrun.portal" not in original_ime:
-                self.device.shell(f"ime set {original_ime}")
+                # Wait for keyboard to change
+                time.sleep(1)
+
+                # Encode the text to Base64
+                encoded_text = base64.b64encode(text.encode()).decode()
+
+                cmd = f'content insert --uri "content://com.droidrun.portal/keyboard/input" --bind base64_text:s:"{encoded_text}"'
+                self.device.shell(cmd)
+
+                # Wait for text input to complete
+                time.sleep(0.5)
+
+                # Restore the original keyboard
+                if original_ime and "com.droidrun.portal" not in original_ime:
+                    self.device.shell(f"ime set {original_ime}")
+
+                logger.debug(
+                    f"Text input completed: {text[:50]}{'...' if len(text) > 50 else ''}"
+                )
+                return f"Text input completed: {text[:50]}{'...' if len(text) > 50 else ''}"
+
+            if self._ctx:
+                input_event = InputTextActionEvent(
+                    action_type="input_text",
+                    description=f"Input text: '{text[:50]}{'...' if len(text) > 50 else ''}'",
+                    text=text,
+                )
+                self._ctx.write_event_to_stream(input_event)
 
             logger.debug(
                 f"Text input completed: {text[:50]}{'...' if len(text) > 50 else ''}"
             )
             return f"Text input completed: {text[:50]}{'...' if len(text) > 50 else ''}"
+
+        except requests.exceptions.RequestException as e:
+            return f"Error: TCP request failed: {str(e)}"
         except ValueError as e:
             return f"Error: {str(e)}"
         except Exception as e:
@@ -347,6 +517,16 @@ class AdbTools(Tools):
         try:
             logger.debug("Pressing key BACK")
             self.device.keyevent(3)
+
+            if self._ctx:
+                key_event = KeyPressActionEvent(
+                    action_type="key_press",
+                    description=f"Pressed key BACK",
+                    keycode=3,
+                    key_name="BACK",
+                )
+                self._ctx.write_event_to_stream(key_event)
+
             return f"Pressed key BACK"
         except ValueError as e:
             return f"Error: {str(e)}"
@@ -374,6 +554,15 @@ class AdbTools(Tools):
             }
             key_name = key_names.get(keycode, str(keycode))
 
+            if self._ctx:
+                key_event = KeyPressActionEvent(
+                    action_type="key_press",
+                    description=f"Pressed key {key_name}",
+                    keycode=keycode,
+                    key_name=key_name,
+                )
+                self._ctx.write_event_to_stream(key_event)
+
             logger.debug(f"Pressing key {key_name}")
             self.device.keyevent(keycode)
             logger.debug(f"Pressed key {key_name}")
@@ -391,11 +580,22 @@ class AdbTools(Tools):
             activity: Optional activity name
         """
         try:
+
             logger.debug(f"Starting app {package} with activity {activity}")
             if not activity:
-                # Find launcher activity from dumpsys
-                dumpsys_output = self.device.shell(f"cmd package resolve-activity --brief {package}") 
+                dumpsys_output = self.device.shell(
+                    f"cmd package resolve-activity --brief {package}"
+                )
                 activity = dumpsys_output.splitlines()[1].split("/")[1]
+
+            if self._ctx:
+                start_app_event = StartAppEvent(
+                    action_type="start_app",
+                    description=f"Start app {package}",
+                    package=package,
+                    activity=activity,
+                )
+                self._ctx.write_event_to_stream(start_app_event)
 
             print(f"Activity: {activity}")
 
@@ -443,23 +643,66 @@ class AdbTools(Tools):
         """
         try:
             logger.debug("Taking screenshot")
-            img = self.device.screenshot()
-            img_buf = io.BytesIO()
-            img_format = "PNG"
-            img.save(img_buf, format=img_format)
-            logger.debug("Screenshot taken")
+
+            if self.use_tcp and self.tcp_forwarded:
+                # Use TCP communication
+                response = requests.get(f"{self.tcp_base_url}/screenshot", timeout=15)
+
+                if response.status_code == 200:
+                    tcp_response = response.json()
+
+                    # Check if response has the expected format with data field
+                    if isinstance(tcp_response, dict) and "data" in tcp_response:
+                        base64_data = tcp_response["data"]
+                        try:
+                            # Decode base64 to get image bytes
+                            image_bytes = base64.b64decode(base64_data)
+                            img_format = "PNG"  # Assuming PNG format from TCP endpoint
+                            logger.debug("Screenshot taken via TCP")
+                        except Exception as e:
+                            raise ValueError(
+                                f"Failed to decode base64 screenshot data: {str(e)}"
+                            )
+                    else:
+                        # Fallback: assume direct base64 format
+                        try:
+                            image_bytes = base64.b64decode(tcp_response)
+                            img_format = "PNG"
+                            logger.debug("Screenshot taken via TCP (direct base64)")
+                        except Exception as e:
+                            raise ValueError(
+                                f"Failed to decode screenshot response: {str(e)}"
+                            )
+                else:
+                    raise ValueError(
+                        f"HTTP request failed with status {response.status_code}: {response.text}"
+                    )
+
+            else:
+                # Fallback to ADB screenshot method
+                img = self.device.screenshot()
+                img_buf = io.BytesIO()
+                img_format = "PNG"
+                img.save(img_buf, format=img_format)
+                image_bytes = img_buf.getvalue()
+                logger.debug("Screenshot taken via ADB")
 
             # Store screenshot with timestamp
             self.screenshots.append(
                 {
                     "timestamp": time.time(),
-                    "image_data": img_buf.getvalue(),
-                    "format": img_format,  # Usually 'PNG'
+                    "image_data": image_bytes,
+                    "format": img_format,
                 }
             )
-            return img_format, img_buf.getvalue()
+            return img_format, image_bytes
+
+        except requests.exceptions.RequestException as e:
+            raise ValueError(f"Error taking screenshot via TCP: {str(e)}")
         except ValueError as e:
             raise ValueError(f"Error taking screenshot: {str(e)}")
+        except Exception as e:
+            raise ValueError(f"Unexpected error taking screenshot: {str(e)}")
 
     def list_packages(self, include_system_apps: bool = False) -> List[str]:
         """
@@ -546,32 +789,60 @@ class AdbTools(Tools):
 
         try:
             logger.debug("Getting state")
-            adb_output = self.device.shell(
-                "content query --uri content://com.droidrun.portal/state",
-            )
 
-            state_data = self._parse_content_provider_output(adb_output)
+            if self.use_tcp and self.tcp_forwarded:
+                # Use TCP communication
+                response = requests.get(f"{self.tcp_base_url}/state", timeout=10)
 
-            if state_data is None:
-                return {
-                    "error": "Parse Error",
-                    "message": "Failed to parse state data from ContentProvider response",
-                }
+                if response.status_code == 200:
+                    tcp_response = response.json()
 
-            if isinstance(state_data, dict) and "data" in state_data:
-                data_str = state_data["data"]
-                try:
-                    combined_data = json.loads(data_str)
-                except json.JSONDecodeError:
+                    # Check if response has the expected format
+                    if isinstance(tcp_response, dict) and "data" in tcp_response:
+                        data_str = tcp_response["data"]
+                        try:
+                            combined_data = json.loads(data_str)
+                        except json.JSONDecodeError:
+                            return {
+                                "error": "Parse Error",
+                                "message": "Failed to parse JSON data from TCP response data field",
+                            }
+                    else:
+                        # Fallback: assume direct JSON format
+                        combined_data = tcp_response
+                else:
                     return {
-                        "error": "Parse Error",
-                        "message": "Failed to parse JSON data from ContentProvider data field",
+                        "error": "HTTP Error",
+                        "message": f"HTTP request failed with status {response.status_code}",
                     }
             else:
-                return {
-                    "error": "Format Error",
-                    "message": f"Unexpected state data format: {type(state_data)}",
-                }
+                # Fallback to content provider method
+                adb_output = self.device.shell(
+                    "content query --uri content://com.droidrun.portal/state",
+                )
+
+                state_data = self._parse_content_provider_output(adb_output)
+
+                if state_data is None:
+                    return {
+                        "error": "Parse Error",
+                        "message": "Failed to parse state data from ContentProvider response",
+                    }
+
+                if isinstance(state_data, dict) and "data" in state_data:
+                    data_str = state_data["data"]
+                    try:
+                        combined_data = json.loads(data_str)
+                    except json.JSONDecodeError:
+                        return {
+                            "error": "Parse Error",
+                            "message": "Failed to parse JSON data from ContentProvider data field",
+                        }
+                else:
+                    return {
+                        "error": "Format Error",
+                        "message": f"Unexpected state data format: {type(state_data)}",
+                    }
 
             # Validate that both a11y_tree and phone_state are present
             if "a11y_tree" not in combined_data:
@@ -609,11 +880,217 @@ class AdbTools(Tools):
                 "phone_state": combined_data["phone_state"],
             }
 
+        except requests.exceptions.RequestException as e:
+            return {
+                "error": "TCP Error",
+                "message": f"TCP request failed: {str(e)}",
+            }
         except Exception as e:
             return {
                 "error": str(e),
                 "message": f"Error getting combined state: {str(e)}",
             }
+
+    def get_a11y_tree(self) -> Dict[str, Any]:
+        """
+        Get just the accessibility tree using the /a11y_tree endpoint.
+
+        Returns:
+            Dictionary containing accessibility tree data
+        """
+        try:
+            if self.use_tcp and self.tcp_forwarded:
+                response = requests.get(f"{self.tcp_base_url}/a11y_tree", timeout=10)
+
+                if response.status_code == 200:
+                    tcp_response = response.json()
+
+                    # Check if response has the expected format with data field
+                    if isinstance(tcp_response, dict) and "data" in tcp_response:
+                        data_str = tcp_response["data"]
+                        try:
+                            return json.loads(data_str)
+                        except json.JSONDecodeError:
+                            return {
+                                "error": "Parse Error",
+                                "message": "Failed to parse JSON data from TCP response data field",
+                            }
+                    else:
+                        # Fallback: assume direct JSON format
+                        return tcp_response
+                else:
+                    return {
+                        "error": "HTTP Error",
+                        "message": f"HTTP request failed with status {response.status_code}",
+                    }
+            else:
+                # Fallback: use get_state and extract a11y_tree
+                state = self.get_state()
+                if "error" in state:
+                    return state
+                return {"a11y_tree": state.get("a11y_tree", [])}
+
+        except requests.exceptions.RequestException as e:
+            return {
+                "error": "TCP Error",
+                "message": f"TCP request failed: {str(e)}",
+            }
+        except Exception as e:
+            return {
+                "error": str(e),
+                "message": f"Error getting a11y tree: {str(e)}",
+            }
+
+    def get_phone_state(self) -> Dict[str, Any]:
+        """
+        Get just the phone state using the /phone_state endpoint.
+
+        Returns:
+            Dictionary containing phone state data
+        """
+        try:
+            if self.use_tcp and self.tcp_forwarded:
+                response = requests.get(f"{self.tcp_base_url}/phone_state", timeout=10)
+
+                if response.status_code == 200:
+                    tcp_response = response.json()
+
+                    # Check if response has the expected format with data field
+                    if isinstance(tcp_response, dict) and "data" in tcp_response:
+                        data_str = tcp_response["data"]
+                        try:
+                            return json.loads(data_str)
+                        except json.JSONDecodeError:
+                            return {
+                                "error": "Parse Error",
+                                "message": "Failed to parse JSON data from TCP response data field",
+                            }
+                    else:
+                        # Fallback: assume direct JSON format
+                        return tcp_response
+                else:
+                    return {
+                        "error": "HTTP Error",
+                        "message": f"HTTP request failed with status {response.status_code}",
+                    }
+            else:
+                # Fallback: use get_state and extract phone_state
+                state = self.get_state()
+                if "error" in state:
+                    return state
+                return {"phone_state": state.get("phone_state", {})}
+
+        except requests.exceptions.RequestException as e:
+            return {
+                "error": "TCP Error",
+                "message": f"TCP request failed: {str(e)}",
+            }
+        except Exception as e:
+            return {
+                "error": str(e),
+                "message": f"Error getting phone state: {str(e)}",
+            }
+
+    def ping(self) -> Dict[str, Any]:
+        """
+        Test the TCP connection using the /ping endpoint.
+
+        Returns:
+            Dictionary with ping result
+        """
+        try:
+            if self.use_tcp and self.tcp_forwarded:
+                response = requests.get(f"{self.tcp_base_url}/ping", timeout=5)
+
+                if response.status_code == 200:
+                    try:
+                        tcp_response = response.json() if response.content else {}
+                        logger.debug(f"Ping TCP response: {tcp_response}")
+                        return {
+                            "status": "success",
+                            "message": "Ping successful",
+                            "response": tcp_response,
+                        }
+                    except json.JSONDecodeError:
+                        return {
+                            "status": "success",
+                            "message": "Ping successful (non-JSON response)",
+                            "response": response.text,
+                        }
+                else:
+                    return {
+                        "status": "error",
+                        "message": f"Ping failed with status {response.status_code}: {response.text}",
+                    }
+            else:
+                return {
+                    "status": "error",
+                    "message": "TCP communication is not enabled",
+                }
+
+        except requests.exceptions.RequestException as e:
+            return {
+                "status": "error",
+                "message": f"Ping failed: {str(e)}",
+            }
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": f"Error during ping: {str(e)}",
+            }
+
+
+def _shell_test_cli(serial: str, command: str) -> tuple[str, float]:
+    """
+    Run an adb shell command using the adb CLI and measure execution time.
+    Args:
+        serial: Device serial number
+        command: Shell command to run
+    Returns:
+        Tuple of (output, elapsed_time)
+    """
+    import time
+    import subprocess
+
+    adb_cmd = ["adb", "-s", serial, "shell", command]
+    start = time.perf_counter()
+    result = subprocess.run(adb_cmd, capture_output=True, text=True)
+    elapsed = time.perf_counter() - start
+    output = result.stdout.strip() if result.returncode == 0 else result.stderr.strip()
+    return output, elapsed
+
+
+def _shell_test():
+    device = adb.device("emulator-5554")
+    # Native Python adb client
+    start = time.time()
+    res = device.shell("echo 'Hello, World!'")
+    end = time.time()
+    print(f"[Native] Shell execution took {end - start:.3f} seconds: {res}")
+
+    start = time.time()
+    res = device.shell("content query --uri content://com.droidrun.portal/state")
+    end = time.time()
+    print(f"[Native] Shell execution took {end - start:.3f} seconds: phone_state")
+
+    # CLI version
+    output, elapsed = _shell_test_cli("emulator-5554", "echo 'Hello, World!'")
+    print(f"[CLI] Shell execution took {elapsed:.3f} seconds: {output}")
+
+    output, elapsed = _shell_test_cli(
+        "emulator-5554", "content query --uri content://com.droidrun.portal/state"
+    )
+    print(f"[CLI] Shell execution took {elapsed:.3f} seconds: phone_state")
+
+
+def _list_packages():
+    tools = AdbTools()
+    print(tools.list_packages())
+
+
+def _start_app():
+    tools = AdbTools()
+    tools.start_app("com.android.settings", ".Settings")
 
 
 def _shell_test_cli(serial: str, command: str) -> tuple[str, float]:
