@@ -165,16 +165,18 @@ class CodeActAgent(Workflow):
             chat_history = await chat_utils.add_memory_block(self.remembered_info, chat_history)
 
         for context in self.required_context:
-            if model == "DeepSeek":
-                logger.warning(
-                    "[yellow]DeepSeek doesnt support images. Disabling screenshots[/]"
-                )
-            elif self.vision == True and context == "screenshot":
+            if context == "screenshot":
+                # if vision is disabled, screenshot should save to trajectory
                 screenshot = (self.tools.take_screenshot())[1]
                 ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
 
                 await ctx.set("screenshot", screenshot)
-                chat_history = await chat_utils.add_screenshot_image_block(screenshot, chat_history)
+                if model == "DeepSeek":
+                    logger.warning(
+                        "[yellow]DeepSeek doesnt support images. Disabling screenshots[/]"
+                    )
+                elif self.vision == True: # if vision is enabled, add screenshot to chat history
+                    chat_history = await chat_utils.add_screenshot_image_block(screenshot, chat_history)
 
             if context == "ui_state":
                 try:
@@ -248,7 +250,10 @@ class CodeActAgent(Workflow):
         try:
             self.code_exec_counter += 1
             result = await self.executor.execute(ctx, code)
-            logger.info(f"💡 Code execution successful. Result: {result}")
+            logger.info(f"💡 Code execution successful. Result: {result['output']}")
+            screenshots = result['screenshots']
+            for screenshot in screenshots[:-1]: # the last screenshot will be captured by next step
+                ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
 
             if self.tools.finished == True:
                 logger.debug("  - Task completed.")
@@ -260,7 +265,7 @@ class CodeActAgent(Workflow):
             
             self.remembered_info = self.tools.memory
             
-            event = TaskExecutionResultEvent(output=str(result))
+            event = TaskExecutionResultEvent(output=str(result['output']))
             ctx.write_event_to_stream(event)
             return event
 

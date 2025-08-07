@@ -130,9 +130,10 @@ class PlannerAgent(Workflow):
         self.steps_counter += 1
         logger.info(f"🧠 Thinking about how to plan the goal...")
 
+        # if vision is disabled, screenshot should save to trajectory
+        screenshot = (self.tools_instance.take_screenshot())[1]
+        ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
         if self.vision:
-            screenshot = (self.tools_instance.take_screenshot())[1]
-            ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
             await ctx.set("screenshot", screenshot)
 
         try:
@@ -168,11 +169,15 @@ class PlannerAgent(Workflow):
             try:
                 result = await self.executer.execute(ctx, code)
                 logger.info(f"📝 Planning complete")
-                logger.debug(f"  - Planning code executed. Result: {result}")
+                logger.debug(f"  - Planning code executed. Result: {result['output']}")
+
+                screenshots = result['screenshots']
+                for screenshot in screenshots[:-1]: # the last screenshot will be captured by next step
+                    ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
 
                 await self.chat_memory.aput(
                     ChatMessage(
-                        role="user", content=f"Execution Result:\n```\n{result}\n```"
+                        role="user", content=f"Execution Result:\n```\n{result['output']}\n```"
                     )
                 )
 
@@ -241,15 +246,15 @@ wrap your code inside this:
             logger.debug(f"  - Sending {len(chat_history)} messages to LLM.")
 
             model = self.llm.class_name()
-            if model == "DeepSeek":
-                logger.warning(
-                    "[yellow]DeepSeek doesnt support images. Disabling screenshots[/]"
-                )
-
-            elif self.vision == True:
-                chat_history = await chat_utils.add_screenshot_image_block(
-                    await ctx.get("screenshot"), chat_history
-                )                   
+            if self.vision == True:
+                if model == "DeepSeek":
+                    logger.warning(
+                        "[yellow]DeepSeek doesnt support images. Disabling screenshots[/]"
+                    )
+                else:
+                    chat_history = await chat_utils.add_screenshot_image_block(
+                        await ctx.get("screenshot"), chat_history
+                    )                   
 
 
 

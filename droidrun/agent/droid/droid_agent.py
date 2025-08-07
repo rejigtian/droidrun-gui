@@ -68,7 +68,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         reflection: bool = False,
         enable_tracing: bool = False,
         debug: bool = False,
-        save_trajectories: bool = False,
+        save_trajectories: str = "none",
         excluded_tools: List[str] = None,
         *args,
         **kwargs
@@ -86,6 +86,10 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
             reflection: Whether to reflect on steps the CodeActAgent did to give the PlannerAgent advice
             enable_tracing: Whether to enable Arize Phoenix tracing
             debug: Whether to enable verbose debug logging
+            save_trajectories: Trajectory saving level. Can be:
+                - "none" (no saving)
+                - "step" (save per step)
+                - "action" (save per action)
             **kwargs: Additional keyword arguments to pass to the agents
         """
         self.user_id = kwargs.pop("user_id", None)
@@ -114,7 +118,17 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         self.debug = debug
 
         self.event_counter = 0
-        self.save_trajectories = save_trajectories
+        # Handle backward compatibility: bool -> str mapping
+        if isinstance(save_trajectories, bool):
+            self.save_trajectories = "step" if save_trajectories else "none"
+        else:
+            # Validate string values
+            valid_values = ["none", "step", "action"]
+            if save_trajectories not in valid_values:
+                logger.warning(f"Invalid save_trajectories value: {save_trajectories}. Using 'none' instead.")
+                self.save_trajectories = "none"
+            else:
+                self.save_trajectories = save_trajectories
         
         self.trajectory = Trajectory(goal=goal)
         self.task_manager = TaskManager()
@@ -125,9 +139,12 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         self.current_episodic_memory = None
 
         logger.info("🤖 Initializing DroidAgent...")
+        logger.info(f"💾 Trajectory saving level: {self.save_trajectories}")
         
         self.tool_list = describe_tools(tools, excluded_tools)
         self.tools_instance = tools
+        
+        self.tools_instance.save_trajectories = self.save_trajectories
 
 
         if self.reasoning:
@@ -387,7 +404,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
             "steps": ev.steps,
         }
 
-        if self.trajectory and self.save_trajectories:
+        if self.trajectory and self.save_trajectories != "none":
             self.trajectory.save_trajectory()
 
         return StopEvent(result)
