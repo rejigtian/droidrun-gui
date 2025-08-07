@@ -33,7 +33,7 @@ def __init__(
     reflection: bool = False,
     enable_tracing: bool = False,
     debug: bool = False,
-    save_trajectories: bool = False,
+    save_trajectories: str = "none",
     *args,
     **kwargs
 )
@@ -52,6 +52,10 @@ Initialize the DroidAgent wrapper.
 - `reflection` - Whether to reflect on steps the CodeActAgent did to give the PlannerAgent advice
 - `enable_tracing` - Whether to enable Arize Phoenix tracing
 - `debug` - Whether to enable verbose debug logging
+- `save_trajectories` - Trajectory saving level. Can be:
+  - `"none"` (no saving)
+  - `"step"` (save per step) 
+  - `"action"` (save per action)
 - `**kwargs` - Additional keyword arguments to pass to the agents
 
 <a id="droidrun.agent.droid.droid_agent.DroidAgent.run"></a>

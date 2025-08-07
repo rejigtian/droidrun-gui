@@ -21,7 +21,7 @@ def __init__(
     reflection: bool = False,                   # Enable reflection
     enable_tracing: bool = False,               # Enable tracing (this requires arize phoenix)
     debug: bool = False,                        # Enable additional debug logs
-    save_trajectories: bool = False,            # Save the Trajectory data of the run (GIF + logs)
+    save_trajectories: str = "none",            # Trajectory saving level: "none" (no saving), "step" (save per step), "action" (save per action)
     *args,
     **kwargs
 )

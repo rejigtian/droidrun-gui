@@ -78,9 +78,9 @@ async def run_command(
     reasoning: bool,
     reflection: bool,
     tracing: bool,
-    debug: bool,    
+    debug: bool, 
     use_tcp: bool,
-    save_trajectory: bool = False,
+    save_trajectory: str = "none",
     ios: bool = False,
     allow_drag: bool = False,
     **kwargs,
@@ -258,9 +258,9 @@ class DroidRunCLI(click.Group):
 )
 @click.option(
     "--save-trajectory",
-    is_flag=True,
-    help="Save agent trajectory to file",
-    default=False,
+    type=click.Choice(["none", "step", "action"]),
+    help="Trajectory saving level: none (no saving), step (save per step), action (save per action)",
+    default="none",
 )
 @click.group(cls=DroidRunCLI)
 def cli(
@@ -277,7 +277,7 @@ def cli(
     tracing: bool,
     debug: bool,
     use_tcp: bool,
-    save_trajectory: bool,
+    save_trajectory: str,
 ):
     """DroidRun - Control your Android device through LLM agents."""
     pass
@@ -337,9 +337,9 @@ def cli(
 )
 @click.option(
     "--save-trajectory",
-    is_flag=True,
-    help="Save agent trajectory to file",
-    default=False,
+    type=click.Choice(["none", "step", "action"]),
+    help="Trajectory saving level: none (no saving), step (save per step), action (save per action)",
+    default="none",
 )
 @click.option(
     "--drag",
@@ -364,7 +364,7 @@ def run(
     tracing: bool,
     debug: bool,
     use_tcp: bool,
-    save_trajectory: bool,
+    save_trajectory: str,
     allow_drag: bool,
     ios: bool,
 ):

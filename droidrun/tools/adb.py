@@ -4,6 +4,7 @@ UI Actions - Core UI interaction tools for Android device control.
 
 import os
 import io
+import sys
 import json
 import time
 import logging
@@ -55,6 +56,8 @@ class AdbTools(Tools):
         self.memory: List[str] = []
         # Store all screenshots with timestamps
         self.screenshots: List[Dict[str, Any]] = []
+        # Trajectory saving level
+        self.save_trajectories = "none"
 
         # Set up TCP forwarding if requested
         if self.use_tcp:
@@ -170,6 +173,7 @@ class AdbTools(Tools):
         except json.JSONDecodeError:
             return None
 
+    @Tools.ui_action
     def tap_by_index(self, index: int) -> str:
         """
         Tap on a UI element by its index.
@@ -328,6 +332,7 @@ class AdbTools(Tools):
         """
         return self.tap_by_index(index)
 
+    @Tools.ui_action
     def swipe(
         self,
         start_x: int,
@@ -372,6 +377,7 @@ class AdbTools(Tools):
             print(f"Error: {str(e)}")
             return False
 
+    @Tools.ui_action
     def drag(
         self, start_x: int, start_y: int, end_x: int, end_y: int, duration: float = 3
     ) -> bool:
@@ -413,6 +419,7 @@ class AdbTools(Tools):
             print(f"Error: {str(e)}")
             return False
 
+    @Tools.ui_action
     def input_text(self, text: str) -> str:
         """
         Input text on the device.
@@ -501,6 +508,7 @@ class AdbTools(Tools):
         except Exception as e:
             return f"Error sending text input: {str(e)}"
 
+    @Tools.ui_action
     def back(self) -> str:
         """
         Go back on the current view.
@@ -523,6 +531,7 @@ class AdbTools(Tools):
         except ValueError as e:
             return f"Error: {str(e)}"
 
+    @Tools.ui_action
     def press_key(self, keycode: int) -> str:
         """
         Press a key on the Android device.
@@ -561,6 +570,7 @@ class AdbTools(Tools):
         except ValueError as e:
             return f"Error: {str(e)}"
 
+    @Tools.ui_action
     def start_app(self, package: str, activity: str | None = None) -> str:
         """
         Start an app on the device.
@@ -710,6 +720,7 @@ class AdbTools(Tools):
         except ValueError as e:
             raise ValueError(f"Error listing packages: {str(e)}")
 
+    @Tools.ui_action
     def complete(self, success: bool, reason: str = ""):
         """
         Mark the task as finished.

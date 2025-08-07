@@ -99,10 +99,13 @@ class SimpleCodeExecutor:
         """
         # Update UI elements before execution
         self.globals['ui_state'] = await ctx.get("ui_state", None)
-
+        self.globals['step_screenshots'] = []
+        self.globals['step_ui_states'] = []
+        
         if self.tools_instance and isinstance(self.tools_instance, AdbTools):
             self.tools_instance._set_context(ctx)
 
+        # Capture stdout and stderr
         stdout = io.StringIO()
         stderr = io.StringIO()
 
@@ -137,4 +140,9 @@ class SimpleCodeExecutor:
             output = f"Error: {type(e).__name__}: {str(e)}\n"
             output += traceback.format_exc()
 
-        return output
+        result = {
+            'output': output,
+            'screenshots': self.globals['step_screenshots'],
+            'ui_states': self.globals['step_ui_states']
+        }
+        return result
