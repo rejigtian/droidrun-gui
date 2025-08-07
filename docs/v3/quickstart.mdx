@@ -59,7 +59,7 @@ from llama_index.llms.google_genai import GoogleGenAI
 
 async def main():
     # Load tools
-    tools = await AdbTools.create()
+    tools = AdbTools()
     # set up google gemini llm
     llm = GoogleGenAI(
         api_key="YOUR_GEMINI_API_KEY",  # Replace with your Gemini API key

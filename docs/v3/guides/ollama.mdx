@@ -61,7 +61,7 @@ from droidrun import DroidAgent, AdbTools
 
 async def main():
     # load adb tools for the first connected device
-    tools = await AdbTools.create()
+    tools = AdbTools()
 
     # Set up the Ollama LLM with a modern model
     llm = Ollama(
