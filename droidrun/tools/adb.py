@@ -4,12 +4,11 @@ UI Actions - Core UI interaction tools for Android device control.
 
 import os
 import io
-import sys
 import json
 import time
 import logging
 from llama_index.core.workflow import Context
-from typing_extensions import Optional, Dict, Tuple, List, Any, Type, Self
+from typing import Optional, Dict, Tuple, List, Any
 from droidrun.agent.common.events import (
     InputTextActionEvent,
     KeyPressActionEvent,
