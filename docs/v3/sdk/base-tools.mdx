@@ -13,12 +13,23 @@ class Tools(ABC)
 Abstract base class for all tools.
 This class provides a common interface for all tools to implement.
 
+<a id="droidrun.tools.tools.Tools.ui_action"></a>
+
+#### Tools.ui\_action
+
+```python
+def ui_action(func)
+```
+
+"
+Decorator to capture screenshots and UI states for actions that modify the UI.
+
 <a id="droidrun.tools.tools.Tools.get_state"></a>
 
 #### Tools.get\_state
 
 ```python
-async def get_state() -> Dict[str, Any]
+def get_state() -> Dict[str, Any]
 ```
 
 Get the current state of the tool.
@@ -28,7 +39,7 @@ Get the current state of the tool.
 #### Tools.tap\_by\_index
 
 ```python
-async def tap_by_index(index: int) -> bool
+def tap_by_index(index: int) -> str
 ```
 
 Tap the element at the given index.
@@ -38,7 +49,7 @@ Tap the element at the given index.
 #### Tools.swipe
 
 ```python
-async def swipe(
+def swipe(
     start_x: int,
     start_y: int,
     end_x: int,
@@ -49,12 +60,28 @@ async def swipe(
 
 Swipe from the given start coordinates to the given end coordinates.
 
+<a id="droidrun.tools.tools.Tools.drag"></a>
+
+#### Tools.drag
+
+```python
+def drag(
+    start_x: int,
+    start_y: int,
+    end_x: int,
+    end_y: int,
+    duration_ms: int = 3000
+) -> bool
+```
+
+Drag from the given start coordinates to the given end coordinates.
+
 <a id="droidrun.tools.tools.Tools.input_text"></a>
 
 #### Tools.input\_text
 
 ```python
-async def input_text(text: str) -> bool
+def input_text(text: str) -> str
 ```
 
 Input the given text into a focused input field.
@@ -64,7 +91,7 @@ Input the given text into a focused input field.
 #### Tools.back
 
 ```python
-async def back() -> bool
+def back() -> str
 ```
 
 Press the back button.
@@ -74,7 +101,7 @@ Press the back button.
 #### Tools.press\_key
 
 ```python
-async def press_key(keycode: int) -> bool
+def press_key(keycode: int) -> str
 ```
 
 Enter the given keycode.
@@ -84,7 +111,7 @@ Enter the given keycode.
 #### Tools.start\_app
 
 ```python
-async def start_app(package: str, activity: str = "") -> bool
+def start_app(package: str, activity: str = "") -> str
 ```
 
 Start the given app.
@@ -94,7 +121,7 @@ Start the given app.
 #### Tools.take\_screenshot
 
 ```python
-async def take_screenshot() -> Tuple[str, bytes]
+def take_screenshot() -> Tuple[str, bytes]
 ```
 
 Take a screenshot of the device.
@@ -104,7 +131,7 @@ Take a screenshot of the device.
 #### Tools.list\_packages
 
 ```python
-async def list_packages(include_system_apps: bool = False) -> List[str]
+def list_packages(include_system_apps: bool = False) -> List[str]
 ```
 
 List all packages on the device.
@@ -114,7 +141,7 @@ List all packages on the device.
 #### Tools.remember
 
 ```python
-async def remember(information: str) -> str
+def remember(information: str) -> str
 ```
 
 Remember the given information. This is used to store information in the tool's memory.
@@ -124,7 +151,7 @@ Remember the given information. This is used to store information in the tool's 
 #### Tools.get\_memory
 
 ```python
-async def get_memory() -> List[str]
+def get_memory() -> List[str]
 ```
 
 Get the memory of the tool.
@@ -134,7 +161,7 @@ Get the memory of the tool.
 #### Tools.complete
 
 ```python
-def complete(success: bool, reason: str = "") -> bool
+def complete(success: bool, reason: str = "") -> None
 ```
 
 Complete the tool. This is used to indicate that the tool has completed its task.
@@ -144,7 +171,10 @@ Complete the tool. This is used to indicate that the tool has completed its task
 #### describe\_tools
 
 ```python
-def describe_tools(tools: Tools) -> Dict[str, Callable[..., Any]]
+def describe_tools(
+    tools: Tools,
+    exclude_tools: Optional[List[str]] = None
+) -> Dict[str, Callable[..., Any]]
 ```
 
 Describe the tools available for the given Tools instance.
@@ -152,6 +182,7 @@ Describe the tools available for the given Tools instance.
 **Arguments**:
 
 - `tools` - The Tools instance to describe.
+- `exclude_tools` - List of tool names to exclude from the description.
   
 
 **Returns**:

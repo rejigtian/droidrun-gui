@@ -34,15 +34,10 @@ Initialize the IOSTools instance.
 #### IOSTools.get\_state
 
 ```python
-async def get_state(serial: Optional[str] = None) -> List[Dict[str, Any]]
+def get_state() -> List[Dict[str, Any]]
 ```
 
 Get all clickable UI elements from the iOS device using accessibility API.
-
-**Arguments**:
-
-- `serial` - Optional device URL (not used for iOS, uses instance URL)
-  
 
 **Returns**:
 
@@ -53,7 +48,7 @@ Get all clickable UI elements from the iOS device using accessibility API.
 #### IOSTools.tap\_by\_index
 
 ```python
-async def tap_by_index(index: int, serial: Optional[str] = None) -> str
+def tap_by_index(index: int) -> str
 ```
 
 Tap on a UI element by its index.
@@ -75,7 +70,7 @@ to find the element with the given index and tap on its center coordinates.
 #### IOSTools.tap
 
 ```python
-async def tap(index: int) -> str
+def tap(index: int) -> str
 ```
 
 Tap on a UI element by its index.
@@ -97,7 +92,7 @@ to find the element with the given index and tap on its center coordinates.
 #### IOSTools.swipe
 
 ```python
-async def swipe(
+def swipe(
     start_x: int,
     start_y: int,
     end_x: int,
@@ -121,12 +116,40 @@ To perform a hold (long press), set the start and end coordinates to the same va
 
   Bool indicating success or failure
 
+<a id="droidrun.tools.ios.IOSTools.drag"></a>
+
+#### IOSTools.drag
+
+```python
+def drag(
+    start_x: int,
+    start_y: int,
+    end_x: int,
+    end_y: int,
+    duration_ms: int = 3000
+) -> bool
+```
+
+Drag from the given start coordinates to the given end coordinates.
+
+**Arguments**:
+
+- `start_x` - Starting X coordinate
+- `start_y` - Starting Y coordinate
+- `end_x` - Ending X coordinate
+- `end_y` - Ending Y coordinate
+- `duration_ms` - Duration of swipe in milliseconds
+
+**Returns**:
+
+  Bool indicating success or failure
+
 <a id="droidrun.tools.ios.IOSTools.input_text"></a>
 
 #### IOSTools.input\_text
 
 ```python
-async def input_text(text: str, serial: Optional[str] = None) -> str
+def input_text(text: str) -> str
 ```
 
 Input text on the iOS device.
@@ -134,7 +157,6 @@ Input text on the iOS device.
 **Arguments**:
 
 - `text` - Text to input. Can contain spaces, newlines, and special characters including non-ASCII.
-- `serial` - Optional device serial (not used for iOS, uses instance URL)
   
 
 **Returns**:
@@ -146,7 +168,7 @@ Input text on the iOS device.
 #### IOSTools.back
 
 ```python
-async def back() -> str
+def back() -> str
 ```
 
 <a id="droidrun.tools.ios.IOSTools.press_key"></a>
@@ -154,7 +176,7 @@ async def back() -> str
 #### IOSTools.press\_key
 
 ```python
-async def press_key(keycode: int) -> str
+def press_key(keycode: int) -> str
 ```
 
 Press a key on the iOS device.
@@ -173,7 +195,7 @@ iOS Key codes:
 #### IOSTools.start\_app
 
 ```python
-async def start_app(package: str, activity: str = "") -> str
+def start_app(package: str, activity: str = "") -> str
 ```
 
 Start an app on the iOS device.
@@ -188,38 +210,19 @@ Start an app on the iOS device.
 #### IOSTools.take\_screenshot
 
 ```python
-async def take_screenshot() -> Tuple[str, bytes]
+def take_screenshot() -> Tuple[str, bytes]
 ```
 
 Take a screenshot of the iOS device.
 This function captures the current screen and adds the screenshot to context in the next message.
 Also stores the screenshot in the screenshots list with timestamp for later GIF creation.
 
-<a id="droidrun.tools.ios.IOSTools.get_phone_state"></a>
-
-#### IOSTools.get\_phone\_state
-
-```python
-async def get_phone_state(serial: Optional[str] = None) -> Dict[str, Any]
-```
-
-Get the current phone state including current activity and keyboard visibility.
-
-**Arguments**:
-
-- `serial` - Optional device serial number (not used for iOS)
-  
-
-**Returns**:
-
-  Dictionary with current phone state information
-
 <a id="droidrun.tools.ios.IOSTools.list_packages"></a>
 
 #### IOSTools.list\_packages
 
 ```python
-async def list_packages(include_system_apps: bool = True) -> List[str]
+def list_packages(include_system_apps: bool = True) -> List[str]
 ```
 
 <a id="droidrun.tools.ios.IOSTools.remember"></a>
@@ -227,7 +230,7 @@ async def list_packages(include_system_apps: bool = True) -> List[str]
 #### IOSTools.remember
 
 ```python
-async def remember(information: str) -> str
+def remember(information: str) -> str
 ```
 
 Store important information to remember for future context.
