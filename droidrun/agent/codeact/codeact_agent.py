@@ -97,6 +97,7 @@ class CodeActAgent(Workflow):
             loop=asyncio.get_event_loop(),
             locals={},
             tools=self.tool_list,
+            tools_instance=tools_instance,
             globals={"__builtins__": __builtins__},
         )
 
