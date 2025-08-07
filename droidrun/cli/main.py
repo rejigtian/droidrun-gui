@@ -23,6 +23,7 @@ from droidrun.portal import (
     PORTAL_PACKAGE_NAME,
     ping_portal,
 )
+from droidrun.macro.cli import macro_cli
 
 # Suppress all warnings
 warnings.filterwarnings("ignore")
@@ -77,7 +78,8 @@ async def run_command(
     reasoning: bool,
     reflection: bool,
     tracing: bool,
-    debug: bool,
+    debug: bool,    
+    use_tcp: bool,
     save_trajectory: bool = False,
     ios: bool = False,
     allow_drag: bool = False,
@@ -115,7 +117,7 @@ async def run_command(
             else:
                 logger.info(f"📱 Using device: {device}")
 
-            tools = AdbTools(serial=device) if not ios else IOSTools(url=device)
+            tools = AdbTools(serial=device, use_tcp=use_tcp) if not ios else IOSTools(url=device)
             # Set excluded tools based on CLI flags
             excluded_tools = [] if allow_drag else ["drag"]
             
@@ -252,6 +254,9 @@ class DroidRunCLI(click.Group):
     "--debug", is_flag=True, help="Enable verbose debug logging", default=False
 )
 @click.option(
+    "--use-tcp", is_flag=True, help="Use TCP communication for device control", default=False
+)
+@click.option(
     "--save-trajectory",
     is_flag=True,
     help="Save agent trajectory to file",
@@ -271,6 +276,7 @@ def cli(
     reflection: bool,
     tracing: bool,
     debug: bool,
+    use_tcp: bool,
     save_trajectory: bool,
 ):
     """DroidRun - Control your Android device through LLM agents."""
@@ -327,6 +333,9 @@ def cli(
     "--debug", is_flag=True, help="Enable verbose debug logging", default=False
 )
 @click.option(
+    "--use-tcp", is_flag=True, help="Use TCP communication for device control", default=False
+)
+@click.option(
     "--save-trajectory",
     is_flag=True,
     help="Save agent trajectory to file",
@@ -354,6 +363,7 @@ def run(
     reflection: bool,
     tracing: bool,
     debug: bool,
+    use_tcp: bool,
     save_trajectory: bool,
     allow_drag: bool,
     ios: bool,
@@ -373,6 +383,7 @@ def run(
         reflection,
         tracing,
         debug,
+        use_tcp,
         temperature=temperature,
         save_trajectory=save_trajectory,
         allow_drag=allow_drag,
@@ -542,6 +553,10 @@ def ping(device: str | None, debug: bool):
             traceback.print_exc()
 
 
+# Add macro commands as a subgroup
+cli.add_command(macro_cli, name="macro")
+
+
 if __name__ == "__main__":
     command = "Open the settings app"
     device = None
@@ -555,6 +570,7 @@ if __name__ == "__main__":
     reflection = False
     tracing = True
     debug = True
+    use_tcp = True
     base_url = None
     api_base = None
     ios = False
@@ -571,6 +587,7 @@ if __name__ == "__main__":
         reflection=reflection,
         tracing=tracing,
         debug=debug,
+        use_tcp=use_tcp,
         base_url=base_url,
         api_base=api_base,
         api_key=api_key,
