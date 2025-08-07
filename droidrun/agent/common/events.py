@@ -24,6 +24,14 @@ class SwipeActionEvent(MacroEvent):
     end_y: int
     duration_ms: int
 
+class DragActionEvent(MacroEvent):
+    """Event for drag actions with coordinates"""
+    start_x: int
+    start_y: int
+    end_x: int
+    end_y: int
+    duration_ms: int
+
 class InputTextActionEvent(MacroEvent):
     """Event for text input actions"""
     text: str
