@@ -14,7 +14,7 @@
         "tab": "Framework",
         "versions": [
           {
-            "version": "0.3.2",
+            "version": "0.3.3",
             "groups": [
               {
                 "group": "Introduction",
@@ -49,8 +49,7 @@
                   "v3/sdk/droid-agent",
                   "v3/sdk/adb-tools",
                   "v3/sdk/ios-tools",
-                  "v3/sdk/base-tools",
-                  "v3/sdk/adb-utils"
+                  "v3/sdk/base-tools"
                 ]
               }
             ]
