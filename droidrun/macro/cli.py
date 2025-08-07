@@ -215,7 +215,7 @@ def list(directory: str, debug: bool):
         
         # Still use console for table display as it's structured data
         console.print(table)
-        logger.info(f"💡 Use 'droidrun-macro replay {directory}/<folder>' to replay a trajectory")
+        logger.info(f"💡 Use 'droidrun macro replay {directory}/<folder>' to replay a trajectory")
     
     except Exception as e:
         logger.error(f"💥 Error: {e}")
