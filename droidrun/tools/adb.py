@@ -446,59 +446,59 @@ class AdbTools(Tools):
         try:
             logger.debug(f"Inputting text: {text}")
 
-            if self.use_tcp and self.tcp_forwarded:
-                # Use TCP communication
-                encoded_text = base64.b64encode(text.encode()).decode()
+            # if self.use_tcp and self.tcp_forwarded:
+            #     # Use TCP communication
+            #     encoded_text = base64.b64encode(text.encode()).decode()
 
-                payload = {"base64_text": encoded_text}
-                response = requests.post(
-                    f"{self.tcp_base_url}/keyboard/input",
-                    json=payload,
-                    headers={"Content-Type": "application/json"},
-                    timeout=10,
-                )
+            #     payload = {"base64_text": encoded_text}
+            #     response = requests.post(
+            #         f"{self.tcp_base_url}/keyboard/input",
+            #         json=payload,
+            #         headers={"Content-Type": "application/json"},
+            #         timeout=10,
+            #     )
 
-                logger.debug(
-                    f"Keyboard input TCP response: {response.status_code}, {response.text}"
-                )
+            #     logger.debug(
+            #         f"Keyboard input TCP response: {response.status_code}, {response.text}"
+            #     )
 
-                if response.status_code != 200:
-                    return f"Error: HTTP request failed with status {response.status_code}: {response.text}"
+            #     if response.status_code != 200:
+            #         return f"Error: HTTP request failed with status {response.status_code}: {response.text}"
 
-            else:
-                # Fallback to content provider method
-                # Save the current keyboard
-                original_ime = self.device.shell(
-                    "settings get secure default_input_method"
-                )
-                original_ime = original_ime.strip()
+            # else:
+            # Fallback to content provider method
+            # Save the current keyboard
+            original_ime = self.device.shell(
+                "settings get secure default_input_method"
+            )
+            original_ime = original_ime.strip()
 
-                # Enable the Droidrun keyboard
-                self.device.shell("ime enable com.droidrun.portal/.DroidrunKeyboardIME")
+            # Enable the Droidrun keyboard
+            self.device.shell("ime enable com.droidrun.portal/.DroidrunKeyboardIME")
 
-                # Set the Droidrun keyboard as the default
-                self.device.shell("ime set com.droidrun.portal/.DroidrunKeyboardIME")
+            # Set the Droidrun keyboard as the default
+            self.device.shell("ime set com.droidrun.portal/.DroidrunKeyboardIME")
 
-                # Wait for keyboard to change
-                time.sleep(1)
+            # Wait for keyboard to change
+            time.sleep(1)
 
-                # Encode the text to Base64
-                encoded_text = base64.b64encode(text.encode()).decode()
+            # Encode the text to Base64
+            encoded_text = base64.b64encode(text.encode()).decode()
 
-                cmd = f'content insert --uri "content://com.droidrun.portal/keyboard/input" --bind base64_text:s:"{encoded_text}"'
-                self.device.shell(cmd)
+            cmd = f'content insert --uri "content://com.droidrun.portal/keyboard/input" --bind base64_text:s:"{encoded_text}"'
+            self.device.shell(cmd)
 
-                # Wait for text input to complete
-                time.sleep(0.5)
+            # Wait for text input to complete
+            time.sleep(0.5)
 
-                # Restore the original keyboard
-                if original_ime and "com.droidrun.portal" not in original_ime:
-                    self.device.shell(f"ime set {original_ime}")
+            # Restore the original keyboard
+            if original_ime and "com.droidrun.portal" not in original_ime:
+                self.device.shell(f"ime set {original_ime}")
 
-                logger.debug(
-                    f"Text input completed: {text[:50]}{'...' if len(text) > 50 else ''}"
-                )
-                return f"Text input completed: {text[:50]}{'...' if len(text) > 50 else ''}"
+            logger.debug(
+                f"Text input completed: {text[:50]}{'...' if len(text) > 50 else ''}"
+            )
+            return f"Text input completed: {text[:50]}{'...' if len(text) > 50 else ''}"
 
             if self._ctx:
                 input_event = InputTextActionEvent(
