@@ -208,7 +208,7 @@ async def add_task_history_block(completed_tasks: list[dict], failed_tasks: list
     all_tasks = completed_tasks + failed_tasks
     
     if all_tasks:
-        task_history += "Task History (chronological order):\n"
+        task_history += "### Task Execution History (chronological):\n"
         for i, task in enumerate(all_tasks, 1):
             if hasattr(task, 'description'):
                 status_indicator = "[success]" if hasattr(task, 'status') and task.status == "completed" else "[failed]"
