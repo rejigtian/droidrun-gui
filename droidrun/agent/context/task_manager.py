@@ -43,6 +43,13 @@ class TaskManager:
     def get_task_history(self):
         return self.task_history
 
+    def get_current_task(self) -> Optional[Task]:
+        """Return the first task with status "pending" from the task list."""
+        for task in self.tasks:
+            if task.status == self.STATUS_PENDING:
+                return task
+        return None
+
     def complete_task(self, task: Task, message: Optional[str] = None):
         task = copy.deepcopy(task)
         task.status = self.STATUS_COMPLETED
@@ -60,6 +67,9 @@ class TaskManager:
 
     def get_failed_tasks(self) -> list[dict]:
         return [task for task in self.task_history if task.status == self.STATUS_FAILED]
+    
+    def get_task_history(self) -> list[dict]:
+        return self.task_history
 
 
     def save_to_file(self):
