@@ -1,4 +1,5 @@
 dist/
+build/
 # Python bytecode files
 __pycache__/
 *.py[cod]
@@ -21,4 +22,10 @@ messages_log.json
 .idea/*
 .vscode/*
 patch_apis.py
-.*
+.git
+.arize-phoenix
+
+
+uv.lock
+
+todo.txt

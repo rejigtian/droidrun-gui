@@ -85,7 +85,6 @@ agent = DroidAgent(
     tools_instance=tools,
     reasoning=True,  # Enable planning
     max_steps=15,    # Maximum planning iterations
-    max_retries=3,   # Retry attempts for failed tasks
     timeout=1000     # Overall timeout in seconds
 )
 ```
@@ -134,7 +133,6 @@ Planning is most effective for:
    - Consider device and network performance
 
 3. **Error Handling**
-   - Set reasonable max_retries
    - Check task_history for debugging failed tasks
 
 4. **Memory Usage**

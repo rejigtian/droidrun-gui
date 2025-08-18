@@ -1,10 +1,8 @@
 [project]
 name = "droidrun"
-version = "0.2.0"
+version = "0.3.5"
 description = "A framework for controlling Android devices through LLM agents"
-authors = [
-    {name = "Niels Schmidt", email = "niels.schmidt@droidrun.ai"},
-]
+authors = [{ name = "Niels Schmidt", email = "niels.schmidt@droidrun.ai" }]
 dependencies = [
     "click>=8.1.0",
     "rich>=13.0.0",
@@ -18,14 +16,18 @@ dependencies = [
     "llama-index-callbacks-arize-phoenix",
     "arize-phoenix",
     "llama-index-llms-openai",
-    "llama-index-llms-gemini",
+    "llama-index-llms-openai-like",
+    "llama-index-llms-google-genai",
     "llama-index-llms-deepseek",
     "llama-index-llms-anthropic",
-    "llama-index-llms-ollama"
+    "llama-index-llms-ollama",
+    "posthog==6.0.2",
+    "adbutils==2.10.0",
+    "apkutils==2.0.0",
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 readme = "README.md"
-license = {text = "MIT"}
+license = { text = "MIT" }
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -57,7 +59,7 @@ dev = [
     "ruff>=0.1.0",
     "mypy>=1.0.0",
     "bandit>=1.7.0",
-    "safety>=2.0.0"
+    "safety>=2.0.0",
 ]
 
 [build-system]
@@ -79,9 +81,73 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = [
-    "E",  # pycodestyle errors
-    "W",  # pycodestyle warnings
-    "F",  # pyflakes
-    "I",  # isort
-    "B",  # flake8-bugbear
-] 
+    "E", # pycodestyle errors
+    "W", # pycodestyle warnings
+    "F", # pyflakes
+    "I", # isort
+    "B", # flake8-bugbear
+]
+
+[[tool.pydoc-markdown.loaders]]
+type = "python"
+packages = ["droidrun"]
+modules = ["droidrun"]
+
+[[tool.pydoc-markdown.processors]]
+type = "filter"
+documented_only = false
+do_not_filter_modules = true
+skip_empty_modules = true
+
+[[tool.pydoc-markdown.processors]]
+type = "smart"
+
+[[tool.pydoc-markdown.processors]]
+type = "crossref"
+
+[tool.pydoc-markdown.renderer]
+type = "hugo"
+build_directory = "docs"
+content_directory = "v3/sdk"
+clean_render = true
+
+
+[tool.pydoc-markdown.renderer.markdown]
+classdef_with_decorators = false
+signature_with_decorators = false
+data_code_block = true
+descriptive_class_title = false
+render_module_header = false
+format_code_style = "facebook"
+add_module_prefix = false
+add_method_class_prefix = true
+
+header_level_by_type = { Module = 1, Class = 2, Method = 4, Function = 4, Variable = 4 }
+
+
+[[tool.pydoc-markdown.renderer.pages]]
+title = "DroidAgent"
+name = "droid-agent"
+contents = [
+    "droidrun.agent.droid.droid_agent.DroidAgent",
+    "droidrun.agent.droid.droid_agent.DroidAgent.__init__",
+    "droidrun.agent.droid.droid_agent.DroidAgent.run",
+]
+
+[[tool.pydoc-markdown.renderer.pages]]
+title = "Tools"
+name = "base-tools"
+contents = [
+    "droidrun.tools.tools.Tools.*",
+    "droidrun.tools.tools.describe_tools",
+]
+
+[[tool.pydoc-markdown.renderer.pages]]
+title = "AdbTools"
+name = "adb-tools"
+contents = ["droidrun.tools.adb.AdbTools.*"]
+
+[[tool.pydoc-markdown.renderer.pages]]
+title = "IOSTools"
+name = "ios-tools"
+contents = ["droidrun.tools.ios.IOSTools.*"]

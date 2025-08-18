@@ -1,0 +1,191 @@
+---
+title: Tools
+---
+
+<a id="droidrun.tools.tools.Tools"></a>
+
+## Tools
+
+```python
+class Tools(ABC)
+```
+
+Abstract base class for all tools.
+This class provides a common interface for all tools to implement.
+
+<a id="droidrun.tools.tools.Tools.ui_action"></a>
+
+#### Tools.ui\_action
+
+```python
+def ui_action(func)
+```
+
+"
+Decorator to capture screenshots and UI states for actions that modify the UI.
+
+<a id="droidrun.tools.tools.Tools.get_state"></a>
+
+#### Tools.get\_state
+
+```python
+def get_state() -> Dict[str, Any]
+```
+
+Get the current state of the tool.
+
+<a id="droidrun.tools.tools.Tools.tap_by_index"></a>
+
+#### Tools.tap\_by\_index
+
+```python
+def tap_by_index(index: int) -> str
+```
+
+Tap the element at the given index.
+
+<a id="droidrun.tools.tools.Tools.swipe"></a>
+
+#### Tools.swipe
+
+```python
+def swipe(
+    start_x: int,
+    start_y: int,
+    end_x: int,
+    end_y: int,
+    duration_ms: int = 300
+) -> bool
+```
+
+Swipe from the given start coordinates to the given end coordinates.
+
+<a id="droidrun.tools.tools.Tools.drag"></a>
+
+#### Tools.drag
+
+```python
+def drag(
+    start_x: int,
+    start_y: int,
+    end_x: int,
+    end_y: int,
+    duration_ms: int = 3000
+) -> bool
+```
+
+Drag from the given start coordinates to the given end coordinates.
+
+<a id="droidrun.tools.tools.Tools.input_text"></a>
+
+#### Tools.input\_text
+
+```python
+def input_text(text: str) -> str
+```
+
+Input the given text into a focused input field.
+
+<a id="droidrun.tools.tools.Tools.back"></a>
+
+#### Tools.back
+
+```python
+def back() -> str
+```
+
+Press the back button.
+
+<a id="droidrun.tools.tools.Tools.press_key"></a>
+
+#### Tools.press\_key
+
+```python
+def press_key(keycode: int) -> str
+```
+
+Enter the given keycode.
+
+<a id="droidrun.tools.tools.Tools.start_app"></a>
+
+#### Tools.start\_app
+
+```python
+def start_app(package: str, activity: str = "") -> str
+```
+
+Start the given app.
+
+<a id="droidrun.tools.tools.Tools.take_screenshot"></a>
+
+#### Tools.take\_screenshot
+
+```python
+def take_screenshot() -> Tuple[str, bytes]
+```
+
+Take a screenshot of the device.
+
+<a id="droidrun.tools.tools.Tools.list_packages"></a>
+
+#### Tools.list\_packages
+
+```python
+def list_packages(include_system_apps: bool = False) -> List[str]
+```
+
+List all packages on the device.
+
+<a id="droidrun.tools.tools.Tools.remember"></a>
+
+#### Tools.remember
+
+```python
+def remember(information: str) -> str
+```
+
+Remember the given information. This is used to store information in the tool's memory.
+
+<a id="droidrun.tools.tools.Tools.get_memory"></a>
+
+#### Tools.get\_memory
+
+```python
+def get_memory() -> List[str]
+```
+
+Get the memory of the tool.
+
+<a id="droidrun.tools.tools.Tools.complete"></a>
+
+#### Tools.complete
+
+```python
+def complete(success: bool, reason: str = "") -> None
+```
+
+Complete the tool. This is used to indicate that the tool has completed its task.
+
+<a id="droidrun.tools.tools.describe_tools"></a>
+
+#### describe\_tools
+
+```python
+def describe_tools(
+    tools: Tools,
+    exclude_tools: Optional[List[str]] = None
+) -> Dict[str, Callable[..., Any]]
+```
+
+Describe the tools available for the given Tools instance.
+
+**Arguments**:
+
+- `tools` - The Tools instance to describe.
+- `exclude_tools` - List of tool names to exclude from the description.
+  
+
+**Returns**:
+
+  A dictionary mapping tool names to their descriptions.
+

@@ -2,25 +2,25 @@
 DroidRun - A framework for controlling Android devices through LLM agents.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 # Import main classes for easier access
-from droidrun.agent.codeact.codeact_agent import CodeActAgent
-from droidrun.agent.planner.planner_agent import PlannerAgent
-from droidrun.agent.utils.executer import SimpleCodeExecutor
 from droidrun.agent.utils.llm_picker import load_llm
-from droidrun.adb.manager import DeviceManager
-from droidrun.tools.actions import Tools
-from droidrun.tools.loader import load_tools
+from droidrun.tools import Tools, AdbTools, IOSTools
+from droidrun.agent.droid import DroidAgent
+
+# Import macro functionality
+from droidrun.macro import MacroPlayer, replay_macro_file, replay_macro_folder
 
 
 # Make main components available at package level
 __all__ = [
-    "CodeActAgent",
-    "PlannerAgent",
-    "DeviceManager",
-    "Tools",
+    "DroidAgent",
     "load_llm",
-    "SimpleCodeExecutor",
-    "load_tools",
+    "Tools",
+    "AdbTools",
+    "IOSTools",
+    "MacroPlayer",
+    "replay_macro_file",
+    "replay_macro_folder",
 ]
