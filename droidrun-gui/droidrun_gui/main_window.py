@@ -234,6 +234,11 @@ class DroidRunGUI(QMainWindow):
         # 输出区域
         output_group = QGroupBox("执行结果")
         output_layout = QVBoxLayout(output_group)
+        # 新增日志过滤输入框
+        self.log_filter_input = QLineEdit()
+        self.log_filter_input.setPlaceholderText("日志过滤（输入关键字实时过滤）")
+        self.log_filter_input.textChanged.connect(self.refresh_log_output)
+        output_layout.addWidget(self.log_filter_input)
         self.output_text = QTextEdit()
         self.output_text.setReadOnly(True)
         output_layout.addWidget(self.output_text)
@@ -246,6 +251,10 @@ class DroidRunGUI(QMainWindow):
         
         # 初始化历史任务下拉框
         self.load_history_tasks()
+        # 初始化日志缓存
+        self.all_logs = []
+        # 记录日志最大条数，防止内存溢出
+        self.max_log_count = 5000
         
     def setup_device_tab(self):
         layout = QVBoxLayout(self.device_tab)
@@ -480,7 +489,23 @@ class DroidRunGUI(QMainWindow):
         self.progress_bar.setValue(value)
         
     def update_output(self, message):
-        self.output_text.append(message)
+        # 只追加日志，不清空，保留所有历史日志
+        self.all_logs.append(message)
+        # 控制日志缓存最大条数，防止内存溢出
+        if len(self.all_logs) > self.max_log_count:
+            self.all_logs = self.all_logs[-self.max_log_count:]
+        self.refresh_log_output()
+
+    def refresh_log_output(self):
+        keyword = self.log_filter_input.text().strip()
+        if not keyword:
+            filtered = self.all_logs
+        else:
+            filtered = [log for log in self.all_logs if keyword in log]
+        if not filtered:
+            self.output_text.setPlainText("暂无日志")
+        else:
+            self.output_text.setPlainText("\n".join(filtered[-500:]))  # 最多显示500条，防止卡顿
         
     def task_finished(self, success, message, steps):
         self.execute_button.setEnabled(True)
@@ -558,11 +583,11 @@ class DroidRunGUI(QMainWindow):
                 flag_file = os.path.expanduser(f"~/.droidrun-gui/portal_{device_id}.flag")
                 with open(flag_file, "w") as f:
                     f.write("ok")
-                self.output_text.append(f"[环境已初始化] Portal APK 已安装到设备 {device_id}。")
+                self.update_output(f"[环境已初始化] Portal APK 已安装到设备 {device_id}。")
             else:
-                self.output_text.append(f"[Portal安装失败] {device_id}: {result.stdout}\n{result.stderr}")
+                self.update_output(f"[Portal安装失败] {device_id}: {result.stdout}\n{result.stderr}")
         except Exception as e:
-            self.output_text.append(f"[Portal安装异常] {device_id}: {e}")
+            self.update_output(f"[Portal安装异常] {device_id}: {e}")
         self._setup_done_devices.add(device_id)
         
     def load_history_tasks(self):
@@ -600,7 +625,7 @@ class DroidRunGUI(QMainWindow):
         self.adbkeyboard_thread.start()
 
     def on_adbkeyboard_install_result(self, msg, success):
-        self.output_text.append(msg)
+        self.update_output(msg)
         if success:
             QMessageBox.information(self, "ADBKeyboard", "ADBKeyboard安装成功，已自动打开输入法设置界面，请在手机上手动启用ADBKeyboard输入法，然后再点击切换按钮。")
         else:
@@ -610,11 +635,11 @@ class DroidRunGUI(QMainWindow):
         if hasattr(self.task_executor, 'worker') and self.task_executor.worker.isRunning():
             self.task_executor.worker.stop()
             self.task_executor.worker.terminate()
-            self.output_text.append("[中断] 已请求中断当前任务。")
+            self.update_output("[中断] 已请求中断当前任务。")
             self.interrupt_button.setEnabled(False)
             self.execute_button.setEnabled(True)
         else:
-            self.output_text.append("[中断] 当前无正在运行的任务。")
+            self.update_output("[中断] 当前无正在运行的任务。")
 
 def main():
     device_manager = DeviceManager()
@@ -624,7 +649,7 @@ def main():
     window.show()
     # 启动 Portal 安装线程
     def portal_result(msg):
-        window.output_text.append(msg)
+        window.update_output(msg)
     portal_thread = PortalSetupThread(device_manager, devices)
     portal_thread.result_signal.connect(portal_result)
     portal_thread.start()

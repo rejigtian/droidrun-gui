@@ -56,10 +56,12 @@ class TaskWorker(QThread):
         try:
             if self.cmd[0] == "droidrun":
                 self.cmd[0] = DROIDRUN_CLI_PATH
-            self.process = subprocess.Popen(self.cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=self.env)
-            stdout, stderr = self.process.communicate()
-            output = stdout + "\n" + stderr
-            self.output_signal.emit(output)
+            self.process = subprocess.Popen(self.cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=self.env, bufsize=1)
+            # 实时读取子进程输出
+            for line in self.process.stdout:
+                self.output_signal.emit(line.rstrip())
+                print(line, end="")  # 同步输出到控制台
+            self.process.wait()
             success = self.process.returncode == 0
             self.finished_signal.emit(success, "CLI执行完成", 0)
         except Exception as e:
