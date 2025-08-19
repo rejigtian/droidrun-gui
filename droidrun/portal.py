@@ -85,16 +85,16 @@ def download_portal_apk(debug: bool = False):
             os.unlink(tmp.name)
 
 
-def enable_portal_accessibility(device: AdbDevice):
+def enable_portal_accessibility(device: AdbDevice, service_name: str = A11Y_SERVICE_NAME):
     device.shell(
-        f"settings put secure enabled_accessibility_services {A11Y_SERVICE_NAME}"
+        f"settings put secure enabled_accessibility_services {service_name}"
     )
     device.shell("settings put secure accessibility_enabled 1")
 
 
-def check_portal_accessibility(device: AdbDevice, debug: bool = False) -> bool:
+def check_portal_accessibility(device: AdbDevice, service_name: str = A11Y_SERVICE_NAME, debug: bool = False) -> bool:
     a11y_services = device.shell("settings get secure enabled_accessibility_services")
-    if not A11Y_SERVICE_NAME in a11y_services:
+    if not service_name in a11y_services:
         if debug:
             print(a11y_services)
         return False
@@ -122,7 +122,7 @@ def ping_portal(device: AdbDevice, debug: bool = False):
             print(packages)
         raise Exception("Portal is not installed on the device")
 
-    if not check_portal_accessibility(device, debug):
+    if not check_portal_accessibility(device, debug=debug):
         device.shell("am start -a android.settings.ACCESSIBILITY_SETTINGS")
         raise Exception(
             "Droidrun Portal is not enabled as an accessibility service on the device"
