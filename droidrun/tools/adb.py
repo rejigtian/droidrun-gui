@@ -468,9 +468,7 @@ class AdbTools(Tools):
             # else:
             # Fallback to content provider method
             # Save the current keyboard
-            original_ime = self.device.shell(
-                "settings get secure default_input_method"
-            )
+            original_ime = self.device.shell("settings get secure default_input_method")
             original_ime = original_ime.strip()
 
             # Enable the Droidrun keyboard
