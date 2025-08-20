@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import time
+import uuid
 from typing import Dict, List, Any
 from PIL import Image
 import io
@@ -55,8 +56,9 @@ class Trajectory:
         Args:
             goal: The goal/prompt that this trajectory is trying to achieve
         """
-        self.events: List[Event] = []
+        self.events: List[Event] = [] 
         self.screenshots: List[bytes] = []
+        self.ui_states: List[Dict[str, Any]] = []
         self.macro: List[Event] = []
         self.goal = goal or "DroidRun automation sequence"
 
@@ -90,7 +92,7 @@ class Trajectory:
             images.append(img)
 
         # Save as GIF
-        gif_path = f"{output_path}.gif"
+        gif_path = os.path.join(output_path, "trajectory.gif")
         images[0].save(
             gif_path, save_all=True, append_images=images[1:], duration=duration, loop=0
         )
@@ -129,9 +131,9 @@ class Trajectory:
             Path to the trajectory folder
         """
         os.makedirs(directory, exist_ok=True)
-
         timestamp = time.strftime("%Y%m%d_%H%M%S")
-        trajectory_folder = os.path.join(directory, f"trajectory_{timestamp}")
+        unique_id = str(uuid.uuid4())[:8]
+        trajectory_folder = os.path.join(directory, f"{timestamp}_{unique_id}")
         os.makedirs(trajectory_folder, exist_ok=True)
 
         serializable_events = self.get_trajectory()
@@ -172,7 +174,6 @@ class Trajectory:
                 f"💾 Saved macro sequence with {len(macro_data)} actions to {macro_json_path}"
             )
 
-        # Create screenshot GIF
         gif_path = self.create_screenshot_gif(
             os.path.join(trajectory_folder, "screenshots")
         )
@@ -180,6 +181,15 @@ class Trajectory:
             logger.info(f"🎬 Saved screenshot GIF to {gif_path}")
 
         logger.info(f"📁 Trajectory saved to folder: {trajectory_folder}")
+
+        if len(self.ui_states) != len(self.screenshots):
+            logger.warning("UI states and screenshots are not the same length!")
+
+        os.makedirs(os.path.join(trajectory_folder, "ui_states"), exist_ok=True)
+        for idx, ui_state in enumerate(self.ui_states):
+            ui_states_path = os.path.join(trajectory_folder, "ui_states", f"{idx}.json")
+            with open(ui_states_path, "w", encoding="utf-8") as f:
+                json.dump(ui_state, f, ensure_ascii=False, indent=2)
         return trajectory_folder
 
     @staticmethod
