@@ -85,14 +85,16 @@ def download_portal_apk(debug: bool = False):
             os.unlink(tmp.name)
 
 
-def enable_portal_accessibility(device: AdbDevice, service_name: str = A11Y_SERVICE_NAME):
-    device.shell(
-        f"settings put secure enabled_accessibility_services {service_name}"
-    )
+def enable_portal_accessibility(
+    device: AdbDevice, service_name: str = A11Y_SERVICE_NAME
+):
+    device.shell(f"settings put secure enabled_accessibility_services {service_name}")
     device.shell("settings put secure accessibility_enabled 1")
 
 
-def check_portal_accessibility(device: AdbDevice, service_name: str = A11Y_SERVICE_NAME, debug: bool = False) -> bool:
+def check_portal_accessibility(
+    device: AdbDevice, service_name: str = A11Y_SERVICE_NAME, debug: bool = False
+) -> bool:
     a11y_services = device.shell("settings get secure enabled_accessibility_services")
     if not service_name in a11y_services:
         if debug:
@@ -143,6 +145,17 @@ def ping_portal_tcp(device: AdbDevice, debug: bool = False):
         tools = AdbTools(serial=device.serial, use_tcp=True)
     except Exception as e:
         raise Exception(f"Failed to setup TCP forwarding: {e}")
+
+
+def set_overlay_offset(device: AdbDevice, offset: int):
+    """
+    Set the overlay offset using the /overlay_offset portal content provider endpoint.
+    """
+    try:
+        cmd = f'content insert --uri "content://com.droidrun.portal/overlay_offset" --bind offset:i:{offset}'
+        device.shell(cmd)
+    except Exception as e:
+        raise Exception(f"Error setting overlay offset: {str(e)}")
 
 
 def test():
