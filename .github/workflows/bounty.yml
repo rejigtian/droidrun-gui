@@ -64,7 +64,7 @@ jobs:
             eligible)      OPT_NAME="📝 Eligible"      ;;
             bounty-official) OPT_NAME="💰 Bounty" ;;
             claimed)       OPT_NAME="🛠️ In Progress"   ;;
-            *) echo "No matching status for $LABEL"; exit 0 ;;
+            *) echo "No matching status for $LABEL"; exit 78 ;;
           esac
 
           # extract from JSON map
