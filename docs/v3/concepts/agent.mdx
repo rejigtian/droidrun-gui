@@ -21,7 +21,7 @@ def __init__(
     reflection: bool = False,                   # Enable reflection
     enable_tracing: bool = False,               # Enable tracing (this requires arize phoenix)
     debug: bool = False,                        # Enable additional debug logs
-    save_trajectories: bool = False,            # Save the Trajectory data of the run (GIF + logs)
+    save_trajectories: bool = False,            # Trajectory saving level: "none" (no saving), "step" (save per step), "action" (save per action)
     *args,
     **kwargs
 )
@@ -92,6 +92,7 @@ agent = DroidAgent(
     reflection=True
 )
 ```
+<Warning>Reflection is based on screenshots. Use it alongside an LLM model with vision capabilities (e.g., GPT-4o, Gemini-2.5-Flash etc.).</Warning>
 **Flow:** Goal → Planning → Execution → Reflection → Re-planning (if needed) → Result
 
 **Best Practice:**

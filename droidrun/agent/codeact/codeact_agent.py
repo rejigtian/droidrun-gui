@@ -18,7 +18,7 @@ from droidrun.agent.codeact.events import (
     TaskThinkingEvent,
     EpisodicMemoryEvent,
 )
-from droidrun.agent.common.events import ScreenshotEvent
+from droidrun.agent.common.events import ScreenshotEvent, RecordUIStateEvent
 from droidrun.agent.utils import chat_utils
 from droidrun.agent.utils.executer import SimpleCodeExecutor
 from droidrun.agent.codeact.prompts import (
@@ -97,6 +97,7 @@ class CodeActAgent(Workflow):
             loop=asyncio.get_event_loop(),
             locals={},
             tools=self.tool_list,
+            tools_instance=tools_instance,
             globals={"__builtins__": __builtins__},
         )
 
@@ -164,21 +165,24 @@ class CodeActAgent(Workflow):
             chat_history = await chat_utils.add_memory_block(self.remembered_info, chat_history)
 
         for context in self.required_context:
-            if model == "DeepSeek":
-                logger.warning(
-                    "[yellow]DeepSeek doesnt support images. Disabling screenshots[/]"
-                )
-            elif self.vision == True and context == "screenshot":
+            if context == "screenshot":
+                # if vision is disabled, screenshot should save to trajectory
                 screenshot = (self.tools.take_screenshot())[1]
                 ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
 
                 await ctx.set("screenshot", screenshot)
-                chat_history = await chat_utils.add_screenshot_image_block(screenshot, chat_history)
+                if model == "DeepSeek":
+                    logger.warning(
+                        "[yellow]DeepSeek doesnt support images. Disabling screenshots[/]"
+                    )
+                elif self.vision == True: # if vision is enabled, add screenshot to chat history
+                    chat_history = await chat_utils.add_screenshot_image_block(screenshot, chat_history)
 
             if context == "ui_state":
                 try:
                     state = self.tools.get_state()
                     await ctx.set("ui_state", state["a11y_tree"])
+                    ctx.write_event_to_stream(RecordUIStateEvent(ui_state=state["a11y_tree"]))
                     chat_history = await chat_utils.add_ui_text_block(
                         state["a11y_tree"], chat_history
                     )
@@ -242,12 +246,19 @@ class CodeActAgent(Workflow):
         code = ev.code
         assert code, "Code cannot be empty."
         logger.info(f"⚡ Executing action...")
-        logger.debug(f"Code to execute:\n```python\n{code}\n```")
+        logger.info(f"Code to execute:\n```python\n{code}\n```")
 
         try:
             self.code_exec_counter += 1
             result = await self.executor.execute(ctx, code)
-            logger.info(f"💡 Code execution successful. Result: {result}")
+            logger.info(f"💡 Code execution successful. Result: {result['output']}")
+            screenshots = result['screenshots']
+            for screenshot in screenshots[:-1]: # the last screenshot will be captured by next step
+                ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
+
+            ui_states = result['ui_states']
+            for ui_state in ui_states[:-1]:
+                ctx.write_event_to_stream(RecordUIStateEvent(ui_state=ui_state['a11y_tree']))
 
             if self.tools.finished == True:
                 logger.debug("  - Task completed.")
@@ -259,7 +270,7 @@ class CodeActAgent(Workflow):
             
             self.remembered_info = self.tools.memory
             
-            event = TaskExecutionResultEvent(output=str(result))
+            event = TaskExecutionResultEvent(output=str(result['output']))
             ctx.write_event_to_stream(event)
             return event
 

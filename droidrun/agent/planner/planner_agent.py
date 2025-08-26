@@ -17,7 +17,7 @@ from droidrun.agent.utils.executer import SimpleCodeExecutor
 from droidrun.agent.utils import chat_utils
 from droidrun.agent.context.task_manager import TaskManager
 from droidrun.tools import Tools
-from droidrun.agent.common.events import ScreenshotEvent
+from droidrun.agent.common.events import ScreenshotEvent, RecordUIStateEvent
 from droidrun.agent.planner.events import (
     PlanInputEvent,
     PlanCreatedEvent,
@@ -130,15 +130,17 @@ class PlannerAgent(Workflow):
         self.steps_counter += 1
         logger.info(f"🧠 Thinking about how to plan the goal...")
 
+        # if vision is disabled, screenshot should save to trajectory
+        screenshot = (self.tools_instance.take_screenshot())[1]
+        ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
         if self.vision:
-            screenshot = (self.tools_instance.take_screenshot())[1]
-            ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
             await ctx.set("screenshot", screenshot)
 
         try:
             state = self.tools_instance.get_state()
             await ctx.set("ui_state", state["a11y_tree"])
             await ctx.set("phone_state", state["phone_state"])
+            ctx.write_event_to_stream(RecordUIStateEvent(ui_state=state["a11y_tree"]))
         except Exception as e:
             logger.warning(f"⚠️ Error retrieving state from the connected device. Is the Accessibility Service enabled?")
 
@@ -168,11 +170,19 @@ class PlannerAgent(Workflow):
             try:
                 result = await self.executer.execute(ctx, code)
                 logger.info(f"📝 Planning complete")
-                logger.debug(f"  - Planning code executed. Result: {result}")
+                logger.debug(f"  - Planning code executed. Result: {result['output']}")
+
+                screenshots = result['screenshots']
+                for screenshot in screenshots[:-1]: # the last screenshot will be captured by next step
+                    ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
+                
+                ui_states = result['ui_states']
+                for ui_state in ui_states[:-1]:
+                    ctx.write_event_to_stream(RecordUIStateEvent(ui_state=ui_state['a11y_tree']))
 
                 await self.chat_memory.aput(
                     ChatMessage(
-                        role="user", content=f"Execution Result:\n```\n{result}\n```"
+                        role="user", content=f"Execution Result:\n```\n{result['output']}\n```"
                     )
                 )
 
@@ -241,21 +251,22 @@ wrap your code inside this:
             logger.debug(f"  - Sending {len(chat_history)} messages to LLM.")
 
             model = self.llm.class_name()
-            if model == "DeepSeek":
-                logger.warning(
-                    "[yellow]DeepSeek doesnt support images. Disabling screenshots[/]"
-                )
-
-            elif self.vision == True:
-                chat_history = await chat_utils.add_screenshot_image_block(
-                    await ctx.get("screenshot"), chat_history
-                )                   
+            if self.vision == True:
+                if model == "DeepSeek":
+                    logger.warning(
+                        "[yellow]DeepSeek doesnt support images. Disabling screenshots[/]"
+                    )
+                else:
+                    chat_history = await chat_utils.add_screenshot_image_block(
+                        await ctx.get("screenshot"), chat_history
+                    )                   
 
 
 
             chat_history = await chat_utils.add_task_history_block(
-                self.task_manager.get_completed_tasks(),
-                self.task_manager.get_failed_tasks(),
+                #self.task_manager.get_completed_tasks(),
+                #self.task_manager.get_failed_tasks(),
+                self.task_manager.get_task_history(),
                 chat_history,
             )
 

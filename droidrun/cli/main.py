@@ -13,6 +13,7 @@ from adbutils import adb
 from droidrun.agent.droid import DroidAgent
 from droidrun.agent.utils.llm_picker import load_llm
 from droidrun.tools import AdbTools, IOSTools
+from droidrun.agent.context.personas import DEFAULT, BIG_AGENT
 from functools import wraps
 from droidrun.cli.logs import LogHandler
 from droidrun.telemetry import print_telemetry_message
@@ -21,7 +22,10 @@ from droidrun.portal import (
     enable_portal_accessibility,
     PORTAL_PACKAGE_NAME,
     ping_portal,
+    ping_portal_tcp,
+    ping_portal_content,
 )
+from droidrun.macro.cli import macro_cli
 
 # Suppress all warnings
 warnings.filterwarnings("ignore")
@@ -77,8 +81,10 @@ async def run_command(
     reflection: bool,
     tracing: bool,
     debug: bool,
+    use_tcp: bool,
     save_trajectory: bool = False,
     ios: bool = False,
+    allow_drag: bool = False,
     **kwargs,
 ):
     """Run a command on your Android device using natural language."""
@@ -113,7 +119,16 @@ async def run_command(
             else:
                 logger.info(f"📱 Using device: {device}")
 
-            tools = AdbTools(serial=device) if not ios else IOSTools(url=device)
+            tools = (
+                AdbTools(serial=device, use_tcp=use_tcp)
+                if not ios
+                else IOSTools(url=device)
+            )
+            # Set excluded tools based on CLI flags
+            excluded_tools = [] if allow_drag else ["drag"]
+
+            # Select personas based on --drag flag
+            personas = [BIG_AGENT] if allow_drag else [DEFAULT]
 
             # LLM setup
             log_handler.update_step("Initializing LLM...")
@@ -139,6 +154,8 @@ async def run_command(
                 goal=command,
                 llm=llm,
                 tools=tools,
+                personas=personas,
+                excluded_tools=excluded_tools,
                 max_steps=steps,
                 timeout=1000,
                 vision=vision,
@@ -242,10 +259,16 @@ class DroidRunCLI(click.Group):
     "--debug", is_flag=True, help="Enable verbose debug logging", default=False
 )
 @click.option(
-    "--save-trajectory",
+    "--use-tcp",
     is_flag=True,
-    help="Save agent trajectory to file",
+    help="Use TCP communication for device control",
     default=False,
+)
+@click.option(
+    "--save-trajectory",
+    type=click.Choice(["none", "step", "action"]),
+    help="Trajectory saving level: none (no saving), step (save per step), action (save per action)",
+    default="none",
 )
 @click.group(cls=DroidRunCLI)
 def cli(
@@ -261,6 +284,7 @@ def cli(
     reflection: bool,
     tracing: bool,
     debug: bool,
+    use_tcp: bool,
     save_trajectory: bool,
 ):
     """DroidRun - Control your Android device through LLM agents."""
@@ -317,9 +341,22 @@ def cli(
     "--debug", is_flag=True, help="Enable verbose debug logging", default=False
 )
 @click.option(
-    "--save-trajectory",
+    "--use-tcp",
     is_flag=True,
-    help="Save agent trajectory to file",
+    help="Use TCP communication for device control",
+    default=False,
+)
+@click.option(
+    "--save-trajectory",
+    type=click.Choice(["none", "step", "action"]),
+    help="Trajectory saving level: none (no saving), step (save per step), action (save per action)",
+    default="none",
+)
+@click.option(
+    "--drag",
+    "allow_drag",
+    is_flag=True,
+    help="Enable drag tool",
     default=False,
 )
 @click.option("--ios", is_flag=True, help="Run on iOS device", default=False)
@@ -337,7 +374,9 @@ def run(
     reflection: bool,
     tracing: bool,
     debug: bool,
+    use_tcp: bool,
     save_trajectory: bool,
+    allow_drag: bool,
     ios: bool,
 ):
     """Run a command on your Android device using natural language."""
@@ -355,8 +394,10 @@ def run(
         reflection,
         tracing,
         debug,
+        use_tcp,
         temperature=temperature,
         save_trajectory=save_trajectory,
+        allow_drag=allow_drag,
         ios=ios,
     )
 
@@ -448,7 +489,9 @@ def setup(path: str | None, device: str | None, debug: bool):
 
             console.print(f"[bold blue]Step 1/2: Installing APK:[/] {apk_path}")
             try:
-                device_obj.install(apk_path, uninstall=True, flags=["-g"], silent=True)
+                device_obj.install(
+                    apk_path, uninstall=True, flags=["-g"], silent=not debug
+                )
             except Exception as e:
                 console.print(f"[bold red]Installation failed:[/] {e}")
                 return
@@ -503,9 +546,15 @@ def setup(path: str | None, device: str | None, debug: bool):
 @cli.command()
 @click.option("--device", "-d", help="Device serial number or IP address", default=None)
 @click.option(
+    "--use-tcp",
+    is_flag=True,
+    help="Use TCP communication for device control",
+    default=False,
+)
+@click.option(
     "--debug", is_flag=True, help="Enable verbose debug logging", default=False
 )
-def ping(device: str | None, debug: bool):
+def ping(device: str | None, use_tcp: bool, debug: bool):
     """Ping a device to check if it is ready and accessible."""
     try:
         device_obj = adb.device(device)
@@ -514,6 +563,12 @@ def ping(device: str | None, debug: bool):
             return
 
         ping_portal(device_obj, debug)
+
+        if use_tcp:
+            ping_portal_tcp(device_obj, debug)
+        else:
+            ping_portal_content(device_obj, debug)
+
         console.print(
             "[bold green]Portal is installed and accessible. You're good to go![/]"
         )
@@ -523,6 +578,10 @@ def ping(device: str | None, debug: bool):
             import traceback
 
             traceback.print_exc()
+
+
+# Add macro commands as a subgroup
+cli.add_command(macro_cli, name="macro")
 
 
 if __name__ == "__main__":
@@ -538,10 +597,12 @@ if __name__ == "__main__":
     reflection = False
     tracing = True
     debug = True
+    use_tcp = True
     base_url = None
     api_base = None
     ios = False
     save_trajectory = True
+    allow_drag = False
     run_command(
         command=command,
         device=device,
@@ -554,9 +615,11 @@ if __name__ == "__main__":
         reflection=reflection,
         tracing=tracing,
         debug=debug,
+        use_tcp=use_tcp,
         base_url=base_url,
         api_base=api_base,
         api_key=api_key,
+        allow_drag=allow_drag,
         ios=ios,
         save_trajectory=save_trajectory,
     )

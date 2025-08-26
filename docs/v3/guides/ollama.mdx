@@ -61,12 +61,14 @@ from droidrun import DroidAgent, AdbTools
 
 async def main():
     # load adb tools for the first connected device
-    tools = await AdbTools.create()
+    tools = AdbTools()
 
     # Set up the Ollama LLM with a modern model
     llm = Ollama(
-        model="qwen2.5vl",  # or "gemma3", "deepseek", "llama4", etc.
-        base_url="http://localhost:11434"  # default Ollama endpoint
+        model="qwen2.5vl",                  # or "gemma3", "deepseek", "llama4", etc.
+        base_url="http://localhost:11434",  # default Ollama endpoint
+        context_window=8192,                # limit the max context window to prevent running out of memory. 
+        request_timeout=120.0               # increase the request timeout
     )
 
     # Create the DroidAgent
@@ -74,7 +76,7 @@ async def main():
         goal="Open Settings and check battery level",
         llm=llm,
         tools=tools,
-        vision=True,         # Optional: enable vision. use vision=False for deepseek models
+        vision=False,         # Optional: enable vision. use vision=True only in conjunction with a vision model
         reasoning=True,       # Optional: enable planning/reasoning. Read more about the agent configuration in Core-Concepts/Agent
     )
 
@@ -87,6 +89,8 @@ async def main():
 if __name__ == "__main__":
     asyncio.run(main())
 ```
+
+<Note>Limiting the llm's context_window reduces memory usage, but degrades the agent's performance too. For the best results try extending it as much as possible.</Note>
 
 ## 4. Troubleshooting
 

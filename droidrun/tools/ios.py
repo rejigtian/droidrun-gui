@@ -372,6 +372,24 @@ class IOSTools(Tools):
             logger.error(f"Error performing swipe: {e}")
             return False
 
+    def drag(
+        self, start_x: int, start_y: int, end_x: int, end_y: int, duration_ms: int = 3000
+    ) -> bool:
+        """
+        Drag from the given start coordinates to the given end coordinates.
+        Args:
+            start_x: Starting X coordinate
+            start_y: Starting Y coordinate
+            end_x: Ending X coordinate
+            end_y: Ending Y coordinate
+            duration_ms: Duration of swipe in milliseconds
+        Returns:
+            Bool indicating success or failure
+        """
+        # TODO: implement this
+        logger.info(f"Drag action FAILED! Not implemented for iOS")
+        return False
+
     def input_text(self, text: str) -> str:
         """
         Input text on the iOS device.
