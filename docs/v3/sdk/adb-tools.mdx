@@ -19,7 +19,11 @@ Core UI interaction tools for Android device control.
 #### AdbTools.\_\_init\_\_
 
 ```python
-def __init__(serial: str) -> None
+def __init__(
+    serial: str | None = None,
+    use_tcp: bool = False,
+    tcp_port: int = 8080
+) -> None
 ```
 
 Initialize the AdbTools instance.
@@ -27,32 +31,53 @@ Initialize the AdbTools instance.
 **Arguments**:
 
 - `serial` - Device serial number
+- `use_tcp` - Whether to use TCP communication (default: False)
+- `tcp_port` - TCP port for communication (default: 8080)
 
-<a id="droidrun.tools.adb.AdbTools.create"></a>
+<a id="droidrun.tools.adb.AdbTools.setup_tcp_forward"></a>
 
-#### AdbTools.create
+#### AdbTools.setup\_tcp\_forward
 
 ```python
-async def create(cls: Type[Self], serial: str = None) -> Self
+def setup_tcp_forward() -> bool
 ```
 
-Create an AdbTools instance.
-
-**Arguments**:
-
-- `serial` - Optional device serial number. If not provided, the first device found will be used.
-  
+Set up ADB TCP port forwarding for communication with the portal app.
 
 **Returns**:
 
-  AdbTools instance
+- `bool` - True if forwarding was set up successfully, False otherwise
+
+<a id="droidrun.tools.adb.AdbTools.teardown_tcp_forward"></a>
+
+#### AdbTools.teardown\_tcp\_forward
+
+```python
+def teardown_tcp_forward() -> bool
+```
+
+Remove ADB TCP port forwarding.
+
+**Returns**:
+
+- `bool` - True if forwarding was removed successfully, False otherwise
+
+<a id="droidrun.tools.adb.AdbTools.__del__"></a>
+
+#### AdbTools.\_\_del\_\_
+
+```python
+def __del__()
+```
+
+Cleanup when the object is destroyed.
 
 <a id="droidrun.tools.adb.AdbTools.tap_by_index"></a>
 
 #### AdbTools.tap\_by\_index
 
 ```python
-async def tap_by_index(index: int, serial: Optional[str] = None) -> str
+def tap_by_index(index: int) -> str
 ```
 
 Tap on a UI element by its index.
@@ -74,7 +99,7 @@ to find the element with the given index and tap on its center coordinates.
 #### AdbTools.tap\_by\_coordinates
 
 ```python
-async def tap_by_coordinates(x: int, y: int) -> bool
+def tap_by_coordinates(x: int, y: int) -> bool
 ```
 
 Tap on the device screen at specific coordinates.
@@ -94,7 +119,7 @@ Tap on the device screen at specific coordinates.
 #### AdbTools.tap
 
 ```python
-async def tap(index: int) -> str
+def tap(index: int) -> str
 ```
 
 Tap on a UI element by its index.
@@ -116,12 +141,12 @@ to find the element with the given index and tap on its center coordinates.
 #### AdbTools.swipe
 
 ```python
-async def swipe(
+def swipe(
     start_x: int,
     start_y: int,
     end_x: int,
     end_y: int,
-    duration_ms: int = 300
+    duration_ms: float = 300
 ) -> bool
 ```
 
@@ -134,7 +159,35 @@ To perform a hold (long press), set the start and end coordinates to the same va
 - `start_y` - Starting Y coordinate
 - `end_x` - Ending X coordinate
 - `end_y` - Ending Y coordinate
-- `duration_ms` - Duration of swipe in milliseconds
+- `duration` - Duration of swipe in seconds
+
+**Returns**:
+
+  Bool indicating success or failure
+
+<a id="droidrun.tools.adb.AdbTools.drag"></a>
+
+#### AdbTools.drag
+
+```python
+def drag(
+    start_x: int,
+    start_y: int,
+    end_x: int,
+    end_y: int,
+    duration: float = 3
+) -> bool
+```
+
+Performs a straight-line drag and drop gesture on the device screen.
+
+**Arguments**:
+
+- `start_x` - Starting X coordinate
+- `start_y` - Starting Y coordinate
+- `end_x` - Ending X coordinate
+- `end_y` - Ending Y coordinate
+- `duration` - Duration of swipe in seconds
 
 **Returns**:
 
@@ -145,7 +198,7 @@ To perform a hold (long press), set the start and end coordinates to the same va
 #### AdbTools.input\_text
 
 ```python
-async def input_text(text: str, serial: Optional[str] = None) -> str
+def input_text(text: str) -> str
 ```
 
 Input text on the device.
@@ -165,7 +218,7 @@ Always make sure that the Focused Element is not None before inputting text.
 #### AdbTools.back
 
 ```python
-async def back() -> str
+def back() -> str
 ```
 
 Go back on the current view.
@@ -176,7 +229,7 @@ This presses the Android back button.
 #### AdbTools.press\_key
 
 ```python
-async def press_key(keycode: int) -> str
+def press_key(keycode: int) -> str
 ```
 
 Press a key on the Android device.
@@ -196,7 +249,7 @@ Common keycodes:
 #### AdbTools.start\_app
 
 ```python
-async def start_app(package: str, activity: str = "") -> str
+def start_app(package: str, activity: str | None = None) -> str
 ```
 
 Start an app on the device.
@@ -211,7 +264,7 @@ Start an app on the device.
 #### AdbTools.install\_app
 
 ```python
-async def install_app(
+def install_app(
     apk_path: str,
     reinstall: bool = False,
     grant_permissions: bool = True
@@ -231,7 +284,7 @@ Install an app on the device.
 #### AdbTools.take\_screenshot
 
 ```python
-async def take_screenshot() -> Tuple[str, bytes]
+def take_screenshot() -> Tuple[str, bytes]
 ```
 
 Take a screenshot of the device.
@@ -243,7 +296,7 @@ Also stores the screenshot in the screenshots list with timestamp for later GIF 
 #### AdbTools.list\_packages
 
 ```python
-async def list_packages(include_system_apps: bool = False) -> List[str]
+def list_packages(include_system_apps: bool = False) -> List[str]
 ```
 
 List installed packages on the device.
@@ -277,7 +330,7 @@ Mark the task as finished.
 #### AdbTools.remember
 
 ```python
-async def remember(information: str) -> str
+def remember(information: str) -> str
 ```
 
 Store important information to remember for future context.
@@ -314,7 +367,7 @@ Retrieve all stored memory items.
 #### AdbTools.get\_state
 
 ```python
-async def get_state(serial: Optional[str] = None) -> Dict[str, Any]
+def get_state(serial: Optional[str] = None) -> Dict[str, Any]
 ```
 
 Get both the a11y tree and phone state in a single call using the combined /state endpoint.
@@ -327,4 +380,46 @@ Get both the a11y tree and phone state in a single call using the combined /stat
 **Returns**:
 
   Dictionary containing both 'a11y_tree' and 'phone_state' data
+
+<a id="droidrun.tools.adb.AdbTools.get_a11y_tree"></a>
+
+#### AdbTools.get\_a11y\_tree
+
+```python
+def get_a11y_tree() -> Dict[str, Any]
+```
+
+Get just the accessibility tree using the /a11y_tree endpoint.
+
+**Returns**:
+
+  Dictionary containing accessibility tree data
+
+<a id="droidrun.tools.adb.AdbTools.get_phone_state"></a>
+
+#### AdbTools.get\_phone\_state
+
+```python
+def get_phone_state() -> Dict[str, Any]
+```
+
+Get just the phone state using the /phone_state endpoint.
+
+**Returns**:
+
+  Dictionary containing phone state data
+
+<a id="droidrun.tools.adb.AdbTools.ping"></a>
+
+#### AdbTools.ping
+
+```python
+def ping() -> Dict[str, Any]
+```
+
+Test the TCP connection using the /ping endpoint.
+
+**Returns**:
+
+  Dictionary with ping result
 

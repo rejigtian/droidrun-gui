@@ -26,8 +26,9 @@ Before installing DroidRun, ensure you have:
    - Connected via USB or on the same network (for wireless debugging)
 
 ### Install from PyPI
+Use [`uv`](https://docs.astral.sh/uv/getting-started/installation/)
 ```bash
-pip install droidrun
+uv pip install droidrun
 ```
 
 ### Setup the Portal APK
@@ -59,7 +60,7 @@ from llama_index.llms.google_genai import GoogleGenAI
 
 async def main():
     # Load tools
-    tools = await AdbTools.create()
+    tools = AdbTools()
     # set up google gemini llm
     llm = GoogleGenAI(
         api_key="YOUR_GEMINI_API_KEY",  # Replace with your Gemini API key

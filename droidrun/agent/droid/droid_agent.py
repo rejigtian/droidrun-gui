@@ -16,7 +16,7 @@ from droidrun.agent.planner import PlannerAgent
 from droidrun.agent.context.task_manager import TaskManager
 from droidrun.agent.utils.trajectory import Trajectory
 from droidrun.tools import Tools, describe_tools
-from droidrun.agent.common.events import ScreenshotEvent
+from droidrun.agent.common.events import ScreenshotEvent, MacroEvent, RecordUIStateEvent
 from droidrun.agent.common.default import MockWorkflow
 from droidrun.agent.context import ContextInjectionManager
 from droidrun.agent.context.agent_persona import AgentPersona
@@ -76,7 +76,8 @@ class DroidAgent(Workflow):
         reflection: bool = False,
         enable_tracing: bool = False,
         debug: bool = False,
-        save_trajectories: bool = False,
+        save_trajectories: str = "none",
+        excluded_tools: List[str] = None,
         *args,
         **kwargs,
     ):
@@ -93,6 +94,10 @@ class DroidAgent(Workflow):
             reflection: Whether to reflect on steps the CodeActAgent did to give the PlannerAgent advice
             enable_tracing: Whether to enable Arize Phoenix tracing
             debug: Whether to enable verbose debug logging
+            save_trajectories: Trajectory saving level. Can be:
+                - "none" (no saving)
+                - "step" (save per step)
+                - "action" (save per action)
             **kwargs: Additional keyword arguments to pass to the agents
         """
         self.user_id = kwargs.pop("user_id", None)
@@ -122,11 +127,23 @@ class DroidAgent(Workflow):
         self.debug = debug
 
         self.event_counter = 0
-        self.save_trajectories = save_trajectories
-
-        self.trajectory = Trajectory()
+        # Handle backward compatibility: bool -> str mapping
+        if isinstance(save_trajectories, bool):
+            self.save_trajectories = "step" if save_trajectories else "none"
+        else:
+            # Validate string values
+            valid_values = ["none", "step", "action"]
+            if save_trajectories not in valid_values:
+                logger.warning(f"Invalid save_trajectories value: {save_trajectories}. Using 'none' instead.")
+                self.save_trajectories = "none"
+            else:
+                self.save_trajectories = save_trajectories
+        
+        self.trajectory = Trajectory(goal=goal)
         self.task_manager = TaskManager()
         self.task_iter = None
+
+        
         self.cim = ContextInjectionManager(personas=personas)
         self.current_episodic_memory = None
 
@@ -137,9 +154,12 @@ class DroidAgent(Workflow):
         self.total_tokens = self.token_tracker.usage.total_tokens  # 0 initially
 
         logger.info("🤖 Initializing DroidAgent...")
-
-        self.tool_list = describe_tools(tools)
+        logger.info(f"💾 Trajectory saving level: {self.save_trajectories}")
+        
+        self.tool_list = describe_tools(tools, excluded_tools)
         self.tools_instance = tools
+        
+        self.tools_instance.save_trajectories = self.save_trajectories
 
         if self.reasoning:
             logger.info("📝 Initializing Planner Agent...")
@@ -185,12 +205,12 @@ class DroidAgent(Workflow):
 
         logger.info("✅ DroidAgent initialized successfully.")
 
-    def run(self) -> WorkflowHandler:
+    def run(self, *args, **kwargs) -> WorkflowHandler:
         """
         Run the DroidAgent workflow.
         """
-        return super().run()
-
+        return super().run(*args, **kwargs)
+    
     @step
     async def execute_task(
         self, ctx: Context, ev: CodeActExecuteEvent
@@ -259,25 +279,24 @@ class DroidAgent(Workflow):
             )
 
     @step
-    async def handle_codeact_execute(
-        self, ctx: Context, ev: CodeActResultEvent
-    ) -> FinalizeEvent | ReflectionEvent:
+    async def handle_codeact_execute(self, ctx: Context, ev: CodeActResultEvent) -> FinalizeEvent | ReflectionEvent | ReasoningLogicEvent:
         try:
             task = ev.task
             if not self.reasoning:
-                return FinalizeEvent(
-                    success=ev.success,
-                    reason=ev.reason,
-                    output=ev.reason,
-                    task=[task],
-                    tasks=[task],
-                    steps=ev.steps,
-                )
-
-            if self.reflection:
+                return FinalizeEvent(success=ev.success, reason=ev.reason, output=ev.reason, task=[task], tasks=[task], steps=ev.steps)
+            
+            if self.reflection and ev.success:
                 return ReflectionEvent(task=task)
 
-            return ReasoningLogicEvent()
+            # Reasoning is enabled but reflection is disabled.
+            # Success: mark complete and proceed to next step in reasoning loop.
+            # Failure: mark failed and trigger planner immediately without advancing to the next queued task.
+            if ev.success:
+                self.task_manager.complete_task(task, message=ev.reason)
+                return ReasoningLogicEvent()
+            else:
+                self.task_manager.fail_task(task, failure_reason=ev.reason)
+                return ReasoningLogicEvent(force_planning=True)
 
         except Exception as e:
             logger.error(f"❌ Error during DroidAgent execution: {e}")
@@ -343,7 +362,7 @@ class DroidAgent(Workflow):
                     remembered_info=self.tools_instance.memory, reflection=ev.reflection
                 )
             else:
-                if self.task_iter:
+                if not ev.force_planning and self.task_iter:
                     try:
                         task = next(self.task_iter)
                         return CodeActExecuteEvent(task=task, reflection=None)
@@ -456,7 +475,7 @@ class DroidAgent(Workflow):
             "steps": ev.steps,
         }
 
-        if self.trajectory and self.save_trajectories:
+        if self.trajectory and self.save_trajectories != "none":
             self.trajectory.save_trajectory()
 
         return StopEvent(result)
@@ -466,12 +485,18 @@ class DroidAgent(Workflow):
         if isinstance(ev, EpisodicMemoryEvent):
             self.current_episodic_memory = ev.episodic_memory
             return
+        
+  
 
         if not isinstance(ev, StopEvent):
             ctx.write_event_to_stream(ev)
 
             if isinstance(ev, ScreenshotEvent):
                 self.trajectory.screenshots.append(ev.screenshot)
+            elif isinstance(ev, MacroEvent):
+                self.trajectory.macro.append(ev)
+            elif isinstance(ev, RecordUIStateEvent):
+                self.trajectory.ui_states.append(ev.ui_state)
 
             else:
                 # appending token count for each event

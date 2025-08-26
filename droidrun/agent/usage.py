@@ -11,7 +11,7 @@ logger = logging.getLogger("droidrun")
 SUPPORTED_PROVIDERS = [
     "Gemini",
     "GoogleGenAI",
-    "OpenAI",
+    "OpenAI",   
     "Anthropic",
     "Ollama",
     "DeepSeek",
