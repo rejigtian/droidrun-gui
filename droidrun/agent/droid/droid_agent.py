@@ -76,7 +76,7 @@ class DroidAgent(Workflow):
         reflection: bool = False,
         enable_tracing: bool = False,
         debug: bool = False,
-        save_trajectories: str = "none",
+        save_trajectories: bool = False,
         excluded_tools: List[str] = None,
         *args,
         **kwargs,
@@ -475,7 +475,7 @@ class DroidAgent(Workflow):
             "steps": ev.steps,
         }
 
-        if self.trajectory and self.save_trajectories != "none":
+        if self.trajectory and self.save_trajectories:
             self.trajectory.save_trajectory()
 
         return StopEvent(result)
