@@ -82,7 +82,7 @@ async def run_command(
     tracing: bool,
     debug: bool,
     use_tcp: bool,
-    save_trajectory: bool = False,
+    save_trajectory: str = "none",
     ios: bool = False,
     allow_drag: bool = False,
     **kwargs,
@@ -285,7 +285,7 @@ def cli(
     tracing: bool,
     debug: bool,
     use_tcp: bool,
-    save_trajectory: bool,
+    save_trajectory: str = "none",
 ):
     """DroidRun - Control your Android device through LLM agents."""
     pass
@@ -375,7 +375,7 @@ def run(
     tracing: bool,
     debug: bool,
     use_tcp: bool,
-    save_trajectory: bool,
+    save_trajectory: str,
     allow_drag: bool,
     ios: bool,
 ):
@@ -601,7 +601,7 @@ if __name__ == "__main__":
     base_url = None
     api_base = None
     ios = False
-    save_trajectory = True
+    save_trajectory = "action"
     allow_drag = False
     run_command(
         command=command,
