@@ -39,14 +39,24 @@ def make_serializable(obj):
         return [make_serializable(item) for item in obj]
     elif hasattr(obj, "__dict__"):
         # Handle other custom objects by converting to dict
-        return {
-            k: make_serializable(v)
-            for k, v in obj.__dict__.items()
-            if not k.startswith("_")
-        }
+        result = {}
+        for k, v in obj.__dict__.items():
+            if not k.startswith("_"):
+                try:
+                    result[k] = make_serializable(v)
+                except (TypeError, ValueError) as e:
+                    # If serialization fails, convert to string representation
+                    logger.warning(f"Failed to serialize attribute {k}: {e}")
+                    result[k] = str(v)
+        return result
     else:
-        return obj
-
+        try:
+            # Test if the object is JSON serializable
+            json.dumps(obj)
+            return obj
+        except (TypeError, ValueError):
+            # If not serializable, convert to string
+            return str(obj)
 
 class Trajectory:
 
@@ -136,7 +146,47 @@ class Trajectory:
         trajectory_folder = os.path.join(directory, f"{timestamp}_{unique_id}")
         os.makedirs(trajectory_folder, exist_ok=True)
 
-        serializable_events = self.get_trajectory()
+        serializable_events = []
+        for event in self.events:
+            # Debug: Check if tokens attribute exists
+            if hasattr(event, "tokens"):
+                logger.debug(
+                    f"Event {event.__class__.__name__} has tokens: {event.tokens}"
+                )
+            else:
+                logger.debug(
+                    f"Event {event.__class__.__name__} does NOT have tokens attribute"
+                )
+
+            # Start with the basic event structure
+            event_dict = {"type": event.__class__.__name__}
+
+            # Add all attributes from __dict__
+            for k, v in event.__dict__.items():
+                if not k.startswith("_"):
+                    try:
+                        event_dict[k] = make_serializable(v)
+                    except (TypeError, ValueError) as e:
+                        logger.warning(f"Failed to serialize attribute {k}: {e}")
+                        event_dict[k] = str(v)
+
+            # Explicitly check for and add tokens attribute if it exists
+            if hasattr(event, "tokens") and "tokens" not in event_dict:
+                logger.debug(
+                    f"Manually adding tokens attribute for {event.__class__.__name__}"
+                )
+                event_dict["tokens"] = make_serializable(event.tokens)
+
+            # Debug: Check if tokens is in the serialized event
+            if "tokens" in event_dict:
+                logger.debug(
+                    f"Serialized event contains tokens: {event_dict['tokens']}"
+                )
+            else:
+                logger.debug(f"Serialized event does NOT contain tokens")
+
+            serializable_events.append(event_dict)
+
 
         trajectory_json_path = os.path.join(trajectory_folder, "trajectory.json")
         with open(trajectory_json_path, "w") as f:
@@ -173,9 +223,11 @@ class Trajectory:
             logger.info(
                 f"💾 Saved macro sequence with {len(macro_data)} actions to {macro_json_path}"
             )
+        screenshots_folder = os.path.join(trajectory_folder, "screenshots");
+        os.makedirs(screenshots_folder, exist_ok=True)
 
         gif_path = self.create_screenshot_gif(
-            os.path.join(trajectory_folder, "screenshots")
+            screenshots_folder
         )
         if gif_path:
             logger.info(f"🎬 Saved screenshot GIF to {gif_path}")
