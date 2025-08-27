@@ -285,7 +285,7 @@ def cli(
     tracing: bool,
     debug: bool,
     use_tcp: bool,
-    save_trajectory: str,
+    save_trajectory: str = "none",
 ):
     """DroidRun - Control your Android device through LLM agents."""
     pass
@@ -601,6 +601,7 @@ if __name__ == "__main__":
     base_url = None
     api_base = None
     ios = False
+    save_trajectory = "action"
     allow_drag = False
     run_command(
         command=command,
@@ -620,4 +621,5 @@ if __name__ == "__main__":
         api_key=api_key,
         allow_drag=allow_drag,
         ios=ios,
+        save_trajectory=save_trajectory,
     )
