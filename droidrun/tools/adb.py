@@ -884,7 +884,7 @@ class AdbTools(Tools):
                     if isinstance(tcp_response, dict) and "data" in tcp_response:
                         data_str = tcp_response["data"]
                         try:
-                            return json.loads(data_str)
+                            return {"a11y_tree": json.loads(data_str)}
                         except json.JSONDecodeError:
                             return {
                                 "error": "Parse Error",
