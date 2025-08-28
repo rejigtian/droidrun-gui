@@ -526,13 +526,13 @@ class AdbTools(Tools):
         """
         try:
             logger.debug("Pressing key BACK")
-            self.device.keyevent(3)
+            self.device.keyevent(4)
 
             if self._ctx:
                 key_event = KeyPressActionEvent(
                     action_type="key_press",
                     description=f"Pressed key BACK",
-                    keycode=3,
+                    keycode=4,
                     key_name="BACK",
                 )
                 self._ctx.write_event_to_stream(key_event)
