@@ -496,7 +496,6 @@ class AdbTools(Tools):
             logger.debug(
                 f"Text input completed: {text[:50]}{'...' if len(text) > 50 else ''}"
             )
-            return f"Text input completed: {text[:50]}{'...' if len(text) > 50 else ''}"
 
             if self._ctx:
                 input_event = InputTextActionEvent(
