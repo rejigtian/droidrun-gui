@@ -639,22 +639,50 @@ class AdbTools(Tools):
         except ValueError as e:
             return f"Error: {str(e)}"
 
-    def take_screenshot(self) -> Tuple[str, bytes]:
+    def take_screenshot(self, hide_overlay: bool = True) -> Tuple[str, bytes]:
         """
         Take a screenshot of the device.
         This function captures the current screen and adds the screenshot to context in the next message.
         Also stores the screenshot in the screenshots list with timestamp for later GIF creation.
+        
+        Args:
+            hide_overlay: Whether to hide the overlay elements during screenshot (default: True)
         """
         try:
             logger.debug("Taking screenshot")
-
-            # Fallback to ADB screenshot method
-            img = self.device.screenshot()
-            img_buf = io.BytesIO()
             img_format = "PNG"
-            img.save(img_buf, format=img_format)
-            image_bytes = img_buf.getvalue()
-            logger.debug("Screenshot taken via ADB")
+            image_bytes = None
+
+            if self.use_tcp and self.tcp_forwarded:
+                # Add hideOverlay parameter to URL
+                url = f"{self.tcp_base_url}/screenshot"
+                if not hide_overlay:
+                    url += "?hideOverlay=false"
+                
+                response = requests.get(url, timeout=10)
+                if response.status_code == 200:
+                    tcp_response = response.json()
+                    
+                    # Check if response has the expected format with data field
+                    if tcp_response.get("status") == "success" and "data" in tcp_response:
+                        # Decode base64 string to bytes
+                        base64_data = tcp_response["data"]
+                        image_bytes = base64.b64decode(base64_data)
+                        logger.debug("Screenshot taken via TCP")
+                    else:
+                        # Handle error response from server
+                        error_msg = tcp_response.get("error", "Unknown error")
+                        raise ValueError(f"Error taking screenshot via TCP: {error_msg}")
+                else:
+                    raise ValueError(f"Error taking screenshot via TCP: {response.status_code}")
+
+            else:
+                # Fallback to ADB screenshot method
+                img = self.device.screenshot()
+                img_buf = io.BytesIO()
+                img.save(img_buf, format=img_format)
+                image_bytes = img_buf.getvalue()
+                logger.debug("Screenshot taken via ADB")
 
             # Store screenshot with timestamp
             self.screenshots.append(
