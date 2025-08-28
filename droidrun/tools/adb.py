@@ -444,7 +444,6 @@ class AdbTools(Tools):
             Result message
         """
         try:
-            logger.debug(f"Inputting text: {text}")
 
             # if self.use_tcp and self.tcp_forwarded:
             #     # Use TCP communication
@@ -492,10 +491,6 @@ class AdbTools(Tools):
             # Restore the original keyboard
             if original_ime and "com.droidrun.portal" not in original_ime:
                 self.device.shell(f"ime set {original_ime}")
-
-            logger.debug(
-                f"Text input completed: {text[:50]}{'...' if len(text) > 50 else ''}"
-            )
 
             if self._ctx:
                 input_event = InputTextActionEvent(
