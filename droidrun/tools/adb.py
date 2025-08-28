@@ -826,14 +826,25 @@ class AdbTools(Tools):
                         "message": "Failed to parse state data from ContentProvider response",
                     }
 
-                if isinstance(state_data, dict) and "data" in state_data:
-                    data_str = state_data["data"]
-                    try:
-                        combined_data = json.loads(data_str)
-                    except json.JSONDecodeError:
+                if isinstance(state_data, dict):
+                    data_str = None
+                    if "data" in state_data:
+                        data_str = state_data["data"]
+                    elif "message" in state_data:
+                        data_str = state_data["message"]
+                    
+                    if data_str:
+                        try:
+                            combined_data = json.loads(data_str)
+                        except json.JSONDecodeError:
+                            return {
+                                "error": "Parse Error",
+                                "message": "Failed to parse JSON data from ContentProvider response",
+                            }
+                    else:
                         return {
-                            "error": "Parse Error",
-                            "message": "Failed to parse JSON data from ContentProvider data field",
+                            "error": "Format Error", 
+                            "message": "Neither 'data' nor 'message' field found in ContentProvider response",
                         }
                 else:
                     return {
