@@ -61,9 +61,12 @@ class AdbTools(Tools):
         # Trajectory saving level
         self.save_trajectories = "none"
 
+        self.setup_keyboard()
+
         # Set up TCP forwarding if requested
         if self.use_tcp:
             self.setup_tcp_forward()
+
 
     def setup_tcp_forward(self) -> bool:
         """
@@ -128,6 +131,24 @@ class AdbTools(Tools):
             return True
         except Exception as e:
             logger.error(f"Failed to remove TCP port forwarding: {e}")
+            return False
+
+    def setup_keyboard(self) -> bool:
+        """
+        Set up the DroidRun keyboard as the default input method.
+        Simple setup that just switches to DroidRun keyboard without saving/restoring.
+        
+        Returns:
+            bool: True if setup was successful, False otherwise
+        """
+        try:
+            self.device.shell("ime enable com.droidrun.portal/.DroidrunKeyboardIME")
+            self.device.shell("ime set com.droidrun.portal/.DroidrunKeyboardIME")
+            logger.debug("DroidRun keyboard setup completed")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to setup DroidRun keyboard: {e}")
             return False
 
     def __del__(self):
@@ -445,52 +466,32 @@ class AdbTools(Tools):
         """
         try:
 
-            # if self.use_tcp and self.tcp_forwarded:
-            #     # Use TCP communication
-            #     encoded_text = base64.b64encode(text.encode()).decode()
+            if self.use_tcp and self.tcp_forwarded:
+                # Use TCP communication
+                encoded_text = base64.b64encode(text.encode()).decode()
 
-            #     payload = {"base64_text": encoded_text}
-            #     response = requests.post(
-            #         f"{self.tcp_base_url}/keyboard/input",
-            #         json=payload,
-            #         headers={"Content-Type": "application/json"},
-            #         timeout=10,
-            #     )
+                payload = {"base64_text": encoded_text}
+                response = requests.post(
+                    f"{self.tcp_base_url}/keyboard/input",
+                    json=payload,
+                    headers={"Content-Type": "application/json"},
+                    timeout=10,
+                )
 
-            #     logger.debug(
-            #         f"Keyboard input TCP response: {response.status_code}, {response.text}"
-            #     )
+                logger.debug(
+                     f"Keyboard input TCP response: {response.status_code}, {response.text}"
+                )
 
-            #     if response.status_code != 200:
-            #         return f"Error: HTTP request failed with status {response.status_code}: {response.text}"
+                if response.status_code != 200:
+                    return f"Error: HTTP request failed with status {response.status_code}: {response.text}"
 
-            # else:
-            # Fallback to content provider method
-            # Save the current keyboard
-            original_ime = self.device.shell("settings get secure default_input_method")
-            original_ime = original_ime.strip()
+            else:
+                # Fallback to content provider method
+                # Encode the text to Base64
+                encoded_text = base64.b64encode(text.encode()).decode()
 
-            # Enable the Droidrun keyboard
-            self.device.shell("ime enable com.droidrun.portal/.DroidrunKeyboardIME")
-
-            # Set the Droidrun keyboard as the default
-            self.device.shell("ime set com.droidrun.portal/.DroidrunKeyboardIME")
-
-            # Wait for keyboard to change
-            time.sleep(1)
-
-            # Encode the text to Base64
-            encoded_text = base64.b64encode(text.encode()).decode()
-
-            cmd = f'content insert --uri "content://com.droidrun.portal/keyboard/input" --bind base64_text:s:"{encoded_text}"'
-            self.device.shell(cmd)
-
-            # Wait for text input to complete
-            time.sleep(0.5)
-
-            # Restore the original keyboard
-            if original_ime and "com.droidrun.portal" not in original_ime:
-                self.device.shell(f"ime set {original_ime}")
+                cmd = f'content insert --uri "content://com.droidrun.portal/keyboard/input" --bind base64_text:s:"{encoded_text}"'
+                self.device.shell(cmd)
 
             if self._ctx:
                 input_event = InputTextActionEvent(
