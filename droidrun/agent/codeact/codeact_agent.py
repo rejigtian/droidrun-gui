@@ -316,7 +316,8 @@ class CodeActAgent(Workflow):
         await ctx.set("chat_memory", self.chat_memory)
         
         # Add final state observation to episodic memory
-        await self._add_final_state_observation(ctx)
+        if self.vision:
+            await self._add_final_state_observation(ctx)
         
         result = {}
         result.update(
