@@ -4,26 +4,21 @@ version = "0.3.5"
 description = "A framework for controlling Android devices through LLM agents"
 authors = [{ name = "Niels Schmidt", email = "niels.schmidt@droidrun.ai" }]
 dependencies = [
-    "click>=8.1.0",
-    "rich>=13.0.0",
-    "pydantic>=2.0.0",
-    "aiofiles>=23.0.0",
-    "openai>=1.0.0",
-    "anthropic>=0.7.0",
-    "pillow>=10.0.0",
-    "python-dotenv>=1.0.0",
-    "llama-index",
-    "llama-index-callbacks-arize-phoenix",
-    "arize-phoenix",
-    "llama-index-llms-openai",
-    "llama-index-llms-openai-like",
-    "llama-index-llms-google-genai",
-    "llama-index-llms-deepseek",
-    "llama-index-llms-anthropic",
-    "llama-index-llms-ollama",
-    "posthog==6.0.2",
-    "adbutils==2.10.0",
+    "adbutils>=2.10.2",
+    # dependency of adbutils[apk]
+    "anthropic>=0.67.0",
     "apkutils==2.0.0",
+    "llama-index>=0.14.0",
+    "llama-index-llms-anthropic>=0.8.6",
+    "llama-index-llms-deepseek>=0.2.1",
+    "llama-index-llms-google-genai>=0.3.1",
+    "llama-index-llms-ollama>=0.7.2",
+    "llama-index-llms-openai>=0.5.6",
+    "llama-index-llms-openai-like>=0.5.1",
+    "openai>=1.107.1",
+    "posthog>=6.7.4",
+    "pydantic>=2.11.7",
+    "rich>=14.1.0",
 ]
 requires-python = ">=3.11"
 readme = "README.md"
@@ -56,10 +51,10 @@ Documentation = "https://docs.droidrun.ai/"
 [project.optional-dependencies]
 dev = [
     "black>=23.0.0",
-    "ruff>=0.1.0",
+    "ruff>=0.13.0",
     "mypy>=1.0.0",
-    "bandit>=1.7.0",
-    "safety>=2.0.0",
+    "bandit>=1.8.6",
+    "safety>=3.2.11",
 ]
 
 [build-system]
@@ -151,3 +146,12 @@ contents = ["droidrun.tools.adb.AdbTools.*"]
 title = "IOSTools"
 name = "ios-tools"
 contents = ["droidrun.tools.ios.IOSTools.*"]
+
+[dependency-groups]
+dev = [
+    "arize-phoenix>=11.32.1",
+    "bandit>=1.8.6",
+    "llama-index-callbacks-arize-phoenix>=0.6.1",
+    "ruff>=0.13.0",
+    "safety>=3.2.11",
+]
