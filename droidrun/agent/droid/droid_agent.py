@@ -52,9 +52,7 @@ class DroidAgent(Workflow):
 
             # Set format
             if debug:
-                formatter = logging.Formatter(
-                    "%(asctime)s %(levelname)s: %(message)s", "%H:%M:%S"
-                )
+                formatter = logging.Formatter("%(asctime)s %(levelname)s: %(message)s", "%H:%M:%S")
             else:
                 formatter = logging.Formatter("%(message)s")
 
@@ -76,7 +74,7 @@ class DroidAgent(Workflow):
         reflection: bool = False,
         enable_tracing: bool = False,
         debug: bool = False,
-        save_trajectories:  str = "none",  
+        save_trajectories: str = "none",
         excluded_tools: List[str] = None,
         *args,
         **kwargs,
@@ -134,31 +132,33 @@ class DroidAgent(Workflow):
             # Validate string values
             valid_values = ["none", "step", "action"]
             if save_trajectories not in valid_values:
-                logger.warning(f"Invalid save_trajectories value: {save_trajectories}. Using 'none' instead.")
+                logger.warning(
+                    f"Invalid save_trajectories value: {save_trajectories}. Using 'none' instead."
+                )
                 self.save_trajectories = "none"
             else:
                 self.save_trajectories = save_trajectories
-        
+
         self.trajectory = Trajectory(goal=goal)
         self.task_manager = TaskManager()
         self.task_iter = None
 
-        
         self.cim = ContextInjectionManager(personas=personas)
         self.current_episodic_memory = None
 
         # variables for tracking token usage
-        self.token_tracker = track_usage(self.llm)
-        self.request_tokens = self.token_tracker.usage.request_tokens  # 0 initially
-        self.response_tokens = self.token_tracker.usage.response_tokens  # 0 initially
-        self.total_tokens = self.token_tracker.usage.total_tokens  # 0 initially
+        try:
+            self.token_tracker = track_usage(self.llm)
+        except Exception as e:
+            logger.warning(f"Could not track token usage: {e}")
+            self.token_tracker = None
 
         logger.info("🤖 Initializing DroidAgent...")
         logger.info(f"💾 Trajectory saving level: {self.save_trajectories}")
-        
+
         self.tool_list = describe_tools(tools, excluded_tools)
         self.tools_instance = tools
-        
+
         self.tools_instance.save_trajectories = self.save_trajectories
 
         if self.reasoning:
@@ -180,9 +180,7 @@ class DroidAgent(Workflow):
                 self.reflector = Reflector(llm=llm, debug=debug)
 
         else:
-            logger.debug(
-                "🚫 Planning disabled - will execute tasks directly with CodeActAgent"
-            )
+            logger.debug("🚫 Planning disabled - will execute tasks directly with CodeActAgent")
             self.planner_agent = None
 
         capture(
@@ -210,11 +208,9 @@ class DroidAgent(Workflow):
         Run the DroidAgent workflow.
         """
         return super().run(*args, **kwargs)
-    
+
     @step
-    async def execute_task(
-        self, ctx: Context, ev: CodeActExecuteEvent
-    ) -> CodeActResultEvent:
+    async def execute_task(self, ctx: Context, ev: CodeActExecuteEvent) -> CodeActResultEvent:
         """
         Execute a single task using the CodeActAgent.
 
@@ -274,17 +270,24 @@ class DroidAgent(Workflow):
                 import traceback
 
                 logger.error(traceback.format_exc())
-            return CodeActResultEvent(
-                success=False, reason=f"Error: {str(e)}", task=task, steps=[]
-            )
+            return CodeActResultEvent(success=False, reason=f"Error: {str(e)}", task=task, steps=[])
 
     @step
-    async def handle_codeact_execute(self, ctx: Context, ev: CodeActResultEvent) -> FinalizeEvent | ReflectionEvent | ReasoningLogicEvent:
+    async def handle_codeact_execute(
+        self, ctx: Context, ev: CodeActResultEvent
+    ) -> FinalizeEvent | ReflectionEvent | ReasoningLogicEvent:
         try:
             task = ev.task
             if not self.reasoning:
-                return FinalizeEvent(success=ev.success, reason=ev.reason, output=ev.reason, task=[task], tasks=[task], steps=ev.steps)
-            
+                return FinalizeEvent(
+                    success=ev.success,
+                    reason=ev.reason,
+                    output=ev.reason,
+                    task=[task],
+                    tasks=[task],
+                    steps=ev.steps,
+                )
+
             if self.reflection and ev.success:
                 return ReflectionEvent(task=task)
 
@@ -318,7 +321,6 @@ class DroidAgent(Workflow):
     async def reflect(
         self, ctx: Context, ev: ReflectionEvent
     ) -> ReasoningLogicEvent | CodeActExecuteEvent:
-
         task = ev.task
         if ev.task.agent_type == "AppStarterExpert":
             self.task_manager.complete_task(task)
@@ -481,12 +483,9 @@ class DroidAgent(Workflow):
         return StopEvent(result)
 
     def handle_stream_event(self, ev: Event, ctx: Context):
-
         if isinstance(ev, EpisodicMemoryEvent):
             self.current_episodic_memory = ev.episodic_memory
             return
-        
-  
 
         if not isinstance(ev, StopEvent):
             ctx.write_event_to_stream(ev)
@@ -501,25 +500,17 @@ class DroidAgent(Workflow):
             else:
                 # appending token count for each event
                 # current event token count = total token count - token count upto previous event
-                tokens_data = {
-                    "prompt_tokens": self.token_tracker.usage.request_tokens
-                    - self.request_tokens,
-                    "completion_tokens": self.token_tracker.usage.response_tokens
-                    - self.response_tokens,
-                    "total_tokens": self.token_tracker.usage.total_tokens
-                    - self.total_tokens,
-                }
-                ev.tokens = tokens_data
+                # ev.tokens = {
+                #     "prompt_tokens": 0 if not self.token_tracker else self.token_tracker.usage.request_tokens - self.request_tokens,
+                #     "completion_tokens": self.token_tracker.usage.response_tokens
+                #     - self.response_tokens,
+                #     "total_tokens": self.token_tracker.usage.total_tokens - self.total_tokens,
+                # }
 
                 # Debug: Verify the tokens attribute was set
-                logger.debug(f"Set tokens on {ev.__class__.__name__}: {tokens_data}")
+                # logger.debug(f"Set tokens on {ev.__class__.__name__}: {tokens_data}")
                 logger.debug(f"Event now has tokens attribute: {hasattr(ev, 'tokens')}")
                 if hasattr(ev, "tokens"):
                     logger.debug(f"Event tokens value: {ev.tokens}")
-
-                # updating the self token counts
-                self.request_tokens = self.token_tracker.usage.request_tokens
-                self.response_tokens = self.token_tracker.usage.response_tokens
-                self.total_tokens = self.token_tracker.usage.total_tokens
 
                 self.trajectory.events.append(ev)
