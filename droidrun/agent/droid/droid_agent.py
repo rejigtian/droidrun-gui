@@ -28,7 +28,6 @@ from droidrun.telemetry import (
     DroidAgentInitEvent,
     DroidAgentFinalizeEvent,
 )
-from droidrun.agent.usage import track_usage
 
 logger = logging.getLogger("droidrun")
 
@@ -145,13 +144,6 @@ class DroidAgent(Workflow):
 
         self.cim = ContextInjectionManager(personas=personas)
         self.current_episodic_memory = None
-
-        # variables for tracking token usage
-        try:
-            self.token_tracker = track_usage(self.llm)
-        except Exception as e:
-            logger.warning(f"Could not track token usage: {e}")
-            self.token_tracker = None
 
         logger.info("🤖 Initializing DroidAgent...")
         logger.info(f"💾 Trajectory saving level: {self.save_trajectories}")
@@ -496,21 +488,5 @@ class DroidAgent(Workflow):
                 self.trajectory.macro.append(ev)
             elif isinstance(ev, RecordUIStateEvent):
                 self.trajectory.ui_states.append(ev.ui_state)
-
             else:
-                # appending token count for each event
-                # current event token count = total token count - token count upto previous event
-                # ev.tokens = {
-                #     "prompt_tokens": 0 if not self.token_tracker else self.token_tracker.usage.request_tokens - self.request_tokens,
-                #     "completion_tokens": self.token_tracker.usage.response_tokens
-                #     - self.response_tokens,
-                #     "total_tokens": self.token_tracker.usage.total_tokens - self.total_tokens,
-                # }
-
-                # Debug: Verify the tokens attribute was set
-                # logger.debug(f"Set tokens on {ev.__class__.__name__}: {tokens_data}")
-                logger.debug(f"Event now has tokens attribute: {hasattr(ev, 'tokens')}")
-                if hasattr(ev, "tokens"):
-                    logger.debug(f"Event tokens value: {ev.tokens}")
-
                 self.trajectory.events.append(ev)
