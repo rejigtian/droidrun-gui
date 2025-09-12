@@ -19,6 +19,7 @@ from droidrun.agent.codeact.events import (
     EpisodicMemoryEvent,
 )
 from droidrun.agent.common.events import ScreenshotEvent, RecordUIStateEvent
+from droidrun.agent.usage import get_usage_from_response
 from droidrun.agent.utils import chat_utils
 from droidrun.agent.utils.executer import SimpleCodeExecutor
 from droidrun.agent.codeact.prompts import (
@@ -203,11 +204,17 @@ class CodeActAgent(Workflow):
                 success=False, reason="LLM response is None. This is a critical error."
             )
 
+        try:
+            usage = get_usage_from_response(self.llm.class_name(), response)
+        except Exception as e:
+            logger.warning(f"Could not get llm usage from response: {e}")
+            usage = None
+
         await self.chat_memory.aput(response.message)
 
         code, thoughts = chat_utils.extract_code_and_thought(response.message.content)
 
-        event = TaskThinkingEvent(thoughts=thoughts, code=code)
+        event = TaskThinkingEvent(thoughts=thoughts, code=code, usage=usage)
         ctx.write_event_to_stream(event)
         return event
 

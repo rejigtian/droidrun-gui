@@ -1,3 +1,4 @@
+import contextlib
 from llama_index.core.callbacks import CallbackManager
 from llama_index.core.callbacks.base_handler import BaseCallbackHandler
 from llama_index.core.callbacks.schema import CBEventType, EventPayload
@@ -24,6 +25,63 @@ class UsageResult(BaseModel):
     total_tokens: int
     requests: int
 
+def get_usage_from_response(provider: str, chat_rsp: ChatResponse) -> UsageResult:
+    rsp = chat_rsp.raw
+    if not rsp:
+        raise ValueError("No raw response in chat response")
+
+    print(f"rsp: {rsp.__class__.__name__}")
+
+    if provider == "Gemini" or provider == "GoogleGenAI":
+        return UsageResult(
+            request_tokens=rsp["usage_metadata"]["prompt_token_count"],
+            response_tokens=rsp["usage_metadata"]["candidates_token_count"],
+            total_tokens=rsp["usage_metadata"]["total_token_count"],
+            requests=1,
+        )
+    elif provider == "OpenAI":
+        from openai.types import CompletionUsage as OpenAIUsage
+
+        usage: OpenAIUsage = rsp.usage
+        return UsageResult(
+            request_tokens=usage.prompt_tokens,
+            response_tokens=usage.completion_tokens,
+            total_tokens=usage.total_tokens,
+            requests=1,
+        )
+    elif provider == "Anthropic":
+        from anthropic.types import Usage as AnthropicUsage
+
+        usage: AnthropicUsage = rsp["usage"]
+        return UsageResult(
+            request_tokens=usage.input_tokens,
+            response_tokens=usage.output_tokens,
+            total_tokens=usage.input_tokens + usage.output_tokens,
+            requests=1,
+        )
+    elif provider == "Ollama":
+        # Ollama response format uses different field names
+        prompt_eval_count = rsp.get("prompt_eval_count", 0)
+        eval_count = rsp.get("eval_count", 0)
+        return UsageResult(
+            request_tokens=prompt_eval_count,
+            response_tokens=eval_count,
+            total_tokens=prompt_eval_count + eval_count,
+            requests=1,
+        )
+    elif provider == "DeepSeek":
+        # DeepSeek follows OpenAI-compatible format
+        usage = rsp.usage
+        if not usage:
+            usage = {}
+        return UsageResult(
+            request_tokens=usage.prompt_tokens or 0,
+            response_tokens=usage.completion_tokens or 0,
+            total_tokens=usage.total_tokens or 0,
+            requests=1,
+        )
+
+    raise ValueError(f"Unsupported provider: {provider}")
 
 class TokenCountingHandler(BaseCallbackHandler):
     """Token counting handler for LLamaIndex LLM calls."""
@@ -55,62 +113,7 @@ class TokenCountingHandler(BaseCallbackHandler):
             raise ValueError("No response in payload")
 
         chat_rsp: ChatResponse = payload.get(EventPayload.RESPONSE)
-        rsp = chat_rsp.raw
-        if not rsp:
-            raise ValueError("No raw response")
-
-        print(f"rsp: {rsp.__class__.__name__}")
-
-        if self.provider == "Gemini" or self.provider == "GoogleGenAI":
-            return UsageResult(
-                request_tokens=rsp["usage_metadata"]["prompt_token_count"],
-                response_tokens=rsp["usage_metadata"]["candidates_token_count"],
-                total_tokens=rsp["usage_metadata"]["total_token_count"],
-                requests=1,
-            )
-        elif self.provider == "OpenAI":
-            from openai.types import CompletionUsage as OpenAIUsage
-
-            usage: OpenAIUsage = rsp.usage
-            return UsageResult(
-                request_tokens=usage.prompt_tokens,
-                response_tokens=usage.completion_tokens,
-                total_tokens=usage.total_tokens,
-                requests=1,
-            )
-        elif self.provider == "Anthropic":
-            from anthropic.types import Usage as AnthropicUsage
-
-            usage: AnthropicUsage = rsp["usage"]
-            return UsageResult(
-                request_tokens=usage.input_tokens,
-                response_tokens=usage.output_tokens,
-                total_tokens=usage.input_tokens + usage.output_tokens,
-                requests=1,
-            )
-        elif self.provider == "Ollama":
-            # Ollama response format uses different field names
-            prompt_eval_count = rsp.get("prompt_eval_count", 0)
-            eval_count = rsp.get("eval_count", 0)
-            return UsageResult(
-                request_tokens=prompt_eval_count,
-                response_tokens=eval_count,
-                total_tokens=prompt_eval_count + eval_count,
-                requests=1,
-            )
-        elif self.provider == "DeepSeek":
-            # DeepSeek follows OpenAI-compatible format
-            usage = rsp.usage
-            if not usage:
-                usage = {}
-            return UsageResult(
-                request_tokens=usage.prompt_tokens or 0,
-                response_tokens=usage.completion_tokens or 0,
-                total_tokens=usage.total_tokens or 0,
-                requests=1,
-            )
-
-        raise ValueError(f"Unsupported provider: {self.provider}")
+        return get_usage_from_response(self.provider, chat_rsp)
 
     def on_event_start(
         self,
@@ -157,17 +160,54 @@ class TokenCountingHandler(BaseCallbackHandler):
         """Run when an overall trace is exited."""
         pass
 
+@contextlib.contextmanager
+def llm_callback(llm: LLM, *args: List[BaseCallbackHandler]):
+    for arg in args:
+        llm.callback_manager.add_handler(arg)
+    yield
+    for arg in args:
+        llm.callback_manager.remove_handler(arg)
 
-def with_callback(llm: LLM, *args: List[BaseCallbackHandler]):
-    llm.callback_manager = CallbackManager(args)
-    return llm
+def create_tracker(llm: LLM) -> TokenCountingHandler:
+    provider = llm.__class__.__name__
+    if provider not in SUPPORTED_PROVIDERS:
+        raise ValueError(f"Tracking not yet supported for provider: {provider}")
+
+    return TokenCountingHandler(provider)
 
 
-def track_usage(llm: LLM):
+def track_usage(llm: LLM) -> TokenCountingHandler:
+    """Track token usage for an LLM instance across all requests.
+    
+    This function:
+    - Creates a new TokenCountingHandler for the LLM provider
+    - Registers that handler as an LLM callback to monitor all requests
+    - Returns the handler for accessing cumulative usage statistics
+    
+    The handler counts tokens for total LLM usage across all requests. For fine-grained
+    per-request counting, use either:
+    - `create_tracker()` with `llm_callback()` context manager for temporary tracking
+    - `get_usage_from_response()` to extract usage from individual responses
+    
+    Args:
+        llm: The LLamaIndex LLM instance to track usage for
+        
+    Returns:
+        TokenCountingHandler: The registered handler that accumulates usage statistics
+        
+    Raises:
+        ValueError: If the LLM provider is not supported for tracking
+        
+    Example:
+        >>> llm = OpenAI()
+        >>> tracker = track_usage(llm)
+        >>> # ... make LLM calls ...
+        >>> print(f"Total tokens used: {tracker.usage.total_tokens}")
+    """
     provider = llm.__class__.__name__
     if provider not in SUPPORTED_PROVIDERS:
         raise ValueError(f"Tracking not yet supported for provider: {provider}")
 
     tracker = TokenCountingHandler(provider)
-    with_callback(llm, tracker)
+    llm.callback_manager.add_handler(tracker)
     return tracker

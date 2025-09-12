@@ -13,6 +13,7 @@ from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Workflow, StartEvent, StopEvent, Context, step
 from llama_index.core.memory import Memory
 from llama_index.core.llms.llm import LLM
+from droidrun.agent.usage import get_usage_from_response
 from droidrun.agent.utils.executer import SimpleCodeExecutor
 from droidrun.agent.utils import chat_utils
 from droidrun.agent.context.task_manager import TaskManager
@@ -148,11 +149,16 @@ class PlannerAgent(Workflow):
         await ctx.set("reflection", self.reflection)
 
         response = await self._get_llm_response(ctx, chat_history)
+        try:
+            usage = get_usage_from_response(self.llm.class_name(), response)
+        except Exception as e:
+            logger.warning(f"Could not get llm usage from response: {e}")
+            usage = None
         await self.chat_memory.aput(response.message)
 
         code, thoughts = chat_utils.extract_code_and_thought(response.message.content)
 
-        event = PlanThinkingEvent(thoughts=thoughts, code=code)
+        event = PlanThinkingEvent(thoughts=thoughts, code=code, usage=usage)
         ctx.write_event_to_stream(event)
         return event
 
