@@ -831,8 +831,6 @@ class AdbTools(Tools):
                     data_str = None
                     if "data" in state_data:
                         data_str = state_data["data"]
-                    elif "message" in state_data:
-                        data_str = state_data["message"]
                     
                     if data_str:
                         try:
