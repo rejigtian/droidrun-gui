@@ -7,7 +7,7 @@ dependencies = [
     "adbutils>=2.10.2",
     # dependency of adbutils[apk]
     "apkutils==2.0.0",
-    "llama-index>=0.14.0",
+    "llama-index>=0.13.6",
     "posthog>=6.7.4",
     "pydantic>=2.11.7",
     "rich>=14.1.0",
