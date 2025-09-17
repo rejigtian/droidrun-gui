@@ -12,6 +12,7 @@ logger = logging.getLogger("droidrun")
 SUPPORTED_PROVIDERS = [
     "Gemini",
     "GoogleGenAI",
+    "GenAI",
     "OpenAI",
     "Anthropic",
     "Ollama",
@@ -32,7 +33,7 @@ def get_usage_from_response(provider: str, chat_rsp: ChatResponse) -> UsageResul
 
     print(f"rsp: {rsp.__class__.__name__}")
 
-    if provider == "Gemini" or provider == "GoogleGenAI":
+    if provider == "Gemini" or provider == "GoogleGenAI" or provider == "GenAI":
         return UsageResult(
             request_tokens=rsp["usage_metadata"]["prompt_token_count"],
             response_tokens=rsp["usage_metadata"]["candidates_token_count"],
