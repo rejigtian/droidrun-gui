@@ -33,7 +33,7 @@ DroidRun is a powerful framework for controlling Android and iOS devices through
 ## 📦 Installation
 
 ```bash
-pip install droidrun[google,anthropic,openai,deepseek,ollama,dev]
+pip install 'droidrun[google,anthropic,openai,deepseek,ollama,dev]'
 ```
 
 ## 🚀 Quickstart
