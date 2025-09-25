@@ -19,12 +19,7 @@ from droidrun.agent.utils import chat_utils
 from droidrun.agent.context.task_manager import TaskManager
 from droidrun.tools import Tools
 from droidrun.agent.common.constants import LLM_HISTORY_LIMIT
-from droidrun.agent.common.events import (
-    LLMRequestEvent,
-    LLMResponseEvent,
-    RecordUIStateEvent,
-    ScreenshotEvent,
-)
+from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
 from droidrun.agent.planner.events import (
     PlanInputEvent,
     PlanCreatedEvent,
@@ -298,28 +293,9 @@ wrap your code inside this:
                 chat_utils.message_copy(msg) for msg in messages_to_send
             ]
 
-            provider = self.llm.class_name()
-            model_name = getattr(self.llm, "model", None)
-            ctx.write_event_to_stream(
-                LLMRequestEvent(
-                    provider=provider,
-                    model=model_name,
-                    messages=[
-                        chat_utils.message_copy(msg) for msg in messages_to_send
-                    ],
-                )
-            )
-
             logger.debug(f"  - Final message count: {len(messages_to_send)}")
 
             response = await self.llm.achat(messages=messages_to_send)
-            ctx.write_event_to_stream(
-                LLMResponseEvent(
-                    provider=provider,
-                    model=model_name,
-                    message=chat_utils.message_copy(response.message),
-                )
-            )
             assert hasattr(
                 response, "message"
             ), f"LLM response does not have a message attribute.\nResponse: {response}"

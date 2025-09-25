@@ -19,12 +19,7 @@ from droidrun.agent.codeact.events import (
     EpisodicMemoryEvent,
 )
 from droidrun.agent.common.constants import LLM_HISTORY_LIMIT
-from droidrun.agent.common.events import (
-    LLMRequestEvent,
-    LLMResponseEvent,
-    RecordUIStateEvent,
-    ScreenshotEvent,
-)
+from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
 from droidrun.agent.usage import get_usage_from_response
 from droidrun.agent.utils import chat_utils
 from droidrun.agent.utils.executer import SimpleCodeExecutor
@@ -356,25 +351,9 @@ class CodeActAgent(Workflow):
         limited_history = self._limit_history(chat_history)
         messages_to_send = [self.system_prompt] + limited_history
         messages_to_send = [chat_utils.message_copy(msg) for msg in messages_to_send]
-        provider = self.llm.class_name()
-        model_name = getattr(self.llm, "model", None)
-        ctx.write_event_to_stream(
-            LLMRequestEvent(
-                provider=provider,
-                model=model_name,
-                messages=[chat_utils.message_copy(msg) for msg in messages_to_send],
-            )
-        )
         try:
             response = await self.llm.achat(messages=messages_to_send)
             logger.debug("🔍 Received LLM response.")
-            ctx.write_event_to_stream(
-                LLMResponseEvent(
-                    provider=provider,
-                    model=model_name,
-                    message=chat_utils.message_copy(response.message),
-                )
-            )
 
             filtered_chat_history = []
             for msg in limited_history:

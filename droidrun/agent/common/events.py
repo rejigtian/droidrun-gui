@@ -1,4 +1,3 @@
-from llama_index.core.base.llms.types import ChatMessage
 from llama_index.core.workflow import Event
 from typing import Dict, Any
 
@@ -50,15 +49,3 @@ class StartAppEvent(MacroEvent):
 
 class RecordUIStateEvent(Event):
     ui_state: list[Dict[str, Any]]
-
-
-class LLMRequestEvent(Event):
-    provider: str
-    model: str | None = None
-    messages: list[ChatMessage]
-
-
-class LLMResponseEvent(Event):
-    provider: str
-    model: str | None = None
-    message: ChatMessage
