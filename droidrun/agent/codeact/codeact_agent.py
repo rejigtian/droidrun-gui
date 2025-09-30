@@ -412,7 +412,7 @@ class CodeActAgent(Workflow):
                     self._anthropic_retry_count = 0
                 self._anthropic_retry_count += 1
                 seconds = min(2 ** self._anthropic_retry_count, 60)  # Cap at 60 seconds
-                logger.error(f"Anthropic rate limit or overload error. Retrying in {seconds} seconds... (attempt {self._anthropic_retry_count})")
+                logger.error(f"Anthropic overload error. Retrying in {seconds} seconds... (attempt {self._anthropic_retry_count})")
                 time.sleep(seconds)
                 logger.debug("🔍 Retrying call to LLM...")
                 response = await self.llm.achat(messages=messages_to_send)
