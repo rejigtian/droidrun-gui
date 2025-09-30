@@ -1,10 +1,12 @@
-import requests
-import tempfile
-import os
 import contextlib
-from adbutils import adb, AdbDevice
-from droidrun.tools import AdbTools
+import os
+import tempfile
+
+import requests
+from adbutils import AdbDevice, adb
 from rich.console import Console
+
+from droidrun.tools import AdbTools
 
 REPO = "droidrun/droidrun-portal"
 ASSET_NAME = "droidrun-portal"
@@ -96,7 +98,7 @@ def check_portal_accessibility(
     device: AdbDevice, service_name: str = A11Y_SERVICE_NAME, debug: bool = False
 ) -> bool:
     a11y_services = device.shell("settings get secure enabled_accessibility_services")
-    if not service_name in a11y_services:
+    if service_name not in a11y_services:
         if debug:
             print(a11y_services)
         return False
@@ -117,9 +119,9 @@ def ping_portal(device: AdbDevice, debug: bool = False):
     try:
         packages = device.list_packages()
     except Exception as e:
-        raise Exception(f"Failed to list packages: {e}")
+        raise Exception("Failed to list packages") from e
 
-    if not PORTAL_PACKAGE_NAME in packages:
+    if PORTAL_PACKAGE_NAME not in packages:
         if debug:
             print(packages)
         raise Exception("Portal is not installed on the device")
@@ -134,17 +136,17 @@ def ping_portal(device: AdbDevice, debug: bool = False):
 def ping_portal_content(device: AdbDevice, debug: bool = False):
     try:
         state = device.shell("content query --uri content://com.droidrun.portal/state")
-        if not "Row: 0 result=" in state:
+        if "Row: 0 result=" not in state:
             raise Exception("Failed to get state from Droidrun Portal")
     except Exception as e:
-        raise Exception(f"Droidrun Portal is not reachable: {e}")
+        raise Exception("Droidrun Portal is not reachable") from e
 
 
 def ping_portal_tcp(device: AdbDevice, debug: bool = False):
     try:
         tools = AdbTools(serial=device.serial, use_tcp=True)
     except Exception as e:
-        raise Exception(f"Failed to setup TCP forwarding: {e}")
+        raise Exception("Failed to setup TCP forwarding") from e
 
 
 def set_overlay_offset(device: AdbDevice, offset: int):
@@ -155,8 +157,38 @@ def set_overlay_offset(device: AdbDevice, offset: int):
         cmd = f'content insert --uri "content://com.droidrun.portal/overlay_offset" --bind offset:i:{offset}'
         device.shell(cmd)
     except Exception as e:
-        raise Exception(f"Error setting overlay offset: {str(e)}")
+        raise Exception("Error setting overlay offset") from e
 
+def toggle_overlay(device: AdbDevice, visible: bool):
+    """toggle the overlay visibility.
+
+    Args:
+        device: Device to toggle the overlay on
+        visible: Whether to show the overlay
+
+    throws:
+        Exception: If the overlay toggle fails
+    """
+    try:
+        device.shell(
+            f"am broadcast -a com.droidrun.portal.TOGGLE_OVERLAY --ez overlay_visible {'true' if visible else 'false'}"
+        )
+    except Exception as e:
+        raise Exception("Failed to toggle overlay") from e
+
+def setup_keyboard(device: AdbDevice):
+    """
+    Set up the DroidRun keyboard as the default input method.
+    Simple setup that just switches to DroidRun keyboard without saving/restoring.
+
+    throws:
+        Exception: If the keyboard setup fails
+    """
+    try:
+        device.shell("ime enable com.droidrun.portal/.DroidrunKeyboardIME")
+        device.shell("ime set com.droidrun.portal/.DroidrunKeyboardIME")
+    except Exception as e:
+        raise Exception("Error setting up keyboard") from e
 
 def test():
     device = adb.device()

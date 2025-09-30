@@ -11,9 +11,9 @@ DroidRun lets you control Android devices using natural language and LLM agents.
 ## Prerequisites
 
 <Steps>
-    <Step title="Install DroidRun and its dependencies.">
+    <Step title="Install DroidRun and its dependencies. Choose which ever provider you'd like to use.">
        ```sh 
-       pip install droidrun
+       pip install 'droidrun[google,anthropic,openai,deepseek,ollama,dev]'
        ```
     </Step>
     <Step title="Ensure your Android device is connected and the DroidRun Portal is installed">
@@ -27,11 +27,11 @@ DroidRun lets you control Android devices using natural language and LLM agents.
        droidrun ping
        ```
     </Step>
-    <Step title="Install the required LlamaIndex LLM integrations for your provider">
-    ```sh
-    pip install llama-index-llms-openai llama-index-llms-ollama llama-index-llms-gemini
-    ```
-  </Step>
+    <Step title="If you want to use a provider thats not included with our extras, install the required LlamaIndex LLM integrations">
+      ```sh
+      pip install llama-index-llms-openrouter
+      ```
+    </Step>
 </Steps>
 ---
 
