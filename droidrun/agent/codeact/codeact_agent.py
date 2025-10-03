@@ -403,6 +403,20 @@ class CodeActAgent(Workflow):
                     time.sleep(40)
                 logger.debug("🔍 Retrying call to LLM...")
                 response = await self.llm.achat(messages=messages_to_send)
+            elif (
+                self.llm.class_name() == "Anthropic_LLM"
+                and "overloaded_error" in str(e)
+            ):
+                # Use exponential backoff for Anthropic errors
+                if not hasattr(self, '_anthropic_retry_count'):
+                    self._anthropic_retry_count = 0
+                self._anthropic_retry_count += 1
+                seconds = min(2 ** self._anthropic_retry_count, 60)  # Cap at 60 seconds
+                logger.error(f"Anthropic overload error. Retrying in {seconds} seconds... (attempt {self._anthropic_retry_count})")
+                time.sleep(seconds)
+                logger.debug("🔍 Retrying call to LLM...")
+                response = await self.llm.achat(messages=messages_to_send)
+                self._anthropic_retry_count = 0  # Reset on success
             else:
                 logger.error(f"Could not get an answer from LLM: {repr(e)}")
                 raise e
