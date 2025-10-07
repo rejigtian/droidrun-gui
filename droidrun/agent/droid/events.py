@@ -1,5 +1,5 @@
 from llama_index.core.workflow import Event
-from droidrun.agent.context import Reflection, Task
+from droidrun.agent.context import Task
 from typing import List, Optional, Dict
 from pydantic import BaseModel, Field
 
@@ -25,9 +25,6 @@ class FinalizeEvent(Event):
 class TaskRunnerEvent(Event):
     pass
 
-class ReflectionEvent(Event):
-    task: Task
-    pass
 
 
 # ============================================================================
@@ -95,7 +92,7 @@ class DroidAgentState(BaseModel):
 
 class ManagerInputEvent(Event):
     """Trigger Manager workflow for planning"""
-    reflection: Optional[Reflection] = None
+    pass
 
 
 class ManagerPlanEvent(Event):

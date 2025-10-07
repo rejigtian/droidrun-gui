@@ -26,7 +26,6 @@ from droidrun.agent.planner.events import (
     PlanThinkingEvent,
 )
 from droidrun.agent.context.agent_persona import AgentPersona
-from droidrun.agent.context.reflection import Reflection
 
 from dotenv import load_dotenv
 
@@ -64,7 +63,6 @@ class PlannerAgent(Workflow):
 
         self.chat_memory = None
         self.remembered_info = None
-        self.reflection: Reflection = None
 
         self.current_retry = 0
         self.steps_counter = 0
@@ -105,11 +103,6 @@ class PlannerAgent(Workflow):
 
         if ev.remembered_info:
             self.remembered_info = ev.remembered_info
-
-        if ev.reflection:
-            self.reflection = ev.reflection
-        else:
-            self.reflection = None 
         
         assert len(self.chat_memory.get_all()) > 0 or self.user_prompt, "Memory input, user prompt or user input cannot be empty."
         
@@ -147,7 +140,6 @@ class PlannerAgent(Workflow):
 
 
         await ctx.store.set("remembered_info", self.remembered_info)
-        await ctx.store.set("reflection", self.reflection)
 
         response = await self._get_llm_response(ctx, chat_history)
         try:
@@ -279,10 +271,6 @@ wrap your code inside this:
             remembered_info = await ctx.store.get("remembered_info", default=None)
             if remembered_info:
                 chat_history = await chat_utils.add_memory_block(remembered_info, chat_history)
-
-            reflection = await ctx.store.get("reflection", None)
-            if reflection:
-                chat_history = await chat_utils.add_reflection_summary(reflection, chat_history)
 
             chat_history = await chat_utils.add_phone_state_block(await ctx.store.get("phone_state"), chat_history)
             chat_history = await chat_utils.add_ui_text_block(await ctx.store.get("ui_state"), chat_history)

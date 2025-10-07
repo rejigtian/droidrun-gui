@@ -6,7 +6,6 @@ import inspect
 import json
 import logging
 from typing import List, TYPE_CHECKING, Optional, Tuple
-from droidrun.agent.context import Reflection
 from llama_index.core.base.llms.types import ChatMessage, ImageBlock, TextBlock
 
 if TYPE_CHECKING:
@@ -27,25 +26,7 @@ def message_copy(message: ChatMessage, deep = True) -> ChatMessage:
 
     return copied_message
 
-async def add_reflection_summary(reflection: Reflection, chat_history: List[ChatMessage]) -> List[ChatMessage]:
-    """Add reflection summary and advice to help the planner understand what went wrong and what to do differently."""
-    
-    reflection_text = "\n### The last task failed. You have additional information about what happenend. \nThe Reflection from Previous Attempt:\n"
-    
-    if reflection.summary:
-        reflection_text += f"**What happened:** {reflection.summary}\n\n"
-    
-    if reflection.advice:
-        reflection_text += f"**Recommended approach for this retry:** {reflection.advice}\n"
-    
-    reflection_block = TextBlock(text=reflection_text)
-    
-    # Copy chat_history and append reflection block to the last message
-    chat_history = chat_history.copy()
-    chat_history[-1] = message_copy(chat_history[-1])
-    chat_history[-1].blocks.append(reflection_block)
-    
-    return chat_history
+
 
 def _format_ui_elements(ui_data, level=0) -> str:
     """Format UI elements in natural language: index. className: resourceId, text - bounds"""
@@ -193,13 +174,6 @@ async def add_memory_block(memory: List[str], chat_history: List[ChatMessage]) -
                 chat_history[i] = ChatMessage(role="user", content=content_blocks)
             break
     return chat_history
-
-async def get_reflection_block(reflections: List[Reflection]) -> ChatMessage:
-    reflection_block = "\n### You also have additional Knowledge to help you guide your current task from previous expierences:\n"
-    for reflection in reflections:
-        reflection_block += f"**{reflection.advice}\n"
-    
-    return ChatMessage(role="user", content=reflection_block)
         
 async def add_task_history_block(all_tasks: list[dict], chat_history: List[ChatMessage]) -> List[ChatMessage]:
     """Experimental task history with all previous tasks."""

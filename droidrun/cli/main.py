@@ -78,7 +78,6 @@ async def run_command(
     api_base: str,
     vision: bool,
     reasoning: bool,
-    reflection: bool,
     tracing: bool,
     debug: bool,
     use_tcp: bool,
@@ -160,7 +159,6 @@ async def run_command(
                 timeout=1000,
                 vision=vision,
                 reasoning=reasoning,
-                reflection=reflection,
                 enable_tracing=tracing,
                 debug=debug,
                 save_trajectories=save_trajectory,
@@ -246,12 +244,7 @@ class DroidRunCLI(click.Group):
 @click.option(
     "--reasoning", is_flag=True, help="Enable planning with reasoning", default=False
 )
-@click.option(
-    "--reflection",
-    is_flag=True,
-    help="Enable reflection step for higher reasoning",
-    default=False,
-)
+
 @click.option(
     "--tracing", is_flag=True, help="Enable Arize Phoenix tracing", default=False
 )
@@ -281,7 +274,6 @@ def cli(
     temperature: float,
     vision: bool,
     reasoning: bool,
-    reflection: bool,
     tracing: bool,
     debug: bool,
     use_tcp: bool,
@@ -329,12 +321,6 @@ def cli(
     "--reasoning", is_flag=True, help="Enable planning with reasoning", default=False
 )
 @click.option(
-    "--reflection",
-    is_flag=True,
-    help="Enable reflection step for higher reasoning",
-    default=False,
-)
-@click.option(
     "--tracing", is_flag=True, help="Enable Arize Phoenix tracing", default=False
 )
 @click.option(
@@ -371,7 +357,6 @@ def run(
     temperature: float,
     vision: bool,
     reasoning: bool,
-    reflection: bool,
     tracing: bool,
     debug: bool,
     use_tcp: bool,
@@ -391,7 +376,6 @@ def run(
         api_base,
         vision,
         reasoning,
-        reflection,
         tracing,
         debug,
         use_tcp,
@@ -594,7 +578,6 @@ if __name__ == "__main__":
     steps = 15
     vision = True
     reasoning = True
-    reflection = False
     tracing = True
     debug = True
     use_tcp = True
@@ -612,7 +595,6 @@ if __name__ == "__main__":
         temperature=temperature,
         vision=vision,
         reasoning=reasoning,
-        reflection=reflection,
         tracing=tracing,
         debug=debug,
         use_tcp=use_tcp,
