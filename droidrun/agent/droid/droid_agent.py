@@ -28,7 +28,6 @@ from droidrun.agent.common.default import MockWorkflow
 from droidrun.agent.context import ContextInjectionManager
 from droidrun.agent.context.agent_persona import AgentPersona
 from droidrun.agent.context.personas import DEFAULT
-from droidrun.agent.oneflows.reflector import Reflector
 from droidrun.agent.executor.prompts import DETAILED_TIPS
 from droidrun.telemetry import (
     capture,
@@ -81,7 +80,6 @@ class DroidAgent(Workflow):
         timeout: int = 1000,
         vision: bool = False,
         reasoning: bool = False,
-        reflection: bool = False,
         enable_tracing: bool = False,
         debug: bool = False,
         save_trajectories: str = "none",
@@ -99,7 +97,6 @@ class DroidAgent(Workflow):
             timeout: Timeout for agent execution in seconds
             reasoning: Whether to use Manager+Executor for complex reasoning (True)
                       or send tasks directly to CodeActAgent (False)
-            reflection: Whether to reflect on steps the CodeActAgent did to give the PlannerAgent advice
             enable_tracing: Whether to enable Arize Phoenix tracing
             debug: Whether to enable verbose debug logging
             save_trajectories: Trajectory saving level. Can be:
@@ -131,7 +128,6 @@ class DroidAgent(Workflow):
         self.max_codeact_steps = max_steps
         self.timeout = timeout
         self.reasoning = reasoning
-        self.reflection = reflection
         self.debug = debug
 
         self.event_counter = 0
@@ -184,8 +180,6 @@ class DroidAgent(Workflow):
             )
             self.max_codeact_steps = 5
 
-            if self.reflection:
-                self.reflector = Reflector(llm=llm, debug=debug)
 
             # Keep planner_agent for backward compatibility (can be removed later)
             self.planner_agent = None
@@ -206,7 +200,6 @@ class DroidAgent(Workflow):
                 timeout=timeout,
                 vision=vision,
                 reasoning=reasoning,
-                reflection=reflection,
                 enable_tracing=enable_tracing,
                 debug=debug,
                 save_trajectories=save_trajectories,
@@ -234,7 +227,6 @@ class DroidAgent(Workflow):
             Tuple of (success, reason)
         """
         task: Task = ev.task
-        reflection = ev.reflection if ev.reflection is not None else None
         persona = self.cim.get_persona(task.agent_type)
 
         logger.info(f"🔧 Executing task: {task.description}")
@@ -254,7 +246,6 @@ class DroidAgent(Workflow):
             handler = codeact_agent.run(
                 input=task.description,
                 remembered_info=self.tools_instance.memory,
-                reflection=reflection,
             )
 
             async for nested_ev in handler.stream_events():
@@ -288,141 +279,17 @@ class DroidAgent(Workflow):
     @step
     async def handle_codeact_execute(
         self, ctx: Context, ev: CodeActResultEvent
-    ) -> FinalizeEvent | ReflectionEvent | ReasoningLogicEvent:
+    ) -> FinalizeEvent:
         try:
             task = ev.task
-            if not self.reasoning:
-                return FinalizeEvent(
-                    success=ev.success,
-                    reason=ev.reason,
-                    output=ev.reason,
-                    task=[task],
-                    tasks=[task],
-                    steps=ev.steps,
-                )
-
-            if self.reflection and ev.success:
-                return ReflectionEvent(task=task)
-
-            # Reasoning is enabled but reflection is disabled.
-            # Success: mark complete and proceed to next step in reasoning loop.
-            # Failure: mark failed and trigger planner immediately without advancing to the next queued task.
-            if ev.success:
-                self.task_manager.complete_task(task, message=ev.reason)
-                return ReasoningLogicEvent()
-            else:
-                self.task_manager.fail_task(task, failure_reason=ev.reason)
-                return ReasoningLogicEvent(force_planning=True)
-
-        except Exception as e:
-            logger.error(f"❌ Error during DroidAgent execution: {e}")
-            if self.debug:
-                import traceback
-
-                logger.error(traceback.format_exc())
-            tasks = self.task_manager.get_task_history()
             return FinalizeEvent(
-                success=False,
-                reason=str(e),
-                output=str(e),
-                task=tasks,
-                tasks=tasks,
-                steps=self.step_counter,
+                success=ev.success,
+                reason=ev.reason,
+                output=ev.reason,
+                task=[task],
+                tasks=[task],
+                steps=ev.steps,
             )
-
-    @step
-    async def reflect(
-        self, ctx: Context, ev: ReflectionEvent
-    ) -> ReasoningLogicEvent:
-        task = ev.task
-        if ev.task.agent_type == "AppStarterExpert":
-            self.task_manager.complete_task(task)
-            return ReasoningLogicEvent()
-
-        reflection = await self.reflector.reflect_on_episodic_memory(
-            episodic_memory=self.current_episodic_memory, goal=task.description
-        )
-
-        if reflection.goal_achieved:
-            self.task_manager.complete_task(task)
-            return ReasoningLogicEvent()
-
-        else:
-            self.task_manager.fail_task(task)
-            return ReasoningLogicEvent(reflection=reflection)
-
-    @step
-    async def handle_reasoning_logic(
-        self,
-        ctx: Context,
-        ev: ReasoningLogicEvent,
-    ) -> FinalizeEvent | CodeActExecuteEvent:
-        try:
-            if self.step_counter >= self.max_steps:
-                output = f"Reached maximum number of steps ({self.max_steps})"
-                tasks = self.task_manager.get_task_history()
-                return FinalizeEvent(
-                    success=False,
-                    reason=output,
-                    output=output,
-                    task=tasks,
-                    tasks=tasks,
-                    steps=self.step_counter,
-                )
-            self.step_counter += 1
-
-            if ev.reflection:
-                handler = self.planner_agent.run(
-                    remembered_info=self.tools_instance.memory, reflection=ev.reflection
-                )
-            else:
-                if not ev.force_planning and self.task_iter:
-                    try:
-                        task = next(self.task_iter)
-                        return CodeActExecuteEvent(task=task, reflection=None)
-                    except StopIteration as e:
-                        logger.info("Planning next steps...")
-
-                logger.debug(f"Planning step {self.step_counter}/{self.max_steps}")
-
-                handler = self.planner_agent.run(
-                    remembered_info=self.tools_instance.memory, reflection=None
-                )
-
-            async for nested_ev in handler.stream_events():
-                self.handle_stream_event(nested_ev, ctx)
-
-            result = await handler
-
-            self.tasks = self.task_manager.get_all_tasks()
-            self.task_iter = iter(self.tasks)
-
-            if self.task_manager.goal_completed:
-                logger.info(f"✅ Goal completed: {self.task_manager.message}")
-                tasks = self.task_manager.get_task_history()
-                return FinalizeEvent(
-                    success=True,
-                    reason=self.task_manager.message,
-                    output=self.task_manager.message,
-                    task=tasks,
-                    tasks=tasks,
-                    steps=self.step_counter,
-                )
-            if not self.tasks:
-                logger.warning("No tasks generated by planner")
-                output = "Planner did not generate any tasks"
-                tasks = self.task_manager.get_task_history()
-                return FinalizeEvent(
-                    success=False,
-                    reason=output,
-                    output=output,
-                    task=tasks,
-                    tasks=tasks,
-                    steps=self.step_counter,
-                )
-
-            return CodeActExecuteEvent(task=next(self.task_iter), reflection=None)
-
         except Exception as e:
             logger.error(f"❌ Error during DroidAgent execution: {e}")
             if self.debug:
@@ -463,7 +330,7 @@ class DroidAgent(Workflow):
                 agent_type="Default",
             )
 
-            return CodeActExecuteEvent(task=task, reflection=None)
+            return CodeActExecuteEvent(task=task)
 
         # Reasoning mode - initialize state and start with Manager
         logger.info("🧠 Reasoning mode - initializing Manager/Executor workflow")

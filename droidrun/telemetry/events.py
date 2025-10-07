@@ -14,7 +14,6 @@ class DroidAgentInitEvent(TelemetryEvent):
     timeout: int
     vision: bool
     reasoning: bool
-    reflection: bool
     enable_tracing: bool
     debug: bool
     save_trajectories: str = "none",  

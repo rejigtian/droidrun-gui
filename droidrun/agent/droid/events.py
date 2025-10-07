@@ -5,16 +5,12 @@ from pydantic import BaseModel, Field
 
 class CodeActExecuteEvent(Event):
     task: Task
-    reflection: Optional[Reflection]
 
 class CodeActResultEvent(Event):
     success: bool
     reason: str
     steps: int
 
-class ReasoningLogicEvent(Event):
-    reflection: Optional[Reflection] = None
-    force_planning: bool = False
 
 class FinalizeEvent(Event):
     success: bool
