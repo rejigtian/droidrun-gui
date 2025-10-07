@@ -165,7 +165,6 @@ class DroidAgent(Workflow):
                 timeout=timeout,
                 debug=debug,
             )
-            self.add_workflows(planner_agent=self.planner_agent)
             self.max_codeact_steps = 5
 
             if self.reflection:
@@ -335,7 +334,6 @@ class DroidAgent(Workflow):
         self,
         ctx: Context,
         ev: ReasoningLogicEvent,
-        planner_agent: Workflow = MockWorkflow(),
     ) -> FinalizeEvent | CodeActExecuteEvent:
         try:
             if self.step_counter >= self.max_steps:
@@ -352,7 +350,7 @@ class DroidAgent(Workflow):
             self.step_counter += 1
 
             if ev.reflection:
-                handler = planner_agent.run(
+                handler = self.planner_agent.run(
                     remembered_info=self.tools_instance.memory, reflection=ev.reflection
                 )
             else:
@@ -365,7 +363,7 @@ class DroidAgent(Workflow):
 
                 logger.debug(f"Planning step {self.step_counter}/{self.max_steps}")
 
-                handler = planner_agent.run(
+                handler = self.planner_agent.run(
                     remembered_info=self.tools_instance.memory, reflection=None
                 )
 

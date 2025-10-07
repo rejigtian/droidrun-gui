@@ -110,7 +110,8 @@ class CodeActAgent(Workflow):
         """Prepare chat history from user input."""
         logger.info("💬 Preparing chat for task execution...")
 
-        self.chat_memory: Memory = await ctx.get(
+
+        self.chat_memory: Memory = await ctx.store.get(
             "chat_memory", default=Memory.from_defaults()
         )
 
@@ -136,7 +137,7 @@ class CodeActAgent(Workflow):
 
         await self.chat_memory.aput(self.user_message)
 
-        await ctx.set("chat_memory", self.chat_memory)
+        await ctx.store.set("chat_memory", self.chat_memory)
         input_messages = self.chat_memory.get_all()
         return TaskInputEvent(input=input_messages)
 
@@ -163,7 +164,7 @@ class CodeActAgent(Workflow):
         model = self.llm.class_name()
         
         if "remember" in self.tool_list and self.remembered_info:
-            await ctx.set("remembered_info", self.remembered_info)
+            await ctx.store.set("remembered_info", self.remembered_info)
             chat_history = await chat_utils.add_memory_block(self.remembered_info, chat_history)
 
         for context in self.required_context:
@@ -172,7 +173,7 @@ class CodeActAgent(Workflow):
                 screenshot = (self.tools.take_screenshot())[1]
                 ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
 
-                await ctx.set("screenshot", screenshot)
+                await ctx.store.set("screenshot", screenshot)
                 if model == "DeepSeek":
                     logger.warning(
                         "[yellow]DeepSeek doesnt support images. Disabling screenshots[/]"
@@ -183,7 +184,7 @@ class CodeActAgent(Workflow):
             if context == "ui_state":
                 try:
                     state = self.tools.get_state()
-                    await ctx.set("ui_state", state["a11y_tree"])
+                    await ctx.store.set("ui_state", state["a11y_tree"])
                     ctx.write_event_to_stream(RecordUIStateEvent(ui_state=state["a11y_tree"]))
                     chat_history = await chat_utils.add_ui_text_block(
                         state["a11y_tree"], chat_history
@@ -321,7 +322,7 @@ class CodeActAgent(Workflow):
     async def finalize(self, ev: TaskEndEvent, ctx: Context) -> StopEvent:
         """Finalize the workflow."""
         self.tools.finished = False
-        await ctx.set("chat_memory", self.chat_memory)
+        await ctx.store.set("chat_memory", self.chat_memory)
         
         # Add final state observation to episodic memory
         if self.vision:
@@ -381,8 +382,9 @@ class CodeActAgent(Workflow):
                 chat_history=chat_history_str,
                 response=response_str,
                 timestamp=time.time(),
-                screenshot=(await ctx.get("screenshot", None))
+                screenshot=(await ctx.store.get("screenshot", None))
             )
+
 
             self.episodic_memory.steps.append(step)
 
