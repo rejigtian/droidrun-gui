@@ -98,7 +98,7 @@ class SimpleCodeExecutor:
             str: Output from the execution, including print statements.
         """
         # Update UI elements before execution
-        self.globals['ui_state'] = await ctx.get("ui_state", None)
+        self.globals['ui_state'] = await ctx.store.get("ui_state", None)
         self.globals['step_screenshots'] = []
         self.globals['step_ui_states'] = []
         

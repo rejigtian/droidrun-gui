@@ -98,7 +98,7 @@ class PlannerAgent(Workflow):
     async def prepare_chat(self, ctx: Context, ev: StartEvent) -> PlanInputEvent:
         logger.info("💬 Preparing planning session...")
 
-        self.chat_memory: Memory = await ctx.get(
+        self.chat_memory: Memory = await ctx.store.get(
             "chat_memory", default=Memory.from_defaults()
         )
         await self.chat_memory.aput(self.user_message)
@@ -135,19 +135,19 @@ class PlannerAgent(Workflow):
         if self.vision:
             screenshot = (self.tools_instance.take_screenshot())[1]
             ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
-            await ctx.set("screenshot", screenshot)
+            await ctx.store.set("screenshot", screenshot)
 
         try:
             state = self.tools_instance.get_state()
-            await ctx.set("ui_state", state["a11y_tree"])
-            await ctx.set("phone_state", state["phone_state"])
+            await ctx.store.set("ui_state", state["a11y_tree"])
+            await ctx.store.set("phone_state", state["phone_state"])
             ctx.write_event_to_stream(RecordUIStateEvent(ui_state=state["a11y_tree"]))
         except Exception as e:
             logger.warning(f"⚠️ Error retrieving state from the connected device. Is the Accessibility Service enabled?")
 
 
-        await ctx.set("remembered_info", self.remembered_info)
-        await ctx.set("reflection", self.reflection)
+        await ctx.store.set("remembered_info", self.remembered_info)
+        await ctx.store.set("reflection", self.reflection)
 
         response = await self._get_llm_response(ctx, chat_history)
         try:
@@ -238,7 +238,7 @@ wrap your code inside this:
     @step
     async def finalize(self, ev: PlanCreatedEvent, ctx: Context) -> StopEvent:
         """Finalize the workflow."""
-        await ctx.set("chat_memory", self.chat_memory)
+        await ctx.store.set("chat_memory", self.chat_memory)
 
         result = {}
         result.update(
@@ -264,7 +264,7 @@ wrap your code inside this:
                     )
                 else:
                     chat_history = await chat_utils.add_screenshot_image_block(
-                        await ctx.get("screenshot"), chat_history
+                        await ctx.store.get("screenshot"), chat_history
                     )                   
 
 
@@ -276,16 +276,16 @@ wrap your code inside this:
                 chat_history,
             )
 
-            remembered_info = await ctx.get("remembered_info", default=None)
+            remembered_info = await ctx.store.get("remembered_info", default=None)
             if remembered_info:
                 chat_history = await chat_utils.add_memory_block(remembered_info, chat_history)
 
-            reflection = await ctx.get("reflection", None)
+            reflection = await ctx.store.get("reflection", None)
             if reflection:
                 chat_history = await chat_utils.add_reflection_summary(reflection, chat_history)
 
-            chat_history = await chat_utils.add_phone_state_block(await ctx.get("phone_state"), chat_history)
-            chat_history = await chat_utils.add_ui_text_block(await ctx.get("ui_state"), chat_history)
+            chat_history = await chat_utils.add_phone_state_block(await ctx.store.get("phone_state"), chat_history)
+            chat_history = await chat_utils.add_ui_text_block(await ctx.store.get("ui_state"), chat_history)
 
             limited_history = self._limit_history(chat_history)
             messages_to_send = [self.system_message] + limited_history
