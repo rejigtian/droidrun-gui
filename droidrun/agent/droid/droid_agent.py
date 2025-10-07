@@ -215,6 +215,35 @@ class DroidAgent(Workflow):
         """
         return super().run(*args, **kwargs)
 
+    def _create_finalize_event(
+        self,
+        success: bool,
+        reason: str,
+        output: str
+    ) -> FinalizeEvent:
+        """
+        Single source of truth for creating FinalizeEvent.
+
+        This helper ensures all FinalizeEvent creation is consistent
+        across the workflow.
+
+        Args:
+            success: Whether the task succeeded
+            reason: Reason for completion (deprecated, use output)
+            output: Output message
+
+        Returns:
+            FinalizeEvent ready to be returned
+        """
+        return FinalizeEvent(
+            success=success,
+            reason=reason,
+            output=output,
+            task=[], # TODO: use the final plan as the tasks and the goal as task
+            tasks=[],
+            steps=self.step_counter
+        )
+
     @step
     async def execute_task(self, ctx: Context, ev: CodeActExecuteEvent) -> CodeActResultEvent:
         """
@@ -353,13 +382,31 @@ class DroidAgent(Workflow):
         self,
         ctx: Context[DroidAgentState],
         ev: ManagerInputEvent
-    ) -> ManagerPlanEvent:
+    ) -> ManagerPlanEvent | FinalizeEvent:
         """
         Run Manager planning phase.
 
+        Pre-flight checks for termination before running manager.
         The Manager analyzes current state and creates a plan with subgoals.
         """
-        logger.info("📋 Running Manager for planning...")
+        # ====================================================================
+        # PRE-FLIGHT: Check if we should terminate before running manager
+        # ====================================================================
+        state = await ctx.store.get_state()
+
+        # Check 1: Max steps reached
+        if self.step_counter >= self.max_steps:
+            logger.warning(f"⚠️ Reached maximum steps ({self.max_steps})")
+            return self._create_finalize_event(
+                success=False,
+                reason=f"Reached maximum steps ({self.max_steps})",
+                output=f"Reached maximum steps ({self.max_steps})"
+            )
+
+        # ====================================================================
+        # All checks passed - run Manager
+        # ====================================================================
+        logger.info(f"📋 Running Manager for planning... (step {self.step_counter}/{self.max_steps})")
 
         # Run Manager workflow (shares same context)
         handler = self.manager_agent.run(ctx=ctx)
@@ -397,21 +444,16 @@ class DroidAgent(Workflow):
 
         Checks if task is complete or if Executor should take action.
         """
-        state = await ctx.store.get_state()
-
         # Check for answer-type termination
         if ev.manager_answer.strip():
             logger.info(f"💬 Manager provided answer: {ev.manager_answer}")
             async with ctx.store.edit_state() as state:
                 state.progress_status = f"Answer: {ev.manager_answer}"
 
-            return FinalizeEvent(
+            return self._create_finalize_event(
                 success=True,
                 reason=ev.manager_answer,
-                output=ev.manager_answer,
-                task=[],
-                tasks=[],
-                steps=self.step_counter
+                output=ev.manager_answer
             )
 
         # Continue to Executor with current subgoal
@@ -467,25 +509,13 @@ class DroidAgent(Workflow):
         self,
         ctx: Context[DroidAgentState],
         ev: ExecutorResultEvent
-    ) -> ManagerInputEvent | FinalizeEvent:
+    ) -> ManagerInputEvent:
         """
-        Process Executor result and continue or finalize.
+        Process Executor result and continue.
 
-        Checks for max steps, error escalation, and loops back to Manager.
+        Checks for error escalation and loops back to Manager.
+        Note: Max steps check is now done in run_manager pre-flight.
         """
-        # Check max steps
-        if self.step_counter >= self.max_steps:
-            logger.warning(f"⚠️ Reached maximum steps ({self.max_steps})")
-            state = await ctx.store.get_state()
-            return FinalizeEvent(
-                success=False,
-                reason=f"Reached maximum steps ({self.max_steps})",
-                output=f"Reached maximum steps ({self.max_steps})",
-                task=[],
-                tasks=[],
-                steps=self.step_counter
-            )
-
         # Check error escalation
         state = await ctx.store.get_state()
         err_thresh = state.err_to_manager_thresh
@@ -501,7 +531,7 @@ class DroidAgent(Workflow):
         self.step_counter += 1
         logger.info(f"🔄 Step {self.step_counter}/{self.max_steps} complete, looping to Manager")
 
-        # Loop back to Manager for next planning iteration
+        # Always loop back to Manager (it will check max steps in pre-flight)
         return ManagerInputEvent()
 
     # ========================================================================
