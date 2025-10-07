@@ -1,9 +1,14 @@
 """
 DroidAgent - A wrapper class that coordinates the planning and execution of tasks
 to achieve a user's goal on an Android device.
+
+Architecture:
+- When reasoning=False: Uses CodeActAgent directly
+- When reasoning=True: Uses Manager (planning) + Executor (action) workflows
 """
 
 import logging
+import copy
 from typing import List
 
 from llama_index.core.llms.llm import LLM
@@ -12,7 +17,9 @@ from llama_index.core.workflow.handler import WorkflowHandler
 from droidrun.agent.droid.events import *
 from droidrun.agent.codeact import CodeActAgent
 from droidrun.agent.codeact.events import EpisodicMemoryEvent
-from droidrun.agent.planner import PlannerAgent
+from droidrun.agent.manager import ManagerAgent
+from droidrun.agent.executor import ExecutorAgent
+from droidrun.agent.planner import PlannerAgent  # Keep for backward compatibility
 from droidrun.agent.context.task_manager import TaskManager
 from droidrun.agent.utils.trajectory import Trajectory
 from droidrun.tools import Tools, describe_tools
@@ -22,6 +29,7 @@ from droidrun.agent.context import ContextInjectionManager
 from droidrun.agent.context.agent_persona import AgentPersona
 from droidrun.agent.context.personas import DEFAULT
 from droidrun.agent.oneflows.reflector import Reflector
+from droidrun.agent.executor.prompts import DETAILED_TIPS
 from droidrun.telemetry import (
     capture,
     flush,
@@ -34,8 +42,11 @@ logger = logging.getLogger("droidrun")
 
 class DroidAgent(Workflow):
     """
-    A wrapper class that coordinates between PlannerAgent (creates plans) and
-        CodeActAgent (executes tasks) to achieve a user's goal.
+    A wrapper class that coordinates between agents to achieve a user's goal.
+
+    Reasoning modes:
+    - reasoning=False: Uses CodeActAgent directly for immediate execution
+    - reasoning=True: Uses ManagerAgent (planning) + ExecutorAgent (actions)
     """
 
     @staticmethod
@@ -86,7 +97,7 @@ class DroidAgent(Workflow):
             llm: The language model to use for both agents
             max_steps: Maximum number of steps for both agents
             timeout: Timeout for agent execution in seconds
-            reasoning: Whether to use the PlannerAgent for complex reasoning (True)
+            reasoning: Whether to use Manager+Executor for complex reasoning (True)
                       or send tasks directly to CodeActAgent (False)
             reflection: Whether to reflect on steps the CodeActAgent did to give the PlannerAgent advice
             enable_tracing: Whether to enable Arize Phoenix tracing
@@ -154,14 +165,20 @@ class DroidAgent(Workflow):
         self.tools_instance.save_trajectories = self.save_trajectories
 
         if self.reasoning:
-            logger.info("📝 Initializing Planner Agent...")
-            self.planner_agent = PlannerAgent(
-                goal=goal,
+            logger.info("📝 Initializing Manager and Executor Agents...")
+            self.manager_agent = ManagerAgent(
                 llm=llm,
                 vision=vision,
                 personas=personas,
-                task_manager=self.task_manager,
                 tools_instance=tools,
+                timeout=timeout,
+                debug=debug,
+            )
+            self.executor_agent = ExecutorAgent(
+                llm=llm,
+                vision=vision,
+                tools_instance=tools,
+                persona=None,  # Need to figure this out
                 timeout=timeout,
                 debug=debug,
             )
@@ -170,8 +187,13 @@ class DroidAgent(Workflow):
             if self.reflection:
                 self.reflector = Reflector(llm=llm, debug=debug)
 
+            # Keep planner_agent for backward compatibility (can be removed later)
+            self.planner_agent = None
+
         else:
-            logger.debug("🚫 Planning disabled - will execute tasks directly with CodeActAgent")
+            logger.debug("🚫 Reasoning disabled - will execute tasks directly with CodeActAgent")
+            self.manager_agent = None
+            self.executor_agent = None
             self.planner_agent = None
 
         capture(
@@ -311,7 +333,7 @@ class DroidAgent(Workflow):
     @step
     async def reflect(
         self, ctx: Context, ev: ReflectionEvent
-    ) -> ReasoningLogicEvent | CodeActExecuteEvent:
+    ) -> ReasoningLogicEvent:
         task = ev.task
         if ev.task.agent_type == "AppStarterExpert":
             self.task_manager.complete_task(task)
@@ -419,13 +441,13 @@ class DroidAgent(Workflow):
 
     @step
     async def start_handler(
-        self, ctx: Context, ev: StartEvent
-    ) -> CodeActExecuteEvent | ReasoningLogicEvent:
+        self, ctx: Context[DroidAgentState], ev: StartEvent
+    ) -> CodeActExecuteEvent | ManagerInputEvent:
         """
         Main execution loop that coordinates between planning and execution.
 
         Returns:
-            Dict containing the execution result
+            Event to trigger next step based on reasoning mode
         """
         logger.info(f"🚀 Running DroidAgent to achieve goal: {self.goal}")
         ctx.write_event_to_stream(ev)
@@ -443,7 +465,181 @@ class DroidAgent(Workflow):
 
             return CodeActExecuteEvent(task=task, reflection=None)
 
-        return ReasoningLogicEvent()
+        # Reasoning mode - initialize state and start with Manager
+        logger.info("🧠 Reasoning mode - initializing Manager/Executor workflow")
+
+        # Initialize DroidAgentState in context
+        async with ctx.store.edit_state() as state:
+            state.instruction = self.goal
+            state.err_to_manager_thresh = 2
+            state.additional_knowledge_manager = "" # not used yet but nice to keep for custom knowledge or tools
+            state.additional_knowledge_executor = copy.deepcopy(DETAILED_TIPS) # will prolly remove this later and make a proper single system prompt
+
+        return ManagerInputEvent()
+
+    # ========================================================================
+    # Manager/Executor Workflow Steps
+    # ========================================================================
+
+    @step
+    async def run_manager(
+        self,
+        ctx: Context[DroidAgentState],
+        ev: ManagerInputEvent
+    ) -> ManagerPlanEvent:
+        """
+        Run Manager planning phase.
+
+        The Manager analyzes current state and creates a plan with subgoals.
+        """
+        logger.info("📋 Running Manager for planning...")
+
+        # Run Manager workflow (shares same context)
+        handler = self.manager_agent.run(ctx=ctx)
+
+        # Stream nested events
+        async for nested_ev in handler.stream_events():
+            self.handle_stream_event(nested_ev, ctx)
+
+        result = await handler
+
+        # Update state with planning results
+        async with ctx.store.edit_state() as state:
+            state.plan = result["plan"]
+            state.current_subgoal = result["current_subgoal"]
+            state.completed_plan = result["completed_plan"]
+            state.finish_thought = result["thought"]
+            state.manager_answer = result.get("manager_answer", "")
+
+        return ManagerPlanEvent(
+            plan=result["plan"],
+            current_subgoal=result["current_subgoal"],
+            completed_plan=result["completed_plan"],
+            thought=result["thought"],
+            manager_answer=result.get("manager_answer", "")
+        )
+
+    @step
+    async def handle_manager_plan(
+        self,
+        ctx: Context[DroidAgentState],
+        ev: ManagerPlanEvent
+    ) -> ExecutorInputEvent | FinalizeEvent:
+        """
+        Process Manager output and decide next step.
+
+        Checks if task is complete or if Executor should take action.
+        """
+        state = await ctx.store.get_state()
+
+        # Check for answer-type termination
+        if ev.manager_answer.strip():
+            logger.info(f"💬 Manager provided answer: {ev.manager_answer}")
+            async with ctx.store.edit_state() as state:
+                state.progress_status = f"Answer: {ev.manager_answer}"
+
+            return FinalizeEvent(
+                success=True,
+                reason=ev.manager_answer,
+                output=ev.manager_answer,
+                task=[],
+                tasks=[],
+                steps=self.step_counter
+            )
+
+        # Continue to Executor with current subgoal
+        logger.info(f"▶️  Proceeding to Executor with subgoal: {ev.current_subgoal}")
+        return ExecutorInputEvent(current_subgoal=ev.current_subgoal)
+
+    @step
+    async def run_executor(
+        self,
+        ctx: Context[DroidAgentState],
+        ev: ExecutorInputEvent
+    ) -> ExecutorResultEvent:
+        """
+        Run Executor action phase.
+
+        The Executor selects and executes a specific action for the current subgoal.
+        """
+        logger.info("⚡ Running Executor for action...")
+
+        # Run Executor workflow (shares same context)
+        handler = self.executor_agent.run(
+            ctx=ctx,
+            subgoal=ev.current_subgoal
+        )
+
+        # Stream nested events
+        async for nested_ev in handler.stream_events():
+            self.handle_stream_event(nested_ev, ctx)
+
+        result = await handler
+
+        # Update state with execution results
+        async with ctx.store.edit_state() as state:
+            state.action_history.append(result["action"])
+            state.summary_history.append(result["summary"])
+            state.action_outcomes.append(result["outcome"])
+            state.error_descriptions.append(result["error"])
+            state.last_action = result["action"]
+            state.last_summary = result["summary"]
+            state.last_action_thought = result.get("thought", "")
+            state.action_pool.append(result["action_json"])
+            state.progress_status = state.completed_plan
+
+        return ExecutorResultEvent(
+            action=result["action"],
+            outcome=result["outcome"],
+            error=result["error"],
+            summary=result["summary"]
+        )
+
+    @step
+    async def handle_executor_result(
+        self,
+        ctx: Context[DroidAgentState],
+        ev: ExecutorResultEvent
+    ) -> ManagerInputEvent | FinalizeEvent:
+        """
+        Process Executor result and continue or finalize.
+
+        Checks for max steps, error escalation, and loops back to Manager.
+        """
+        # Check max steps
+        if self.step_counter >= self.max_steps:
+            logger.warning(f"⚠️ Reached maximum steps ({self.max_steps})")
+            state = await ctx.store.get_state()
+            return FinalizeEvent(
+                success=False,
+                reason=f"Reached maximum steps ({self.max_steps})",
+                output=f"Reached maximum steps ({self.max_steps})",
+                task=[],
+                tasks=[],
+                steps=self.step_counter
+            )
+
+        # Check error escalation
+        state = await ctx.store.get_state()
+        err_thresh = state.err_to_manager_thresh
+
+        if len(state.action_outcomes) >= err_thresh:
+            latest = state.action_outcomes[-err_thresh:]
+            error_count = sum(1 for o in latest if o in ["B", "C"])
+            if error_count == err_thresh:
+                logger.warning(f"⚠️ Error escalation: {err_thresh} consecutive errors")
+                async with ctx.store.edit_state() as state:
+                    state.error_flag_plan = True
+
+        self.step_counter += 1
+        logger.info(f"🔄 Step {self.step_counter}/{self.max_steps} complete, looping to Manager")
+
+        # Loop back to Manager for next planning iteration
+        return ManagerInputEvent()
+
+    # ========================================================================
+    # End Manager/Executor Workflow Steps
+    # ========================================================================
 
     @step
     async def finalize(self, ctx: Context, ev: FinalizeEvent) -> StopEvent:
