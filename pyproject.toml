@@ -8,6 +8,7 @@ dependencies = [
     # dependency of adbutils[apk]
     "apkutils==2.0.0",
     "llama-index==0.14.4",
+    "llama-index-llms-google-genai>=0.6.2",
     "posthog>=6.7.6",
     "pydantic>=2.11.10",
     "rich>=14.1.0",

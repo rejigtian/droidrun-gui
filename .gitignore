@@ -23,7 +23,4 @@ patch_apis.py
 .git
 .arize-phoenix
 
-
-uv.lock
-
 todo.txt
