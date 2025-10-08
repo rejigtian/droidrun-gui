@@ -8,6 +8,8 @@ This agent is responsible for:
 - Deciding when tasks are complete
 """
 
+from __future__ import annotations
+
 import logging
 from typing import List, TYPE_CHECKING
 
@@ -16,13 +18,19 @@ from llama_index.core.llms.llm import LLM
 from llama_index.core.base.llms.types import ChatMessage
 
 from droidrun.agent.manager.events import ManagerThinkingEvent, ManagerPlanEvent
-from droidrun.agent.manager.prompts import (
-    DEFAULT_MANAGER_SYSTEM_PROMPT,
-    DEFAULT_MANAGER_USER_PROMPT,
-)
+from droidrun.agent.manager.prompts import build_manager_system_prompt
+
+
+from droidrun.agent.manager.prompts import parse_manager_response
+from droidrun.agent.utils import convert_messages_to_chatmessages
+
+from droidrun.agent.utils.device_state_formatter import get_device_state_exact_format
+
+
 
 if TYPE_CHECKING:
     from droidrun.agent.droid.events import DroidAgentState
+    from droidrun.tools import Tools
 
 logger = logging.getLogger("droidrun")
 
@@ -43,7 +51,7 @@ class ManagerAgent(Workflow):
         llm: LLM,
         vision: bool,
         personas: List,
-        tools_instance,
+        tools_instance: "Tools",
         debug: bool = False,
         **kwargs
     ):
@@ -54,13 +62,193 @@ class ManagerAgent(Workflow):
         self.tools_instance = tools_instance
         self.debug = debug
 
-        self.system_prompt = DEFAULT_MANAGER_SYSTEM_PROMPT
         logger.info("✅ ManagerAgent initialized successfully.")
+
+    # ========================================================================
+    # Helper Methods
+    # ========================================================================
+
+    def _build_system_prompt(
+        self,
+        state,
+        has_text_to_modify: bool
+    ) -> str:
+        """
+        Build system prompt with all context.
+
+        Args:
+            state: DroidAgentState
+            has_text_to_modify: Whether text manipulation mode is enabled
+
+        Returns:
+            Complete system prompt
+        """
+
+        # Get error history if error_flag_plan is set
+        error_history = []
+        if state.error_flag_plan:
+            k = state.err_to_manager_thresh
+            error_history = [
+                {
+                    "action": act,
+                    "summary": summ,
+                    "error": err_des
+                }
+                for act, summ, err_des in zip(
+                    state.action_history[-k:],
+                    state.summary_history[-k:],
+                    state.error_descriptions[-k:]
+                )
+            ]
+
+        return build_manager_system_prompt(
+            instruction=state.instruction,
+            has_text_to_modify=has_text_to_modify,
+            app_card="",  # TODO: implement app card retrieval system
+            device_date=self.tools_instance.get_date(),
+            important_notes="",  # TODO: expose important_notes in DroidAgentState if needed
+            error_flag=state.error_flag_plan,
+            error_history=error_history
+        )
+
+    def _build_messages_with_context(
+        self,
+        state,
+        system_prompt: str,
+        screenshot: str = None
+    ) -> list[dict]:
+        """
+        Build messages from history and inject current context.
+
+        Args:
+            state: DroidAgentState
+            system_prompt: System prompt to use
+            screenshot: Path to current screenshot (if vision enabled)
+
+        Returns:
+            List of message dicts ready for conversion
+        """
+        import copy
+
+        # Start with system message
+        messages = [
+            {"role": "system", "content": [{"text": system_prompt}]}
+        ]
+
+        # Add accumulated message history (deep copy to avoid mutation)
+        messages.extend(copy.deepcopy(state.message_history))
+
+        # ====================================================================
+        # Inject memory, device state, screenshot to LAST user message
+        # ====================================================================
+        # Find last user message index
+        user_indices = [i for i, msg in enumerate(messages) if msg['role'] == 'user']
+
+        if user_indices:
+            last_user_idx = user_indices[-1]
+
+            # Add memory to last user message
+            current_memory = (state.memory or "").strip()
+            if current_memory:
+                if messages[last_user_idx]['content'] and 'text' in messages[last_user_idx]['content'][0]:
+                    messages[last_user_idx]['content'][0]['text'] += f"\n<memory>\n{current_memory}\n</memory>\n"
+                else:
+                    messages[last_user_idx]['content'].insert(0, {"text": f"<memory>\n{current_memory}\n</memory>\n"})
+
+            # Add device state to last user message
+            current_a11y = (state.ui_elements_list_after or state.device_state_text or "").strip()
+            if current_a11y:
+                if messages[last_user_idx]['content'] and 'text' in messages[last_user_idx]['content'][0]:
+                    messages[last_user_idx]['content'][0]['text'] += f"\n<device_state>\n{current_a11y}\n</device_state>\n"
+                else:
+                    messages[last_user_idx]['content'].insert(0, {"text": f"<device_state>\n{current_a11y}\n</device_state>\n"})
+
+            # Add screenshot to last user message
+            if screenshot and self.vision:
+                messages[last_user_idx]['content'].append({"image": screenshot})
+
+            # Add previous device state to SECOND-TO-LAST user message (if exists)
+            if len(user_indices) >= 2:
+                second_last_user_idx = user_indices[-2]
+                prev_a11y = (state.ui_elements_list_before or "").strip()
+
+                if prev_a11y:
+                    if messages[second_last_user_idx]['content'] and 'text' in messages[second_last_user_idx]['content'][0]:
+                        messages[second_last_user_idx]['content'][0]['text'] += f"\n<device_state>\n{prev_a11y}\n</device_state>\n"
+                    else:
+                        messages[second_last_user_idx]['content'].insert(0, {"text": f"<device_state>\n{prev_a11y}\n</device_state>\n"})
+
+        return messages
+
+    async def _validate_and_retry_llm_call(
+        self,
+        ctx: Context,
+        initial_messages: list[dict],
+        initial_response: str
+    ) -> str:
+        """
+        Validate LLM response and retry if needed.
+
+        Args:
+            ctx: Workflow context
+            initial_messages: Messages sent to LLM
+            initial_response: Initial LLM response
+
+        Returns:
+            Final validated response (may be same as initial or from retry)
+        """
+
+        output_planning = initial_response
+        parsed = parse_manager_response(output_planning)
+
+        max_retries = 3
+        retry_count = 0
+
+        while retry_count < max_retries:
+            # Validation rules
+            error_message = None
+
+            if parsed["answer"] and not parsed["plan"]:
+                # Valid: answer without plan (task complete)
+                break
+            elif parsed["plan"] and parsed["answer"]:
+                error_message = "You cannot use both request_accomplished tag while the plan is not finished. If you want to use request_accomplished tag, please make sure the plan is finished.\nRetry again."
+            elif not parsed["plan"]:
+                error_message = "You must provide a plan to complete the task. Please provide a plan with the correct format."
+            else:
+                # Valid: plan without answer
+                break
+
+            if error_message:
+                retry_count += 1
+                logger.warning(f"Manager response invalid (retry {retry_count}/{max_retries}): {error_message}")
+
+                # Retry with error message
+                retry_messages = initial_messages + [
+                    {"role": "assistant", "content": [{"text": output_planning}]},
+                    {"role": "user", "content": [{"text": error_message}]}
+                ]
+
+                chat_messages = convert_messages_to_chatmessages(retry_messages)
+
+                try:
+                    response = await self.llm.achat(messages=chat_messages)
+                    output_planning = response.message.content
+                    parsed = parse_manager_response(output_planning)
+                except Exception as e:
+                    logger.error(f"LLM retry failed: {e}")
+                    break  # Give up retrying
+
+        return output_planning
+
+    # ========================================================================
+    # Workflow Steps
+    # ========================================================================
 
     @step
     async def prepare_input(
         self,
-        ctx: Context,
+        ctx: Context["DroidAgentState"],
         ev: StartEvent
     ) -> ManagerThinkingEvent:
         """
@@ -68,34 +256,69 @@ class ManagerAgent(Workflow):
 
         This step:
         1. Gets current device state (UI elements, screenshot)
-        2. Builds message history entry with last action
-        3. Prepares all context for the manager to reason about
+        2. Detects text manipulation mode
+        3. Builds message history entry with last action
+        4. Stores context for think() step
         """
         logger.info("💬 Preparing manager input...")
 
-        # Read current state
         state = await ctx.store.get_state()
 
-        # TODO: Get device state (android-world specific)
-        # from android_world.standalone_device_state import get_device_state_exact_format
-        # device_state_text, focused_text = get_device_state_exact_format()
+        # ====================================================================
+        # Step 1: Get device state (UI elements accessibility tree)
+        # ====================================================================
+        device_state_text, focused_text = get_device_state_exact_format(self.tools_instance.get_state())
 
-        # For now, use placeholder
-        device_state_text = "TODO: Implement device state gathering"
-        focused_text = ""
+        # ====================================================================
+        # Step 2: Capture screenshot (if vision enabled)
+        # ====================================================================
+        screenshot = None
+        if self.vision:
+            try:
+                result = self.tools_instance.take_screenshot()
+                if isinstance(result, tuple):
+                    success, screenshot = result
+                    if not success:
+                        screenshot = None
+                else:
+                    screenshot = result
+            except Exception as e:
+                logger.warning(f"Failed to capture screenshot: {e}")
+                screenshot = None
 
-        # Update state with device info
+        # ====================================================================
+        # Step 3: Detect text manipulation mode
+        # ====================================================================
+        focused_text = focused_text or ""
+        focused_text_clean = focused_text.replace("'", "").strip()
+
+        # Check if focused text differs from last typed text
+        # last_typed_text = ""
+        # if state.action_history:
+        #     recent_actions = state.action_history[-1:] if len(state.action_history) >= 1 else []
+        #     for action in reversed(recent_actions):
+        #         if isinstance(action, dict) and action.get('action') == 'type':
+        #             last_typed_text = action.get('text', '')
+        #             break
+
+        has_text_to_modify = (focused_text_clean != "")
+
+        # ====================================================================
+        # Step 4: Update state with device info
+        # ====================================================================
         async with ctx.store.edit_state() as state:
             state.device_state_text = device_state_text
             state.focused_text = focused_text
-            # Shift UI elements for before/after tracking
+            # Shift UI elements: before ← after, after ← current
             state.ui_elements_list_before = state.ui_elements_list_after
             state.ui_elements_list_after = device_state_text
 
-        # Build message history entry
+        # ====================================================================
+        # Step 5: Build user message entry
+        # ====================================================================
         parts = []
 
-        # Add last action context if available
+        # Add context from last action
         if state.finish_thought:
             parts.append(f"<thought>\n{state.finish_thought}\n</thought>\n")
 
@@ -107,7 +330,7 @@ class ManagerAgent(Workflow):
         if state.last_summary:
             parts.append(f"<last_action_description>\n{state.last_summary}\n</last_action_description>\n")
 
-        # Append to message history
+        # Append to message history (if there are parts)
         if parts:
             async with ctx.store.edit_state() as state:
                 state.message_history.append({
@@ -115,91 +338,113 @@ class ManagerAgent(Workflow):
                     "content": [{"text": "".join(parts)}]
                 })
 
-        logger.debug(f"  - Device state prepared")
+        # Store has_text_to_modify and screenshot for next step
+        async with ctx.store.edit_state() as state:
+            state.has_text_to_modify = has_text_to_modify
+            state.screenshot = screenshot
+
+        logger.debug(f"  - Device state prepared (text_modify={has_text_to_modify}, screenshot={screenshot is not None})")
         return ManagerThinkingEvent()
 
     @step
     async def think(
         self,
-        ctx: Context,
+        ctx: Context["DroidAgentState"],
         ev: ManagerThinkingEvent
     ) -> ManagerPlanEvent:
         """
-        Manager thinks and creates plan.
+        Manager reasons and creates plan.
 
         This step:
-        1. Calls LLM with manager prompt and context
-        2. Parses the response for plan, subgoals, thoughts
-        3. Updates memory if provided by manager
-        4. Returns structured plan event
+        1. Builds system prompt with all context
+        2. Builds messages from history with injected context
+        3. Calls LLM
+        4. Validates and retries if needed
+        5. Parses response
+        6. Updates state (memory, message history)
         """
         logger.info("🧠 Manager thinking about the plan...")
 
         state = await ctx.store.get_state()
+        has_text_to_modify = state.has_text_to_modify
+        screenshot = state.screenshot
 
-        # TODO: Build full manager prompt with all context
-        # - instruction
-        # - device state
-        # - action history
-        # - memory
-        # - error flags
-        # Reference: mobile_agent_v3.py Manager.get_messages()
+        # ====================================================================
+        # Step 1: Build system prompt
+        # ====================================================================
+        system_prompt = self._build_system_prompt(state, has_text_to_modify)
 
-        # TODO: Call LLM
-        # system_message = ChatMessage(role="system", content=self.system_prompt)
-        # messages = [system_message] + build_messages_from_history(state)
-        # response = await self.llm.achat(messages=messages)
+        # ====================================================================
+        # Step 2: Build messages with context
+        # ====================================================================
+        messages = self._build_messages_with_context(
+            state=state,
+            system_prompt=system_prompt,
+            screenshot=screenshot
+        )
 
-        # TODO: Parse response
-        # Reference: mobile_agent_v3.py Manager.parse_response()
-        # Should extract:
-        # - thought: <thought>...</thought>
-        # - plan: <plan>...</plan>
-        # - current_subgoal: <current_subgoal>...</current_subgoal>
-        # - completed_plan: <completed_plan>...</completed_plan>
-        # - memory: <memory>...</memory> (optional)
-        # - answer: <answer>...</answer> (optional)
+        # ====================================================================
+        # Step 3: Convert messages and call LLM
+        # ====================================================================
+        chat_messages = convert_messages_to_chatmessages(messages)
 
-        # Placeholder for now
-        logger.warning("⚠️ Using placeholder manager response - TODO: implement LLM call")
-        plan = "TODO: implement manager LLM call and parsing"
-        current_subgoal = "TODO: next subgoal"
-        completed_plan = state.completed_plan  # Keep existing
-        thought = "Manager reasoning not yet implemented"
-        manager_answer = ""
-        memory_update = ""
+        try:
+            response = await self.llm.achat(messages=chat_messages)
+            output_planning = response.message.content
+        except Exception as e:
+            logger.error(f"LLM call failed: {e}")
+            raise RuntimeError(f"Error calling LLM in manager: {e}")
 
-        # Update memory if provided
-        if memory_update:
-            async with ctx.store.edit_state() as state:
+        # ====================================================================
+        # Step 4: Validate and retry if needed
+        # ====================================================================
+        output_planning = await self._validate_and_retry_llm_call(
+            ctx=ctx,
+            initial_messages=messages,
+            initial_response=output_planning
+        )
+
+        # ====================================================================
+        # Step 5: Parse response
+        # ====================================================================
+        parsed = parse_manager_response(output_planning)
+
+        # ====================================================================
+        # Step 6: Update state
+        # ====================================================================
+        memory_update = parsed.get("memory", "").strip()
+
+        async with ctx.store.edit_state() as state:
+            # Update memory (append, not replace)
+            if memory_update:
                 if state.memory:
                     state.memory += "\n" + memory_update
                 else:
                     state.memory = memory_update
 
-        # Append assistant response to message history
-        async with ctx.store.edit_state() as state:
+            # Append assistant response to message history
             state.message_history.append({
                 "role": "assistant",
-                "content": [{"text": f"<thought>{thought}</thought>\n<plan>{plan}</plan>"}]
+                "content": [{"text": output_planning}]
             })
 
-        logger.info(f"📝 Plan: {plan}")
-        logger.debug(f"  - Current subgoal: {current_subgoal}")
+        logger.info(f"📝 Plan: {parsed['plan'][:100]}...")
+        logger.debug(f"  - Current subgoal: {parsed['current_subgoal']}")
+        logger.debug(f"  - Manager answer: {parsed['answer'][:50] if parsed['answer'] else 'None'}")
 
         return ManagerPlanEvent(
-            plan=plan,
-            current_subgoal=current_subgoal,
-            completed_plan=completed_plan,
-            thought=thought,
-            manager_answer=manager_answer,
+            plan=parsed["plan"],
+            current_subgoal=parsed["current_subgoal"],
+            completed_plan=parsed.get("completed_subgoal", "No completed subgoal."),
+            thought=parsed["thought"],
+            manager_answer=parsed["answer"],
             memory_update=memory_update
         )
 
     @step
     async def finalize(
         self,
-        ctx: Context,
+        ctx: Context["DroidAgentState"],
         ev: ManagerPlanEvent
     ) -> StopEvent:
         """Return manager results to parent workflow."""

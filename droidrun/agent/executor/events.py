@@ -6,11 +6,6 @@ from llama_index.core.workflow.events import Event
 from typing import Dict
 
 
-class ExecutorThinkingEvent(Event):
-    """Executor is thinking about which action to take"""
-    subgoal: str
-
-
 class ExecutorActionEvent(Event):
     """Executor has selected an action to execute"""
     action_json: str

@@ -46,6 +46,12 @@ class Tools(ABC):
         Get the current state of the tool.
         """
         pass
+    @abstractmethod
+    def get_date(self) -> str:
+        """
+        Get the current date on device.
+        """
+        pass
 
     @abstractmethod
     def tap_by_index(self, index: int) -> str:
@@ -77,7 +83,7 @@ class Tools(ABC):
         pass
 
     @abstractmethod
-    def input_text(self, text: str) -> str:
+    def input_text(self, text: str, index: int = -1, clear: bool = False) -> str:
         """
         Input the given text into a focused input field.
         """
@@ -117,6 +123,12 @@ class Tools(ABC):
         List all packages on the device.
         """
         pass
+    @abstractmethod
+    def get_apps(self, include_system_apps: bool = False) -> List[Dict[str, Any]]:
+        """
+        List all apps on the device.
+        """
+        pass
 
     @abstractmethod
     def remember(self, information: str) -> str:
@@ -136,6 +148,12 @@ class Tools(ABC):
     def complete(self, success: bool, reason: str = "") -> None:
         """
         Complete the tool. This is used to indicate that the tool has completed its task.
+        """
+        pass
+    @abstractmethod
+    def _extract_element_coordinates_by_index(self, index: int) -> Tuple[int, int]:
+        """
+        Extract the coordinates of the element with the given index.
         """
         pass
 

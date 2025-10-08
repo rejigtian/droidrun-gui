@@ -1,6 +1,6 @@
 version = 1
 revision = 3
-requires-python = ">=3."
+requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.13' and sys_platform == 'win32'",
     "python_full_version == '3.12.*' and sys_platform == 'win32'",
@@ -836,13 +836,12 @@ wheels = [
 
 [[package]]
 name = "droidrun"
-version = "0.3.8"
+version = "0.3.9"
 source = { editable = "." }
 dependencies = [
     { name = "adbutils" },
     { name = "apkutils" },
     { name = "llama-index" },
-    { name = "llama-index-llms-google-genai" },
     { name = "posthog" },
     { name = "pydantic" },
     { name = "rich" },
@@ -874,6 +873,12 @@ openai = [
     { name = "llama-index-llms-openai-like" },
     { name = "openai" },
 ]
+openrouter = [
+    { name = "llama-index-llms-openrouter" },
+]
+phoenix = [
+    { name = "arize-phoenix" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -889,16 +894,17 @@ requires-dist = [
     { name = "adbutils", specifier = ">=2.10.2" },
     { name = "anthropic", marker = "extra == 'anthropic'", specifier = ">=0.67.0" },
     { name = "apkutils", specifier = "==2.0.0" },
+    { name = "arize-phoenix", marker = "extra == 'phoenix'", specifier = ">=12.3.0" },
     { name = "bandit", marker = "extra == 'dev'", specifier = ">=1.8.6" },
     { name = "black", marker = "extra == 'dev'", specifier = ">=23.0.0" },
     { name = "llama-index", specifier = "==0.14.4" },
     { name = "llama-index-llms-anthropic", marker = "extra == 'anthropic'", specifier = ">=0.8.6,<0.9.0" },
     { name = "llama-index-llms-deepseek", marker = "extra == 'deepseek'", specifier = ">=0.2.1" },
-    { name = "llama-index-llms-google-genai", specifier = ">=0.6.2" },
     { name = "llama-index-llms-google-genai", marker = "extra == 'google'", specifier = ">=0.3.1" },
     { name = "llama-index-llms-ollama", marker = "extra == 'ollama'", specifier = ">=0.7.2" },
     { name = "llama-index-llms-openai", marker = "extra == 'openai'", specifier = ">=0.5.6" },
     { name = "llama-index-llms-openai-like", marker = "extra == 'openai'", specifier = ">=0.5.1" },
+    { name = "llama-index-llms-openrouter", marker = "extra == 'openrouter'", specifier = ">=0.4.2" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
     { name = "openai", marker = "extra == 'openai'", specifier = ">=1.99.1" },
     { name = "posthog", specifier = ">=6.7.6" },
@@ -907,7 +913,7 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.13.0" },
     { name = "safety", marker = "extra == 'dev'", specifier = ">=3.2.11" },
 ]
-provides-extras = ["anthropic", "openai", "google", "deepseek", "ollama", "dev"]
+provides-extras = ["anthropic", "openai", "google", "deepseek", "ollama", "dev", "openrouter", "phoenix"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1681,6 +1687,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/9b/fd/aed635d298380cfdc84a4e475a8367d8fcdd4677cd8914de2f495edea28d/llama_index_llms_openai_like-0.5.3.tar.gz", hash = "sha256:84bdfc88bb5d9ea806bdd1be4b4378357781c0637c78c548242aac857f165090", size = 4993, upload-time = "2025-09-28T23:48:26.659Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/aa/22/3d15a3f0f2c4befecb8e7a81a4a0bbd3121f567b22b9ac34817ecf15a155/llama_index_llms_openai_like-0.5.3-py3-none-any.whl", hash = "sha256:9ef2374916427e1a21db0ea5f624056fb323e13308c6722b3de0384dfecd467b", size = 4689, upload-time = "2025-09-28T23:48:25.557Z" },
+]
+
+[[package]]
+name = "llama-index-llms-openrouter"
+version = "0.4.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "llama-index-core" },
+    { name = "llama-index-llms-openai-like" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/82/92/1931afb4edf2e4a4ecef9f64bcc33143449bc70f56287a4b495d4a1043ad/llama_index_llms_openrouter-0.4.2.tar.gz", hash = "sha256:af09829b2ebc8ccb22b7afe7ad92fe8ce35ea9a3be2430ec811416bad7d7edb9", size = 4565, upload-time = "2025-09-29T16:59:26.159Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1f/6b/80c7259de8020e1f64e0c746e3f8cde3bc48288f842bbba8f8ab9810ae24/llama_index_llms_openrouter-0.4.2-py3-none-any.whl", hash = "sha256:a7c91ddc90b2c68c47722e81a72641a423045499773d2c38ed74b622be45c18a", size = 4502, upload-time = "2025-09-29T16:59:25.119Z" },
 ]
 
 [[package]]

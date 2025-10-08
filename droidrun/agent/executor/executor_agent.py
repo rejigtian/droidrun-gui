@@ -11,19 +11,17 @@ import logging
 import json
 from typing import TYPE_CHECKING
 
+from llama_index.core.llms import TextBlock, ImageBlock, ChatMessage
 from llama_index.core.workflow import Workflow, step, Context, StartEvent, StopEvent
 from llama_index.core.llms.llm import LLM
-from llama_index.core.base.llms.types import ChatMessage
 
+from droidrun.agent.executor.prompts import build_executor_system_prompt, parse_executor_response
 from droidrun.agent.executor.events import (
-    ExecutorThinkingEvent,
     ExecutorActionEvent,
     ExecutorResultEvent
 )
-from droidrun.agent.executor.prompts import (
-    DEFAULT_EXECUTOR_SYSTEM_PROMPT,
-    DEFAULT_EXECUTOR_USER_PROMPT,
-    DETAILED_TIPS
+from droidrun.agent.utils.tools import (
+    click, long_press, type, system_button, swipe, open_app
 )
 
 if TYPE_CHECKING:
@@ -60,49 +58,14 @@ class ExecutorAgent(Workflow):
         self.persona = persona
         self.debug = debug
 
-        self.system_prompt = DEFAULT_EXECUTOR_SYSTEM_PROMPT
         logger.info("✅ ExecutorAgent initialized successfully.")
 
-    @step
-    async def prepare_input(
-        self,
-        ctx: Context,
-        ev: StartEvent
-    ) -> ExecutorThinkingEvent:
-        """
-        Gather context for action selection.
-
-        This step:
-        1. Gets current subgoal from StartEvent
-        2. Gets current screenshot (if vision enabled)
-        3. Gets current UI state
-        4. Prepares all context for the executor
-        """
-        logger.info("💬 Preparing executor input...")
-
-        state = await ctx.store.get_state()
-        subgoal = ev.get("subgoal", "")
-
-        # TODO: Get current screenshot
-        # if self.vision:
-        #     screenshot = self.tools_instance.take_screenshot()[1]
-        #     await ctx.store.set("screenshot", screenshot)
-
-        # TODO: Get current UI state if not already fresh
-        # from android_world.standalone_device_state import get_device_state_exact_format
-        # device_state_text, focused_text = get_device_state_exact_format()
-        # async with ctx.store.edit_state() as state:
-        #     state.device_state_text = device_state_text
-        #     state.focused_text = focused_text
-
-        logger.debug(f"  - Subgoal: {subgoal}")
-        return ExecutorThinkingEvent(subgoal=subgoal)
 
     @step
     async def think(
         self,
-        ctx: Context,
-        ev: ExecutorThinkingEvent
+        ctx: Context["DroidAgentState"],
+        ev: StartEvent
     ) -> ExecutorActionEvent:
         """
         Executor decides which action to take.
@@ -110,93 +73,98 @@ class ExecutorAgent(Workflow):
         This step:
         1. Calls LLM with executor prompt and context
         2. Parses the response for action, thought, description
-        3. Validates action format
+        3. Validates action format (blocks answer actions!)
         4. Returns action event
         """
-        logger.info(f"🧠 Executor thinking about action for: {ev.subgoal}")
+        subgoal = ev.get("subgoal", "")
+        logger.info(f"🧠 Executor thinking about action for: {subgoal}")
 
         state = await ctx.store.get_state()
 
-        # TODO: Build full executor prompt with all context
-        # - subgoal
-        # - device state / UI elements
-        # - action history
-        # - additional knowledge (DETAILED_TIPS)
-        # Reference: mobile_agent_v3.py Executor.get_prompt()
 
-        # TODO: Call LLM
-        # system_message = ChatMessage(role="system", content=self.system_prompt)
-        # user_message = build_executor_message(ev.subgoal, state)
-        # if self.vision:
-        #     screenshot = await ctx.store.get("screenshot")
-        #     # Add image to message
-        # response = await self.llm.achat(messages=[system_message, user_message])
+        app_card = ""  # TODO: Implement app card retrieval
 
-        # TODO: Parse response
-        # Reference: mobile_agent_v3.py Executor.parse_response()
-        # Should extract:
-        # - thought: <thought>...</thought>
-        # - action: JSON action object
-        # - description: <description>...</description>
+        system_prompt = build_executor_system_prompt(
+            state=state,
+            subgoal=subgoal,
+            app_card=app_card
+        )
 
-        # Placeholder for now
-        logger.warning("⚠️ Using placeholder executor response - TODO: implement LLM call")
-        action_json = json.dumps({"action": "TODO"})
-        thought = "Executor reasoning not yet implemented"
-        description = "TODO: implement executor action selection"
+        
+        blocks = [TextBlock(text=system_prompt)]
+        if self.vision:
+            screenshot = state.screenshot
+            assert screenshot is not None, "Screenshot is required for vision but got None"
+            blocks.append(ImageBlock(image=screenshot))
+        messages = [ChatMessage(role="system", blocks=blocks)]
 
-        logger.info(f"💡 Thought: {thought}")
-        logger.debug(f"  - Action: {action_json}")
+        try:
+            response = await self.llm.achat(messages=messages)
+            response_text = str(response)
+        except Exception as e:
+            logger.error(f"❌ LLM call failed: {e}")
+            return ExecutorActionEvent(
+                action_json=json.dumps({"action": "invalid"}),
+                thought=f"LLM call failed: {str(e)}",
+                description="Failed to get action from LLM"
+            )
+
+        # Parse response
+        try:
+            parsed = parse_executor_response(response_text)
+        except Exception as e:
+            logger.error(f"❌ Failed to parse executor response: {e}")
+            return ExecutorActionEvent(
+                action_json=json.dumps({"action": "invalid"}),
+                thought=f"Failed to parse response: {str(e)}",
+                description="Invalid response format from LLM"
+            )
+
+        logger.info(f"💡 Thought: {parsed['thought']}")
+        logger.info(f"🎯 Action: {parsed['action']}")
+        logger.debug(f"  - Description: {parsed['description']}")
 
         return ExecutorActionEvent(
-            action_json=action_json,
-            thought=thought,
-            description=description
+            action_json=parsed["action"],
+            thought=parsed["thought"],
+            description=parsed["description"]
         )
 
     @step
     async def execute(
         self,
-        ctx: Context,
+        ctx: Context["DroidAgentState"],
         ev: ExecutorActionEvent
     ) -> ExecutorResultEvent:
         """
-        Execute the selected action.
-
-        This step:
-        1. Converts action JSON to appropriate format
-        2. Executes action on device/environment
-        3. Determines outcome (success/partial/failure)
-        4. Returns result with outcome and any errors
+        Execute the selected action using the tools instance.
+        
+        Maps action JSON to appropriate tool calls and handles execution.
         """
         logger.info(f"⚡ Executing action: {ev.description}")
 
-        # TODO: Convert action JSON to environment-specific format
-        # Reference: mobile_agent_v3.py convert_fc_action_to_json_action()
-        # action_dict = json.loads(ev.action_json)
-        # converted_action = convert_to_json_action(action_dict)
+        # Parse action JSON
+        try:
+            action_dict = json.loads(ev.action_json)
+            action_type = action_dict.get("action", "unknown")
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ Failed to parse action JSON: {e}")
+            return ExecutorResultEvent(
+                action={"action": "invalid"},
+                outcome=False,
+                error=f"Invalid action JSON: {str(e)}",
+                summary="Failed to parse action",
+                thought=ev.thought,
+                action_json=ev.action_json
+            )
 
-        # TODO: Execute on environment
-        # try:
-        #     self.tools_instance.execute_action(converted_action)
-        #     outcome = "A"  # Success
-        #     error = "None"
-        # except Exception as e:
-        #     logger.error(f"Action execution failed: {e}")
-        #     outcome = "C"  # Failure
-        #     error = str(e)
+        # Execute the action
+        outcome, error, summary = await self._execute_action(action_dict, ev.description)
 
-        # Placeholder for now
-        logger.warning("⚠️ Action execution not implemented - TODO: implement action execution")
-        action = json.loads(ev.action_json)
-        outcome = "A"  # Assume success for now
-        error = "None"
-        summary = ev.description
-
-        logger.info(f"✅ Action executed with outcome: {outcome}")
+        logger.info(f"{'✅' if outcome else '❌'} Execution complete: {summary}")
 
         return ExecutorResultEvent(
-            action=action,
+            action=action_dict,
             outcome=outcome,
             error=error,
             summary=summary,
@@ -204,10 +172,98 @@ class ExecutorAgent(Workflow):
             action_json=ev.action_json
         )
 
+    async def _execute_action(self, action_dict: dict, description: str) -> tuple[bool, str, str]:
+        """
+        Execute a single action based on the action dictionary.
+        
+        Args:
+            action_dict: Dictionary containing action type and parameters
+            description: Human-readable description of the action
+            
+        Returns:
+            Tuple of (outcome: bool, error: str, summary: str)
+        """
+        
+        action_type = action_dict.get("action", "unknown")
+        
+        try:
+            if action_type == "click":
+                index = action_dict.get("index")
+                if index is None:
+                    return False, "Missing 'index' parameter", "Failed: click requires index"
+                
+                result = click(self.tools_instance, index)
+                return True, "None", f"Clicked element at index {index}"
+                
+            elif action_type == "long_press":
+                index = action_dict.get("index")
+                if index is None:
+                    return False, "Missing 'index' parameter", "Failed: long_press requires index"
+                
+                success = long_press(self.tools_instance, index)
+                if success:
+                    return True, "None", f"Long pressed element at index {index}"
+                else:
+                    return False, "Long press failed", f"Failed to long press at index {index}"
+                
+            elif action_type == "type":
+                text = action_dict.get("text")
+                index = action_dict.get("index", -1)
+                
+                if text is None:
+                    return False, "Missing 'text' parameter", "Failed: type requires text"
+                
+                result = type(self.tools_instance, text, index)
+                return True, "None", f"Typed '{text}' into element at index {index}"
+                
+            elif action_type == "system_button":
+                button = action_dict.get("button")
+                if button is None:
+                    return False, "Missing 'button' parameter", "Failed: system_button requires button"
+                
+                result = system_button(self.tools_instance, button)
+                if "Error" in result:
+                    return False, result, f"Failed to press {button} button"
+                return True, "None", f"Pressed {button} button"
+                
+            elif action_type == "swipe":
+                coordinate = action_dict.get("coordinate")
+                coordinate2 = action_dict.get("coordinate2")
+                
+                if coordinate is None or coordinate2 is None:
+                    return False, "Missing coordinate parameters", "Failed: swipe requires coordinate and coordinate2"
+                
+                # Validate coordinate format before calling swipe
+                if not isinstance(coordinate, list) or len(coordinate) != 2:
+                    return False, f"Invalid coordinate format: {coordinate}", "Failed: coordinate must be [x, y]"
+                if not isinstance(coordinate2, list) or len(coordinate2) != 2:
+                    return False, f"Invalid coordinate2 format: {coordinate2}", "Failed: coordinate2 must be [x, y]"
+                
+                success = swipe(self.tools_instance, coordinate, coordinate2)
+                if success:
+                    return True, "None", f"Swiped from {coordinate} to {coordinate2}"
+                else:
+                    return False, "Swipe failed", f"Failed to swipe from {coordinate} to {coordinate2}"
+                
+            elif action_type == "open_app":
+                text = action_dict.get("text")
+                if text is None:
+                    return False, "Missing 'text' parameter", "Failed: open_app requires text"
+                
+                result = open_app(self.tools_instance, text)
+                return True, "None", f"Opened app: {text}"
+                
+            else:
+                return False, f"Unknown action type: {action_type}", f"Failed: unknown action '{action_type}'"
+                
+        except Exception as e:
+            logger.error(f"❌ Exception during action execution: {e}", exc_info=True)
+            return False, f"Exception: {str(e)}", f"Failed to execute {action_type}: {str(e)}"
+
     @step
     async def finalize(
         self,
-        ctx: Context,
+        ctx: Context["DroidAgentState"],
         ev: ExecutorResultEvent
     ) -> StopEvent:
         """Return executor results to parent workflow."""

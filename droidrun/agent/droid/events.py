@@ -1,3 +1,4 @@
+from PIL.Image import Image
 from llama_index.core.workflow import Event
 from droidrun.agent.context import Task
 from typing import List, Optional, Dict
@@ -43,8 +44,6 @@ class DroidAgentState(BaseModel):
 
     # Task context
     instruction: str = ""
-    additional_knowledge_manager: str = ""
-    additional_knowledge_executor: str = ""
 
     # UI State
     ui_elements_list_before: str = ""
@@ -53,6 +52,8 @@ class DroidAgentState(BaseModel):
     device_state_text: str = ""
     width: int = 0
     height: int = 0
+    screenshot: str | bytes | Image | None = None
+    has_text_to_modify: bool = False
 
     # Action tracking
     action_pool: List[Dict] = Field(default_factory=list)
@@ -112,6 +113,6 @@ class ExecutorInputEvent(Event):
 class ExecutorResultEvent(Event):
     """Executor action result"""
     action: Dict
-    outcome: str  # "A", "B", "C"
+    outcome: bool
     error: str
     summary: str

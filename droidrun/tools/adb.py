@@ -68,6 +68,13 @@ class AdbTools(Tools):
             self.setup_tcp_forward()
 
 
+    def get_date(self) -> str:
+        """
+        Get the current date and time on device.
+        """
+        return self.device.shell("date").strip()
+
+
     def setup_tcp_forward(self) -> bool:
         """
         Set up ADB TCP port forwarding for communication with the portal app.
@@ -207,20 +214,19 @@ class AdbTools(Tools):
             return None
 
     @Tools.ui_action
-    def tap_by_index(self, index: int) -> str:
+    def _extract_element_coordinates_by_index(self, index: int) -> Tuple[int, int]:
         """
-        Tap on a UI element by its index.
-
-        This function uses the cached clickable elements
-        to find the element with the given index and tap on its center coordinates.
-
+        Extract center coordinates from an element by its index.
+        
         Args:
-            index: Index of the element to tap
-
+            index: Index of the element to find and extract coordinates from
+            
         Returns:
-            Result message
+            Tuple of (x, y) center coordinates
+            
+        Raises:
+            ValueError: If element not found, bounds format is invalid, or missing bounds
         """
-
         def collect_all_indices(elements):
             """Recursively collect all indices from elements and their children."""
             indices = []
@@ -244,40 +250,57 @@ class AdbTools(Tools):
                     return result
             return None
 
+        # Check if we have cached elements
+        if not self.clickable_elements_cache:
+            raise ValueError("No UI elements cached. Call get_state first.")
+
+        # Find the element with the given index (including in children)
+        element = find_element_by_index(self.clickable_elements_cache, index)
+
+        if not element:
+            # List available indices to help the user
+            indices = sorted(collect_all_indices(self.clickable_elements_cache))
+            indices_str = ", ".join(str(idx) for idx in indices[:20])
+            if len(indices) > 20:
+                indices_str += f"... and {len(indices) - 20} more"
+            raise ValueError(f"No element found with index {index}. Available indices: {indices_str}")
+
+        # Get the bounds of the element
+        bounds_str = element.get("bounds")
+        if not bounds_str:
+            element_text = element.get("text", "No text")
+            element_type = element.get("type", "unknown")
+            element_class = element.get("className", "Unknown class")
+            raise ValueError(f"Element with index {index} ('{element_text}', {element_class}, type: {element_type}) has no bounds and cannot be tapped")
+
+        # Parse the bounds (format: "left,top,right,bottom")
         try:
-            # Check if we have cached elements
-            if not self.clickable_elements_cache:
-                return "Error: No UI elements cached. Call get_state first."
+            left, top, right, bottom = map(int, bounds_str.split(","))
+        except ValueError:
+            raise ValueError(f"Invalid bounds format for element with index {index}: {bounds_str}")
 
-            # Find the element with the given index (including in children)
-            element = find_element_by_index(self.clickable_elements_cache, index)
+        # Calculate the center of the element
+        x = (left + right) // 2
+        y = (top + bottom) // 2
+        
+        return x, y
 
-            if not element:
-                # List available indices to help the user
-                indices = sorted(collect_all_indices(self.clickable_elements_cache))
-                indices_str = ", ".join(str(idx) for idx in indices[:20])
-                if len(indices) > 20:
-                    indices_str += f"... and {len(indices) - 20} more"
+    def tap_by_index(self, index: int) -> str:
+        """
+        Tap on a UI element by its index.
 
-                return f"Error: No element found with index {index}. Available indices: {indices_str}"
+        This function uses the cached clickable elements
+        to find the element with the given index and tap on its center coordinates.
 
-            # Get the bounds of the element
-            bounds_str = element.get("bounds")
-            if not bounds_str:
-                element_text = element.get("text", "No text")
-                element_type = element.get("type", "unknown")
-                element_class = element.get("className", "Unknown class")
-                return f"Error: Element with index {index} ('{element_text}', {element_class}, type: {element_type}) has no bounds and cannot be tapped"
+        Args:
+            index: Index of the element to tap
 
-            # Parse the bounds (format: "left,top,right,bottom")
-            try:
-                left, top, right, bottom = map(int, bounds_str.split(","))
-            except ValueError:
-                return f"Error: Invalid bounds format for element with index {index}: {bounds_str}"
-
-            # Calculate the center of the element
-            x = (left + right) // 2
-            y = (top + bottom) // 2
+        Returns:
+            Result message
+        """
+        try:
+            # Extract coordinates using the helper function
+            x, y = self._extract_element_coordinates_by_index(index)
 
             logger.debug(
                 f"Tapping element with index {index} at coordinates ({x}, {y})"
@@ -287,10 +310,24 @@ class AdbTools(Tools):
             logger.debug(f"Tapped element with index {index} at coordinates ({x}, {y})")
 
             # Emit coordinate action event for trajectory recording
-
             if self._ctx:
-                element_text = element.get("text", "No text")
-                element_class = element.get("className", "Unknown class")
+                # Find element again for event details
+                def find_element_by_index(elements, target_index):
+                    """Recursively find an element with the given index."""
+                    for item in elements:
+                        if item.get("index") == target_index:
+                            return item
+                        # Check children if present
+                        children = item.get("children", [])
+                        result = find_element_by_index(children, target_index)
+                        if result:
+                            return result
+                    return None
+
+                element = find_element_by_index(self.clickable_elements_cache, index)
+                element_text = element.get("text", "No text") if element else "No text"
+                element_class = element.get("className", "Unknown class") if element else "Unknown class"
+                bounds_str = element.get("bounds", "") if element else ""
 
                 tap_event = TapActionEvent(
                     action_type="tap",
@@ -307,20 +344,34 @@ class AdbTools(Tools):
             time.sleep(0.5)
 
             # Create a descriptive response
+            def find_element_by_index(elements, target_index):
+                """Recursively find an element with the given index."""
+                for item in elements:
+                    if item.get("index") == target_index:
+                        return item
+                    # Check children if present
+                    children = item.get("children", [])
+                    result = find_element_by_index(children, target_index)
+                    if result:
+                        return result
+                return None
+
+            element = find_element_by_index(self.clickable_elements_cache, index)
             response_parts = []
             response_parts.append(f"Tapped element with index {index}")
-            response_parts.append(f"Text: '{element.get('text', 'No text')}'")
-            response_parts.append(f"Class: {element.get('className', 'Unknown class')}")
-            response_parts.append(f"Type: {element.get('type', 'unknown')}")
+            response_parts.append(f"Text: '{element.get('text', 'No text') if element else 'No text'}'")
+            response_parts.append(f"Class: {element.get('className', 'Unknown class') if element else 'Unknown class'}")
+            response_parts.append(f"Type: {element.get('type', 'unknown') if element else 'unknown'}")
 
             # Add information about children if present
-            children = element.get("children", [])
-            if children:
-                child_texts = [
-                    child.get("text") for child in children if child.get("text")
-                ]
-                if child_texts:
-                    response_parts.append(f"Contains text: {' | '.join(child_texts)}")
+            if element:
+                children = element.get("children", [])
+                if children:
+                    child_texts = [
+                        child.get("text") for child in children if child.get("text")
+                    ]
+                    if child_texts:
+                        response_parts.append(f"Contains text: {' | '.join(child_texts)}")
 
             response_parts.append(f"Coordinates: ({x}, {y})")
 
@@ -453,24 +504,31 @@ class AdbTools(Tools):
             return False
 
     @Tools.ui_action
-    def input_text(self, text: str) -> str:
+    def input_text(self, text: str, index: int = -1, clear: bool = False) -> str:
         """
         Input text on the device.
         Always make sure that the Focused Element is not None before inputting text.
 
         Args:
             text: Text to input. Can contain spaces, newlines, and special characters including non-ASCII.
+            index: Index of the element to input text into. If -1, the focused element will be used.
+            clear: Whether to clear the text before inputting.
 
         Returns:
             Result message
         """
         try:
+            if index != -1:
+                self.tap_by_index(index)
+            # Encode the text to Base64 (needed for both TCP and content provider)
+            encoded_text = base64.b64encode(text.encode()).decode()
 
             if self.use_tcp and self.tcp_forwarded:
                 # Use TCP communication
-                encoded_text = base64.b64encode(text.encode()).decode()
-
-                payload = {"base64_text": encoded_text}
+                payload = {
+                    "base64_text": encoded_text,
+                    "clear": clear  # Include clear parameter for TCP
+                }
                 response = requests.post(
                     f"{self.tcp_base_url}/keyboard/input",
                     json=payload,
@@ -479,32 +537,48 @@ class AdbTools(Tools):
                 )
 
                 logger.debug(
-                     f"Keyboard input TCP response: {response.status_code}, {response.text}"
+                    f"Keyboard input TCP response: {response.status_code}, {response.text}"
                 )
 
                 if response.status_code != 200:
                     return f"Error: HTTP request failed with status {response.status_code}: {response.text}"
 
+                # For TCP, you might want to parse the response for success/error details
+                try:
+                    result_data = response.json()
+                    if result_data.get("status") == "success":
+                        return f"Text input completed (clear={clear}): {text[:50]}{'...' if len(text) > 50 else ''}"
+                    else:
+                        return f"Error: {result_data.get('error', 'Unknown error')}"
+                except:
+                    return f"Text input completed (clear={clear}): {text[:50]}{'...' if len(text) > 50 else ''}"
+
             else:
                 # Fallback to content provider method
-                # Encode the text to Base64
-                encoded_text = base64.b64encode(text.encode()).decode()
-
-                cmd = f'content insert --uri "content://com.droidrun.portal/keyboard/input" --bind base64_text:s:"{encoded_text}"'
-                self.device.shell(cmd)
+                # Build the content insert command with clear parameter
+                clear_str = "true" if clear else "false"
+                cmd = (
+                    f'content insert --uri "content://com.droidrun.portal/keyboard/input" '
+                    f'--bind base64_text:s:"{encoded_text}" '
+                    f'--bind clear:b:{clear_str}'
+                )
+                
+                # Execute the command and capture output for better error handling
+                result = self.device.shell(cmd)
+                logger.debug(f"Content provider result: {result}")
 
             if self._ctx:
                 input_event = InputTextActionEvent(
                     action_type="input_text",
-                    description=f"Input text: '{text[:50]}{'...' if len(text) > 50 else ''}'",
+                    description=f"Input text: '{text[:50]}{'...' if len(text) > 50 else ''}' (clear={clear})",
                     text=text,
                 )
                 self._ctx.write_event_to_stream(input_event)
 
             logger.debug(
-                f"Text input completed: {text[:50]}{'...' if len(text) > 50 else ''}"
+                f"Text input completed (clear={clear}): {text[:50]}{'...' if len(text) > 50 else ''}"
             )
-            return f"Text input completed: {text[:50]}{'...' if len(text) > 50 else ''}"
+            return f"Text input completed (clear={clear}): {text[:50]}{'...' if len(text) > 50 else ''}"
 
         except requests.exceptions.RequestException as e:
             return f"Error: TCP request failed: {str(e)}"
@@ -701,6 +775,7 @@ class AdbTools(Tools):
             raise ValueError(f"Error taking screenshot: {str(e)}")
         except Exception as e:
             raise ValueError(f"Unexpected error taking screenshot: {str(e)}")
+    
 
     def list_packages(self, include_system_apps: bool = False) -> List[str]:
         """
@@ -717,6 +792,49 @@ class AdbTools(Tools):
             return self.device.list_packages(["-3"] if not include_system_apps else [])
         except ValueError as e:
             raise ValueError(f"Error listing packages: {str(e)}")
+
+    def get_apps(self, include_system: bool = True) -> List[Dict[str, str]]:
+        """
+        Get installed apps with package name and label in human readable format.
+
+        Args:
+            include_system: Whether to include system apps (default: True)
+
+        Returns:
+            List of dictionaries containing 'package' and 'label' keys
+        """
+        try:
+            logger.debug("Getting apps via content provider")
+            
+            # Query the content provider for packages
+            adb_output = self.device.shell(
+                "content query --uri content://com.droidrun.portal/packages"
+            )
+            
+            # Parse the content provider output
+            packages_data = self._parse_content_provider_output(adb_output)
+            
+            if not packages_data or "packages" not in packages_data:
+                logger.warning("No packages data found in content provider response")
+                return []
+            
+            apps = []
+            for package_info in packages_data["packages"]:
+                # Filter system apps if requested
+                if not include_system and package_info.get("isSystemApp", False):
+                    continue
+                
+                apps.append({
+                    "package": package_info.get("packageName", ""),
+                    "label": package_info.get("label", "")
+                })
+            
+            logger.debug(f"Found {len(apps)} apps")
+            return apps
+            
+        except Exception as e:
+            logger.error(f"Error getting apps: {str(e)}")
+            raise ValueError(f"Error getting apps: {str(e)}")
 
     @Tools.ui_action
     def complete(self, success: bool, reason: str = ""):

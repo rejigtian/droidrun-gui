@@ -32,6 +32,7 @@ from droidrun.agent.context.episodic_memory import EpisodicMemory, EpisodicMemor
 from droidrun.tools import Tools
 from typing import Optional, Dict, Tuple, List, Any, Callable
 from droidrun.agent.context.agent_persona import AgentPersona
+from droidrun.agent.utils.tools import ATOMIC_ACTION_SIGNATURES, get_atomic_tool_descriptions
 
 logger = logging.getLogger("droidrun")
 
@@ -49,7 +50,6 @@ class CodeActAgent(Workflow):
         persona: AgentPersona,
         vision: bool,
         tools_instance: "Tools",
-        all_tools_list: Dict[str, Callable[..., Any]],
         max_steps: int = 5,
         debug: bool = False,
         *args,
@@ -78,13 +78,31 @@ class CodeActAgent(Workflow):
 
         self.tools = tools_instance
 
+        # Build tool_list from ATOMIC_ACTION_SIGNATURES        
         self.tool_list = {}
+        for action_name, signature in ATOMIC_ACTION_SIGNATURES.items():
+            func = signature["function"]
+            # Create bound function (curry tools_instance as first argument)
+            # Handle both sync and async functions
+            if asyncio.iscoroutinefunction(func):
+                async def make_async_bound(f, ti):
+                    async def bound_func(*args, **kwargs):
+                        return await f(ti, *args, **kwargs)
+                    return bound_func
+                self.tool_list[action_name] = asyncio.run(make_async_bound(func, tools_instance))
+            else:
+                self.tool_list[action_name] = lambda *args, f=func, ti=tools_instance: f(ti, *args)
+        
+        # Add non-atomic tools (remember, complete) from tools_instance
+        self.tool_list["remember"] = tools_instance.remember
+        self.tool_list["complete"] = tools_instance.complete
 
-        for tool_name in persona.allowed_tools:
-            if tool_name in all_tools_list:
-                self.tool_list[tool_name] = all_tools_list[tool_name]
-
-        self.tool_descriptions = chat_utils.parse_tool_descriptions(self.tool_list)
+        # Get tool descriptions from ATOMIC_ACTION_SIGNATURES
+        self.tool_descriptions = get_atomic_tool_descriptions()
+        
+        # Add descriptions for remember/complete
+        self.tool_descriptions += "\n- remember(information: str): Remember information for later use"
+        self.tool_descriptions += "\n- complete(success: bool, reason: str): Mark task as complete"
 
         self.system_prompt_content = persona.system_prompt.format(
             tool_descriptions=self.tool_descriptions

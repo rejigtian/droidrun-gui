@@ -8,9 +8,8 @@ Architecture:
 """
 
 import logging
-import copy
 from typing import List
-
+import llama_index.core
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import step, StartEvent, StopEvent, Workflow, Context
 from llama_index.core.workflow.handler import WorkflowHandler
@@ -21,12 +20,13 @@ from droidrun.agent.manager import ManagerAgent
 from droidrun.agent.executor import ExecutorAgent
 from droidrun.agent.context.task_manager import TaskManager
 from droidrun.agent.utils.trajectory import Trajectory
-from droidrun.tools import Tools, describe_tools
+from droidrun.tools import Tools
 from droidrun.agent.common.events import ScreenshotEvent, MacroEvent, RecordUIStateEvent
 from droidrun.agent.context import ContextInjectionManager
 from droidrun.agent.context.agent_persona import AgentPersona
 from droidrun.agent.context.personas import DEFAULT
-from droidrun.agent.executor.prompts import DETAILED_TIPS
+from droidrun.agent.utils.tools import ATOMIC_ACTION_SIGNATURES
+from droidrun.telemetry.phoenix import arize_phoenix_callback_handler
 from droidrun.telemetry import (
     capture,
     flush,
@@ -111,12 +111,16 @@ class DroidAgent(Workflow):
         # Setup global tracing first if enabled
         if enable_tracing:
             try:
-                from llama_index.core import set_global_handler
-
-                set_global_handler("arize_phoenix")
+                handler = arize_phoenix_callback_handler()
+                llama_index.core.global_handler = handler
                 logger.info("🔍 Arize Phoenix tracing enabled globally")
             except ImportError:
-                logger.warning("⚠️ Arize Phoenix package not found, tracing disabled")
+                logger.warning(
+                    "⚠️  Arize Phoenix is not installed.\n"
+                    "    To enable Phoenix integration, install with:\n"
+                    "    • If installed via tool: `uv tool install droidrun[phoenix]`"
+                    "    • If installed via pip: `uv pip install droidrun[phoenix]`\n"
+                )
                 enable_tracing = False
 
         self.goal = goal
@@ -153,7 +157,6 @@ class DroidAgent(Workflow):
         logger.info("🤖 Initializing DroidAgent...")
         logger.info(f"💾 Trajectory saving level: {self.save_trajectories}")
 
-        self.tool_list = describe_tools(tools, excluded_tools)
         self.tools_instance = tools
 
         self.tools_instance.save_trajectories = self.save_trajectories
@@ -188,11 +191,15 @@ class DroidAgent(Workflow):
             self.executor_agent = None
             self.planner_agent = None
 
+        # Get tool names from ATOMIC_ACTION_SIGNATURES for telemetry
+        atomic_tools = list(ATOMIC_ACTION_SIGNATURES.keys())
+        
         capture(
+            # TODO: do proper telemetry instead of this ductaped crap
             DroidAgentInitEvent(
                 goal=goal,
                 llm=llm.class_name(),
-                tools=",".join(self.tool_list),
+                tools=",".join(atomic_tools + ["remember", "complete"]),
                 personas=",".join([p.name for p in personas]),
                 max_steps=max_steps,
                 timeout=timeout,
@@ -264,7 +271,6 @@ class DroidAgent(Workflow):
                 persona=persona,
                 vision=self.vision,
                 max_steps=self.max_codeact_steps,
-                all_tools_list=self.tool_list,
                 tools_instance=self.tools_instance,
                 debug=self.debug,
                 timeout=self.timeout,
@@ -366,9 +372,6 @@ class DroidAgent(Workflow):
         async with ctx.store.edit_state() as state:
             state.instruction = self.goal
             state.err_to_manager_thresh = 2
-            state.additional_knowledge_manager = "" # not used yet but nice to keep for custom knowledge or tools
-            state.additional_knowledge_executor = copy.deepcopy(DETAILED_TIPS) # will prolly remove this later and make a proper single system prompt
-
         return ManagerInputEvent()
 
     # ========================================================================
@@ -390,7 +393,6 @@ class DroidAgent(Workflow):
         # ====================================================================
         # PRE-FLIGHT: Check if we should terminate before running manager
         # ====================================================================
-        state = await ctx.store.get_state()
 
         # Check 1: Max steps reached
         if self.step_counter >= self.max_steps:
@@ -520,7 +522,7 @@ class DroidAgent(Workflow):
 
         if len(state.action_outcomes) >= err_thresh:
             latest = state.action_outcomes[-err_thresh:]
-            error_count = sum(1 for o in latest if o in ["B", "C"])
+            error_count = sum(1 for o in latest if o == False)
             if error_count == err_thresh:
                 logger.warning(f"⚠️ Error escalation: {err_thresh} consecutive errors")
                 async with ctx.store.edit_state() as state:
