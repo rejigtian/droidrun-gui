@@ -69,9 +69,6 @@ class TaskManager:
     def get_failed_tasks(self) -> list[dict]:
         return [task for task in self.task_history if task.status == self.STATUS_FAILED]
 
-    def get_task_history(self) -> list[dict]:
-        return self.task_history
-
 
     def save_to_file(self):
         """Saves the current task list to a Markdown file."""
@@ -90,12 +87,12 @@ class TaskManager:
     def set_tasks_with_agents(self, task_assignments: List[Dict[str, str]]):
         """
         Clears the current task list and sets new tasks with their assigned agents.
-        
+
         Args:
             task_assignments: A list of dictionaries, each containing:
                             - 'task': The task description string
                             - 'agent': The agent type
-                            
+
         Example:
             task_manager.set_tasks_with_agents([
                 {'task': 'Open Gmail app', 'agent': 'AppStarterExpert'},

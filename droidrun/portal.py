@@ -144,7 +144,7 @@ def ping_portal_content(device: AdbDevice, debug: bool = False):
 
 def ping_portal_tcp(device: AdbDevice, debug: bool = False):
     try:
-        tools = AdbTools(serial=device.serial, use_tcp=True)
+        AdbTools(serial=device.serial, use_tcp=True)
     except Exception as e:
         raise Exception("Failed to setup TCP forwarding") from e
 

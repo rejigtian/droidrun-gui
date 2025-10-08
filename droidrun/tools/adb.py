@@ -135,7 +135,7 @@ class AdbTools(Tools):
                 c.close()
 
                 self.tcp_forwarded = False
-                logger.debug(f"TCP port forwarding removed")
+                logger.debug("TCP port forwarding removed")
                 return True
             return True
         except Exception as e:
@@ -146,7 +146,7 @@ class AdbTools(Tools):
         """
         Set up the DroidRun keyboard as the default input method.
         Simple setup that just switches to DroidRun keyboard without saving/restoring.
-        
+
         Returns:
             bool: True if setup was successful, False otherwise
         """
@@ -219,13 +219,13 @@ class AdbTools(Tools):
     def _extract_element_coordinates_by_index(self, index: int) -> Tuple[int, int]:
         """
         Extract center coordinates from an element by its index.
-        
+
         Args:
             index: Index of the element to find and extract coordinates from
-            
+
         Returns:
             Tuple of (x, y) center coordinates
-            
+
         Raises:
             ValueError: If element not found, bounds format is invalid, or missing bounds
         """
@@ -279,7 +279,7 @@ class AdbTools(Tools):
         try:
             left, top, right, bottom = map(int, bounds_str.split(","))
         except ValueError:
-            raise ValueError(f"Invalid bounds format for element with index {index}: {bounds_str}")
+            raise ValueError(f"Invalid bounds format for element with index {index}: {bounds_str}") from ValueError
 
         # Calculate the center of the element
         x = (left + right) // 2
@@ -552,7 +552,7 @@ class AdbTools(Tools):
                         return f"Text input completed (clear={clear}): {text[:50]}{'...' if len(text) > 50 else ''}"
                     else:
                         return f"Error: {result_data.get('error', 'Unknown error')}"
-                except:
+                except:  # noqa: E722
                     return f"Text input completed (clear={clear}): {text[:50]}{'...' if len(text) > 50 else ''}"
 
             else:
@@ -602,13 +602,13 @@ class AdbTools(Tools):
             if self._ctx:
                 key_event = KeyPressActionEvent(
                     action_type="key_press",
-                    description=f"Pressed key BACK",
+                    description="Pressed key BACK",
                     keycode=4,
                     key_name="BACK",
                 )
                 self._ctx.write_event_to_stream(key_event)
 
-            return f"Pressed key BACK"
+            return "Pressed key BACK"
         except ValueError as e:
             return f"Error: {str(e)}"
 
@@ -721,7 +721,7 @@ class AdbTools(Tools):
         Take a screenshot of the device.
         This function captures the current screen and adds the screenshot to context in the next message.
         Also stores the screenshot in the screenshots list with timestamp for later GIF creation.
-        
+
         Args:
             hide_overlay: Whether to hide the overlay elements during screenshot (default: True)
         """
@@ -772,11 +772,11 @@ class AdbTools(Tools):
             return img_format, image_bytes
 
         except requests.exceptions.RequestException as e:
-            raise ValueError(f"Error taking screenshot via TCP: {str(e)}")
+            raise ValueError(f"Error taking screenshot via TCP: {str(e)}") from e
         except ValueError as e:
-            raise ValueError(f"Error taking screenshot: {str(e)}")
+            raise ValueError(f"Error taking screenshot: {str(e)}") from e
         except Exception as e:
-            raise ValueError(f"Unexpected error taking screenshot: {str(e)}")
+            raise ValueError(f"Unexpected error taking screenshot: {str(e)}") from e
 
 
     def list_packages(self, include_system_apps: bool = False) -> List[str]:
@@ -793,7 +793,7 @@ class AdbTools(Tools):
             logger.debug("Listing packages")
             return self.device.list_packages(["-3"] if not include_system_apps else [])
         except ValueError as e:
-            raise ValueError(f"Error listing packages: {str(e)}")
+            raise ValueError(f"Error listing packages: {str(e)}") from e
 
     def get_apps(self, include_system: bool = True) -> List[Dict[str, str]]:
         """
@@ -836,7 +836,7 @@ class AdbTools(Tools):
 
         except Exception as e:
             logger.error(f"Error getting apps: {str(e)}")
-            raise ValueError(f"Error getting apps: {str(e)}")
+            raise ValueError(f"Error getting apps: {str(e)}") from e
 
     @Tools.ui_action
     def complete(self, success: bool, reason: str = ""):

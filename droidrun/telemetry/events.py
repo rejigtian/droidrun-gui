@@ -1,8 +1,5 @@
-from typing import List
 
 from pydantic import BaseModel
-
-from droidrun.agent.context import Task
 
 
 class TelemetryEvent(BaseModel):

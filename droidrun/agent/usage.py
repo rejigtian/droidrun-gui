@@ -3,7 +3,6 @@ import logging
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
-from llama_index.core.callbacks import CallbackManager
 from llama_index.core.callbacks.base_handler import BaseCallbackHandler
 from llama_index.core.callbacks.schema import CBEventType, EventPayload
 from llama_index.core.llms import LLM, ChatResponse
@@ -112,7 +111,7 @@ class TokenCountingHandler(BaseCallbackHandler):
         )
 
     def _get_event_usage(self, payload: Dict[str, Any]) -> UsageResult:
-        if not EventPayload.RESPONSE in payload:
+        if EventPayload.RESPONSE not in payload:
             raise ValueError("No response in payload")
 
         chat_rsp: ChatResponse = payload.get(EventPayload.RESPONSE)
@@ -181,26 +180,26 @@ def create_tracker(llm: LLM) -> TokenCountingHandler:
 
 def track_usage(llm: LLM) -> TokenCountingHandler:
     """Track token usage for an LLM instance across all requests.
-    
+
     This function:
     - Creates a new TokenCountingHandler for the LLM provider
     - Registers that handler as an LLM callback to monitor all requests
     - Returns the handler for accessing cumulative usage statistics
-    
+
     The handler counts tokens for total LLM usage across all requests. For fine-grained
     per-request counting, use either:
     - `create_tracker()` with `llm_callback()` context manager for temporary tracking
     - `get_usage_from_response()` to extract usage from individual responses
-    
+
     Args:
         llm: The LLamaIndex LLM instance to track usage for
-        
+
     Returns:
         TokenCountingHandler: The registered handler that accumulates usage statistics
-        
+
     Raises:
         ValueError: If the LLM provider is not supported for tracking
-        
+
     Example:
         >>> llm = OpenAI()
         >>> tracker = track_usage(llm)

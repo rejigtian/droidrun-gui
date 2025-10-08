@@ -78,9 +78,9 @@ def capture(event: TelemetryEvent, user_id: str | None = None):
 def flush():
     try:
         if not is_telemetry_enabled():
-            logger.debug(f"Telemetry disabled, skipping flush")
+            logger.debug("Telemetry disabled, skipping flush")
             return
         posthog.flush()
-        logger.debug(f"Flushed telemetry data")
+        logger.debug("Flushed telemetry data")
     except Exception as e:
         logger.error(f"Error flushing telemetry data: {e}")

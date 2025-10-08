@@ -1,5 +1,4 @@
 import asyncio
-import inspect
 import logging
 from typing import TYPE_CHECKING, List, Union
 
@@ -14,7 +13,6 @@ from droidrun.agent.common.constants import LLM_HISTORY_LIMIT
 from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
 from droidrun.agent.context.agent_persona import AgentPersona
 from droidrun.agent.context.task_manager import TaskManager
-from droidrun.agent.planner.events import *
 from droidrun.agent.planner.events import (
     PlanCreatedEvent,
     PlanInputEvent,
@@ -123,7 +121,7 @@ class PlannerAgent(Workflow):
         ctx.write_event_to_stream(ev)
 
         self.steps_counter += 1
-        logger.info(f"🧠 Thinking about how to plan the goal...")
+        logger.info("🧠 Thinking about how to plan the goal...")
 
         if self.vision:
             screenshot = (self.tools_instance.take_screenshot())[1]
@@ -135,8 +133,8 @@ class PlannerAgent(Workflow):
             await ctx.store.set("ui_state", state["a11y_tree"])
             await ctx.store.set("phone_state", state["phone_state"])
             ctx.write_event_to_stream(RecordUIStateEvent(ui_state=state["a11y_tree"]))
-        except Exception as e:
-            logger.warning(f"⚠️ Error retrieving state from the connected device. Is the Accessibility Service enabled?")
+        except Exception:
+            logger.warning("⚠️ Error retrieving state from the connected device. Is the Accessibility Service enabled?")
 
 
         await ctx.store.set("remembered_info", self.remembered_info)
@@ -162,12 +160,11 @@ class PlannerAgent(Workflow):
         """Handle LLM output."""
         logger.debug("🤖 Processing planning output...")
         code = ev.code
-        thoughts = ev.thoughts
 
         if code:
             try:
                 result = await self.executer.execute(ctx, code)
-                logger.info(f"📝 Planning complete")
+                logger.info("📝 Planning complete")
                 logger.debug(f"  - Planning code executed. Result: {result['output']}")
 
                 screenshots = result['screenshots']
@@ -249,7 +246,7 @@ wrap your code inside this:
             logger.debug(f"  - Sending {len(chat_history)} messages to LLM.")
 
             model = self.llm.class_name()
-            if self.vision == True:
+            if self.vision:
                 if model == "DeepSeek":
                     logger.warning(
                         "[yellow]DeepSeek doesnt support images. Disabling screenshots[/]"

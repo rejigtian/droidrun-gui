@@ -8,7 +8,6 @@ each with specific system prompts, contexts, and tool subsets tailored for speci
 #import chromadb
 import json
 import logging
-from pathlib import Path
 from typing import List, Optional
 
 from droidrun.agent.context.agent_persona import AgentPersona

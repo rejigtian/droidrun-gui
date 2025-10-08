@@ -39,7 +39,7 @@ SYSTEM_BUNDLE_IDENTIFIERS = [
 class IOSTools(Tools):
     """Core UI interaction tools for iOS device control."""
 
-    def __init__(self, url: str, bundle_identifiers: List[str] = []) -> None:
+    def __init__(self, url: str, bundle_identifiers: List[str] = []) -> None:  # noqa: B006
         """Initialize the IOSTools instance.
 
         Args:
@@ -389,7 +389,7 @@ class IOSTools(Tools):
             Bool indicating success or failure
         """
         # TODO: implement this
-        logger.info(f"Drag action FAILED! Not implemented for iOS")
+        logger.info("Drag action FAILED! Not implemented for iOS")
         return False
 
     def input_text(self, text: str) -> str:
@@ -508,7 +508,7 @@ class IOSTools(Tools):
 
         except Exception as e:
             logger.error(f"Error capturing screenshot: {e}")
-            raise ValueError(f"Error taking screenshot: {str(e)}")
+            raise ValueError(f"Error taking screenshot: {str(e)}") from e
 
     def _get_phone_state(self) -> Dict[str, Any]:
         """

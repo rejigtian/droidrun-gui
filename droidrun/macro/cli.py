@@ -13,7 +13,7 @@ from rich.console import Console
 from rich.table import Table
 
 from droidrun.agent.utils.trajectory import Trajectory
-from droidrun.macro.replay import MacroPlayer, replay_macro_file, replay_macro_folder
+from droidrun.macro.replay import MacroPlayer
 
 console = Console()
 

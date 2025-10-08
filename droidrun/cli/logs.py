@@ -98,7 +98,7 @@ class LogHandler(logging.Handler):
         # Cache terminal size to avoid frequent recalculation
         try:
             terminal_height = shutil.get_terminal_size().lines
-        except:
+        except:  # noqa: E722
             terminal_height = 24  # fallback
 
         # Reserve space for panels and borders (more conservative estimate)
@@ -180,7 +180,7 @@ class LogHandler(logging.Handler):
             logger.debug("📸 Taking screenshot...")
 
         elif isinstance(event, RecordUIStateEvent):
-            logger.debug(f"✏️ Recording UI state")
+            logger.debug("✏️ Recording UI state")
 
         # Planner events
         elif isinstance(event, PlanInputEvent):
@@ -196,7 +196,7 @@ class LogHandler(logging.Handler):
                 )
                 logger.info(f"🧠 Planning: {thoughts_preview}")
             if event.code:
-                logger.info(f"📝 Generated plan code")
+                logger.info("📝 Generated plan code")
 
         elif isinstance(event, PlanCreatedEvent):
             if event.tasks:
@@ -221,12 +221,12 @@ class LogHandler(logging.Handler):
                 )
                 logger.info(f"🧠 Thinking: {thoughts_preview}")
             if hasattr(event, "code") and event.code:
-                logger.info(f"💻 Executing action code")
+                logger.info("💻 Executing action code")
                 logger.debug(f"{event.code}")
 
         elif isinstance(event, TaskExecutionEvent):
             self.current_step = "Executing action..."
-            logger.info(f"⚡ Executing action...")
+            logger.info("⚡ Executing action...")
 
         elif isinstance(event, TaskExecutionResultEvent):
             if hasattr(event, "output") and event.output:
@@ -248,13 +248,13 @@ class LogHandler(logging.Handler):
                     self.current_step = event.reason
                     logger.info(f"✅ Task completed: {event.reason}")
                 else:
-                    self.current_step = f"Task failed"
+                    self.current_step = "Task failed"
                     logger.info(f"❌ Task failed: {event.reason}")
 
         # Droid coordination events
         elif isinstance(event, CodeActExecuteEvent):
             self.current_step = "Executing task..."
-            logger.info(f"🔧 Starting task execution...")
+            logger.info("🔧 Starting task execution...")
 
         elif isinstance(event, CodeActResultEvent):
             if hasattr(event, "success") and hasattr(event, "reason"):
@@ -262,16 +262,16 @@ class LogHandler(logging.Handler):
                     self.current_step = event.reason
                     logger.info(f"✅ Task completed: {event.reason}")
                 else:
-                    self.current_step = f"Task failed"
+                    self.current_step = "Task failed"
                     logger.info(f"❌ Task failed: {event.reason}")
 
         elif isinstance(event, ReasoningLogicEvent):
             self.current_step = "Planning..."
-            logger.info(f"🤔 Planning next steps...")
+            logger.info("🤔 Planning next steps...")
 
         elif isinstance(event, TaskRunnerEvent):
             self.current_step = "Processing tasks..."
-            logger.info(f"🏃 Processing task queue...")
+            logger.info("🏃 Processing task queue...")
 
         elif isinstance(event, FinalizeEvent):
             if hasattr(event, "success") and hasattr(event, "reason"):

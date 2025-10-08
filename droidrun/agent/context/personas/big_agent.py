@@ -90,7 +90,7 @@ BIG_AGENT = AgentPersona(
     - Present the results clearly and concisely as if you computed them directly
     - Structure your response like you're directly answering the user's query, not explaining how you solved it
 
-    Reminder: Always place your Python code between ```...``` tags when you want to run code. 
+    Reminder: Always place your Python code between ```...``` tags when you want to run code.
 """
 
 )

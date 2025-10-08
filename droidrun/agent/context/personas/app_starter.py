@@ -37,7 +37,7 @@ APP_STARTER_EXPERT = AgentPersona(
     In addition to the Python Standard Library and any functions you have already written, you can use the following functions:
     {tool_descriptions}
 
-    Reminder: Always place your Python code between ```...``` tags when you want to run code. 
+    Reminder: Always place your Python code between ```...``` tags when you want to run code.
 
     You focus ONLY on app launching and package management - UI interactions within apps are handled by UI specialists.""",
 

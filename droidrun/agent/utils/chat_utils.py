@@ -1,14 +1,10 @@
-import base64
 import inspect
 import json
 import logging
 import re
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 from llama_index.core.base.llms.types import ChatMessage, ImageBlock, TextBlock
-
-if TYPE_CHECKING:
-    from droidrun.tools import Tools
 
 logger = logging.getLogger("droidrun")
 
@@ -185,8 +181,8 @@ async def add_task_history_block(all_tasks: list[dict], chat_history: List[ChatM
         status_value: str
 
         if hasattr(task, "description") and hasattr(task, "status"):
-            description = getattr(task, "description")
-            status_value = getattr(task, "status") or "unknown"
+            description = task.description
+            status_value = task.status or "unknown"
         elif isinstance(task, dict):
             description = str(task.get("description", task))
             status_value = str(task.get("status", "unknown"))

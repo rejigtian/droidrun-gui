@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Optional
 
 from llama_index.core.base.llms.types import ChatMessage
 from llama_index.core.workflow import Event

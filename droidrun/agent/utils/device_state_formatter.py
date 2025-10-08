@@ -4,17 +4,16 @@ from typing import Any, Dict, List, Tuple
 def format_phone_state(phone_state: Dict[str, Any]) -> str:
     """
     Format phone state data into a readable text block.
-    
+
     Args:
         phone_state: Dictionary containing phone state information
-        
+
     Returns:
         Formatted phone state text
     """
     if isinstance(phone_state, dict) and 'error' not in phone_state:
         current_app = phone_state.get('currentApp', '')
         package_name = phone_state.get('packageName', 'Unknown')
-        keyboard_visible = phone_state.get('keyboardVisible', False)
         focused_element = phone_state.get('focusedElement')
         is_editable = phone_state.get('isEditable', False)
 
@@ -45,7 +44,7 @@ def format_ui_elements(ui_data: List[Dict[str, Any]], level: int = 0) -> str:
     Args:
         ui_data: List of UI element dictionaries
         level: Indentation level for nested elements
-        
+
     Returns:
         Formatted UI elements text
     """
@@ -105,18 +104,18 @@ def format_ui_elements(ui_data: List[Dict[str, Any]], level: int = 0) -> str:
 def get_device_state_exact_format(state: Dict[str, Any]) -> Tuple[str, str]:
     """
     Get device state in exactly the format requested:
-    
+
     **Current Phone State:**
     • **App:** App Name (package.name)
     • **Keyboard:** Hidden/Visible
     • **Focused Element:** 'text'
-                
+
     Current Clickable UI elements from the device in the schema 'index. className: resourceId, text - bounds(x1,y1,x2,y2)':
     1. ClassName: "resourceId", "text" - (x1, y1, x2, y2)
-    
+
     Args:
         state: Dictionary containing device state data from collector.get_device_state()
-    
+
     Returns:
         Tuple of (formatted_string, focused_text) where focused_text is the actual
         text content of the focused element, or empty string if none.

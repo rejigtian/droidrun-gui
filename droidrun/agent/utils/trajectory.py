@@ -184,7 +184,7 @@ class Trajectory:
                     f"Serialized event contains tokens: {event_dict['tokens']}"
                 )
             else:
-                logger.debug(f"Serialized event does NOT contain tokens")
+                logger.debug("Serialized event does NOT contain tokens")
 
             serializable_events.append(event_dict)
 
@@ -224,7 +224,7 @@ class Trajectory:
             logger.info(
                 f"💾 Saved macro sequence with {len(macro_data)} actions to {macro_json_path}"
             )
-        screenshots_folder = os.path.join(trajectory_folder, "screenshots");
+        screenshots_folder = os.path.join(trajectory_folder, "screenshots")
         os.makedirs(screenshots_folder, exist_ok=True)
 
         gif_path = self.create_screenshot_gif(
@@ -419,7 +419,7 @@ class Trajectory:
                 print(f"  - {action_type}: {count}")
 
         if folder_data["trajectory_data"]:
-            print(f"\n--- Trajectory Summary ---")
+            print("\n--- Trajectory Summary ---")
             print(f"Total events: {len(folder_data['trajectory_data'])}")
 
         print("=================================")

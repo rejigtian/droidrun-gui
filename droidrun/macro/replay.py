@@ -6,11 +6,8 @@ that were generated during DroidAgent trajectory recording.
 """
 
 import asyncio
-import json
 import logging
-import os
-import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from droidrun.agent.utils.trajectory import Trajectory
 from droidrun.tools.adb import AdbTools
@@ -146,7 +143,7 @@ class MacroPlayer:
                 return True
 
             elif action_type == "back":
-                logger.info(f"⬅️  Pressing back button")
+                logger.info("⬅️  Pressing back button")
                 result = tools.back()
                 logger.debug(f"   Result: {result}")
                 return True
@@ -212,10 +209,10 @@ class MacroPlayer:
 
             if success:
                 success_count += 1
-                logger.info(f"   ✅ Action completed successfully")
+                logger.info("   ✅ Action completed successfully")
             else:
                 failed_count += 1
-                logger.error(f"   ❌ Action failed")
+                logger.error("   ❌ Action failed")
 
             # Wait between actions (except for the last one)
             if i < len(actions):
@@ -228,7 +225,7 @@ class MacroPlayer:
             (success_count / total_executed * 100) if total_executed > 0 else 0
         )
 
-        logger.info(f"\n🎉 Macro replay completed!")
+        logger.info("\n🎉 Macro replay completed!")
         logger.info(
             f"📊 Success: {success_count}/{total_executed} ({success_rate:.1f}%)"
         )
