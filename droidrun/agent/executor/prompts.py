@@ -2,10 +2,9 @@
 Prompts for the ExecutorAgent.
 """
 
-from typing import TYPE_CHECKING
+
+from droidrun.agent.droid.events import DroidAgentState
 from droidrun.agent.utils.tools import ATOMIC_ACTION_SIGNATURES
-if TYPE_CHECKING:
-    from droidrun.agent.droid.events import DroidAgentState
 
 
 def build_executor_system_prompt(
@@ -44,7 +43,7 @@ Read the current subgoal exactly as written. Look for:
 - Locations: "header", "bottom", "left", "right", specific coordinates
 Convert directly to atomic action:
 - "tap/click" → click action
-- "swipe" → swipe action  
+- "swipe" → swipe action
 - "type" → type action
 - "press [system button]" → system_button action
 - "open [app]" → open_app action
@@ -83,7 +82,7 @@ The atomic action functions are listed in the format of `action(arguments): desc
         state.action_history[-min(5, len(state.action_history)):],
         state.summary_history[-min(5, len(state.action_history)):],
         state.action_outcomes[-min(5, len(state.action_history)):],
-        state.error_descriptions[-min(5, len(state.action_history)):])
+        state.error_descriptions[-min(5, len(state.action_history)):], strict=True)
 ) + "\n\n")) if state.action_history else "No actions have been taken yet.\n\n"}
 
 ---

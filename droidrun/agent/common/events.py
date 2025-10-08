@@ -1,5 +1,7 @@
+from typing import Any, Dict
+
 from llama_index.core.workflow import Event
-from typing import Dict, Any
+
 
 class ScreenshotEvent(Event):
     screenshot: bytes
@@ -16,7 +18,7 @@ class TapActionEvent(MacroEvent):
     element_index: int = None
     element_text: str = ""
     element_bounds: str = ""
-    
+
 class SwipeActionEvent(MacroEvent):
     """Event for swipe actions with coordinates"""
     start_x: int

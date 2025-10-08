@@ -5,15 +5,16 @@ This module provides helper functions for working with agent trajectories,
 including saving, loading, and analyzing them.
 """
 
+import io
 import json
 import logging
 import os
 import time
 import uuid
-from typing import Dict, List, Any
-from PIL import Image
-import io
+from typing import Any, Dict, List
+
 from llama_index.core.workflow import Event
+from PIL import Image
 
 logger = logging.getLogger("droidrun")
 
@@ -66,7 +67,7 @@ class Trajectory:
         Args:
             goal: The goal/prompt that this trajectory is trying to achieve
         """
-        self.events: List[Event] = [] 
+        self.events: List[Event] = []
         self.screenshots: List[bytes] = []
         self.ui_states: List[Dict[str, Any]] = []
         self.macro: List[Event] = []

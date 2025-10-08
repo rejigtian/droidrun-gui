@@ -1,7 +1,8 @@
-import os
-from typing import List, Dict, Optional
-from dataclasses import dataclass
 import copy
+import os
+from dataclasses import dataclass
+from typing import Dict, List, Optional
+
 
 @dataclass
 class Task:
@@ -14,13 +15,13 @@ class Task:
     # Optional fields to carry success/failure context back to the planner
     message: Optional[str] = None
     failure_reason: Optional[str] = None
-    
+
 
 class TaskManager:
     """
     Manages a list of tasks for an agent, each with a status and assigned specialized agent.
     """
-    STATUS_PENDING = "pending"      
+    STATUS_PENDING = "pending"
     STATUS_COMPLETED = "completed"
     STATUS_FAILED = "failed"
 
@@ -32,14 +33,14 @@ class TaskManager:
     def __init__(self):
         """Initializes an empty task list."""
         self.tasks: List[Task] = []
-        self.goal_completed = False 
+        self.goal_completed = False
         self.message = None
-        self.task_history = [] 
+        self.task_history = []
         self.file_path = os.path.join(os.path.dirname(__file__), "todo.txt")
 
     def get_all_tasks(self) -> List[Task]:
         return self.tasks
-        
+
     def get_task_history(self):
         return self.task_history
 
@@ -67,7 +68,7 @@ class TaskManager:
 
     def get_failed_tasks(self) -> list[dict]:
         return [task for task in self.task_history if task.status == self.STATUS_FAILED]
-    
+
     def get_task_history(self) -> list[dict]:
         return self.task_history
 
@@ -106,21 +107,21 @@ class TaskManager:
             for i, assignment in enumerate(task_assignments):
                 if not isinstance(assignment, dict) or 'task' not in assignment:
                     raise ValueError(f"Each task assignment must be a dictionary with 'task' key at index {i}.")
-                
+
                 task_description = assignment['task']
                 if not isinstance(task_description, str) or not task_description.strip():
                     raise ValueError(f"Task description must be a non-empty string at index {i}.")
-                
+
                 agent_type = assignment.get('agent', 'Default')
-                
+
                 task_obj = Task(
                     description=task_description.strip(),
                     status=self.STATUS_PENDING,
                     agent_type=agent_type
                 )
-                
+
                 self.tasks.append(task_obj)
-            
+
             print(f"Tasks set with agents: {len(self.tasks)} tasks added.")
             self.save_to_file()
         except Exception as e:

@@ -1,8 +1,8 @@
 
-import time
-from concurrent.futures import TimeoutError as FuturesTimeoutError
 import contextvars
 import threading
+import time
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 
 
 def call_with_retries(llm, messages, retries=3, timeout=500, delay=1.0):
@@ -15,9 +15,9 @@ def call_with_retries(llm, messages, retries=3, timeout=500, delay=1.0):
 
         def _target():
             try:
-                result_holder["response"] = ctx.run(llm.chat, messages=messages)
+                result_holder["response"] = ctx.run(llm.chat, messages=messages)  # noqa: B023
             except Exception as e:
-                error_holder["error"] = e
+                error_holder["error"] = e  # noqa: B023
 
         worker = threading.Thread(target=_target, daemon=True)
         worker.start()

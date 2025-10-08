@@ -3,29 +3,31 @@ DroidRun CLI - Command line interface for controlling Android devices through LL
 """
 
 import asyncio
-import click
-import os
 import logging
+import os
 import warnings
 from contextlib import nullcontext
-from rich.console import Console
+from functools import wraps
+
+import click
 from adbutils import adb
+from rich.console import Console
+
+from droidrun.agent.context.personas import BIG_AGENT, DEFAULT
 from droidrun.agent.droid import DroidAgent
 from droidrun.agent.utils.llm_picker import load_llm
-from droidrun.tools import AdbTools, IOSTools
-from droidrun.agent.context.personas import DEFAULT, BIG_AGENT
-from functools import wraps
 from droidrun.cli.logs import LogHandler
-from droidrun.telemetry import print_telemetry_message
+from droidrun.macro.cli import macro_cli
 from droidrun.portal import (
+    PORTAL_PACKAGE_NAME,
     download_portal_apk,
     enable_portal_accessibility,
-    PORTAL_PACKAGE_NAME,
     ping_portal,
-    ping_portal_tcp,
     ping_portal_content,
+    ping_portal_tcp,
 )
-from droidrun.macro.cli import macro_cli
+from droidrun.telemetry import print_telemetry_message
+from droidrun.tools import AdbTools, IOSTools
 
 # Suppress all warnings
 warnings.filterwarnings("ignore")
@@ -92,7 +94,7 @@ async def run_command(
 
     log_handler.update_step("Initializing...")
 
-    with log_handler.render() as live:
+    with log_handler.render():
         try:
             logger.info(f"🚀 Starting: {command}")
             print_telemetry_message()
@@ -173,7 +175,7 @@ async def run_command(
 
                 async for event in handler.stream_events():
                     log_handler.handle_event(event)
-                result = await handler
+                result = await handler  # noqa: F841
 
             except KeyboardInterrupt:
                 log_handler.is_completed = True
@@ -480,9 +482,9 @@ def setup(path: str | None, device: str | None, debug: bool):
                 console.print(f"[bold red]Installation failed:[/] {e}")
                 return
 
-            console.print(f"[bold green]Installation successful![/]")
+            console.print("[bold green]Installation successful![/]")
 
-            console.print(f"[bold blue]Step 2/2: Enabling accessibility service[/]")
+            console.print("[bold blue]Step 2/2: Enabling accessibility service[/]")
 
             try:
                 enable_portal_accessibility(device_obj)
@@ -580,11 +582,11 @@ if __name__ == "__main__":
     reasoning = True
     tracing = True
     debug = True
-    use_tcp = True
+    use_tcp = False
     base_url = None
     api_base = None
     ios = False
-    save_trajectory = "action"
+    save_trajectory = "none"
     allow_drag = False
     run_command(
         command=command,

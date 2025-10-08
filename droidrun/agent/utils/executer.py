@@ -1,14 +1,15 @@
-import io
-import contextlib
-import ast
-import traceback
-import logging
-from typing import Any, Dict
-from droidrun.agent.utils.async_utils import async_to_sync
-from llama_index.core.workflow import Context
 import asyncio
-from asyncio import AbstractEventLoop
+import contextlib
+import io
+import logging
 import threading
+import traceback
+from asyncio import AbstractEventLoop
+from typing import Any, Dict
+
+from llama_index.core.workflow import Context
+
+from droidrun.agent.utils.async_utils import async_to_sync
 from droidrun.tools.adb import AdbTools
 
 logger = logging.getLogger("droidrun")
@@ -27,9 +28,9 @@ class SimpleCodeExecutor:
     def __init__(
         self,
         loop: AbstractEventLoop,
-        locals: Dict[str, Any] = {},
-        globals: Dict[str, Any] = {},
-        tools={},
+        locals: Dict[str, Any] = {},  # noqa: B006
+        globals: Dict[str, Any] = {},  # noqa: B006
+        tools={},  # noqa: B006
         tools_instance=None,
         use_same_scope: bool = True,
     ):
@@ -101,7 +102,7 @@ class SimpleCodeExecutor:
         self.globals['ui_state'] = await ctx.store.get("ui_state", None)
         self.globals['step_screenshots'] = []
         self.globals['step_ui_states'] = []
-        
+
         if self.tools_instance and isinstance(self.tools_instance, AdbTools):
             self.tools_instance._set_context(ctx)
 

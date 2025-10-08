@@ -5,11 +5,11 @@ Converts between dict message format and llama-index ChatMessage format.
 """
 
 from io import BytesIO
-from typing import Union
 from pathlib import Path
+from typing import Union
 
+from llama_index.core.llms import ChatMessage, ImageBlock, TextBlock
 from PIL import Image
-from llama_index.core.llms import ChatMessage, TextBlock, ImageBlock
 
 
 def image_to_image_bytes(image_source: Union[str, Path, Image.Image, bytes]) -> bytes:

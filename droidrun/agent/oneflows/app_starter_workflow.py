@@ -3,8 +3,10 @@ Simple workflow to open an app based on a description.
 """
 
 import json
-from workflows import Workflow, step, Context
+
+from workflows import Context, Workflow, step
 from workflows.events import StartEvent, StopEvent
+
 from droidrun.tools.tools import Tools
 
 
@@ -92,8 +94,9 @@ async def main():
     """
     Example of how to use the OpenAppWorkflow.
     """
-    from droidrun.tools.adb import AdbTools
     from llama_index.llms.openai import OpenAI
+
+    from droidrun.tools.adb import AdbTools
 
     # Initialize tools with device serial (None for default device)
     tools = AdbTools(serial=None)

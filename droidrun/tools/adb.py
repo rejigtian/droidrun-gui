@@ -2,25 +2,27 @@
 UI Actions - Core UI interaction tools for Android device control.
 """
 
-import os
+import base64
 import io
 import json
-import time
 import logging
+import os
+import time
+from typing import Any, Dict, List, Optional, Tuple
+
+import requests
+from adbutils import adb
 from llama_index.core.workflow import Context
-from typing import Optional, Dict, Tuple, List, Any
+
 from droidrun.agent.common.events import (
+    DragActionEvent,
     InputTextActionEvent,
     KeyPressActionEvent,
     StartAppEvent,
     SwipeActionEvent,
     TapActionEvent,
-    DragActionEvent,
 )
 from droidrun.tools.tools import Tools
-from adbutils import adb
-import requests
-import base64
 
 logger = logging.getLogger("droidrun-tools")
 PORTAL_DEFAULT_TCP_PORT = 8080
@@ -282,7 +284,7 @@ class AdbTools(Tools):
         # Calculate the center of the element
         x = (left + right) // 2
         y = (top + bottom) // 2
-        
+
         return x, y
 
     def tap_by_index(self, index: int) -> str:
@@ -562,7 +564,7 @@ class AdbTools(Tools):
                     f'--bind base64_text:s:"{encoded_text}" '
                     f'--bind clear:b:{clear_str}'
                 )
-                
+
                 # Execute the command and capture output for better error handling
                 result = self.device.shell(cmd)
                 logger.debug(f"Content provider result: {result}")
@@ -733,11 +735,11 @@ class AdbTools(Tools):
                 url = f"{self.tcp_base_url}/screenshot"
                 if not hide_overlay:
                     url += "?hideOverlay=false"
-                
+
                 response = requests.get(url, timeout=10)
                 if response.status_code == 200:
                     tcp_response = response.json()
-                    
+
                     # Check if response has the expected format with data field
                     if tcp_response.get("status") == "success" and "data" in tcp_response:
                         # Decode base64 string to bytes
@@ -775,7 +777,7 @@ class AdbTools(Tools):
             raise ValueError(f"Error taking screenshot: {str(e)}")
         except Exception as e:
             raise ValueError(f"Unexpected error taking screenshot: {str(e)}")
-    
+
 
     def list_packages(self, include_system_apps: bool = False) -> List[str]:
         """
@@ -805,33 +807,33 @@ class AdbTools(Tools):
         """
         try:
             logger.debug("Getting apps via content provider")
-            
+
             # Query the content provider for packages
             adb_output = self.device.shell(
                 "content query --uri content://com.droidrun.portal/packages"
             )
-            
+
             # Parse the content provider output
             packages_data = self._parse_content_provider_output(adb_output)
-            
+
             if not packages_data or "packages" not in packages_data:
                 logger.warning("No packages data found in content provider response")
                 return []
-            
+
             apps = []
             for package_info in packages_data["packages"]:
                 # Filter system apps if requested
                 if not include_system and package_info.get("isSystemApp", False):
                     continue
-                
+
                 apps.append({
                     "package": package_info.get("packageName", ""),
                     "label": package_info.get("label", "")
                 })
-            
+
             logger.debug(f"Found {len(apps)} apps")
             return apps
-            
+
         except Exception as e:
             logger.error(f"Error getting apps: {str(e)}")
             raise ValueError(f"Error getting apps: {str(e)}")
@@ -949,7 +951,7 @@ class AdbTools(Tools):
                     data_str = None
                     if "data" in state_data:
                         data_str = state_data["data"]
-                    
+
                     if data_str:
                         try:
                             combined_data = json.loads(data_str)
@@ -960,7 +962,7 @@ class AdbTools(Tools):
                             }
                     else:
                         return {
-                            "error": "Format Error", 
+                            "error": "Format Error",
                             "message": "Neither 'data' nor 'message' field found in ContentProvider response",
                         }
                 else:
@@ -1074,8 +1076,8 @@ def _shell_test_cli(serial: str, command: str) -> tuple[str, float]:
     Returns:
         Tuple of (output, elapsed_time)
     """
-    import time
     import subprocess
+    import time
 
     adb_cmd = ["adb", "-s", serial, "shell", command]
     start = time.perf_counter()
@@ -1127,8 +1129,8 @@ def _shell_test_cli(serial: str, command: str) -> tuple[str, float]:
     Returns:
         Tuple of (output, elapsed_time)
     """
-    import time
     import subprocess
+    import time
 
     adb_cmd = ["adb", "-s", serial, "shell", command]
     start = time.perf_counter()

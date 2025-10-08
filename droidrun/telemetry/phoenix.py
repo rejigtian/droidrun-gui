@@ -1,11 +1,10 @@
-from typing import Any, Callable
-import os
-import inspect
-import uuid
-import functools
 import asyncio
-from contextvars import copy_context, Token
-import types
+import functools
+import inspect
+import os
+import uuid
+from contextvars import Token, copy_context
+from typing import Any, Callable
 
 from llama_index.core.callbacks.base_handler import BaseCallbackHandler
 from llama_index_instrumentation import get_dispatcher
@@ -15,41 +14,38 @@ dispatcher = get_dispatcher()
 
 def arize_phoenix_callback_handler(**kwargs: Any) -> BaseCallbackHandler:
     # newer versions of arize, v2.x
-    try:
-        from openinference.semconv.resource import ResourceAttributes
-        from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
-        from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
-            OTLPSpanExporter,
-        )
-        from opentelemetry.sdk import trace as trace_sdk
-        from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-        from opentelemetry.sdk.resources import Resource
+    from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
+    from openinference.semconv.resource import ResourceAttributes
+    from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+        OTLPSpanExporter,
+    )
+    from opentelemetry.sdk import trace as trace_sdk
+    from opentelemetry.sdk.resources import Resource
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
-        endpoint = kwargs.get("endpoint", os.getenv("phoenix_url", "http://127.0.0.1:6006")) + "/v1/traces"
+    endpoint = kwargs.get("endpoint", os.getenv("phoenix_url", "http://127.0.0.1:6006")) + "/v1/traces"
 
-        resource_attributes = {}
-        phoenix_project_name = os.getenv("phoenix_project_name")
-        if phoenix_project_name.strip():
-            resource_attributes[ResourceAttributes.PROJECT_NAME] = phoenix_project_name
-        resource = Resource(attributes=resource_attributes)
+    resource_attributes = {}
+    phoenix_project_name = os.getenv("phoenix_project_name")
+    if phoenix_project_name.strip():
+        resource_attributes[ResourceAttributes.PROJECT_NAME] = phoenix_project_name
+    resource = Resource(attributes=resource_attributes)
 
-        tracer_provider = trace_sdk.TracerProvider(resource=resource)
-        tracer_provider.add_span_processor(
-            SimpleSpanProcessor(OTLPSpanExporter(endpoint))
-        )
-        config = TraceConfig(
-            base64_image_max_length=64000000
-        )
+    tracer_provider = trace_sdk.TracerProvider(resource=resource)
+    tracer_provider.add_span_processor(
+        SimpleSpanProcessor(OTLPSpanExporter(endpoint))
+    )
+    config = TraceConfig(
+        base64_image_max_length=64000000
+    )
 
-        return LlamaIndexInstrumentor().instrument(
-            tracer_provider=kwargs.get("tracer_provider", tracer_provider),
-            separate_trace_from_runtime_context=kwargs.get(
-                "separate_trace_from_runtime_context"
-            ),
-            config=config
-        )
-    except ImportError as e:
-        raise ImportError(e)
+    return LlamaIndexInstrumentor().instrument(
+        tracer_provider=kwargs.get("tracer_provider", tracer_provider),
+        separate_trace_from_runtime_context=kwargs.get(
+            "separate_trace_from_runtime_context"
+        ),
+        config=config
+    )
 
 
 def clean_span(span_name: str):
@@ -74,8 +70,8 @@ def clean_span(span_name: str):
             @functools.wraps(func)
             async def async_wrapper(*args, **kwargs):
                 # Import here to avoid circular imports
-                from llama_index_instrumentation.span import active_span_id
                 from llama_index_instrumentation.dispatcher import active_instrument_tags
+                from llama_index_instrumentation.span import active_span_id
 
 
                 span_id = f"{span_name}-{uuid.uuid4()}"
@@ -111,8 +107,8 @@ def clean_span(span_name: str):
             @functools.wraps(func)
             def wrapper(*args, **kwargs):
                 # Import here to avoid circular imports
-                from llama_index_instrumentation.span import active_span_id
                 from llama_index_instrumentation.dispatcher import active_instrument_tags
+                from llama_index_instrumentation.span import active_span_id
 
 
                 span_id = f"{span_name}-{uuid.uuid4()}"

@@ -21,6 +21,6 @@ Now, describe the next step you will take to address the original goal: {goal}""
 
 # Export all prompts
 __all__ = [
-    "DEFAULT_CODE_ACT_USER_PROMPT", 
+    "DEFAULT_CODE_ACT_USER_PROMPT",
     "DEFAULT_NO_THOUGHTS_PROMPT"
-] 
+]

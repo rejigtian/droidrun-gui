@@ -5,12 +5,13 @@ This module provides the ContextInjectionManager class that manages different ag
 each with specific system prompts, contexts, and tool subsets tailored for specialized tasks.
 """
 
-import logging
-from typing import Optional, List
-from droidrun.agent.context.agent_persona import AgentPersona
 #import chromadb
 import json
+import logging
 from pathlib import Path
+from typing import List, Optional
+
+from droidrun.agent.context.agent_persona import AgentPersona
 
 logger = logging.getLogger("droidrun")
 
@@ -59,8 +60,8 @@ class ContextInjectionManager:
         Returns:
             AgentPersona instance or None if not found
         """
-        
+
         return self.personas.get(agent_type)
-        
+
     def get_all_personas(self) -> List[str]:
         return self.personas

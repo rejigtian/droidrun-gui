@@ -11,25 +11,18 @@ This agent is responsible for:
 from __future__ import annotations
 
 import logging
-from typing import List, TYPE_CHECKING
+from typing import TYPE_CHECKING, List
 
-from llama_index.core.workflow import Workflow, step, Context, StartEvent, StopEvent
 from llama_index.core.llms.llm import LLM
-from llama_index.core.base.llms.types import ChatMessage
+from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
 
-from droidrun.agent.manager.events import ManagerThinkingEvent, ManagerPlanEvent
-from droidrun.agent.manager.prompts import build_manager_system_prompt
-
-
-from droidrun.agent.manager.prompts import parse_manager_response
+from droidrun.agent.droid.events import DroidAgentState
+from droidrun.agent.manager.events import ManagerPlanEvent, ManagerThinkingEvent
+from droidrun.agent.manager.prompts import build_manager_system_prompt, parse_manager_response
 from droidrun.agent.utils import convert_messages_to_chatmessages
-
 from droidrun.agent.utils.device_state_formatter import get_device_state_exact_format
 
-
-
 if TYPE_CHECKING:
-    from droidrun.agent.droid.events import DroidAgentState
     from droidrun.tools import Tools
 
 logger = logging.getLogger("droidrun")
@@ -97,7 +90,7 @@ class ManagerAgent(Workflow):
                 for act, summ, err_des in zip(
                     state.action_history[-k:],
                     state.summary_history[-k:],
-                    state.error_descriptions[-k:]
+                    state.error_descriptions[-k:], strict=True
                 )
             ]
 
@@ -262,8 +255,6 @@ class ManagerAgent(Workflow):
         """
         logger.info("💬 Preparing manager input...")
 
-        state = await ctx.store.get_state()
-
         # ====================================================================
         # Step 1: Get device state (UI elements accessibility tree)
         # ====================================================================
@@ -393,7 +384,7 @@ class ManagerAgent(Workflow):
             output_planning = response.message.content
         except Exception as e:
             logger.error(f"LLM call failed: {e}")
-            raise RuntimeError(f"Error calling LLM in manager: {e}")
+            raise RuntimeError(f"Error calling LLM in manager: {e}") from e
 
         # ====================================================================
         # Step 4: Validate and retry if needed

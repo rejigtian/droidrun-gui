@@ -1,4 +1,4 @@
-from typing import Dict, Any, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 
 def format_phone_state(phone_state: Dict[str, Any]) -> str:
@@ -17,13 +17,13 @@ def format_phone_state(phone_state: Dict[str, Any]) -> str:
         keyboard_visible = phone_state.get('keyboardVisible', False)
         focused_element = phone_state.get('focusedElement')
         is_editable = phone_state.get('isEditable', False)
-        
+
         # Format the focused element - just show the text content
         if focused_element and focused_element.get('text'):
             focused_desc = f"'{focused_element.get('text', '')}'"
         else:
             focused_desc = "''"
-            
+
         phone_state_text = f"""**Current Phone State:**
 • **App:** {current_app} ({package_name})
 • **Keyboard:** {'Visible' if is_editable else 'Hidden'}
@@ -34,7 +34,7 @@ def format_phone_state(phone_state: Dict[str, Any]) -> str:
             phone_state_text = f"📱 **Phone State Error:** {phone_state.get('message', 'Unknown error')}"
         else:
             phone_state_text = f"📱 **Phone State:** {phone_state}"
-            
+
     return phone_state_text
 
 
@@ -51,17 +51,17 @@ def format_ui_elements(ui_data: List[Dict[str, Any]], level: int = 0) -> str:
     """
     if not ui_data:
         return ""
-        
+
     formatted_lines = []
     indent = "  " * level  # Indentation for nested elements
-    
+
     # Handle both list and single element
     elements = ui_data if isinstance(ui_data, list) else [ui_data]
-    
+
     for element in elements:
         if not isinstance(element, dict):
             continue
-            
+
         # Extract element properties
         index = element.get('index', '')
         class_name = element.get('className', '')
@@ -69,36 +69,36 @@ def format_ui_elements(ui_data: List[Dict[str, Any]], level: int = 0) -> str:
         text = element.get('text', '')
         bounds = element.get('bounds', '')
         children = element.get('children', [])
-        
+
         # Format the line: index. className: "resourceId", "text" - (bounds)
         line_parts = []
         if index != '':
             line_parts.append(f"{index}.")
         if class_name:
             line_parts.append(class_name + ":")
-            
+
         # Build the quoted details section
         details = []
         if resource_id:
             details.append(f'"{resource_id}"')
         if text:
             details.append(f'"{text}"')
-        
+
         if details:
             line_parts.append(", ".join(details))
-            
+
         if bounds:
             line_parts.append(f"- ({bounds})")
-            
+
         formatted_line = f"{indent}{' '.join(line_parts)}"
         formatted_lines.append(formatted_line)
-        
+
         # Recursively format children with increased indentation
         if children:
             child_formatted = format_ui_elements(children, level + 1)
             if child_formatted:
                 formatted_lines.append(child_formatted)
-                
+
     return "\n".join(formatted_lines)
 
 
@@ -167,7 +167,7 @@ def main():
             }
         ]
     }
-    
+
     formatted_string, focused_text = get_device_state_exact_format(example_state)
     print("Formatted String:")
     print(formatted_string)

@@ -1,5 +1,6 @@
 import asyncio
 
+
 def async_to_sync(func):
     """
     Convert an async function to a sync function.

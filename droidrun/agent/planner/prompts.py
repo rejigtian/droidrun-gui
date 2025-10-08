@@ -119,6 +119,6 @@ Instruction: Based **only** on the provided screenshot showing the current state
 # Export all prompts
 __all__ = [
     "DEFAULT_PLANNER_SYSTEM_PROMPT",
-    "DEFAULT_PLANNER_USER_PROMPT", 
+    "DEFAULT_PLANNER_USER_PROMPT",
     "DEFAULT_PLANNER_TASK_FAILED_PROMPT"
-] 
+]

@@ -2,8 +2,9 @@
 Events for the ExecutorAgent workflow.
 """
 
-from llama_index.core.workflow.events import Event
 from typing import Dict
+
+from llama_index.core.workflow.events import Event
 
 
 class ExecutorActionEvent(Event):

@@ -1,9 +1,8 @@
-from abc import ABC, abstractmethod
-from typing import List, Optional, Dict, Any
 import logging
-from typing import Tuple, Dict, Callable, Any, Optional
-from functools import wraps
 import sys
+from abc import ABC, abstractmethod
+from functools import wraps
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 # Get a logger for this module
 logger = logging.getLogger(__name__)
@@ -24,15 +23,15 @@ class Tools(ABC):
         def wrapper(*args, **kwargs):
             self = args[0]
             result = func(*args, **kwargs)
-            
+
             # Check if save_trajectories attribute exists and is set to "action"
             if hasattr(self, 'save_trajectories') and self.save_trajectories == "action":
                 frame = sys._getframe(1)
                 caller_globals = frame.f_globals
-                
+
                 step_screenshots = caller_globals.get('step_screenshots')
                 step_ui_states = caller_globals.get('step_ui_states')
-                
+
                 if step_screenshots is not None:
                     step_screenshots.append(self.take_screenshot()[1])
                 if step_ui_states is not None:

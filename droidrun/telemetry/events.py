@@ -1,6 +1,9 @@
 from typing import List
-from droidrun.agent.context import Task
+
 from pydantic import BaseModel
+
+from droidrun.agent.context import Task
+
 
 class TelemetryEvent(BaseModel):
     pass
@@ -16,7 +19,7 @@ class DroidAgentInitEvent(TelemetryEvent):
     reasoning: bool
     enable_tracing: bool
     debug: bool
-    save_trajectories: str = "none",  
+    save_trajectories: str = "none",
 
 
 class DroidAgentFinalizeEvent(TelemetryEvent):

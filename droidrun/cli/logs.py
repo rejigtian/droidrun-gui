@@ -1,30 +1,31 @@
 import logging
-from rich.layout import Layout
-from rich.panel import Panel
-from rich.spinner import Spinner
-from rich.console import Console
-from rich.live import Live
 from typing import List
 
-from droidrun.agent.common.events import ScreenshotEvent, RecordUIStateEvent
-from droidrun.agent.planner.events import (
-    PlanInputEvent,
-    PlanThinkingEvent,
-    PlanCreatedEvent,
-)
+from rich.console import Console
+from rich.layout import Layout
+from rich.live import Live
+from rich.panel import Panel
+from rich.spinner import Spinner
+
 from droidrun.agent.codeact.events import (
-    TaskInputEvent,
-    TaskThinkingEvent,
+    TaskEndEvent,
     TaskExecutionEvent,
     TaskExecutionResultEvent,
-    TaskEndEvent,
+    TaskInputEvent,
+    TaskThinkingEvent,
 )
+from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
 from droidrun.agent.droid.events import (
     CodeActExecuteEvent,
     CodeActResultEvent,
+    FinalizeEvent,
     ReasoningLogicEvent,
     TaskRunnerEvent,
-    FinalizeEvent,
+)
+from droidrun.agent.planner.events import (
+    PlanCreatedEvent,
+    PlanInputEvent,
+    PlanThinkingEvent,
 )
 
 
@@ -90,8 +91,9 @@ class LogHandler(logging.Handler):
         success: bool = False,
     ):
         """Update the layout with current logs and step information"""
-        from rich.text import Text
         import shutil
+
+        from rich.text import Text
 
         # Cache terminal size to avoid frequent recalculation
         try:

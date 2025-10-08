@@ -2,7 +2,7 @@ from droidrun.agent.context.agent_persona import AgentPersona
 from droidrun.tools import Tools
 
 APP_STARTER_EXPERT = AgentPersona(
-    name="AppStarterExpert", 
+    name="AppStarterExpert",
     description="Specialized in app launching",
     expertise_areas=[
         "app launching"

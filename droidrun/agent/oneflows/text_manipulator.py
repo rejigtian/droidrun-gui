@@ -26,11 +26,12 @@ raw code produced by the model (potentially after corrections).
 
 
 import traceback
-from llama_index.core.llms import ChatMessage, TextBlock, ImageBlock
-from llama_index.llms.google_genai import GoogleGenAI
-from droidrun.telemetry.phoenix import clean_span
-from droidrun.agent.utils.inference import call_with_retries
 
+from llama_index.core.llms import ChatMessage
+from llama_index.llms.google_genai import GoogleGenAI
+
+from droidrun.agent.utils.inference import call_with_retries
+from droidrun.telemetry.phoenix import clean_span
 
 llm = GoogleGenAI(model_name="gemini-2.5-pro", temperature=0.3)
 
@@ -101,10 +102,7 @@ def run_text_manipulation_agent(instruction: str, current_subgoal: str, current_
     ).format(
         task_instruction=current_subgoal.strip(),
         current_text=current_text,
-        overall_plan=overall_plan,
-        hitorical_plan=hitorical_plan,
-        current_subgoal=current_subgoal,
-    )
+        )
 
     messages = [ChatMessage(role="system", content=system_prompt.format(overall_plan=overall_plan, hitorical_plan=hitorical_plan, current_subgoal=current_subgoal, instruction=instruction, current_text=current_text)), ChatMessage(role="user", content=user_prompt)]
 
@@ -199,6 +197,6 @@ def _execute_sandbox(code: str, original_text: str) -> tuple[str, str]:
     try:
         exec(code, sandbox_globals, sandbox_locals)
         return captured["value"] if captured["value"] is not None else original_text, ""
-    except Exception as e:
+    except Exception:
         error_message = traceback.format_exc()
         return original_text, error_message

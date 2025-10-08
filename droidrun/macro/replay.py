@@ -5,14 +5,15 @@ This module provides functionality to load and replay macro JSON files
 that were generated during DroidAgent trajectory recording.
 """
 
-import json
 import asyncio
+import json
 import logging
-import time
 import os
-from typing import Dict, List, Any, Optional
-from droidrun.tools.adb import AdbTools
+import time
+from typing import Any, Dict, List, Optional
+
 from droidrun.agent.utils.trajectory import Trajectory
+from droidrun.tools.adb import AdbTools
 
 logger = logging.getLogger("droidrun-macro")
 

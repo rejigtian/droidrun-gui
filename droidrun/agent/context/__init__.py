@@ -9,7 +9,7 @@ This module contains:
 from .agent_persona import AgentPersona
 from .context_injection_manager import ContextInjectionManager
 from .episodic_memory import EpisodicMemory, EpisodicMemoryStep
-from .task_manager import TaskManager, Task
+from .task_manager import Task, TaskManager
 
 __all__ = [
     "AgentPersona",

@@ -9,30 +9,42 @@ Architecture:
 
 import logging
 from typing import List
+
 import llama_index.core
 from llama_index.core.llms.llm import LLM
-from llama_index.core.workflow import step, StartEvent, StopEvent, Workflow, Context
+from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
 from llama_index.core.workflow.handler import WorkflowHandler
-from droidrun.agent.droid.events import *
+from workflows.events import Event
+
 from droidrun.agent.codeact import CodeActAgent
 from droidrun.agent.codeact.events import EpisodicMemoryEvent
-from droidrun.agent.manager import ManagerAgent
-from droidrun.agent.executor import ExecutorAgent
-from droidrun.agent.context.task_manager import TaskManager
-from droidrun.agent.utils.trajectory import Trajectory
-from droidrun.tools import Tools
-from droidrun.agent.common.events import ScreenshotEvent, MacroEvent, RecordUIStateEvent
+from droidrun.agent.common.events import MacroEvent, RecordUIStateEvent, ScreenshotEvent
 from droidrun.agent.context import ContextInjectionManager
 from droidrun.agent.context.agent_persona import AgentPersona
 from droidrun.agent.context.personas import DEFAULT
+from droidrun.agent.context.task_manager import Task, TaskManager
+from droidrun.agent.droid.events import (
+    CodeActExecuteEvent,
+    CodeActResultEvent,
+    DroidAgentState,
+    ExecutorInputEvent,
+    ExecutorResultEvent,
+    FinalizeEvent,
+    ManagerInputEvent,
+    ManagerPlanEvent,
+)
+from droidrun.agent.executor import ExecutorAgent
+from droidrun.agent.manager import ManagerAgent
 from droidrun.agent.utils.tools import ATOMIC_ACTION_SIGNATURES
-from droidrun.telemetry.phoenix import arize_phoenix_callback_handler
+from droidrun.agent.utils.trajectory import Trajectory
 from droidrun.telemetry import (
+    DroidAgentFinalizeEvent,
+    DroidAgentInitEvent,
     capture,
     flush,
-    DroidAgentInitEvent,
-    DroidAgentFinalizeEvent,
 )
+from droidrun.telemetry.phoenix import arize_phoenix_callback_handler
+from droidrun.tools import Tools
 
 logger = logging.getLogger("droidrun")
 
@@ -73,7 +85,7 @@ class DroidAgent(Workflow):
         goal: str,
         llm: LLM,
         tools: Tools,
-        personas: List[AgentPersona] = [DEFAULT],
+        personas: List[AgentPersona] = [DEFAULT],  # noqa: B006
         max_steps: int = 15,
         timeout: int = 1000,
         vision: bool = False,
@@ -104,7 +116,7 @@ class DroidAgent(Workflow):
             **kwargs: Additional keyword arguments to pass to the agents
         """
         self.user_id = kwargs.pop("user_id", None)
-        super().__init__(timeout=timeout, *args, **kwargs)
+        super().__init__(timeout=timeout, *args, **kwargs)  # noqa: B026
         # Configure default logging if not already configured
         self._configure_default_logging(debug=debug)
 
@@ -193,7 +205,7 @@ class DroidAgent(Workflow):
 
         # Get tool names from ATOMIC_ACTION_SIGNATURES for telemetry
         atomic_tools = list(ATOMIC_ACTION_SIGNATURES.keys())
-        
+
         capture(
             # TODO: do proper telemetry instead of this ductaped crap
             DroidAgentInitEvent(
@@ -522,7 +534,7 @@ class DroidAgent(Workflow):
 
         if len(state.action_outcomes) >= err_thresh:
             latest = state.action_outcomes[-err_thresh:]
-            error_count = sum(1 for o in latest if o == False)
+            error_count = sum(1 for o in latest if not o)
             if error_count == err_thresh:
                 logger.warning(f"⚠️ Error escalation: {err_thresh} consecutive errors")
                 async with ctx.store.edit_state() as state:

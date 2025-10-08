@@ -3,7 +3,6 @@ Prompts for the ManagerAgent.
 """
 
 import re
-from typing import Optional
 
 
 def build_manager_system_prompt(
@@ -13,7 +12,7 @@ def build_manager_system_prompt(
     device_date: str = "",
     important_notes: str = "",
     error_flag: bool = False,
-    error_history: list = []
+    error_history: list = []  # noqa: B006
 ) -> str:
     """
     Build the manager system prompt with all context.

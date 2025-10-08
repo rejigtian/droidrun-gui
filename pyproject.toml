@@ -12,7 +12,7 @@ dependencies = [
     "pydantic>=2.11.10",
     "rich>=14.1.0",
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.13.7"
 readme = "README.md"
 license = { text = "MIT" }
 classifiers = [
@@ -90,7 +90,7 @@ droidrun = "droidrun.cli.main:cli"
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py313"
 
 [tool.ruff.lint]
 select = [
@@ -100,6 +100,7 @@ select = [
     "I", # isort
     "B", # flake8-bugbear
 ]
+ignore = ["E501"]
 
 [[tool.pydoc-markdown.loaders]]
 type = "python"

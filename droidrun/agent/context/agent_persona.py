@@ -1,5 +1,6 @@
-from typing import Dict, List, Callable, Any, Optional
 from dataclasses import dataclass
+from typing import Any, Callable, Dict, List, Optional
+
 
 @dataclass
 class AgentPersona:

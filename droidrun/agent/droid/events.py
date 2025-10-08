@@ -1,8 +1,10 @@
-from PIL.Image import Image
+from typing import Dict, List
+
 from llama_index.core.workflow import Event
-from droidrun.agent.context import Task
-from typing import List, Optional, Dict
 from pydantic import BaseModel, Field
+
+from droidrun.agent.context import Task
+
 
 class CodeActExecuteEvent(Event):
     task: Task
@@ -52,7 +54,7 @@ class DroidAgentState(BaseModel):
     device_state_text: str = ""
     width: int = 0
     height: int = 0
-    screenshot: str | bytes | Image | None = None
+    screenshot: str | bytes | None = None
     has_text_to_modify: bool = False
 
     # Action tracking

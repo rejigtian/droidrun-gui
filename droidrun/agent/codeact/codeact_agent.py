@@ -1,38 +1,37 @@
+import asyncio
+import json
 import logging
 import re
 import time
-import asyncio
-import json
-import os
-from typing import List, Optional, Tuple, Union
+from typing import List, Union
+
 from llama_index.core.base.llms.types import ChatMessage, ChatResponse
-from llama_index.core.prompts import PromptTemplate
 from llama_index.core.llms.llm import LLM
-from llama_index.core.workflow import Workflow, StartEvent, StopEvent, Context, step
 from llama_index.core.memory import Memory
+from llama_index.core.prompts import PromptTemplate
+from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
+
 from droidrun.agent.codeact.events import (
-    TaskInputEvent,
+    EpisodicMemoryEvent,
     TaskEndEvent,
     TaskExecutionEvent,
     TaskExecutionResultEvent,
+    TaskInputEvent,
     TaskThinkingEvent,
-    EpisodicMemoryEvent,
 )
-from droidrun.agent.common.constants import LLM_HISTORY_LIMIT
-from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
-from droidrun.agent.usage import get_usage_from_response
-from droidrun.agent.utils import chat_utils
-from droidrun.agent.utils.executer import SimpleCodeExecutor
 from droidrun.agent.codeact.prompts import (
     DEFAULT_CODE_ACT_USER_PROMPT,
     DEFAULT_NO_THOUGHTS_PROMPT,
 )
-
-from droidrun.agent.context.episodic_memory import EpisodicMemory, EpisodicMemoryStep
-from droidrun.tools import Tools
-from typing import Optional, Dict, Tuple, List, Any, Callable
+from droidrun.agent.common.constants import LLM_HISTORY_LIMIT
+from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
 from droidrun.agent.context.agent_persona import AgentPersona
+from droidrun.agent.context.episodic_memory import EpisodicMemory, EpisodicMemoryStep
+from droidrun.agent.usage import get_usage_from_response
+from droidrun.agent.utils import chat_utils
+from droidrun.agent.utils.executer import SimpleCodeExecutor
 from droidrun.agent.utils.tools import ATOMIC_ACTION_SIGNATURES, get_atomic_tool_descriptions
+from droidrun.tools import Tools
 
 logger = logging.getLogger("droidrun")
 
@@ -78,7 +77,7 @@ class CodeActAgent(Workflow):
 
         self.tools = tools_instance
 
-        # Build tool_list from ATOMIC_ACTION_SIGNATURES        
+        # Build tool_list from ATOMIC_ACTION_SIGNATURES
         self.tool_list = {}
         for action_name, signature in ATOMIC_ACTION_SIGNATURES.items():
             func = signature["function"]
@@ -92,14 +91,14 @@ class CodeActAgent(Workflow):
                 self.tool_list[action_name] = asyncio.run(make_async_bound(func, tools_instance))
             else:
                 self.tool_list[action_name] = lambda *args, f=func, ti=tools_instance: f(ti, *args)
-        
+
         # Add non-atomic tools (remember, complete) from tools_instance
         self.tool_list["remember"] = tools_instance.remember
         self.tool_list["complete"] = tools_instance.complete
 
         # Get tool descriptions from ATOMIC_ACTION_SIGNATURES
         self.tool_descriptions = get_atomic_tool_descriptions()
-        
+
         # Add descriptions for remember/complete
         self.tool_descriptions += "\n- remember(information: str): Remember information for later use"
         self.tool_descriptions += "\n- complete(success: bool, reason: str): Mark task as complete"
@@ -180,7 +179,7 @@ class CodeActAgent(Workflow):
         logger.info(f"🧠 Step {self.steps_counter}: Thinking...")
 
         model = self.llm.class_name()
-        
+
         if "remember" in self.tool_list and self.remembered_info:
             await ctx.store.set("remembered_info", self.remembered_info)
             chat_history = await chat_utils.add_memory_block(self.remembered_info, chat_history)
@@ -196,7 +195,7 @@ class CodeActAgent(Workflow):
                     logger.warning(
                         "[yellow]DeepSeek doesnt support images. Disabling screenshots[/]"
                     )
-                elif self.vision == True: # if vision is enabled, add screenshot to chat history
+                elif self.vision: # if vision is enabled, add screenshot to chat history
                     chat_history = await chat_utils.add_screenshot_image_block(screenshot, chat_history)
 
             if context == "ui_state":
@@ -208,8 +207,8 @@ class CodeActAgent(Workflow):
                         state["a11y_tree"], chat_history
                     )
                     chat_history = await chat_utils.add_phone_state_block(state["phone_state"], chat_history)
-                except Exception as e:
-                    logger.warning(f"⚠️ Error retrieving state from the connected device. Is the Accessibility Service enabled?")
+                except Exception:
+                    logger.warning("⚠️ Error retrieving state from the connected device. Is the Accessibility Service enabled?")
 
 
             if context == "packages":
@@ -272,7 +271,7 @@ class CodeActAgent(Workflow):
         """Execute the code and return the result."""
         code = ev.code
         assert code, "Code cannot be empty."
-        logger.info(f"⚡ Executing action...")
+        logger.info("⚡ Executing action...")
         logger.info(f"Code to execute:\n```python\n{code}\n```")
 
         try:
@@ -287,16 +286,16 @@ class CodeActAgent(Workflow):
             for ui_state in ui_states[:-1]:
                 ctx.write_event_to_stream(RecordUIStateEvent(ui_state=ui_state['a11y_tree']))
 
-            if self.tools.finished == True:
+            if self.tools.finished:
                 logger.debug("  - Task completed.")
                 event = TaskEndEvent(
                     success=self.tools.success, reason=self.tools.reason
                 )
                 ctx.write_event_to_stream(event)
                 return event
-            
+
             self.remembered_info = self.tools.memory
-            
+
             event = TaskExecutionResultEvent(output=str(result['output']))
             ctx.write_event_to_stream(event)
             return event
@@ -341,11 +340,11 @@ class CodeActAgent(Workflow):
         """Finalize the workflow."""
         self.tools.finished = False
         await ctx.store.set("chat_memory", self.chat_memory)
-        
+
         # Add final state observation to episodic memory
         if self.vision:
             await self._add_final_state_observation(ctx)
-        
+
         result = {}
         result.update(
             {
@@ -421,7 +420,7 @@ class CodeActAgent(Workflow):
                     logger.error(f"Rate limit error. Retrying in {seconds} seconds...")
                     time.sleep(seconds)
                 else:
-                    logger.error(f"Rate limit error. Retrying in 5 seconds...")
+                    logger.error("Rate limit error. Retrying in 5 seconds...")
                     time.sleep(40)
                 logger.debug("🔍 Retrying call to LLM...")
                 response = await self.llm.achat(messages=messages_to_send)
@@ -470,26 +469,25 @@ class CodeActAgent(Workflow):
         try:
             # Get current screenshot and UI state
             screenshot = None
-            ui_state = None
-            
+
             try:
                 _, screenshot_bytes = self.tools.take_screenshot()
                 screenshot = screenshot_bytes
             except Exception as e:
                 logger.warning(f"Failed to capture final screenshot: {e}")
-            
+
             try:
                 (a11y_tree, phone_state) = self.tools.get_state()
             except Exception as e:
                 logger.warning(f"Failed to capture final UI state: {e}")
-            
+
             # Create final observation chat history and response
             final_chat_history = [{"role": "system", "content": "Final state observation after task completion"}]
             final_response = {
-                "role": "user", 
+                "role": "user",
                 "content": f"Final State Observation:\nUI State: {a11y_tree}\nScreenshot: {'Available' if screenshot else 'Not available'}"
             }
-            
+
             # Create final episodic memory step
             final_step = EpisodicMemoryStep(
                 chat_history=json.dumps(final_chat_history),
@@ -497,9 +495,9 @@ class CodeActAgent(Workflow):
                 timestamp=time.time(),
                 screenshot=screenshot
             )
-            
+
             self.episodic_memory.steps.append(final_step)
             logger.info("Added final state observation to episodic memory")
-            
+
         except Exception as e:
             logger.error(f"Failed to add final state observation: {e}")

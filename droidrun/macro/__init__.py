@@ -9,6 +9,6 @@ from .replay import MacroPlayer, replay_macro_file, replay_macro_folder
 
 __all__ = [
     "MacroPlayer",
-    "replay_macro_file", 
+    "replay_macro_file",
     "replay_macro_folder"
-] 
+]

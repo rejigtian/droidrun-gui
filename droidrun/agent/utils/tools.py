@@ -1,10 +1,12 @@
 from typing import TYPE_CHECKING, List
+
 if TYPE_CHECKING:
     from droidrun.tools import Tools
-from droidrun.agent.oneflows.app_starter_workflow import AppStarter
-
 # TODO: create proper llm configuration
 from llama_index.llms.openai import OpenAI
+
+from droidrun.agent.oneflows.app_starter_workflow import AppStarter
+
 llm = OpenAI(model="gpt-4o-mini")
 
 
@@ -171,9 +173,9 @@ ATOMIC_ACTION_SIGNATURES = {
 def get_atomic_tool_descriptions() -> str:
     """
     Get formatted tool descriptions for CodeAct system prompt.
-    
+
     Parses ATOMIC_ACTION_SIGNATURES to create formatted descriptions.
-    
+
     Returns:
         Formatted string of tool descriptions for LLM prompt
     """
@@ -182,5 +184,5 @@ def get_atomic_tool_descriptions() -> str:
         args = ", ".join(signature["arguments"])
         desc = signature["description"]
         descriptions.append(f"- {action_name}({args}): {desc}")
-    
+
     return "\n".join(descriptions)

@@ -1,8 +1,10 @@
-from posthog import Posthog
+import logging
+import os
 from pathlib import Path
 from uuid import uuid4
-import os
-import logging
+
+from posthog import Posthog
+
 from .events import TelemetryEvent
 
 logger = logging.getLogger("droidrun-telemetry")
