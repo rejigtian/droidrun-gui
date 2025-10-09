@@ -15,8 +15,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
 
-from .agent_runner import get_agent_runner
-from .models import (
+from droidrun.backend.agent_runner import get_agent_runner
+from droidrun.backend.models import (
     AgentRunRequest,
     AgentRunResponse,
     AgentStatusResponse,
@@ -25,8 +25,8 @@ from .models import (
     SessionListResponse,
     SessionStatus,
 )
-from .session_manager import get_session_manager
-from .websocket import get_websocket_manager, websocket_endpoint
+from droidrun.backend.session_manager import get_session_manager
+from droidrun.backend.websocket import websocket_endpoint
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

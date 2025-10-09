@@ -431,7 +431,7 @@ class ManagerAgent(Workflow):
         logger.debug(f"  - Current subgoal: {parsed['current_subgoal']}")
         logger.debug(f"  - Manager answer: {parsed['answer'][:50] if parsed['answer'] else 'None'}")
 
-        return ManagerPlanEvent(
+        event = ManagerPlanEvent(
             plan=parsed["plan"],
             current_subgoal=parsed["current_subgoal"],
             completed_plan=parsed.get("completed_subgoal", "No completed subgoal."),
@@ -439,6 +439,11 @@ class ManagerAgent(Workflow):
             manager_answer=parsed["answer"],
             memory_update=memory_update
         )
+
+        # Write event to stream for web interface
+        ctx.write_event_to_stream(event)
+
+        return event
 
     @step
     async def finalize(

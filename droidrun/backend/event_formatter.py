@@ -8,7 +8,6 @@ that can be easily consumed by a web frontend.
 import base64
 import json
 import logging
-from datetime import datetime
 from typing import Any
 
 from llama_index.core.workflow import StartEvent, StopEvent
@@ -33,7 +32,7 @@ from droidrun.agent.droid.events import (
 )
 from droidrun.agent.executor.events import ExecutorActionEvent
 
-from .models import EventType, FormattedEvent
+from droidrun.backend.models import EventType, FormattedEvent
 
 logger = logging.getLogger("droidrun.backend")
 

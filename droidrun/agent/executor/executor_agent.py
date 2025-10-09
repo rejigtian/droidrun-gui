@@ -122,11 +122,16 @@ class ExecutorAgent(Workflow): # TODO: Fix a bug in bad prompt
         logger.info(f"🎯 Action: {parsed['action']}")
         logger.debug(f"  - Description: {parsed['description']}")
 
-        return ExecutorActionEvent(
+        event = ExecutorActionEvent(
             action_json=parsed["action"],
             thought=parsed["thought"],
             description=parsed["description"]
         )
+
+        # Write event to stream for web interface
+        ctx.write_event_to_stream(event)
+
+        return event
 
     @step
     async def execute(
@@ -163,7 +168,7 @@ class ExecutorAgent(Workflow): # TODO: Fix a bug in bad prompt
 
         logger.info(f"{'✅' if outcome else '❌'} Execution complete: {summary}")
 
-        return ExecutorResultEvent(
+        result_event = ExecutorResultEvent(
             action=action_dict,
             outcome=outcome,
             error=error,
@@ -171,6 +176,11 @@ class ExecutorAgent(Workflow): # TODO: Fix a bug in bad prompt
             thought=ev.thought,
             action_json=ev.action_json
         )
+
+        # Write event to stream for web interface
+        ctx.write_event_to_stream(result_event)
+
+        return result_event
 
     async def _execute_action(self, action_dict: dict, description: str) -> tuple[bool, str, str]:
         """

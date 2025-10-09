@@ -5,7 +5,7 @@ Usage:
     python -m droidrun.backend
 """
 
-from .server import main
+from droidrun.backend.server import main
 
 if __name__ == "__main__":
     main()

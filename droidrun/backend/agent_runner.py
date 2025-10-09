@@ -10,6 +10,7 @@ import logging
 from typing import AsyncIterator, Optional
 
 from adbutils import adb
+from droidrun.backend.models import EventType
 
 from droidrun.agent.context.personas import BIG_AGENT, DEFAULT
 from droidrun.agent.droid import DroidAgent
@@ -17,14 +18,17 @@ from droidrun.agent.utils.llm_picker import load_llm
 from droidrun.config_manager.config_manager import VisionConfig as DroidVisionConfig
 from droidrun.tools import AdbTools, IOSTools
 
-from .event_formatter import EventFormatter
-from .models import (
+from datetime import datetime
+from droidrun.backend.event_formatter import EventFormatter
+from droidrun.backend.models import (
     AgentRunRequest,
     FormattedEvent,
     LLMConfig,
     SessionStatus,
 )
-from .session_manager import get_session_manager
+from droidrun.backend.session_manager import get_session_manager
+
+from droidrun.config_manager import config as droidrun_config
 
 logger = logging.getLogger("droidrun.backend")
 
@@ -167,8 +171,6 @@ class AgentRunner:
             await self.session_manager.update_session_status(
                 session_id, SessionStatus.FAILED, error=error_msg
             )
-            # Send error event
-            from .models import EventType
             error_event = FormattedEvent(
                 event_type=EventType.ERROR,
                 session_id=session_id,
@@ -214,8 +216,6 @@ class AgentRunner:
 
             except asyncio.TimeoutError:
                 # Send heartbeat/keep-alive
-                from datetime import datetime
-                from .models import EventType
 
                 heartbeat = FormattedEvent(
                     event_type=EventType.STATUS,
@@ -311,7 +311,6 @@ class AgentRunner:
                 llms["app_opener"] = self._load_single_llm(config.llms.app_opener)
         else:
             # Use default configuration from config.yaml
-            from droidrun.config_manager import config as droidrun_config
 
             profile_names = ["manager", "executor", "codeact", "text_manipulator", "app_opener"]
             llms = droidrun_config.load_all_llms(profile_names=profile_names)
@@ -371,7 +370,6 @@ class AgentRunner:
             )
 
         # Use default from config
-        from droidrun.config_manager import config as droidrun_config
 
         return droidrun_config.agent.vision
 

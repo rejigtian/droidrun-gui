@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from .models import AgentRunRequest, AgentSession, SessionStatus
+from droidrun.backend.models import AgentRunRequest, AgentSession, SessionStatus
 
 logger = logging.getLogger("droidrun.backend")
 

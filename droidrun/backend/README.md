@@ -29,11 +29,11 @@ DroidAgent (unchanged)
 ## Installation
 
 ```bash
-# Install backend dependencies
-pip install -r backend/requirements.txt
-
-# Or if using the main droidrun package
+# Install droidrun with backend extras
 pip install droidrun[backend]
+
+# Or install from source
+pip install -e ".[backend]"
 ```
 
 ## Quick Start
@@ -365,7 +365,7 @@ The backend accepts flexible LLM configurations:
     },
     "codeact": {
       "provider": "OpenAI",
-      "model": "gpt-4",
+      "model": "gpt-4o",
       "temperature": 0.0
     }
   }

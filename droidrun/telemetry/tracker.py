@@ -5,7 +5,7 @@ from uuid import uuid4
 
 from posthog import Posthog
 
-from .events import TelemetryEvent
+from droidrun.telemetry.events import TelemetryEvent
 
 logger = logging.getLogger("droidrun-telemetry")
 droidrun_logger = logging.getLogger("droidrun")

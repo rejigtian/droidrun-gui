@@ -5,7 +5,7 @@ from llama_index.core.workflow import Event
 
 from droidrun.agent.usage import UsageResult
 
-from ..context.episodic_memory import EpisodicMemory
+from droidrun.agent.context.episodic_memory import EpisodicMemory
 
 
 class TaskInputEvent(Event):
