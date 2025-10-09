@@ -49,6 +49,7 @@ class ExecutorAgent(Workflow):
         tools_instance,
         shared_state: "DroidAgentState",
         persona=None,
+        custom_tools: dict = None,
         debug: bool = False,
         **kwargs
     ):
@@ -58,6 +59,7 @@ class ExecutorAgent(Workflow):
         self.tools_instance = tools_instance
         self.shared_state = shared_state
         self.persona = persona
+        self.custom_tools = custom_tools or {}
         self.debug = debug
 
         logger.info("✅ ExecutorAgent initialized successfully.")
@@ -184,6 +186,10 @@ class ExecutorAgent(Workflow):
 
         action_type = action_dict.get("action", "unknown")
 
+        # Check custom_tools first (before atomic actions)
+        if action_type in self.custom_tools:
+            return await self._execute_custom_tool(action_type, action_dict)
+
         try:
             if action_type == "click":
                 index = action_dict.get("index")
@@ -257,6 +263,50 @@ class ExecutorAgent(Workflow):
         except Exception as e:
             logger.error(f"❌ Exception during action execution: {e}", exc_info=True)
             return False, f"Exception: {str(e)}", f"Failed to execute {action_type}: {str(e)}"
+
+    async def _execute_custom_tool(self, action_type: str, action_dict: dict) -> tuple[bool, str, str]:
+        """
+        Execute a custom tool based on the action dictionary.
+
+        Args:
+            action_type: The custom tool name
+            action_dict: Dictionary containing action parameters
+
+        Returns:
+            Tuple of (outcome: bool, error: str, summary: str)
+        """
+        try:
+            tool_spec = self.custom_tools[action_type]
+            tool_func = tool_spec["function"]
+
+            # Extract arguments (exclude 'action' key)
+            tool_args = {k: v for k, v in action_dict.items() if k != "action"}
+
+            # Execute the custom tool function
+            # First argument is always tools_instance (bound in same pattern as atomic actions)
+            if asyncio.iscoroutinefunction(tool_func):
+                result = await tool_func(self.tools_instance, **tool_args)
+            else:
+                result = tool_func(self.tools_instance, **tool_args)
+
+            # Success case
+            summary = f"Executed custom tool '{action_type}'"
+            if result is not None:
+                summary += f": {str(result)}"
+
+            return True, "None", summary
+
+        except TypeError as e:
+            # Likely missing or wrong arguments
+            error_msg = f"Invalid arguments for custom tool '{action_type}': {str(e)}"
+            logger.error(f"❌ {error_msg}")
+            return False, error_msg, f"Failed: {action_type}"
+
+        except Exception as e:
+            # General execution error
+            error_msg = f"Error executing custom tool '{action_type}': {str(e)}"
+            logger.error(f"❌ {error_msg}", exc_info=True)
+            return False, error_msg, f"Failed: {action_type}"
 
     @step
     async def finalize(

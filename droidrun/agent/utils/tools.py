@@ -189,3 +189,32 @@ def get_atomic_tool_descriptions() -> str:
         descriptions.append(f"- {action_name}({args}): {desc}")
 
     return "\n".join(descriptions)
+
+
+def build_custom_tool_descriptions(custom_tools: dict) -> str:
+    """
+    Build formatted tool descriptions from custom_tools dict.
+
+    Args:
+        custom_tools: Dictionary of custom tools in ATOMIC_ACTION_SIGNATURES format
+            {
+                "tool_name": {
+                    "arguments": ["arg1", "arg2"],
+                    "description": "Tool description with usage",
+                    "function": callable
+                }
+            }
+
+    Returns:
+        Formatted string of custom tool descriptions for LLM prompt
+    """
+    if not custom_tools:
+        return ""
+
+    descriptions = []
+    for action_name, signature in custom_tools.items():
+        args = ", ".join(signature.get("arguments", []))
+        desc = signature.get("description", f"Custom action: {action_name}")
+        descriptions.append(f"- {action_name}({args}): {desc}")
+
+    return "\n".join(descriptions)

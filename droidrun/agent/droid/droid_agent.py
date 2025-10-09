@@ -96,6 +96,7 @@ class DroidAgent(Workflow):
         debug: bool = False,
         save_trajectories: str = "none",
         excluded_tools: List[str] = None,
+        custom_tools: dict = None,
         *args,
         **kwargs,
     ):
@@ -115,6 +116,14 @@ class DroidAgent(Workflow):
                 - "none" (no saving)
                 - "step" (save per step)
                 - "action" (save per action)
+            custom_tools: Dictionary of custom tools in ATOMIC_ACTION_SIGNATURES format:
+                {
+                    "tool_name": {
+                        "arguments": ["arg1", "arg2"],
+                        "description": "Tool description with usage example",
+                        "function": callable
+                    }
+                }
             **kwargs: Additional keyword arguments to pass to the agents
         """
         self.user_id = kwargs.pop("user_id", None)
@@ -143,6 +152,7 @@ class DroidAgent(Workflow):
         self.timeout = timeout
         self.reasoning = reasoning
         self.debug = debug
+        self.custom_tools = custom_tools or {}
 
         # ====================================================================
         # Handle LLM parameter - support both dict and single LLM
@@ -233,6 +243,7 @@ class DroidAgent(Workflow):
                 personas=personas,
                 tools_instance=tools,
                 shared_state=self.shared_state,
+                custom_tools=self.custom_tools,
                 timeout=timeout,
                 debug=debug,
             )
@@ -242,6 +253,7 @@ class DroidAgent(Workflow):
                 tools_instance=tools,
                 shared_state=self.shared_state,
                 persona=None,  # Need to figure this out
+                custom_tools=self.custom_tools,
                 timeout=timeout,
                 debug=debug,
             )
@@ -338,6 +350,7 @@ class DroidAgent(Workflow):
                 vision=self.codeact_vision,
                 max_steps=self.max_codeact_steps,
                 tools_instance=self.tools_instance,
+                custom_tools=self.custom_tools,
                 debug=self.debug,
                 timeout=self.timeout,
             )

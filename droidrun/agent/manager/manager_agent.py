@@ -22,6 +22,7 @@ from droidrun.agent.utils import convert_messages_to_chatmessages
 from droidrun.agent.utils.chat_utils import remove_empty_messages
 from droidrun.agent.utils.device_state_formatter import get_device_state_exact_format
 from droidrun.agent.utils.inference import acall_with_retries
+from droidrun.agent.utils.tools import build_custom_tool_descriptions
 
 if TYPE_CHECKING:
     from droidrun.agent.droid.events import DroidAgentState
@@ -48,6 +49,7 @@ class ManagerAgent(Workflow):
         personas: List,
         tools_instance: "Tools",
         shared_state: "DroidAgentState",
+        custom_tools: dict = None,
         debug: bool = False,
         **kwargs
     ):
@@ -57,6 +59,7 @@ class ManagerAgent(Workflow):
         self.personas = personas
         self.tools_instance = tools_instance
         self.shared_state = shared_state
+        self.custom_tools = custom_tools or {}
         self.debug = debug
 
         logger.info("✅ ManagerAgent initialized successfully.")
@@ -96,6 +99,9 @@ class ManagerAgent(Workflow):
                 )
             ]
 
+        # Build custom tools descriptions
+        custom_tools_descriptions = build_custom_tool_descriptions(self.custom_tools)
+
         return build_manager_system_prompt(
             instruction=self.shared_state.instruction,
             has_text_to_modify=has_text_to_modify,
@@ -103,7 +109,8 @@ class ManagerAgent(Workflow):
             device_date=self.tools_instance.get_date(),
             important_notes="",  # TODO: expose important_notes in DroidAgentState if needed
             error_flag=self.shared_state.error_flag_plan,
-            error_history=error_history
+            error_history=error_history,
+            custom_tools_descriptions=custom_tools_descriptions
         )
 
     def _build_messages_with_context(

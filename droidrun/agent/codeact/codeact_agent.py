@@ -30,7 +30,7 @@ from droidrun.agent.context.episodic_memory import EpisodicMemory, EpisodicMemor
 from droidrun.agent.usage import get_usage_from_response
 from droidrun.agent.utils import chat_utils
 from droidrun.agent.utils.executer import SimpleCodeExecutor
-from droidrun.agent.utils.tools import ATOMIC_ACTION_SIGNATURES, get_atomic_tool_descriptions
+from droidrun.agent.utils.tools import ATOMIC_ACTION_SIGNATURES, get_atomic_tool_descriptions, build_custom_tool_descriptions
 from droidrun.tools import Tools
 
 logger = logging.getLogger("droidrun")
@@ -50,6 +50,7 @@ class CodeActAgent(Workflow):
         vision: bool,
         tools_instance: "Tools",
         max_steps: int = 5,
+        custom_tools: dict = None,
         debug: bool = False,
         *args,
         **kwargs,
@@ -77,9 +78,13 @@ class CodeActAgent(Workflow):
 
         self.tools = tools_instance
 
-        # Build tool_list from ATOMIC_ACTION_SIGNATURES
+        # Merge custom_tools with ATOMIC_ACTION_SIGNATURES
+        # Custom tools are treated the same as atomic actions by CodeAct
+        merged_signatures = {**ATOMIC_ACTION_SIGNATURES, **(custom_tools or {})}
+
+        # Build tool_list from merged signatures
         self.tool_list = {}
-        for action_name, signature in ATOMIC_ACTION_SIGNATURES.items():
+        for action_name, signature in merged_signatures.items():
             func = signature["function"]
             # Create bound function (curry tools_instance as first argument)
             # Handle both sync and async functions
@@ -96,8 +101,13 @@ class CodeActAgent(Workflow):
         self.tool_list["remember"] = tools_instance.remember
         self.tool_list["complete"] = tools_instance.complete
 
-        # Get tool descriptions from ATOMIC_ACTION_SIGNATURES
+        # Get tool descriptions from ATOMIC_ACTION_SIGNATURES and custom_tools
         self.tool_descriptions = get_atomic_tool_descriptions()
+
+        # Add custom tool descriptions if provided
+        custom_descriptions = build_custom_tool_descriptions(custom_tools or {})
+        if custom_descriptions:
+            self.tool_descriptions += "\n" + custom_descriptions
 
         # Add descriptions for remember/complete
         self.tool_descriptions += "\n- remember(information: str): Remember information for later use"

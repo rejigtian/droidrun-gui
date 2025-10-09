@@ -12,7 +12,8 @@ def build_manager_system_prompt(
     device_date: str = "",
     important_notes: str = "",
     error_flag: bool = False,
-    error_history: list = []  # noqa: B006
+    error_history: list = [],  # noqa: B006
+    custom_tools_descriptions: str = ""
 ) -> str:
     """
     Build the manager system prompt with all context.
@@ -25,6 +26,7 @@ def build_manager_system_prompt(
         important_notes: Additional important information
         error_flag: Whether consecutive errors occurred
         error_history: List of recent errors if error_flag=True
+        custom_tools_descriptions: Formatted descriptions of custom tools available to executor
 
     Returns:
         Complete system prompt for Manager
@@ -104,7 +106,20 @@ Memory Usage:
 - Memory is append-only: whatever you put in <add_memory> tags gets added to existing memory, not replaced
 - Update memory to track progress on multi-step tasks
 
-</guidelines>
+</guidelines>"""
+
+    # Add custom tools section if custom tools are provided
+    if custom_tools_descriptions.strip():
+        prompt += """
+
+<custom_actions>
+The executor has access to these additional custom actions beyond the standard actions (click, type, swipe, etc.):
+""" + custom_tools_descriptions + """
+
+You can reference these custom actions or tell the Executer agent to use them in your plan when they help achieve the user's goal.
+</custom_actions>"""
+
+    prompt += """
 ---
 Carefully assess the current status and the provided screenshot. Check if the current plan needs to be revised.
 Determine if the user request has been fully completed. If you are confident that no further actions are required, use the request_accomplished tag with a message in it. If the user request is not finished, update the plan and don't use it. If you are stuck with errors, think step by step about whether the overall plan needs to be revised to address the error.
