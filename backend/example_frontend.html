@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DroidRun Backend - Example Frontend</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #555;
+        }
+
+        input, textarea, select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-start {
+            background: #667eea;
+            color: white;
+            flex: 1;
+        }
+
+        .btn-start:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-stop {
+            background: #f43f5e;
+            color: white;
+        }
+
+        .btn-stop:hover {
+            background: #dc2626;
+        }
+
+        .btn-stop:disabled, .btn-start:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status-bar {
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+
+        .status-bar.success {
+            background: #d1fae5;
+            border-left-color: #10b981;
+        }
+
+        .status-bar.error {
+            background: #fee2e2;
+            border-left-color: #ef4444;
+        }
+
+        .events-container {
+            background: #f8f9fa;
+            border-radius: 5px;
+            padding: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+        }
+
+        .event {
+            background: white;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            border-left: 3px solid #667eea;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .event-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .event-type {
+            font-weight: 600;
+            color: #667eea;
+            text-transform: uppercase;
+            font-size: 12px;
+        }
+
+        .event-time {
+            color: #999;
+            font-size: 11px;
+        }
+
+        .event-content {
+            color: #555;
+            font-size: 14px;
+        }
+
+        .screenshot-container {
+            background: #f8f9fa;
+            border-radius: 5px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .screenshot-container img {
+            max-width: 100%;
+            max-height: 500px;
+            border-radius: 5px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .code-block {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 12px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            overflow-x: auto;
+            margin-top: 8px;
+        }
+
+        .session-info {
+            font-size: 12px;
+            color: #666;
+            padding: 10px;
+            background: #f1f5f9;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 DroidRun Backend Demo</h1>
+        <p class="subtitle">Real-time agent execution with event streaming</p>
+
+        <!-- Configuration Form -->
+        <div class="form-group">
+            <label for="goal">Goal / Task</label>
+            <textarea id="goal" placeholder="e.g., Open Settings app and enable WiFi">Open Settings app</textarea>
+        </div>
+
+        <div class="grid">
+            <div class="form-group">
+                <label for="provider">LLM Provider</label>
+                <select id="provider">
+                    <option value="GoogleGenAI">Google Gemini</option>
+                    <option value="OpenAI">OpenAI</option>
+                    <option value="Anthropic">Anthropic</option>
+                    <option value="Ollama">Ollama</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="model">Model</label>
+                <input type="text" id="model" value="models/gemini-2.5-flash" placeholder="Model name">
+            </div>
+        </div>
+
+        <div class="grid">
+            <div class="form-group">
+                <label for="max_steps">Max Steps</label>
+                <input type="number" id="max_steps" value="15" min="1" max="100">
+            </div>
+
+            <div class="form-group">
+                <label for="reasoning">
+                    <input type="checkbox" id="reasoning"> Enable Reasoning Mode
+                </label>
+            </div>
+        </div>
+
+        <!-- Control Buttons -->
+        <div class="button-group">
+            <button class="btn-start" onclick="startAgent()">▶ Start Agent</button>
+            <button class="btn-stop" onclick="stopAgent()" disabled id="stopBtn">⏹ Stop Agent</button>
+        </div>
+
+        <!-- Status Bar -->
+        <div class="status-bar" id="status">
+            <strong>Status:</strong> <span id="statusText">Ready</span>
+        </div>
+
+        <!-- Session Info -->
+        <div class="session-info" id="sessionInfo" style="display: none;">
+            <strong>Session ID:</strong> <span id="sessionId">-</span>
+        </div>
+
+        <!-- Events Feed -->
+        <div>
+            <h3>📋 Events</h3>
+            <div class="events-container" id="events">
+                <p style="color: #999; text-align: center;">No events yet. Start an agent to see events.</p>
+            </div>
+        </div>
+
+        <!-- Screenshot Display -->
+        <div>
+            <h3>📸 Latest Screenshot</h3>
+            <div class="screenshot-container" id="screenshotContainer">
+                <p style="color: #999;">No screenshot yet</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        let currentSessionId = null;
+        let eventSource = null;
+
+        function updateStatus(text, type = 'info') {
+            const statusBar = document.getElementById('status');
+            const statusText = document.getElementById('statusText');
+
+            statusBar.className = 'status-bar';
+            if (type === 'success') statusBar.className += ' success';
+            if (type === 'error') statusBar.className += ' error';
+
+            statusText.textContent = text;
+        }
+
+        function addEvent(type, data, timestamp) {
+            const eventsContainer = document.getElementById('events');
+
+            // Clear placeholder
+            if (eventsContainer.children.length === 1 && eventsContainer.children[0].tagName === 'P') {
+                eventsContainer.innerHTML = '';
+            }
+
+            const eventDiv = document.createElement('div');
+            eventDiv.className = 'event';
+
+            const time = new Date(timestamp).toLocaleTimeString();
+
+            let content = '';
+
+            // Format content based on event type
+            if (type === 'llm_thinking') {
+                content = `<strong>Thoughts:</strong> ${data.thoughts || 'N/A'}`;
+                if (data.code) {
+                    content += `<div class="code-block">${escapeHtml(data.code)}</div>`;
+                }
+            } else if (type === 'manager_plan') {
+                content = `<strong>Plan:</strong> ${data.current_subgoal || 'N/A'}`;
+                if (data.thought) {
+                    content += `<br><em>${data.thought}</em>`;
+                }
+            } else if (type === 'executor_action') {
+                content = `<strong>Action:</strong> ${data.description || JSON.stringify(data.action)}`;
+            } else if (type === 'status') {
+                content = data.message || 'Status update';
+            } else {
+                content = data.message || JSON.stringify(data).substring(0, 100);
+            }
+
+            eventDiv.innerHTML = `
+                <div class="event-header">
+                    <span class="event-type">${type}</span>
+                    <span class="event-time">${time}</span>
+                </div>
+                <div class="event-content">${content}</div>
+            `;
+
+            eventsContainer.appendChild(eventDiv);
+            eventsContainer.scrollTop = eventsContainer.scrollHeight;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        async function startAgent() {
+            const goal = document.getElementById('goal').value;
+            const provider = document.getElementById('provider').value;
+            const model = document.getElementById('model').value;
+            const maxSteps = parseInt(document.getElementById('max_steps').value);
+            const reasoning = document.getElementById('reasoning').checked;
+
+            if (!goal.trim()) {
+                alert('Please enter a goal');
+                return;
+            }
+
+            updateStatus('Starting agent...', 'info');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/agent/run`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        goal: goal,
+                        reasoning: reasoning,
+                        max_steps: maxSteps,
+                        llms: {
+                            default: {
+                                provider: provider,
+                                model: model,
+                                temperature: 0.2
+                            }
+                        }
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to start agent');
+                }
+
+                currentSessionId = data.session_id;
+
+                // Update UI
+                document.getElementById('sessionId').textContent = currentSessionId;
+                document.getElementById('sessionInfo').style.display = 'block';
+                document.getElementById('stopBtn').disabled = false;
+
+                updateStatus('Agent running...', 'success');
+
+                // Start streaming events
+                streamEvents(currentSessionId);
+
+            } catch (error) {
+                console.error('Error starting agent:', error);
+                updateStatus(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        function streamEvents(sessionId) {
+            // Close existing connection
+            if (eventSource) {
+                eventSource.close();
+            }
+
+            eventSource = new EventSource(`${API_BASE}/api/agent/stream/${sessionId}`);
+
+            // Listen for all event types
+            const eventTypes = [
+                'start', 'llm_thinking', 'manager_plan', 'executor_action',
+                'code_execution', 'execution_result', 'screenshot', 'ui_state',
+                'finalize', 'status', 'error'
+            ];
+
+            eventTypes.forEach(type => {
+                eventSource.addEventListener(type, (e) => {
+                    const event = JSON.parse(e.data);
+
+                    // Add to events feed
+                    addEvent(type, event.data, event.timestamp);
+
+                    // Handle screenshot
+                    if (type === 'screenshot' && event.data.image) {
+                        const container = document.getElementById('screenshotContainer');
+                        container.innerHTML = `<img src="${event.data.image}" alt="Screenshot">`;
+                    }
+
+                    // Handle finalize
+                    if (type === 'finalize') {
+                        const success = event.data.success;
+                        updateStatus(
+                            success ? 'Agent completed successfully!' : 'Agent failed',
+                            success ? 'success' : 'error'
+                        );
+                        document.getElementById('stopBtn').disabled = true;
+                        eventSource.close();
+                    }
+                });
+            });
+
+            eventSource.onerror = (error) => {
+                console.error('EventSource error:', error);
+                eventSource.close();
+            };
+        }
+
+        async function stopAgent() {
+            if (!currentSessionId) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/api/agent/stop/${currentSessionId}`, {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                updateStatus('Agent stopped', 'info');
+                document.getElementById('stopBtn').disabled = true;
+
+                if (eventSource) {
+                    eventSource.close();
+                }
+
+            } catch (error) {
+                console.error('Error stopping agent:', error);
+                updateStatus(`Error stopping: ${error.message}`, 'error');
+            }
+        }
+    </script>
+</body>
+</html>
