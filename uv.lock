@@ -1,6 +1,6 @@
 version = 1
 revision = 3
-requires-python = ">=3.13.7"
+requires-python = ">=3.13"
 resolution-markers = [
     "sys_platform == 'win32'",
     "sys_platform != 'win32'",
@@ -735,11 +735,12 @@ wheels = [
 
 [[package]]
 name = "droidrun"
-version = "0.3.10.dev1"
+version = "0.3.10.dev3"
 source = { editable = "." }
 dependencies = [
     { name = "adbutils" },
     { name = "apkutils" },
+    { name = "arize-phoenix" },
     { name = "llama-index" },
     { name = "posthog" },
     { name = "pydantic" },
@@ -775,9 +776,6 @@ openai = [
 openrouter = [
     { name = "llama-index-llms-openrouter" },
 ]
-phoenix = [
-    { name = "arize-phoenix" },
-]
 
 [package.dev-dependencies]
 dev = [
@@ -793,7 +791,7 @@ requires-dist = [
     { name = "adbutils", specifier = ">=2.10.2" },
     { name = "anthropic", marker = "extra == 'anthropic'", specifier = ">=0.67.0" },
     { name = "apkutils", specifier = "==2.0.0" },
-    { name = "arize-phoenix", marker = "extra == 'phoenix'", specifier = ">=12.3.0" },
+    { name = "arize-phoenix", specifier = ">=12.3.0" },
     { name = "bandit", marker = "extra == 'dev'", specifier = ">=1.8.6" },
     { name = "black", marker = "extra == 'dev'", specifier = ">=23.0.0" },
     { name = "llama-index", specifier = "==0.14.4" },
@@ -812,7 +810,7 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.13.0" },
     { name = "safety", marker = "extra == 'dev'", specifier = ">=3.2.11" },
 ]
-provides-extras = ["anthropic", "openai", "google", "deepseek", "ollama", "dev", "openrouter", "phoenix"]
+provides-extras = ["anthropic", "openai", "google", "deepseek", "ollama", "dev", "openrouter"]
 
 [package.metadata.requires-dev]
 dev = [

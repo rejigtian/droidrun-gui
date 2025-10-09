@@ -16,7 +16,7 @@ agent:
   after_sleep_action: 1.0
 
 
-  wait_for_stable_ui: 0.3 # TODO: doesn't do anything now
+  # wait_for_stable_ui: 0.3 # TODO: doesn't do anything now
 
 # === LLM Profiles ===
 # Define LLM configurations for each agent type
