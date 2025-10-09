@@ -294,6 +294,27 @@ def has_non_empty_content(msg):
             return True
     return False
 
-@clean_span("remove_empty_messages")
 def remove_empty_messages(messages):
-    return [msg for msg in messages if has_non_empty_content(msg)]
+    """Remove empty messages and duplicates, with span decoration."""
+    if not messages or all(has_non_empty_content(msg) for msg in messages):
+        return messages
+    
+    @clean_span("remove_empty_messages")
+    def process_messages():
+        # Remove empty messages first
+        cleaned = [msg for msg in messages if has_non_empty_content(msg)]
+        
+        # Remove duplicates based on content
+        seen_contents = set()
+        unique_messages = []
+        for msg in cleaned:
+            content = msg.get('content', [])
+            content_str = str(content)  # Simple string representation for deduplication
+            if content_str not in seen_contents:
+                seen_contents.add(content_str)
+                unique_messages.append(msg)
+        
+        logger.debug(f"Removed empty messages and duplicates: {len(messages)} -> {len(unique_messages)}")
+        return unique_messages
+    
+    return process_messages()

@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger("droidrun")
 
 
-class ExecutorAgent(Workflow):
+class ExecutorAgent(Workflow): # TODO: Fix a bug in bad prompt
     """
     Action execution agent that performs specific actions.
 
