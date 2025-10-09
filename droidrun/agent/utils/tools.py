@@ -218,3 +218,56 @@ def build_custom_tool_descriptions(custom_tools: dict) -> str:
         descriptions.append(f"- {action_name}({args}): {desc}")
 
     return "\n".join(descriptions)
+
+
+
+async def test_open_app(mock_tools, text: str) -> str:
+    return await open_app(mock_tools, text)
+
+if __name__ == "__main__":
+    """
+    Simple test for the tool functions.
+    Tests the atomic action wrapper functions.
+    """
+    from typing import List
+    from droidrun.tools.adb import AdbTools
+    from llama_index.llms.google_genai import GoogleGenAI
+    import asyncio
+    llm = GoogleGenAI(model="gemini-2.5-pro", temperature=0.0)
+    # Create mock tools instance
+    mock_tools = AdbTools(app_opener_llm=llm, text_manipulator_llm=llm)
+    # print("=== Testing click ===")
+    # result = click(mock_tools, 0)
+    mock_tools.get_state()
+    print("\n=== Testing long_press ===")
+    result = long_press(mock_tools, 5)
+    print(f"Result: {result}")
+    input("Press Enter to continue...")
+    print("\n=== Testing type ===")
+    result = type(mock_tools, "Hello World", -1)
+    print(f"Result: {result}")
+    input("Press Enter to continue...")
+    
+    print("\n=== Testing system_button ===")
+    result = system_button(mock_tools, "back")
+    print(f"Result: {result}")
+    input("Press Enter to continue...")
+    
+    
+    print("\n=== Testing swipe ===")
+    result = swipe(mock_tools, [500, 0], [500, 1000])
+    print(f"Result: {result}")
+    input("Press Enter to continue...")
+    
+    print("\n=== Testing open_app ===")
+    # This one is more complex and requires real LLM setup, so just show the structure
+    try:
+        result = asyncio.run(test_open_app(mock_tools, "Calculator"))
+        print(f"Result: {result}")
+        input("Press Enter to continue...")
+    except Exception as e:
+        print(f"Expected error (no LLM): {e}")
+        input("Press Enter to continue...")
+    
+    print("\n=== All tests completed ===")  
+
