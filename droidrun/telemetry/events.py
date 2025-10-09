@@ -1,4 +1,4 @@
-
+from typing import Dict
 from pydantic import BaseModel
 
 
@@ -7,12 +7,12 @@ class TelemetryEvent(BaseModel):
 
 class DroidAgentInitEvent(TelemetryEvent):
     goal: str
-    llm: str
+    llms: str | Dict[str, str]
     tools: str
     personas: str
     max_steps: int
     timeout: int
-    vision: bool
+    vision: bool | Dict[str, bool]
     reasoning: bool
     enable_tracing: bool
     debug: bool

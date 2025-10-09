@@ -76,7 +76,7 @@ telemetry:
 # === Tracing Settings ===
 tracing:
   # Enable Arize Phoenix tracing
-  enabled: false
+  enabled: true
 
 # === Logging Settings ===
 logging:
@@ -84,6 +84,8 @@ logging:
   debug: true
   # Trajectory saving level (none, step, action)
   save_trajectory: none
+
+  rich_text: true
 
 # === Tool Settings ===
 tools:

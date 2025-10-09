@@ -276,12 +276,12 @@ class DroidAgent(Workflow):
             # TODO: do proper telemetry instead of this ductaped crap
             DroidAgentInitEvent(
                 goal=goal,
-                llm=self.llm.class_name(),
+                llms={"manager": self.manager_llm.class_name(), "executor": self.executor_llm.class_name(), "codeact": self.codeact_llm.class_name(), "text_manipulator": self.text_manipulator_llm.class_name(), "app_opener": self.app_opener_llm.class_name()},
                 tools=",".join(atomic_tools + ["remember", "complete"]),
                 personas=",".join([p.name for p in personas]),
                 max_steps=max_steps,
                 timeout=timeout,
-                vision=self.vision,
+                vision=self.vision_config.to_dict(),
                 reasoning=reasoning,
                 enable_tracing=enable_tracing,
                 debug=debug,

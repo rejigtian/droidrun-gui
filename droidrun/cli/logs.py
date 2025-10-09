@@ -29,46 +29,69 @@ from droidrun.agent.planner.events import (
 
 
 class LogHandler(logging.Handler):
-    def __init__(self, goal: str, current_step: str = "Initializing..."):
+    def __init__(self, goal: str, current_step: str = "Initializing...", rich_text: bool = True):
         super().__init__()
 
         self.goal = goal
         self.current_step = current_step
         self.is_completed = False
         self.is_success = False
-        self.spinner = Spinner("dots")
-        self.console = Console()
-        self.layout = self._create_layout()
-        self.logs: List[str] = []
+        self.rich_text = rich_text
+
+        if self.rich_text:
+            self.spinner = Spinner("dots")
+            self.console = Console()
+            self.layout = self._create_layout()
+            self.logs: List[str] = []
+        else:
+            self.console = Console()
+            self.logs: List[str] = []
 
     def emit(self, record):
         msg = self.format(record)
         lines = msg.splitlines()
 
-        for line in lines:
-            self.logs.append(line)
-            # Optionally, limit the log list size
-            if len(self.logs) > 100:
-                self.logs.pop(0)
-
-        self.rerender()
+        if self.rich_text:
+            for line in lines:
+                self.logs.append(line)
+                # Optionally, limit the log list size
+                if len(self.logs) > 100:
+                    self.logs.pop(0)
+            self.rerender()
+        else:
+            # Simple console output for non-rich mode
+            for line in lines:
+                self.console.print(line)
 
     def render(self):
-        return Live(self.layout, refresh_per_second=4, console=self.console)
+        if self.rich_text:
+            return Live(self.layout, refresh_per_second=4, console=self.console)
+        else:
+            # Return a no-op context manager for non-rich mode
+            from contextlib import nullcontext
+            return nullcontext()
 
     def rerender(self):
-        self._update_layout(
-            self.layout,
-            self.logs,
-            self.current_step,
-            self.goal,
-            self.is_completed,
-            self.is_success,
-        )
+        if self.rich_text:
+            self._update_layout(
+                self.layout,
+                self.logs,
+                self.current_step,
+                self.goal,
+                self.is_completed,
+                self.is_success,
+            )
 
     def update_step(self, step: str):
         self.current_step = step
-        self.rerender()
+        if self.rich_text:
+            self.rerender()
+        else:
+            # Simple console output for status updates
+            status_symbol = "⚡"
+            if self.is_completed:
+                status_symbol = "✓" if self.is_success else "✗"
+            self.console.print(f"{status_symbol} {step}")
 
     def _create_layout(self):
         """Create a layout with logs at top and status at bottom"""

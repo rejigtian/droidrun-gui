@@ -8,11 +8,10 @@ import os
 import warnings
 from contextlib import nullcontext
 from functools import wraps
-
+from pathlib import Path
 import click
 from adbutils import adb
 from rich.console import Console
-
 from droidrun.agent.context.personas import BIG_AGENT, DEFAULT
 from droidrun.agent.droid import DroidAgent
 from droidrun.agent.utils.llm_picker import load_llm
@@ -43,7 +42,10 @@ def configure_logging(goal: str, debug: bool):
     logger = logging.getLogger("droidrun")
     logger.handlers = []
 
-    handler = LogHandler(goal)
+    # Get rich_text setting from config (assuming it exists)
+    rich_text = config.logging.rich_text
+
+    handler = LogHandler(goal, rich_text=rich_text)
     handler.setFormatter(
         logging.Formatter("%(levelname)s %(name)s %(message)s", "%H:%M:%S")
         if debug
@@ -612,6 +614,20 @@ def disconnect(serial: str):
 )
 def setup(path: str | None, device: str | None, debug: bool):
     """Install and enable the DroidRun Portal on a device."""
+    
+    # Ensure config.yaml exists in parent directory
+    config_path = Path(__file__).resolve().parents[2] / "config.yaml"
+    config_example_path = Path(__file__).resolve().parents[2] / "config_example.yaml"
+    
+    if not config_path.exists():
+        if config_example_path.exists():
+            import shutil
+            shutil.copy2(config_example_path, config_path)
+            console.print("[blue]Created config.yaml from config_example.yaml[/]")
+        else:
+            console.print("[yellow]Warning: config_example.yaml not found, config.yaml not created[/]")
+    else:
+        console.print("[blue]Using existing config.yaml[/]")
     try:
         if not device:
             devices = adb.list()
@@ -757,5 +773,19 @@ if __name__ == "__main__":
     save_trajectory = "none"
     allow_drag = False
     run_command(
-        command=command
+        command,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
     )

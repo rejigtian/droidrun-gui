@@ -96,7 +96,7 @@ logging:
   debug: false
   # Trajectory saving level (none, step, action)
   save_trajectory: none
-
+  rich_text: true
 # === Tool Settings ===
 tools:
   # Enable drag tool
@@ -194,7 +194,7 @@ class LoggingConfig:
     """Logging configuration."""
     debug: bool = False
     save_trajectory: str = "none"
-
+    rich_text: bool = True
 
 @dataclass
 class ToolsConfig:
