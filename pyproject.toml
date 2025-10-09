@@ -1,6 +1,6 @@
 [project]
 name = "droidrun"
-version = "0.3.10.dev1"
+version = "0.3.10.dev2"
 description = "A framework for controlling Android devices through LLM agents"
 authors = [{ name = "Niels Schmidt", email = "niels.schmidt@droidrun.ai" }]
 dependencies = [
@@ -12,7 +12,7 @@ dependencies = [
     "pydantic>=2.11.10",
     "rich>=14.1.0",
 ]
-requires-python = ">=3.13.7"
+requires-python = ">=3.13"
 readme = "README.md"
 license = { text = "MIT" }
 classifiers = [
