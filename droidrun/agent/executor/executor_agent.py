@@ -21,7 +21,7 @@ from droidrun.agent.executor.events import ExecutorActionEvent, ExecutorResultEv
 from droidrun.agent.executor.prompts import build_executor_system_prompt, parse_executor_response
 from droidrun.agent.utils.tools import click, long_press, open_app, swipe, system_button, type
 from droidrun.agent.utils.inference import acall_with_retries
-from droidrun.config_manager import config
+from droidrun.config_manager.config_manager import DroidRunConfig
 import asyncio
 
 if TYPE_CHECKING:
@@ -48,9 +48,9 @@ class ExecutorAgent(Workflow): # TODO: Fix a bug in bad prompt
         vision: bool,
         tools_instance,
         shared_state: "DroidAgentState",
+        config: DroidRunConfig,
         persona=None,
         custom_tools: dict = None,
-        debug: bool = False,
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -58,9 +58,9 @@ class ExecutorAgent(Workflow): # TODO: Fix a bug in bad prompt
         self.vision = vision
         self.tools_instance = tools_instance
         self.shared_state = shared_state
+        self.config = config
         self.persona = persona
         self.custom_tools = custom_tools or {}
-        self.debug = debug
 
         logger.info("✅ ExecutorAgent initialized successfully.")
 
@@ -160,11 +160,10 @@ class ExecutorAgent(Workflow): # TODO: Fix a bug in bad prompt
                 action_json=ev.action_json
             )
 
-        # Execute the action
         outcome, error, summary = await self._execute_action(action_dict, ev.description)
 
         if outcome:
-            await asyncio.sleep(config.agent.after_sleep_action)
+            await asyncio.sleep(self.config.agent.after_sleep_action)
 
         logger.info(f"{'✅' if outcome else '❌'} Execution complete: {summary}")
 

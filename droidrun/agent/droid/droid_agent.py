@@ -16,7 +16,15 @@ from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, 
 from llama_index.core.workflow.handler import WorkflowHandler
 from workflows.events import Event
 
-from droidrun.config_manager.config_manager import VisionConfig
+from droidrun.config_manager.config_manager import (
+    DroidRunConfig,
+    AgentConfig,
+    DeviceConfig,
+    ToolsConfig,
+    LoggingConfig,
+    TracingConfig,
+    TelemetryConfig,
+)
 
 from droidrun.agent.codeact import CodeActAgent
 from droidrun.agent.codeact.events import EpisodicMemoryEvent
@@ -87,16 +95,17 @@ class DroidAgent(Workflow):
         goal: str,
         llms: dict[str, LLM] | LLM,
         tools: Tools,
+        config: DroidRunConfig | None = None,
+        agent_config: AgentConfig | None = None,
+        device_config: DeviceConfig | None = None,
+        tools_config: ToolsConfig | None = None,
+        logging_config: LoggingConfig | None = None,
+        tracing_config: TracingConfig | None = None,
+        telemetry_config: TelemetryConfig | None = None,
         personas: List[AgentPersona] = [DEFAULT],  # noqa: B006
-        max_steps: int = 15,
-        timeout: int = 1000,
-        vision: "VisionConfig | dict | bool" = False,
-        reasoning: bool = False,
-        enable_tracing: bool = False,
-        debug: bool = False,
-        save_trajectories: str = "none",
         excluded_tools: List[str] = None,
         custom_tools: dict = None,
+        timeout: int = 1000,
         *args,
         **kwargs,
     ):
@@ -104,35 +113,42 @@ class DroidAgent(Workflow):
         Initialize the DroidAgent wrapper.
 
         Args:
-            goal: The user's goal or command to execute
-            llm: The language model to use for both agents
-            max_steps: Maximum number of steps for both agents
-            timeout: Timeout for agent execution in seconds
-            reasoning: Whether to use Manager+Executor for complex reasoning (True)
-                      or send tasks directly to CodeActAgent (False)
-            enable_tracing: Whether to enable Arize Phoenix tracing
-            debug: Whether to enable verbose debug logging
-            save_trajectories: Trajectory saving level. Can be:
-                - "none" (no saving)
-                - "step" (save per step)
-                - "action" (save per action)
-            custom_tools: Dictionary of custom tools in ATOMIC_ACTION_SIGNATURES format:
-                {
-                    "tool_name": {
-                        "arguments": ["arg1", "arg2"],
-                        "description": "Tool description with usage example",
-                        "function": callable
-                    }
-                }
-            **kwargs: Additional keyword arguments to pass to the agents
+            goal: User's goal or command
+            llms: Dict of agent-specific LLMs or single LLM for all
+            tools: Tools instance (AdbTools or IOSTools)
+            config: Full config override (optional)
+            agent_config: Agent config override (optional)
+            device_config: Device config override (optional)
+            tools_config: Tools config override (optional)
+            logging_config: Logging config override (optional)
+            tracing_config: Tracing config override (optional)
+            telemetry_config: Telemetry config override (optional)
+            personas: Agent personas
+            excluded_tools: Tools to exclude
+            custom_tools: Custom tool definitions
+            timeout: Workflow timeout in seconds
         """
-        self.user_id = kwargs.pop("user_id", None)
-        super().__init__(timeout=timeout, *args, **kwargs)  # noqa: B026
-        # Configure default logging if not already configured
-        self._configure_default_logging(debug=debug)
+        from droidrun.config_manager import config as global_config
 
-        # Setup global tracing first if enabled
-        if enable_tracing:
+        self.user_id = kwargs.pop("user_id", None)
+
+        base_config = config if config is not None else global_config
+
+        self.config = DroidRunConfig(
+            agent=agent_config or base_config.agent,
+            device=device_config or base_config.device,
+            tools=tools_config or base_config.tools,
+            logging=logging_config or base_config.logging,
+            tracing=tracing_config or base_config.tracing,
+            telemetry=telemetry_config or base_config.telemetry,
+            llm_profiles=base_config.llm_profiles,
+        )
+
+        super().__init__(timeout=timeout, *args, **kwargs)  # noqa: B026
+
+        self._configure_default_logging(debug=self.config.logging.debug)
+
+        if self.config.tracing.enabled:
             try:
                 handler = arize_phoenix_callback_handler()
                 llama_index.core.global_handler = handler
@@ -144,148 +160,96 @@ class DroidAgent(Workflow):
                     "    • If installed via tool: `uv tool install droidrun[phoenix]`"
                     "    • If installed via pip: `uv pip install droidrun[phoenix]`\n"
                 )
-                enable_tracing = False
 
         self.goal = goal
-        self.max_steps = max_steps
-        self.max_codeact_steps = max_steps
         self.timeout = timeout
-        self.reasoning = reasoning
-        self.debug = debug
         self.custom_tools = custom_tools or {}
 
-        # ====================================================================
-        # Handle LLM parameter - support both dict and single LLM
-        # ====================================================================
         if isinstance(llms, dict):
             self.manager_llm = llms.get('manager')
             self.executor_llm = llms.get('executor')
             self.codeact_llm = llms.get('codeact')
             self.text_manipulator_llm = llms.get('text_manipulator')
             self.app_opener_llm = llms.get('app_opener')
-            
-            # Validate required LLMs are present
-            if reasoning and (not self.manager_llm or not self.executor_llm):
+
+            if self.config.agent.reasoning and (not self.manager_llm or not self.executor_llm):
                 raise ValueError("When reasoning=True, 'manager' and 'executor' LLMs must be provided in llms dict")
             if not self.codeact_llm:
                 raise ValueError("'codeact' LLM must be provided in llms dict")
-            
+
             logger.info("📚 Using agent-specific LLMs from dictionary")
         else:
-            # single LLM for all agents
-            logger.info("📚 Using single LLM for all agents (backward compatibility mode)")
+            logger.info("📚 Using single LLM for all agents")
             self.manager_llm = llms
             self.executor_llm = llms
             self.codeact_llm = llms
             self.text_manipulator_llm = llms
             self.app_opener_llm = llms
 
-        # ====================================================================
-        # Handle vision parameter - support VisionConfig, dict, or bool
-        # ====================================================================
-        if isinstance(vision, VisionConfig):
-            self.vision_config = vision
-        elif isinstance(vision, dict):
-            self.vision_config = VisionConfig.from_dict(vision)
-        elif isinstance(vision, bool):
-            # Backward compatibility: single bool for all agents
-            logger.info(f"👁️  Using vision={vision} for all agents (backward compatibility mode)")
-            self.vision_config = VisionConfig(manager=vision, executor=vision, codeact=vision)
-        else:
-            raise TypeError(f"vision must be VisionConfig, dict, or bool, got {type(vision)}")
-
-        # Store individual vision flags for easy access
-        self.manager_vision = self.vision_config.manager
-        self.executor_vision = self.vision_config.executor
-        self.codeact_vision = self.vision_config.codeact
-
 
         self.event_counter = 0
-        # Handle backward compatibility: bool -> str mapping
-        if isinstance(save_trajectories, bool):
-            self.save_trajectories = "step" if save_trajectories else "none"
-        else:
-            # Validate string values
-            valid_values = ["none", "step", "action"]
-            if save_trajectories not in valid_values:
-                logger.warning(
-                    f"Invalid save_trajectories value: {save_trajectories}. Using 'none' instead."
-                )
-                self.save_trajectories = "none"
-            else:
-                self.save_trajectories = save_trajectories
-
         self.trajectory = Trajectory(goal=goal)
         self.task_manager = TaskManager()
         self.task_iter = None
-
         self.cim = ContextInjectionManager(personas=personas)
         self.current_episodic_memory = None
 
         logger.info("🤖 Initializing DroidAgent...")
-        logger.info(f"💾 Trajectory saving level: {self.save_trajectories}")
+        logger.info(f"💾 Trajectory saving: {self.config.logging.save_trajectory}")
 
         self.tools_instance = tools
+        self.tools_instance.save_trajectories = self.config.logging.save_trajectory
 
-        self.tools_instance.save_trajectories = self.save_trajectories
-
-        # Create shared state instance for Manager/Executor workflows
         self.shared_state = DroidAgentState(
             instruction=goal,
             err_to_manager_thresh=2
         )
 
-        if self.reasoning:
+        if self.config.agent.reasoning:
             logger.info("📝 Initializing Manager and Executor Agents...")
             self.manager_agent = ManagerAgent(
                 llm=self.manager_llm,
-                vision=self.manager_vision,
+                vision=self.config.agent.vision.manager,
                 personas=personas,
                 tools_instance=tools,
                 shared_state=self.shared_state,
                 custom_tools=self.custom_tools,
+                config=self.config,
                 timeout=timeout,
-                debug=debug,
             )
             self.executor_agent = ExecutorAgent(
                 llm=self.executor_llm,
-                vision=self.executor_vision,
+                vision=self.config.agent.vision.executor,
                 tools_instance=tools,
                 shared_state=self.shared_state,
-                persona=None,  # Need to figure this out
+                persona=None,
                 custom_tools=self.custom_tools,
+                config=self.config,
                 timeout=timeout,
-                debug=debug,
             )
             self.max_codeact_steps = 5
-
-
-            # Keep planner_agent for backward compatibility (can be removed later)
             self.planner_agent = None
-
         else:
-            logger.debug("🚫 Reasoning disabled - will execute tasks directly with CodeActAgent")
+            logger.debug("🚫 Reasoning disabled - executing directly with CodeActAgent")
             self.manager_agent = None
             self.executor_agent = None
             self.planner_agent = None
 
-        # Get tool names from ATOMIC_ACTION_SIGNATURES for telemetry
         atomic_tools = list(ATOMIC_ACTION_SIGNATURES.keys())
 
         capture(
-            # TODO: do proper telemetry instead of this ductaped crap
             DroidAgentInitEvent(
                 goal=goal,
                 llms={"manager": self.manager_llm.class_name(), "executor": self.executor_llm.class_name(), "codeact": self.codeact_llm.class_name(), "text_manipulator": self.text_manipulator_llm.class_name(), "app_opener": self.app_opener_llm.class_name()},
                 tools=",".join(atomic_tools + ["remember", "complete"]),
                 personas=",".join([p.name for p in personas]),
-                max_steps=max_steps,
+                max_steps=self.config.agent.max_steps,
                 timeout=timeout,
-                vision=self.vision_config.to_dict(),
-                reasoning=reasoning,
-                enable_tracing=enable_tracing,
-                debug=debug,
-                save_trajectories=save_trajectories,
+                vision=self.config.agent.vision.to_dict(),
+                reasoning=self.config.agent.reasoning,
+                enable_tracing=self.config.tracing.enabled,
+                debug=self.config.logging.debug,
+                save_trajectories=self.config.logging.save_trajectory,
             ),
             self.user_id,
         )
@@ -344,14 +308,15 @@ class DroidAgent(Workflow):
         logger.info(f"🔧 Executing task: {task.description}")
 
         try:
+            max_codeact_steps = 5 if self.config.agent.reasoning else self.config.agent.max_steps
             codeact_agent = CodeActAgent(
                 llm=self.codeact_llm,
                 persona=persona,
-                vision=self.codeact_vision,
-                max_steps=self.max_codeact_steps,
+                vision=self.config.agent.vision.codeact,
+                max_steps=max_codeact_steps,
                 tools_instance=self.tools_instance,
                 custom_tools=self.custom_tools,
-                debug=self.debug,
+                debug=self.config.logging.debug,
                 timeout=self.timeout,
             )
 
@@ -382,9 +347,8 @@ class DroidAgent(Workflow):
 
         except Exception as e:
             logger.error(f"Error during task execution: {e}")
-            if self.debug:
+            if self.config.logging.debug:
                 import traceback
-
                 logger.error(traceback.format_exc())
             return CodeActResultEvent(success=False, reason=f"Error: {str(e)}", task=task, steps=[])
 
@@ -404,9 +368,8 @@ class DroidAgent(Workflow):
             )
         except Exception as e:
             logger.error(f"❌ Error during DroidAgent execution: {e}")
-            if self.debug:
+            if self.config.logging.debug:
                 import traceback
-
                 logger.error(traceback.format_exc())
             tasks = self.task_manager.get_task_history()
             return FinalizeEvent(
@@ -434,17 +397,15 @@ class DroidAgent(Workflow):
         self.step_counter = 0
         self.retry_counter = 0
 
-        if not self.reasoning:
+        if not self.config.agent.reasoning:
             logger.info(f"🔄 Direct execution mode - executing goal: {self.goal}")
             task = Task(
                 description=self.goal,
                 status=self.task_manager.STATUS_PENDING,
                 agent_type="Default",
             )
-
             return CodeActExecuteEvent(task=task)
 
-        # Reasoning mode - state already initialized in __init__, start with Manager
         logger.info("🧠 Reasoning mode - initializing Manager/Executor workflow")
         return ManagerInputEvent()
 
@@ -464,17 +425,15 @@ class DroidAgent(Workflow):
         Pre-flight checks for termination before running manager.
         The Manager analyzes current state and creates a plan with subgoals.
         """
-        # Check if we've reached the maximum number of steps
-        if self.step_counter >= self.max_steps:
-            logger.warning(f"⚠️ Reached maximum steps ({self.max_steps})")
+        if self.step_counter >= self.config.agent.max_steps:
+            logger.warning(f"⚠️ Reached maximum steps ({self.config.agent.max_steps})")
             return self._create_finalize_event(
                 success=False,
-                reason=f"Reached maximum steps ({self.max_steps})",
-                output=f"Reached maximum steps ({self.max_steps})"
+                reason=f"Reached maximum steps ({self.config.agent.max_steps})",
+                output=f"Reached maximum steps ({self.config.agent.max_steps})"
             )
 
-        # Continue with Manager execution
-        logger.info(f"📋 Running Manager for planning... (step {self.step_counter}/{self.max_steps})")
+        logger.info(f"📋 Running Manager for planning... (step {self.step_counter}/{self.config.agent.max_steps})")
 
         # Run Manager workflow
         handler = self.manager_agent.run()
@@ -583,9 +542,8 @@ class DroidAgent(Workflow):
                 self.shared_state.error_flag_plan = True
 
         self.step_counter += 1
-        logger.info(f"🔄 Step {self.step_counter}/{self.max_steps} complete, looping to Manager")
+        logger.info(f"🔄 Step {self.step_counter}/{self.config.agent.max_steps} complete, looping to Manager")
 
-        # Always loop back to Manager (it will check max steps in pre-flight)
         return ManagerInputEvent()
 
     # ========================================================================
@@ -608,13 +566,12 @@ class DroidAgent(Workflow):
 
         result = {
             "success": ev.success,
-            # deprecated. use output instead.
             "reason": ev.reason,
             "output": ev.output,
             "steps": ev.steps,
         }
 
-        if self.trajectory and self.save_trajectories != "none":
+        if self.trajectory and self.config.logging.save_trajectory != "none":
             self.trajectory.save_trajectory()
 
         return StopEvent(result)

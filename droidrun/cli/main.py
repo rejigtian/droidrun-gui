@@ -28,7 +28,14 @@ from droidrun.portal import (
 from droidrun.telemetry import print_telemetry_message
 from droidrun.tools import AdbTools, IOSTools
 from droidrun.config_manager import config
-from droidrun.config_manager.config_manager import VisionConfig
+from droidrun.config_manager.config_manager import (
+    VisionConfig,
+    AgentConfig,
+    DeviceConfig,
+    ToolsConfig,
+    LoggingConfig,
+    TracingConfig,
+)
 
 # Suppress all warnings
 warnings.filterwarnings("ignore")
@@ -110,78 +117,47 @@ async def run_command(
             print_telemetry_message()
 
             # ================================================================
-            # STEP 1: Load base configuration from config.yaml
+            # STEP 1: Build config objects with CLI overrides
             # ================================================================
-            
-            max_steps = config.agent.max_steps
-            reasoning_mode = config.agent.reasoning
-            vision_config = config.agent.vision
-            device_serial = config.device.serial
-            use_tcp_mode = config.device.use_tcp
-            debug_mode = config.logging.debug
-            save_traj = config.logging.save_trajectory
-            tracing_enabled = config.tracing.enabled
-            allow_drag_tool = config.tools.allow_drag
-            
-            # ================================================================
-            # STEP 2: Apply CLI overrides if explicitly specified
-            # ================================================================
-            
-            if steps is not None:
-                max_steps = steps
-                logger.debug(f"CLI override: max_steps={max_steps}")
-            
-            if reasoning is not None:
-                reasoning_mode = reasoning
-                logger.debug(f"CLI override: reasoning={reasoning_mode}")
-            
-            if debug is not None:
-                debug_mode = debug
-                logger.debug(f"CLI override: debug={debug_mode}")
-            
-            if tracing is not None:
-                tracing_enabled = tracing
-                logger.debug(f"CLI override: tracing={tracing_enabled}")
-            
-            if save_trajectory is not None:
-                save_traj = save_trajectory
-                logger.debug(f"CLI override: save_trajectory={save_traj}")
-            
-            if use_tcp is not None:
-                use_tcp_mode = use_tcp
-                logger.debug(f"CLI override: use_tcp={use_tcp_mode}")
-            
-            if device is not None:
-                device_serial = device
-                logger.debug(f"CLI override: device={device_serial}")
-            
-            if allow_drag is not None:
-                allow_drag_tool = allow_drag
-                logger.debug(f"CLI override: allow_drag={allow_drag_tool}")
-            
-            # Override vision settings
+
+            vision_cfg = config.agent.vision
             if vision is not None:
-                # User specified --vision, apply to all agents
-                vision_config = VisionConfig(manager=vision, executor=vision, codeact=vision)
+                vision_cfg = VisionConfig(manager=vision, executor=vision, codeact=vision)
                 logger.debug(f"CLI override: vision={vision} (all agents)")
             else:
-                # Check for per-agent vision overrides
-                vision_config = VisionConfig(
-                    manager=vision_config.manager,
-                    executor=vision_config.executor,
-                    codeact=vision_config.codeact
-                )
-                if manager_vision is not None:
-                    vision_config.manager = manager_vision
-                    logger.debug(f"CLI override: manager_vision={manager_vision}")
-                
-                if executor_vision is not None:
-                    vision_config.executor = executor_vision
-                    logger.debug(f"CLI override: executor_vision={executor_vision}")
-                
-                if codeact_vision is not None:
-                    vision_config.codeact = codeact_vision
-                    logger.debug(f"CLI override: codeact_vision={codeact_vision}")
+                if manager_vision is not None or executor_vision is not None or codeact_vision is not None:
+                    vision_cfg = VisionConfig(
+                        manager=manager_vision if manager_vision is not None else config.agent.vision.manager,
+                        executor=executor_vision if executor_vision is not None else config.agent.vision.executor,
+                        codeact=codeact_vision if codeact_vision is not None else config.agent.vision.codeact
+                    )
+
+            agent_cfg = AgentConfig(
+                max_steps=steps if steps is not None else config.agent.max_steps,
+                vision=vision_cfg,
+                reasoning=reasoning if reasoning is not None else config.agent.reasoning,
+                after_sleep_action=config.agent.after_sleep_action,
+                wait_for_stable_ui=config.agent.wait_for_stable_ui,
+            )
+
+            device_cfg = DeviceConfig(
+                serial=device if device is not None else config.device.serial,
+                use_tcp=use_tcp if use_tcp is not None else config.device.use_tcp,
+            )
+
+            tools_cfg = ToolsConfig(
+                allow_drag=allow_drag if allow_drag is not None else config.tools.allow_drag,
+            )
+
+            logging_cfg = LoggingConfig(
+                debug=debug if debug is not None else config.logging.debug,
+                save_trajectory=save_trajectory if save_trajectory is not None else config.logging.save_trajectory,
+                rich_text=config.logging.rich_text,
+            )
+
+            tracing_cfg = TracingConfig(
+                enabled=tracing if tracing is not None else config.tracing.enabled,
+            )
             
             # ================================================================
             # STEP 3: Load LLMs
@@ -245,67 +221,63 @@ async def run_command(
             # ================================================================
             # STEP 4: Setup device and tools
             # ================================================================
-            
+
             log_handler.update_step("Setting up tools...")
-            
+
+            device_serial = device_cfg.serial
             if device_serial is None and not ios:
                 logger.info("🔍 Finding connected device...")
                 devices = adb.list()
                 if not devices:
                     raise ValueError("No connected devices found.")
                 device_serial = devices[0].serial
+                device_cfg = DeviceConfig(serial=device_serial, use_tcp=device_cfg.use_tcp)
                 logger.info(f"📱 Using device: {device_serial}")
             elif device_serial is None and ios:
-                raise ValueError(
-                    "iOS device not specified. Please specify device base url via --device"
-                )
+                raise ValueError("iOS device not specified. Please specify device base url via --device")
             else:
                 logger.info(f"📱 Using device: {device_serial}")
-            
+
             tools = (
                 AdbTools(
                     serial=device_serial,
-                    use_tcp=use_tcp_mode,
+                    use_tcp=device_cfg.use_tcp,
                     app_opener_llm=llms.get('app_opener'),
                     text_manipulator_llm=llms.get('text_manipulator')
                 )
                 if not ios
                 else IOSTools(url=device_serial)
             )
-            
-            # Set excluded tools based on config/CLI
-            excluded_tools = [] if allow_drag_tool else ["drag"]
-            
-            # Select personas based on drag flag
-            personas = [BIG_AGENT] if allow_drag_tool else [DEFAULT]
+
+            excluded_tools = [] if tools_cfg.allow_drag else ["drag"]
+            personas = [BIG_AGENT] if tools_cfg.allow_drag else [DEFAULT]
             
             # ================================================================
             # STEP 5: Initialize DroidAgent with all settings
             # ================================================================
-            
+
             log_handler.update_step("Initializing DroidAgent...")
-            
-            mode = "planning with reasoning" if reasoning_mode else "direct execution"
+
+            mode = "planning with reasoning" if agent_cfg.reasoning else "direct execution"
             logger.info(f"🤖 Agent mode: {mode}")
-            logger.info(f"👁️  Vision settings: Manager={vision_config.manager}, "
-                       f"Executor={vision_config.executor}, CodeAct={vision_config.codeact}")
-            
-            if tracing_enabled:
+            logger.info(f"👁️  Vision settings: Manager={agent_cfg.vision.manager}, "
+                       f"Executor={agent_cfg.vision.executor}, CodeAct={agent_cfg.vision.codeact}")
+
+            if tracing_cfg.enabled:
                 logger.info("🔍 Tracing enabled")
-            
+
             droid_agent = DroidAgent(
                 goal=command,
                 llms=llms,
-                vision=vision_config,
                 tools=tools,
+                agent_config=agent_cfg,
+                device_config=device_cfg,
+                tools_config=tools_cfg,
+                logging_config=logging_cfg,
+                tracing_config=tracing_cfg,
                 personas=personas,
                 excluded_tools=excluded_tools,
-                max_steps=max_steps,
                 timeout=1000,
-                reasoning=reasoning_mode,
-                enable_tracing=tracing_enabled,
-                debug=debug_mode,
-                save_trajectories=save_traj,
             )
             
             # ================================================================
@@ -334,17 +306,16 @@ async def run_command(
                 log_handler.is_success = False
                 log_handler.current_step = f"Error: {e}"
                 logger.error(f"💥 Error: {e}")
-                if debug_mode:
+                if logging_cfg.debug:
                     import traceback
-
                     logger.debug(traceback.format_exc())
 
         except Exception as e:
             log_handler.current_step = f"Error: {e}"
             logger.error(f"💥 Setup error: {e}")
+            debug_mode = debug if debug is not None else config.logging.debug
             if debug_mode:
                 import traceback
-
                 logger.debug(traceback.format_exc())
 
 

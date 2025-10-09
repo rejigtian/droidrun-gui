@@ -23,6 +23,7 @@ from droidrun.agent.utils.chat_utils import remove_empty_messages
 from droidrun.agent.utils.device_state_formatter import get_device_state_exact_format
 from droidrun.agent.utils.inference import acall_with_retries
 from droidrun.agent.utils.tools import build_custom_tool_descriptions
+from droidrun.config_manager.config_manager import DroidRunConfig
 
 if TYPE_CHECKING:
     from droidrun.agent.droid.events import DroidAgentState
@@ -49,8 +50,8 @@ class ManagerAgent(Workflow):
         personas: List,
         tools_instance: "Tools",
         shared_state: "DroidAgentState",
+        config: DroidRunConfig,
         custom_tools: dict = None,
-        debug: bool = False,
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -59,8 +60,8 @@ class ManagerAgent(Workflow):
         self.personas = personas
         self.tools_instance = tools_instance
         self.shared_state = shared_state
+        self.config = config
         self.custom_tools = custom_tools or {}
-        self.debug = debug
 
         logger.info("✅ ManagerAgent initialized successfully.")
 

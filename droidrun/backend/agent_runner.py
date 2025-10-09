@@ -15,7 +15,14 @@ from droidrun.backend.models import EventType
 from droidrun.agent.context.personas import BIG_AGENT, DEFAULT
 from droidrun.agent.droid import DroidAgent
 from droidrun.agent.utils.llm_picker import load_llm
-from droidrun.config_manager.config_manager import VisionConfig as DroidVisionConfig
+from droidrun.config_manager.config_manager import (
+    VisionConfig as DroidVisionConfig,
+    AgentConfig,
+    DeviceConfig,
+    ToolsConfig,
+    LoggingConfig,
+    TracingConfig,
+)
 from droidrun.tools import AdbTools, IOSTools
 
 from datetime import datetime
@@ -94,17 +101,44 @@ class AgentRunner:
             tools = await self._setup_tools(config, llms)
 
             # ================================================================
+            # Build config objects
+            # ================================================================
+            vision_cfg = self._setup_vision_config(config)
+
+            agent_cfg = AgentConfig(
+                max_steps=config.max_steps,
+                vision=vision_cfg,
+                reasoning=config.reasoning,
+                after_sleep_action=droidrun_config.agent.after_sleep_action,
+                wait_for_stable_ui=droidrun_config.agent.wait_for_stable_ui,
+            )
+
+            device_cfg = DeviceConfig(
+                serial=config.device,
+                use_tcp=config.use_tcp,
+            )
+
+            tools_cfg = ToolsConfig(
+                allow_drag=config.allow_drag,
+            )
+
+            logging_cfg = LoggingConfig(
+                debug=config.debug,
+                save_trajectory=config.save_trajectory.value,
+                rich_text=droidrun_config.logging.rich_text,
+            )
+
+            tracing_cfg = TracingConfig(
+                enabled=config.tracing,
+            )
+
+            # ================================================================
             # Setup personas and excluded tools
             # ================================================================
             personas = [BIG_AGENT] if config.allow_drag else [DEFAULT]
             excluded_tools = [] if config.allow_drag else ["drag"]
             if config.excluded_tools:
                 excluded_tools.extend(config.excluded_tools)
-
-            # ================================================================
-            # Setup vision config
-            # ================================================================
-            vision_config = self._setup_vision_config(config)
 
             # ================================================================
             # Create DroidAgent
@@ -114,16 +148,15 @@ class AgentRunner:
             droid_agent = DroidAgent(
                 goal=config.goal,
                 llms=llms,
-                vision=vision_config,
                 tools=tools,
+                agent_config=agent_cfg,
+                device_config=device_cfg,
+                tools_config=tools_cfg,
+                logging_config=logging_cfg,
+                tracing_config=tracing_cfg,
                 personas=personas,
                 excluded_tools=excluded_tools,
-                max_steps=config.max_steps,
                 timeout=config.timeout,
-                reasoning=config.reasoning,
-                enable_tracing=config.tracing,
-                debug=config.debug,
-                save_trajectories=config.save_trajectory.value,
             )
 
             # ================================================================
