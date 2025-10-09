@@ -571,7 +571,7 @@ cli.add_command(macro_cli, name="macro")
 
 
 if __name__ == "__main__":
-    command = "Open the settings app"
+    command = "Download instagram app"
     device = None
     provider = "GoogleGenAI"
     model = "models/gemini-2.5-flash"

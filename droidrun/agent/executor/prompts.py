@@ -72,7 +72,7 @@ Execute the current subgoal mechanically. Do NOT examine the screen content or m
 
 #### Atomic Actions ####
 The atomic action functions are listed in the format of `action(arguments): description` as follows:
-{chr(10).join(f"- {action_name}({', '.join(action_info['arguments'])}): {action_info['description']}" for action_name, action_info, action_function in ATOMIC_ACTION_SIGNATURES.items())}
+{chr(10).join(f"- {action_name}({', '.join(action_info['arguments'])}): {action_info['description']}" for action_name, action_info in ATOMIC_ACTION_SIGNATURES.items())}
 \n
 ### Latest Action History ###
 {(("Recent actions you took previously and whether they were successful:\n" + "\n".join(

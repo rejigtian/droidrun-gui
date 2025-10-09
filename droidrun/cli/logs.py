@@ -19,7 +19,6 @@ from droidrun.agent.droid.events import (
     CodeActExecuteEvent,
     CodeActResultEvent,
     FinalizeEvent,
-    ReasoningLogicEvent,
     TaskRunnerEvent,
 )
 from droidrun.agent.planner.events import (
@@ -171,7 +170,7 @@ class LogHandler(logging.Handler):
             )
         )
 
-    def handle_event(self, event):
+    def handle_event(self, event): # TODO: fix event handling for the refactor
         """Handle streaming events from the agent workflow."""
         logger = logging.getLogger("droidrun")
 
@@ -265,9 +264,9 @@ class LogHandler(logging.Handler):
                     self.current_step = "Task failed"
                     logger.info(f"❌ Task failed: {event.reason}")
 
-        elif isinstance(event, ReasoningLogicEvent):
-            self.current_step = "Planning..."
-            logger.info("🤔 Planning next steps...")
+        # elif isinstance(event, ReasoningLogicEvent): TODO: fix event handling
+        #     self.current_step = "Planning..."
+        #     logger.info("🤔 Planning next steps...")
 
         elif isinstance(event, TaskRunnerEvent):
             self.current_step = "Processing tasks..."

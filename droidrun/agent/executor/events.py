@@ -17,7 +17,7 @@ class ExecutorActionEvent(Event):
 class ExecutorResultEvent(Event):
     """Executor action result"""
     action: Dict
-    outcome: str  # "A" = success, "B" = partial, "C" = failure
+    outcome: bool
     error: str
     summary: str
     thought: str = ""

@@ -1,0 +1,86 @@
+# DroidRun Configuration File
+# This file is auto-generated. Edit values as needed.
+
+# === Agent Settings ===
+agent:
+  # Maximum number of steps per task
+  max_steps: 15
+  # Enable vision capabilities (screenshots)
+  vision: false
+  # Enable planning with reasoning mode
+  reasoning: false
+
+# === LLM Profiles ===
+# Define multiple LLM configurations for different use cases
+llm_profiles:
+  # Fast: Quick responses, lower cost
+  fast:
+    provider: GoogleGenAI
+    model: models/gemini-2.0-flash-exp
+    temperature: 0.2
+    base_url: null
+    api_base: null
+    # Additional provider-specific kwargs
+    kwargs:
+      max_tokens: 4096
+      
+  # Mid: Balanced performance and cost
+  mid:
+    provider: GoogleGenAI
+    model: models/gemini-1.5-flash
+    temperature: 0.3
+    base_url: null
+    api_base: null
+    kwargs:
+      max_tokens: 8192
+      
+  # Smart: Best quality, higher cost
+  smart:
+    provider: Anthropic
+    model: claude-3-7-sonnet-latest
+    temperature: 0.2
+    base_url: null
+    api_base: null
+    kwargs:
+      max_tokens: 16384
+      
+  # Custom: User-defined configuration
+  custom:
+    provider: OpenAI
+    model: gpt-4o
+    temperature: 0.2
+    base_url: null
+    api_base: null
+    kwargs:
+      max_tokens: 8192
+
+# === Device Settings ===
+device:
+  # Default device serial (null = auto-detect)
+  serial: null
+  # Use TCP communication instead of content provider
+  use_tcp: false
+  # Sleep duration after each action (seconds)
+  after_sleep_action: 1.0
+
+# === Telemetry Settings ===
+telemetry:
+  # Enable anonymous telemetry
+  enabled: true
+
+# === Tracing Settings ===
+tracing:
+  # Enable Arize Phoenix tracing
+  enabled: false
+
+# === Logging Settings ===
+logging:
+  # Enable debug logging
+  debug: false
+  # Trajectory saving level (none, step, action)
+  save_trajectory: none
+
+# === Tool Settings ===
+tools:
+  # Enable drag tool
+  allow_drag: false

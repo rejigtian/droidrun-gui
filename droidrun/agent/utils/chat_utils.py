@@ -6,6 +6,8 @@ from typing import List, Optional, Tuple
 
 from llama_index.core.base.llms.types import ChatMessage, ImageBlock, TextBlock
 
+from droidrun.telemetry.phoenix import clean_span
+
 logger = logging.getLogger("droidrun")
 
 def message_copy(message: ChatMessage, deep = True) -> ChatMessage:
@@ -278,3 +280,20 @@ def extract_code_and_thought(response_text: str) -> Tuple[Optional[str], str]:
     logger.debug(f"  - Extracted thought: {thought_preview}")
 
     return extracted_code, thought_text
+
+
+def has_non_empty_content(msg):
+    content = msg.get('content', [])
+    if not content:  # Empty list or None
+        return False
+    # Check if any content item has non-empty text
+    for item in content:
+        if isinstance(item, dict) and item.get('text', '').strip():
+            return True
+        elif isinstance(item, str) and item.strip():
+            return True
+    return False
+
+@clean_span("remove_empty_messages")
+def remove_empty_messages(messages):
+    return [msg for msg in messages if has_non_empty_content(msg)]

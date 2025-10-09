@@ -7,17 +7,25 @@ This agent is responsible for:
 - Selecting and executing appropriate actions
 """
 
+from __future__ import annotations
+
 import json
 import logging
+from typing import TYPE_CHECKING
 
 from llama_index.core.llms import ChatMessage, ImageBlock, TextBlock
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
 
-from droidrun.agent.droid.events import DroidAgentState
 from droidrun.agent.executor.events import ExecutorActionEvent, ExecutorResultEvent
 from droidrun.agent.executor.prompts import build_executor_system_prompt, parse_executor_response
 from droidrun.agent.utils.tools import click, long_press, open_app, swipe, system_button, type
+from droidrun.agent.utils.inference import acall_with_retries
+from droidrun.config_manager import config
+import asyncio
+
+if TYPE_CHECKING:
+    from droidrun.agent.droid.events import DroidAgentState
 
 logger = logging.getLogger("droidrun")
 
@@ -39,6 +47,7 @@ class ExecutorAgent(Workflow):
         llm: LLM,
         vision: bool,
         tools_instance,
+        shared_state: "DroidAgentState",
         persona=None,
         debug: bool = False,
         **kwargs
@@ -47,6 +56,7 @@ class ExecutorAgent(Workflow):
         self.llm = llm
         self.vision = vision
         self.tools_instance = tools_instance
+        self.shared_state = shared_state
         self.persona = persona
         self.debug = debug
 
@@ -56,7 +66,7 @@ class ExecutorAgent(Workflow):
     @step
     async def think(
         self,
-        ctx: Context["DroidAgentState"],
+        ctx: Context,
         ev: StartEvent
     ) -> ExecutorActionEvent:
         """
@@ -71,35 +81,26 @@ class ExecutorAgent(Workflow):
         subgoal = ev.get("subgoal", "")
         logger.info(f"🧠 Executor thinking about action for: {subgoal}")
 
-        state = await ctx.store.get_state()
-
-
         app_card = ""  # TODO: Implement app card retrieval
 
         system_prompt = build_executor_system_prompt(
-            state=state,
+            state=self.shared_state,
             subgoal=subgoal,
             app_card=app_card
         )
 
-
         blocks = [TextBlock(text=system_prompt)]
         if self.vision:
-            screenshot = state.screenshot
+            screenshot = self.shared_state.screenshot
             assert screenshot is not None, "Screenshot is required for vision but got None"
             blocks.append(ImageBlock(image=screenshot))
-        messages = [ChatMessage(role="system", blocks=blocks)]
+        messages = [ChatMessage(role="user", blocks=blocks)]
 
         try:
-            response = await self.llm.achat(messages=messages)
+            response = await acall_with_retries(self.llm, messages)
             response_text = str(response)
         except Exception as e:
-            logger.error(f"❌ LLM call failed: {e}")
-            return ExecutorActionEvent(
-                action_json=json.dumps({"action": "invalid"}),
-                thought=f"LLM call failed: {str(e)}",
-                description="Failed to get action from LLM"
-            )
+            raise RuntimeError(f"Error calling LLM in executor: {e}") from e
 
         # Parse response
         try:
@@ -125,7 +126,7 @@ class ExecutorAgent(Workflow):
     @step
     async def execute(
         self,
-        ctx: Context["DroidAgentState"],
+        ctx: Context,
         ev: ExecutorActionEvent
     ) -> ExecutorResultEvent:
         """
@@ -151,6 +152,9 @@ class ExecutorAgent(Workflow):
 
         # Execute the action
         outcome, error, summary = await self._execute_action(action_dict, ev.description)
+
+        if outcome:
+            await asyncio.sleep(config.device.after_sleep_action)
 
         logger.info(f"{'✅' if outcome else '❌'} Execution complete: {summary}")
 
@@ -254,7 +258,7 @@ class ExecutorAgent(Workflow):
     @step
     async def finalize(
         self,
-        ctx: Context["DroidAgentState"],
+        ctx: Context,
         ev: ExecutorResultEvent
     ) -> StopEvent:
         """Return executor results to parent workflow."""

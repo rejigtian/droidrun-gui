@@ -36,12 +36,7 @@ class TaskRunnerEvent(Event):
 
 class DroidAgentState(BaseModel):
     """
-    State model for DroidAgent workflow - used with Context[DroidAgentState].
-
-    Context state management:
-
-    - Read state: state = await ctx.store.get_state()
-    - Modify state: async with ctx.store.edit_state() as state: ...
+    State model for DroidAgent workflow - shared across parent and child workflows.
     """
 
     # Task context

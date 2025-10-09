@@ -16,13 +16,15 @@ from typing import TYPE_CHECKING, List
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
 
-from droidrun.agent.droid.events import DroidAgentState
 from droidrun.agent.manager.events import ManagerPlanEvent, ManagerThinkingEvent
 from droidrun.agent.manager.prompts import build_manager_system_prompt, parse_manager_response
 from droidrun.agent.utils import convert_messages_to_chatmessages
+from droidrun.agent.utils.chat_utils import remove_empty_messages
 from droidrun.agent.utils.device_state_formatter import get_device_state_exact_format
+from droidrun.agent.utils.inference import acall_with_retries
 
 if TYPE_CHECKING:
+    from droidrun.agent.droid.events import DroidAgentState
     from droidrun.tools import Tools
 
 logger = logging.getLogger("droidrun")
@@ -45,6 +47,7 @@ class ManagerAgent(Workflow):
         vision: bool,
         personas: List,
         tools_instance: "Tools",
+        shared_state: "DroidAgentState",
         debug: bool = False,
         **kwargs
     ):
@@ -53,6 +56,7 @@ class ManagerAgent(Workflow):
         self.vision = vision
         self.personas = personas
         self.tools_instance = tools_instance
+        self.shared_state = shared_state
         self.debug = debug
 
         logger.info("✅ ManagerAgent initialized successfully.")
@@ -63,14 +67,12 @@ class ManagerAgent(Workflow):
 
     def _build_system_prompt(
         self,
-        state,
         has_text_to_modify: bool
     ) -> str:
         """
         Build system prompt with all context.
 
         Args:
-            state: DroidAgentState
             has_text_to_modify: Whether text manipulation mode is enabled
 
         Returns:
@@ -79,8 +81,8 @@ class ManagerAgent(Workflow):
 
         # Get error history if error_flag_plan is set
         error_history = []
-        if state.error_flag_plan:
-            k = state.err_to_manager_thresh
+        if self.shared_state.error_flag_plan:
+            k = self.shared_state.err_to_manager_thresh
             error_history = [
                 {
                     "action": act,
@@ -88,25 +90,24 @@ class ManagerAgent(Workflow):
                     "error": err_des
                 }
                 for act, summ, err_des in zip(
-                    state.action_history[-k:],
-                    state.summary_history[-k:],
-                    state.error_descriptions[-k:], strict=True
+                    self.shared_state.action_history[-k:],
+                    self.shared_state.summary_history[-k:],
+                    self.shared_state.error_descriptions[-k:], strict=True
                 )
             ]
 
         return build_manager_system_prompt(
-            instruction=state.instruction,
+            instruction=self.shared_state.instruction,
             has_text_to_modify=has_text_to_modify,
             app_card="",  # TODO: implement app card retrieval system
             device_date=self.tools_instance.get_date(),
             important_notes="",  # TODO: expose important_notes in DroidAgentState if needed
-            error_flag=state.error_flag_plan,
+            error_flag=self.shared_state.error_flag_plan,
             error_history=error_history
         )
 
     def _build_messages_with_context(
         self,
-        state,
         system_prompt: str,
         screenshot: str = None
     ) -> list[dict]:
@@ -114,7 +115,6 @@ class ManagerAgent(Workflow):
         Build messages from history and inject current context.
 
         Args:
-            state: DroidAgentState
             system_prompt: System prompt to use
             screenshot: Path to current screenshot (if vision enabled)
 
@@ -129,7 +129,7 @@ class ManagerAgent(Workflow):
         ]
 
         # Add accumulated message history (deep copy to avoid mutation)
-        messages.extend(copy.deepcopy(state.message_history))
+        messages.extend(copy.deepcopy(self.shared_state.message_history))
 
         # ====================================================================
         # Inject memory, device state, screenshot to LAST user message
@@ -141,7 +141,7 @@ class ManagerAgent(Workflow):
             last_user_idx = user_indices[-1]
 
             # Add memory to last user message
-            current_memory = (state.memory or "").strip()
+            current_memory = (self.shared_state.memory or "").strip()
             if current_memory:
                 if messages[last_user_idx]['content'] and 'text' in messages[last_user_idx]['content'][0]:
                     messages[last_user_idx]['content'][0]['text'] += f"\n<memory>\n{current_memory}\n</memory>\n"
@@ -149,7 +149,7 @@ class ManagerAgent(Workflow):
                     messages[last_user_idx]['content'].insert(0, {"text": f"<memory>\n{current_memory}\n</memory>\n"})
 
             # Add device state to last user message
-            current_a11y = (state.ui_elements_list_after or state.device_state_text or "").strip()
+            current_a11y = (self.shared_state.ui_elements_list_after or self.shared_state.device_state_text or "").strip()
             if current_a11y:
                 if messages[last_user_idx]['content'] and 'text' in messages[last_user_idx]['content'][0]:
                     messages[last_user_idx]['content'][0]['text'] += f"\n<device_state>\n{current_a11y}\n</device_state>\n"
@@ -163,14 +163,14 @@ class ManagerAgent(Workflow):
             # Add previous device state to SECOND-TO-LAST user message (if exists)
             if len(user_indices) >= 2:
                 second_last_user_idx = user_indices[-2]
-                prev_a11y = (state.ui_elements_list_before or "").strip()
+                prev_a11y = (self.shared_state.ui_elements_list_before or "").strip()
 
                 if prev_a11y:
                     if messages[second_last_user_idx]['content'] and 'text' in messages[second_last_user_idx]['content'][0]:
                         messages[second_last_user_idx]['content'][0]['text'] += f"\n<device_state>\n{prev_a11y}\n</device_state>\n"
                     else:
                         messages[second_last_user_idx]['content'].insert(0, {"text": f"<device_state>\n{prev_a11y}\n</device_state>\n"})
-
+        messages = remove_empty_messages(messages)
         return messages
 
     async def _validate_and_retry_llm_call(
@@ -225,7 +225,7 @@ class ManagerAgent(Workflow):
                 chat_messages = convert_messages_to_chatmessages(retry_messages)
 
                 try:
-                    response = await self.llm.achat(messages=chat_messages)
+                    response = await acall_with_retries(self.llm, chat_messages)
                     output_planning = response.message.content
                     parsed = parse_manager_response(output_planning)
                 except Exception as e:
@@ -241,7 +241,7 @@ class ManagerAgent(Workflow):
     @step
     async def prepare_input(
         self,
-        ctx: Context["DroidAgentState"],
+        ctx: Context,
         ev: StartEvent
     ) -> ManagerThinkingEvent:
         """
@@ -285,8 +285,8 @@ class ManagerAgent(Workflow):
 
         # Check if focused text differs from last typed text
         # last_typed_text = ""
-        # if state.action_history:
-        #     recent_actions = state.action_history[-1:] if len(state.action_history) >= 1 else []
+        # if self.shared_state.action_history:
+        #     recent_actions = self.shared_state.action_history[-1:] if len(self.shared_state.action_history) >= 1 else []
         #     for action in reversed(recent_actions):
         #         if isinstance(action, dict) and action.get('action') == 'type':
         #             last_typed_text = action.get('text', '')
@@ -297,12 +297,11 @@ class ManagerAgent(Workflow):
         # ====================================================================
         # Step 4: Update state with device info
         # ====================================================================
-        async with ctx.store.edit_state() as state:
-            state.device_state_text = device_state_text
-            state.focused_text = focused_text
-            # Shift UI elements: before ← after, after ← current
-            state.ui_elements_list_before = state.ui_elements_list_after
-            state.ui_elements_list_after = device_state_text
+        self.shared_state.device_state_text = device_state_text
+        self.shared_state.focused_text = focused_text
+        # Shift UI elements: before ← after, after ← current
+        self.shared_state.ui_elements_list_before = self.shared_state.ui_elements_list_after
+        self.shared_state.ui_elements_list_after = device_state_text
 
         # ====================================================================
         # Step 5: Build user message entry
@@ -310,29 +309,26 @@ class ManagerAgent(Workflow):
         parts = []
 
         # Add context from last action
-        if state.finish_thought:
-            parts.append(f"<thought>\n{state.finish_thought}\n</thought>\n")
+        if self.shared_state.finish_thought:
+            parts.append(f"<thought>\n{self.shared_state.finish_thought}\n</thought>\n")
 
-        if state.last_action:
+        if self.shared_state.last_action:
             import json
-            action_str = json.dumps(state.last_action)
+            action_str = json.dumps(self.shared_state.last_action)
             parts.append(f"<last_action>\n{action_str}\n</last_action>\n")
 
-        if state.last_summary:
-            parts.append(f"<last_action_description>\n{state.last_summary}\n</last_action_description>\n")
+        if self.shared_state.last_summary:
+            parts.append(f"<last_action_description>\n{self.shared_state.last_summary}\n</last_action_description>\n")
 
-        # Append to message history (if there are parts)
-        if parts:
-            async with ctx.store.edit_state() as state:
-                state.message_history.append({
-                    "role": "user",
-                    "content": [{"text": "".join(parts)}]
-                })
+        
+        self.shared_state.message_history.append({
+            "role": "user",
+            "content": [{"text": "".join(parts)}]
+        })
 
         # Store has_text_to_modify and screenshot for next step
-        async with ctx.store.edit_state() as state:
-            state.has_text_to_modify = has_text_to_modify
-            state.screenshot = screenshot
+        self.shared_state.has_text_to_modify = has_text_to_modify
+        self.shared_state.screenshot = screenshot
 
         logger.debug(f"  - Device state prepared (text_modify={has_text_to_modify}, screenshot={screenshot is not None})")
         return ManagerThinkingEvent()
@@ -340,7 +336,7 @@ class ManagerAgent(Workflow):
     @step
     async def think(
         self,
-        ctx: Context["DroidAgentState"],
+        ctx: Context,
         ev: ManagerThinkingEvent
     ) -> ManagerPlanEvent:
         """
@@ -356,20 +352,18 @@ class ManagerAgent(Workflow):
         """
         logger.info("🧠 Manager thinking about the plan...")
 
-        state = await ctx.store.get_state()
-        has_text_to_modify = state.has_text_to_modify
-        screenshot = state.screenshot
+        has_text_to_modify = self.shared_state.has_text_to_modify
+        screenshot = self.shared_state.screenshot
 
         # ====================================================================
         # Step 1: Build system prompt
         # ====================================================================
-        system_prompt = self._build_system_prompt(state, has_text_to_modify)
+        system_prompt = self._build_system_prompt(has_text_to_modify)
 
         # ====================================================================
         # Step 2: Build messages with context
         # ====================================================================
         messages = self._build_messages_with_context(
-            state=state,
             system_prompt=system_prompt,
             screenshot=screenshot
         )
@@ -380,7 +374,7 @@ class ManagerAgent(Workflow):
         chat_messages = convert_messages_to_chatmessages(messages)
 
         try:
-            response = await self.llm.achat(messages=chat_messages)
+            response = await acall_with_retries(self.llm, chat_messages)
             output_planning = response.message.content
         except Exception as e:
             logger.error(f"LLM call failed: {e}")
@@ -405,19 +399,25 @@ class ManagerAgent(Workflow):
         # ====================================================================
         memory_update = parsed.get("memory", "").strip()
 
-        async with ctx.store.edit_state() as state:
-            # Update memory (append, not replace)
-            if memory_update:
-                if state.memory:
-                    state.memory += "\n" + memory_update
-                else:
-                    state.memory = memory_update
+        # Update memory (append, not replace)
+        if memory_update:
+            if self.shared_state.memory:
+                self.shared_state.memory += "\n" + memory_update
+            else:
+                self.shared_state.memory = memory_update
 
-            # Append assistant response to message history
-            state.message_history.append({
-                "role": "assistant",
-                "content": [{"text": output_planning}]
-            })
+        # Append assistant response to message history
+        self.shared_state.message_history.append({
+            "role": "assistant",
+            "content": [{"text": output_planning}]
+        })
+
+        # Update planning fields
+        self.shared_state.plan = parsed["plan"]
+        self.shared_state.current_subgoal = parsed["current_subgoal"]
+        self.shared_state.completed_plan = parsed.get("completed_subgoal", "No completed subgoal.")
+        self.shared_state.finish_thought = parsed["thought"]
+        self.shared_state.manager_answer = parsed["answer"]
 
         logger.info(f"📝 Plan: {parsed['plan'][:100]}...")
         logger.debug(f"  - Current subgoal: {parsed['current_subgoal']}")
@@ -435,7 +435,7 @@ class ManagerAgent(Workflow):
     @step
     async def finalize(
         self,
-        ctx: Context["DroidAgentState"],
+        ctx: Context,
         ev: ManagerPlanEvent
     ) -> StopEvent:
         """Return manager results to parent workflow."""

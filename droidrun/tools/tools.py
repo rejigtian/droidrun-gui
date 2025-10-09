@@ -123,7 +123,7 @@ class Tools(ABC):
         """
         pass
     @abstractmethod
-    def get_apps(self, include_system_apps: bool = False) -> List[Dict[str, Any]]:
+    def get_apps(self, include_system_apps: bool = True) -> List[Dict[str, Any]]:
         """
         List all apps on the device.
         """

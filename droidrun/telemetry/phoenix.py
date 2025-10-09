@@ -26,7 +26,7 @@ def arize_phoenix_callback_handler(**kwargs: Any) -> BaseCallbackHandler:
     endpoint = kwargs.get("endpoint", os.getenv("phoenix_url", "http://127.0.0.1:6006")) + "/v1/traces"
 
     resource_attributes = {}
-    phoenix_project_name = os.getenv("phoenix_project_name")
+    phoenix_project_name = os.getenv("phoenix_project_name", "")
     if phoenix_project_name.strip():
         resource_attributes[ResourceAttributes.PROJECT_NAME] = phoenix_project_name
     resource = Resource(attributes=resource_attributes)

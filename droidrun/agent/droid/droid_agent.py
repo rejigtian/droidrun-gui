@@ -173,6 +173,12 @@ class DroidAgent(Workflow):
 
         self.tools_instance.save_trajectories = self.save_trajectories
 
+        # Create shared state instance for Manager/Executor workflows
+        self.shared_state = DroidAgentState(
+            instruction=goal,
+            err_to_manager_thresh=2
+        )
+
         if self.reasoning:
             logger.info("📝 Initializing Manager and Executor Agents...")
             self.manager_agent = ManagerAgent(
@@ -180,6 +186,7 @@ class DroidAgent(Workflow):
                 vision=vision,
                 personas=personas,
                 tools_instance=tools,
+                shared_state=self.shared_state,
                 timeout=timeout,
                 debug=debug,
             )
@@ -187,6 +194,7 @@ class DroidAgent(Workflow):
                 llm=llm,
                 vision=vision,
                 tools_instance=tools,
+                shared_state=self.shared_state,
                 persona=None,  # Need to figure this out
                 timeout=timeout,
                 debug=debug,
@@ -353,7 +361,7 @@ class DroidAgent(Workflow):
 
     @step
     async def start_handler(
-        self, ctx: Context[DroidAgentState], ev: StartEvent
+        self, ctx: Context, ev: StartEvent
     ) -> CodeActExecuteEvent | ManagerInputEvent:
         """
         Main execution loop that coordinates between planning and execution.
@@ -377,13 +385,8 @@ class DroidAgent(Workflow):
 
             return CodeActExecuteEvent(task=task)
 
-        # Reasoning mode - initialize state and start with Manager
+        # Reasoning mode - state already initialized in __init__, start with Manager
         logger.info("🧠 Reasoning mode - initializing Manager/Executor workflow")
-
-        # Initialize DroidAgentState in context
-        async with ctx.store.edit_state() as state:
-            state.instruction = self.goal
-            state.err_to_manager_thresh = 2
         return ManagerInputEvent()
 
     # ========================================================================
@@ -393,7 +396,7 @@ class DroidAgent(Workflow):
     @step
     async def run_manager(
         self,
-        ctx: Context[DroidAgentState],
+        ctx: Context,
         ev: ManagerInputEvent
     ) -> ManagerPlanEvent | FinalizeEvent:
         """
@@ -402,11 +405,7 @@ class DroidAgent(Workflow):
         Pre-flight checks for termination before running manager.
         The Manager analyzes current state and creates a plan with subgoals.
         """
-        # ====================================================================
-        # PRE-FLIGHT: Check if we should terminate before running manager
-        # ====================================================================
-
-        # Check 1: Max steps reached
+        # Check if we've reached the maximum number of steps
         if self.step_counter >= self.max_steps:
             logger.warning(f"⚠️ Reached maximum steps ({self.max_steps})")
             return self._create_finalize_event(
@@ -415,13 +414,11 @@ class DroidAgent(Workflow):
                 output=f"Reached maximum steps ({self.max_steps})"
             )
 
-        # ====================================================================
-        # All checks passed - run Manager
-        # ====================================================================
+        # Continue with Manager execution
         logger.info(f"📋 Running Manager for planning... (step {self.step_counter}/{self.max_steps})")
 
-        # Run Manager workflow (shares same context)
-        handler = self.manager_agent.run(ctx=ctx)
+        # Run Manager workflow
+        handler = self.manager_agent.run()
 
         # Stream nested events
         async for nested_ev in handler.stream_events():
@@ -429,14 +426,7 @@ class DroidAgent(Workflow):
 
         result = await handler
 
-        # Update state with planning results
-        async with ctx.store.edit_state() as state:
-            state.plan = result["plan"]
-            state.current_subgoal = result["current_subgoal"]
-            state.completed_plan = result["completed_plan"]
-            state.finish_thought = result["thought"]
-            state.manager_answer = result.get("manager_answer", "")
-
+        # Manager already updated shared_state, just return event with results
         return ManagerPlanEvent(
             plan=result["plan"],
             current_subgoal=result["current_subgoal"],
@@ -448,7 +438,7 @@ class DroidAgent(Workflow):
     @step
     async def handle_manager_plan(
         self,
-        ctx: Context[DroidAgentState],
+        ctx: Context,
         ev: ManagerPlanEvent
     ) -> ExecutorInputEvent | FinalizeEvent:
         """
@@ -459,8 +449,7 @@ class DroidAgent(Workflow):
         # Check for answer-type termination
         if ev.manager_answer.strip():
             logger.info(f"💬 Manager provided answer: {ev.manager_answer}")
-            async with ctx.store.edit_state() as state:
-                state.progress_status = f"Answer: {ev.manager_answer}"
+            self.shared_state.progress_status = f"Answer: {ev.manager_answer}"
 
             return self._create_finalize_event(
                 success=True,
@@ -475,7 +464,7 @@ class DroidAgent(Workflow):
     @step
     async def run_executor(
         self,
-        ctx: Context[DroidAgentState],
+        ctx: Context,
         ev: ExecutorInputEvent
     ) -> ExecutorResultEvent:
         """
@@ -485,11 +474,8 @@ class DroidAgent(Workflow):
         """
         logger.info("⚡ Running Executor for action...")
 
-        # Run Executor workflow (shares same context)
-        handler = self.executor_agent.run(
-            ctx=ctx,
-            subgoal=ev.current_subgoal
-        )
+        # Run Executor workflow (Executor will update shared_state directly)
+        handler = self.executor_agent.run(subgoal=ev.current_subgoal)
 
         # Stream nested events
         async for nested_ev in handler.stream_events():
@@ -497,17 +483,16 @@ class DroidAgent(Workflow):
 
         result = await handler
 
-        # Update state with execution results
-        async with ctx.store.edit_state() as state:
-            state.action_history.append(result["action"])
-            state.summary_history.append(result["summary"])
-            state.action_outcomes.append(result["outcome"])
-            state.error_descriptions.append(result["error"])
-            state.last_action = result["action"]
-            state.last_summary = result["summary"]
-            state.last_action_thought = result.get("thought", "")
-            state.action_pool.append(result["action_json"])
-            state.progress_status = state.completed_plan
+        # Update coordination state after execution
+        self.shared_state.action_history.append(result["action"])
+        self.shared_state.summary_history.append(result["summary"])
+        self.shared_state.action_outcomes.append(result["outcome"])
+        self.shared_state.error_descriptions.append(result["error"])
+        self.shared_state.last_action = result["action"]
+        self.shared_state.last_summary = result["summary"]
+        self.shared_state.last_action_thought = result.get("thought", "")
+        self.shared_state.action_pool.append(result["action_json"])
+        self.shared_state.progress_status = self.shared_state.completed_plan
 
         return ExecutorResultEvent(
             action=result["action"],
@@ -519,7 +504,7 @@ class DroidAgent(Workflow):
     @step
     async def handle_executor_result(
         self,
-        ctx: Context[DroidAgentState],
+        ctx: Context,
         ev: ExecutorResultEvent
     ) -> ManagerInputEvent:
         """
@@ -529,16 +514,14 @@ class DroidAgent(Workflow):
         Note: Max steps check is now done in run_manager pre-flight.
         """
         # Check error escalation
-        state = await ctx.store.get_state()
-        err_thresh = state.err_to_manager_thresh
+        err_thresh = self.shared_state.err_to_manager_thresh
 
-        if len(state.action_outcomes) >= err_thresh:
-            latest = state.action_outcomes[-err_thresh:]
+        if len(self.shared_state.action_outcomes) >= err_thresh:
+            latest = self.shared_state.action_outcomes[-err_thresh:]
             error_count = sum(1 for o in latest if not o)
             if error_count == err_thresh:
                 logger.warning(f"⚠️ Error escalation: {err_thresh} consecutive errors")
-                async with ctx.store.edit_state() as state:
-                    state.error_flag_plan = True
+                self.shared_state.error_flag_plan = True
 
         self.step_counter += 1
         logger.info(f"🔄 Step {self.step_counter}/{self.max_steps} complete, looping to Manager")
