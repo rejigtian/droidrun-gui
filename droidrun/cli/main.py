@@ -739,7 +739,7 @@ cli.add_command(macro_cli, name="macro")
 
 
 if __name__ == "__main__":
-    command = "Download instagram app"
+    command = "Download clash royale app"
     device = None
     provider = "GoogleGenAI"
     model = "models/gemini-2.5-flash"
@@ -757,21 +757,5 @@ if __name__ == "__main__":
     save_trajectory = "none"
     allow_drag = False
     run_command(
-        command=command,
-        device=device,
-        provider=provider,
-        model=model,
-        steps=steps,
-        temperature=temperature,
-        vision=vision,
-        reasoning=reasoning,
-        tracing=tracing,
-        debug=debug,
-        use_tcp=use_tcp,
-        base_url=base_url,
-        api_base=api_base,
-        api_key=api_key,
-        allow_drag=allow_drag,
-        ios=ios,
-        save_trajectory=save_trajectory,
+        command=command
     )
