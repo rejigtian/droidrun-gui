@@ -2,12 +2,8 @@ from typing import TYPE_CHECKING, List
 
 if TYPE_CHECKING:
     from droidrun.tools import Tools
-# TODO: create proper llm configuration
-from llama_index.llms.openai import OpenAI
 
 from droidrun.agent.oneflows.app_starter_workflow import AppStarter
-
-llm = OpenAI(model="gpt-4o-mini")
 
 
 def click(tool_instance: "Tools", index: int) -> str:
@@ -114,8 +110,15 @@ def open_app(tool_instance: "Tools", text: str) -> str:
     Returns:
         Result message from opening the app
     """
+    # Get LLM from tools instance
+    if tool_instance.app_opener_llm is None:
+        raise RuntimeError(
+            "app_opener_llm not configured. "
+            "provide app_opener_llm when initializing Tools."
+        )
+    
     # Create workflow instance
-    workflow = AppStarter(tools=tool_instance, llm=llm, timeout=60, verbose=True)
+    workflow = AppStarter(tools=tool_instance, llm=tool_instance.app_opener_llm, timeout=60, verbose=True)
 
     # Run workflow to open an app
     result = workflow.run(app_description=text)

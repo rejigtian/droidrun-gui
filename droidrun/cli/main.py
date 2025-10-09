@@ -28,6 +28,8 @@ from droidrun.portal import (
 )
 from droidrun.telemetry import print_telemetry_message
 from droidrun.tools import AdbTools, IOSTools
+from droidrun.config_manager import config
+from droidrun.config_manager.config_manager import VisionConfig
 
 # Suppress all warnings
 warnings.filterwarnings("ignore")
@@ -73,23 +75,29 @@ def coro(f):
 async def run_command(
     command: str,
     device: str | None,
-    provider: str,
-    model: str,
-    steps: int,
-    base_url: str,
-    api_base: str,
-    vision: bool,
-    reasoning: bool,
-    tracing: bool,
-    debug: bool,
-    use_tcp: bool,
-    save_trajectory: str = "none",
+    provider: str | None,
+    model: str | None,
+    steps: int | None,
+    base_url: str | None,
+    api_base: str | None,
+    vision: bool | None,
+    manager_vision: bool | None,
+    executor_vision: bool | None,
+    codeact_vision: bool | None,
+    reasoning: bool | None,
+    tracing: bool | None,
+    debug: bool | None,
+    use_tcp: bool | None,
+    save_trajectory: str | None = None,
     ios: bool = False,
-    allow_drag: bool = False,
+    allow_drag: bool | None = None,
+    temperature: float | None = None,
     **kwargs,
 ):
     """Run a command on your Android device using natural language."""
-    log_handler = configure_logging(command, debug)
+    # Initialize logging first (use config default if debug not specified)
+    debug_mode = debug if debug is not None else config.logging.debug
+    log_handler = configure_logging(command, debug_mode)
     logger = logging.getLogger("droidrun")
 
     log_handler.update_step("Initializing...")
@@ -99,73 +107,209 @@ async def run_command(
             logger.info(f"🚀 Starting: {command}")
             print_telemetry_message()
 
-            if not kwargs.get("temperature"):
-                kwargs["temperature"] = 0
-
+            # ================================================================
+            # STEP 1: Load base configuration from config.yaml
+            # ================================================================
+            
+            max_steps = config.agent.max_steps
+            reasoning_mode = config.agent.reasoning
+            vision_config = config.agent.vision
+            device_serial = config.device.serial
+            use_tcp_mode = config.device.use_tcp
+            debug_mode = config.logging.debug
+            save_traj = config.logging.save_trajectory
+            tracing_enabled = config.tracing.enabled
+            allow_drag_tool = config.tools.allow_drag
+            
+            # ================================================================
+            # STEP 2: Apply CLI overrides if explicitly specified
+            # ================================================================
+            
+            if steps is not None:
+                max_steps = steps
+                logger.debug(f"CLI override: max_steps={max_steps}")
+            
+            if reasoning is not None:
+                reasoning_mode = reasoning
+                logger.debug(f"CLI override: reasoning={reasoning_mode}")
+            
+            if debug is not None:
+                debug_mode = debug
+                logger.debug(f"CLI override: debug={debug_mode}")
+            
+            if tracing is not None:
+                tracing_enabled = tracing
+                logger.debug(f"CLI override: tracing={tracing_enabled}")
+            
+            if save_trajectory is not None:
+                save_traj = save_trajectory
+                logger.debug(f"CLI override: save_trajectory={save_traj}")
+            
+            if use_tcp is not None:
+                use_tcp_mode = use_tcp
+                logger.debug(f"CLI override: use_tcp={use_tcp_mode}")
+            
+            if device is not None:
+                device_serial = device
+                logger.debug(f"CLI override: device={device_serial}")
+            
+            if allow_drag is not None:
+                allow_drag_tool = allow_drag
+                logger.debug(f"CLI override: allow_drag={allow_drag_tool}")
+            
+            # Override vision settings
+            if vision is not None:
+                # User specified --vision, apply to all agents
+                vision_config = VisionConfig(manager=vision, executor=vision, codeact=vision)
+                logger.debug(f"CLI override: vision={vision} (all agents)")
+            else:
+                # Check for per-agent vision overrides
+                vision_config = VisionConfig(
+                    manager=vision_config.manager,
+                    executor=vision_config.executor,
+                    codeact=vision_config.codeact
+                )
+                if manager_vision is not None:
+                    vision_config.manager = manager_vision
+                    logger.debug(f"CLI override: manager_vision={manager_vision}")
+                
+                if executor_vision is not None:
+                    vision_config.executor = executor_vision
+                    logger.debug(f"CLI override: executor_vision={executor_vision}")
+                
+                if codeact_vision is not None:
+                    vision_config.codeact = codeact_vision
+                    logger.debug(f"CLI override: codeact_vision={codeact_vision}")
+            
+            # ================================================================
+            # STEP 3: Load LLMs
+            # ================================================================
+            
+            log_handler.update_step("Loading LLMs...")
+            
+            # Check if user wants custom LLM for all agents
+            if provider is not None or model is not None:
+                # User specified custom provider/model - use for all agents
+                logger.info("🔧 Using custom LLM for all agents")
+                
+                # Use provided values or fall back to first profile's defaults
+                if provider is None:
+                    provider = list(config.llm_profiles.values())[0].provider
+                if model is None:
+                    model = list(config.llm_profiles.values())[0].model
+                
+                # Build kwargs
+                llm_kwargs = {}
+                if temperature is not None:
+                    llm_kwargs['temperature'] = temperature
+                else:
+                    llm_kwargs['temperature'] = kwargs.get('temperature', 1)
+                if base_url is not None:
+                    llm_kwargs['base_url'] = base_url
+                if api_base is not None:
+                    llm_kwargs['api_base'] = api_base
+                llm_kwargs.update(kwargs)
+                
+                # Load single LLM for all agents
+                custom_llm = load_llm(
+                    provider_name=provider,
+                    model=model,
+                    **llm_kwargs
+                )
+                
+                # Use same LLM for all agents
+                llms = {
+                    'manager': custom_llm,
+                    'executor': custom_llm,
+                    'codeact': custom_llm,
+                    'text_manipulator': custom_llm,
+                    'app_opener': custom_llm,
+                }
+                logger.info(f"🧠 Custom LLM ready: {provider}/{model}")
+            else:
+                # No custom provider/model - use profiles from config
+                logger.info("📋 Loading LLMs from config profiles...")
+                
+                profile_names = ['manager', 'executor', 'codeact', 'text_manipulator', 'app_opener']
+                
+                # Apply temperature override to all profiles if specified
+                overrides = {}
+                if temperature is not None:
+                    overrides = {name: {'temperature': temperature} for name in profile_names}
+                
+                llms = config.load_all_llms(profile_names=profile_names, **overrides)
+                logger.info(f"🧠 Loaded {len(llms)} agent-specific LLMs from profiles")
+            
+            # ================================================================
+            # STEP 4: Setup device and tools
+            # ================================================================
+            
             log_handler.update_step("Setting up tools...")
-
-            # Device setup
-            if device is None and not ios:
+            
+            if device_serial is None and not ios:
                 logger.info("🔍 Finding connected device...")
-
                 devices = adb.list()
                 if not devices:
                     raise ValueError("No connected devices found.")
-                device = devices[0].serial
-                logger.info(f"📱 Using device: {device}")
-            elif device is None and ios:
+                device_serial = devices[0].serial
+                logger.info(f"📱 Using device: {device_serial}")
+            elif device_serial is None and ios:
                 raise ValueError(
-                    "iOS device not specified. Please specify the device base url (http://device-ip:6643) via --device"
+                    "iOS device not specified. Please specify device base url via --device"
                 )
             else:
-                logger.info(f"📱 Using device: {device}")
-
+                logger.info(f"📱 Using device: {device_serial}")
+            
             tools = (
-                AdbTools(serial=device, use_tcp=use_tcp)
+                AdbTools(
+                    serial=device_serial,
+                    use_tcp=use_tcp_mode,
+                    app_opener_llm=llms.get('app_opener'),
+                    text_manipulator_llm=llms.get('text_manipulator')
+                )
                 if not ios
-                else IOSTools(url=device)
+                else IOSTools(url=device_serial)
             )
-            # Set excluded tools based on CLI flags
-            excluded_tools = [] if allow_drag else ["drag"]
-
-            # Select personas based on --drag flag
-            personas = [BIG_AGENT] if allow_drag else [DEFAULT]
-
-            # LLM setup
-            log_handler.update_step("Initializing LLM...")
-            llm = load_llm(
-                provider_name=provider,
-                model=model,
-                base_url=base_url,
-                api_base=api_base,
-                **kwargs,
-            )
-            logger.info(f"🧠 LLM ready: {provider}/{model}")
-
-            # Agent setup
+            
+            # Set excluded tools based on config/CLI
+            excluded_tools = [] if allow_drag_tool else ["drag"]
+            
+            # Select personas based on drag flag
+            personas = [BIG_AGENT] if allow_drag_tool else [DEFAULT]
+            
+            # ================================================================
+            # STEP 5: Initialize DroidAgent with all settings
+            # ================================================================
+            
             log_handler.update_step("Initializing DroidAgent...")
-
-            mode = "planning with reasoning" if reasoning else "direct execution"
+            
+            mode = "planning with reasoning" if reasoning_mode else "direct execution"
             logger.info(f"🤖 Agent mode: {mode}")
-
-            if tracing:
+            logger.info(f"👁️  Vision settings: Manager={vision_config.manager}, "
+                       f"Executor={vision_config.executor}, CodeAct={vision_config.codeact}")
+            
+            if tracing_enabled:
                 logger.info("🔍 Tracing enabled")
-
+            
             droid_agent = DroidAgent(
                 goal=command,
-                llm=llm,
+                llms=llms,
+                vision=vision_config,
                 tools=tools,
                 personas=personas,
                 excluded_tools=excluded_tools,
-                max_steps=steps,
+                max_steps=max_steps,
                 timeout=1000,
-                vision=vision,
-                reasoning=reasoning,
-                enable_tracing=tracing,
-                debug=debug,
-                save_trajectories=save_trajectory,
+                reasoning=reasoning_mode,
+                enable_tracing=tracing_enabled,
+                debug=debug_mode,
+                save_trajectories=save_traj,
             )
-
+            
+            # ================================================================
+            # STEP 6: Run agent
+            # ================================================================
+            
             logger.info("▶️  Starting agent execution...")
             logger.info("Press Ctrl+C to stop")
             log_handler.update_step("Running agent...")
@@ -188,7 +332,7 @@ async def run_command(
                 log_handler.is_success = False
                 log_handler.current_step = f"Error: {e}"
                 logger.error(f"💥 Error: {e}")
-                if debug:
+                if debug_mode:
                     import traceback
 
                     logger.debug(traceback.format_exc())
@@ -196,7 +340,7 @@ async def run_command(
         except Exception as e:
             log_handler.current_step = f"Error: {e}"
             logger.error(f"💥 Setup error: {e}")
-            if debug:
+            if debug_mode:
                 import traceback
 
                 logger.debug(traceback.format_exc())
@@ -292,16 +436,16 @@ def cli(
     "--provider",
     "-p",
     help="LLM provider (OpenAI, Ollama, Anthropic, GoogleGenAI, DeepSeek)",
-    default="GoogleGenAI",
+    default=None,
 )
 @click.option(
     "--model",
     "-m",
     help="LLM model name",
-    default="models/gemini-2.5-flash",
+    default=None,
 )
-@click.option("--temperature", type=float, help="Temperature for LLM", default=0.2)
-@click.option("--steps", type=int, help="Maximum number of steps", default=15)
+@click.option("--temperature", type=float, help="Temperature for LLM", default=None)
+@click.option("--steps", type=int, help="Maximum number of steps", default=None)
 @click.option(
     "--base_url",
     "-u",
@@ -315,56 +459,77 @@ def cli(
 )
 @click.option(
     "--vision",
-    is_flag=True,
-    help="Enable vision capabilites by using screenshots",
-    default=False,
+    type=bool,
+    default=None,
+    help="Enable vision capabilites by using screenshots for all agents.",
 )
 @click.option(
-    "--reasoning", is_flag=True, help="Enable planning with reasoning", default=False
+    "--manager-vision",
+    type=bool,
+    default=None,
+    help="Enable vision for Manager agent only",
 )
 @click.option(
-    "--tracing", is_flag=True, help="Enable Arize Phoenix tracing", default=False
+    "--executor-vision",
+    type=bool,
+    default=None,
+    help="Enable vision for Executor agent only",
 )
 @click.option(
-    "--debug", is_flag=True, help="Enable verbose debug logging", default=False
+    "--codeact-vision",
+    type=bool,
+    default=None,
+    help="Enable vision for CodeAct agent only",
+)
+@click.option(
+    "--reasoning", type=bool, default=None, help="Enable planning with reasoning"
+)
+@click.option(
+    "--tracing", type=bool, default=None, help="Enable Arize Phoenix tracing"
+)
+@click.option(
+    "--debug", type=bool, default=None, help="Enable verbose debug logging"
 )
 @click.option(
     "--use-tcp",
-    is_flag=True,
+    type=bool,
+    default=None,
     help="Use TCP communication for device control",
-    default=False,
 )
 @click.option(
     "--save-trajectory",
     type=click.Choice(["none", "step", "action"]),
     help="Trajectory saving level: none (no saving), step (save per step), action (save per action)",
-    default="none",
+    default=None,
 )
 @click.option(
     "--drag",
     "allow_drag",
-    is_flag=True,
+    type=bool,
+    default=None,
     help="Enable drag tool",
-    default=False,
 )
-@click.option("--ios", is_flag=True, help="Run on iOS device", default=False)
+@click.option("--ios", type=bool, default=None, help="Run on iOS device")
 def run(
     command: str,
     device: str | None,
-    provider: str,
-    model: str,
-    steps: int,
-    base_url: str,
-    api_base: str,
-    temperature: float,
-    vision: bool,
-    reasoning: bool,
-    tracing: bool,
-    debug: bool,
-    use_tcp: bool,
-    save_trajectory: str,
-    allow_drag: bool,
-    ios: bool,
+    provider: str | None,
+    model: str | None,
+    steps: int | None,
+    base_url: str | None,
+    api_base: str | None,
+    temperature: float | None,
+    vision: bool | None,
+    manager_vision: bool | None,
+    executor_vision: bool | None,
+    codeact_vision: bool | None,
+    reasoning: bool | None,
+    tracing: bool | None,
+    debug: bool | None,
+    use_tcp: bool | None,
+    save_trajectory: str | None,
+    allow_drag: bool | None,
+    ios: bool | None,
 ):
     """Run a command on your Android device using natural language."""
     # Call our standalone function
@@ -377,6 +542,9 @@ def run(
         base_url,
         api_base,
         vision,
+        manager_vision,
+        executor_vision,
+        codeact_vision,
         reasoning,
         tracing,
         debug,
@@ -384,7 +552,7 @@ def run(
         temperature=temperature,
         save_trajectory=save_trajectory,
         allow_drag=allow_drag,
-        ios=ios,
+        ios=ios if ios is not None else False,
     )
 
 

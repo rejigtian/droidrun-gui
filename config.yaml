@@ -5,63 +5,68 @@
 agent:
   # Maximum number of steps per task
   max_steps: 15
-  # Enable vision capabilities (screenshots)
-  vision: false
+  # Enable vision capabilities per agent (screenshots)
+  vision:
+    manager: false
+    executor: false
+    codeact: false
   # Enable planning with reasoning mode
   reasoning: false
+  # Sleep duration after each action, waits for ui state to be updated (seconds)
+  after_sleep_action: 1.0
+
+
+  wait_for_stable_ui: 0.3 # TODO: doesn't do anything now
 
 # === LLM Profiles ===
-# Define multiple LLM configurations for different use cases
+# Define LLM configurations for each agent type
 llm_profiles:
-  # Fast: Quick responses, lower cost
-  fast:
+  # Manager: Plans and reasons about task progress
+  manager:
     provider: GoogleGenAI
-    model: models/gemini-2.0-flash-exp
+    model: models/gemini-2.5-pro
     temperature: 0.2
-    base_url: null
-    api_base: null
-    # Additional provider-specific kwargs
-    kwargs:
-      max_tokens: 4096
+    # kwargs: # optional kwargs, add api_key in kwargs if not already in .env
+    #   max_tokens: 8192
       
-  # Mid: Balanced performance and cost
-  mid:
+  # Executor: Selects and executes atomic actions
+  executor:
+    provider: OpenRouter
+    model: 
+    temperature: 0.1
+    # kwargs:
+    #   max_tokens: 4096
+      
+  # CodeAct: Generates and executes code actions
+  codeact:
     provider: GoogleGenAI
-    model: models/gemini-1.5-flash
+    model: models/gemini-2.5-pro
+    temperature: 0.2
+    # kwargs:
+    #   max_tokens: 8192
+      
+  # Text Manipulator: Edits text in input fields
+  text_manipulator:
+    provider: GoogleGenAI
+    model: models/gemini-2.5-flash
     temperature: 0.3
-    base_url: null
-    api_base: null
-    kwargs:
-      max_tokens: 8192
+    # kwargs:
+    #   max_tokens: 4096
       
-  # Smart: Best quality, higher cost
-  smart:
-    provider: Anthropic
-    model: claude-3-7-sonnet-latest
-    temperature: 0.2
-    base_url: null
-    api_base: null
-    kwargs:
-      max_tokens: 16384
-      
-  # Custom: User-defined configuration
-  custom:
+  # App Opener: Opens apps by name/description
+  app_opener:
     provider: OpenAI
-    model: gpt-4o
-    temperature: 0.2
-    base_url: null
-    api_base: null
-    kwargs:
-      max_tokens: 8192
+    model: gpt-5-nano
+    temperature: 0.0
+    # kwargs:
+    #   max_tokens: 512
 
 # === Device Settings ===
 device:
   # Default device serial (null = auto-detect)
   serial: null
-  # Use TCP communication instead of content provider
+  # Use TCP communication instead of usb
   use_tcp: false
-  # Sleep duration after each action (seconds)
-  after_sleep_action: 1.0
 
 # === Telemetry Settings ===
 telemetry:

@@ -16,6 +16,8 @@ from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, 
 from llama_index.core.workflow.handler import WorkflowHandler
 from workflows.events import Event
 
+from droidrun.config_manager.config_manager import VisionConfig
+
 from droidrun.agent.codeact import CodeActAgent
 from droidrun.agent.codeact.events import EpisodicMemoryEvent
 from droidrun.agent.common.events import MacroEvent, RecordUIStateEvent, ScreenshotEvent
@@ -83,12 +85,12 @@ class DroidAgent(Workflow):
     def __init__(
         self,
         goal: str,
-        llm: LLM,
+        llms: dict[str, LLM] | LLM,
         tools: Tools,
         personas: List[AgentPersona] = [DEFAULT],  # noqa: B006
         max_steps: int = 15,
         timeout: int = 1000,
-        vision: bool = False,
+        vision: "VisionConfig | dict | bool" = False,
         reasoning: bool = False,
         enable_tracing: bool = False,
         debug: bool = False,
@@ -136,13 +138,57 @@ class DroidAgent(Workflow):
                 enable_tracing = False
 
         self.goal = goal
-        self.llm = llm
-        self.vision = vision
         self.max_steps = max_steps
         self.max_codeact_steps = max_steps
         self.timeout = timeout
         self.reasoning = reasoning
         self.debug = debug
+
+        # ====================================================================
+        # Handle LLM parameter - support both dict and single LLM
+        # ====================================================================
+        if isinstance(llms, dict):
+            self.manager_llm = llms.get('manager')
+            self.executor_llm = llms.get('executor')
+            self.codeact_llm = llms.get('codeact')
+            self.text_manipulator_llm = llms.get('text_manipulator')
+            self.app_opener_llm = llms.get('app_opener')
+            
+            # Validate required LLMs are present
+            if reasoning and (not self.manager_llm or not self.executor_llm):
+                raise ValueError("When reasoning=True, 'manager' and 'executor' LLMs must be provided in llms dict")
+            if not self.codeact_llm:
+                raise ValueError("'codeact' LLM must be provided in llms dict")
+            
+            logger.info("📚 Using agent-specific LLMs from dictionary")
+        else:
+            # single LLM for all agents
+            logger.info("📚 Using single LLM for all agents (backward compatibility mode)")
+            self.manager_llm = llms
+            self.executor_llm = llms
+            self.codeact_llm = llms
+            self.text_manipulator_llm = llms
+            self.app_opener_llm = llms
+
+        # ====================================================================
+        # Handle vision parameter - support VisionConfig, dict, or bool
+        # ====================================================================
+        if isinstance(vision, VisionConfig):
+            self.vision_config = vision
+        elif isinstance(vision, dict):
+            self.vision_config = VisionConfig.from_dict(vision)
+        elif isinstance(vision, bool):
+            # Backward compatibility: single bool for all agents
+            logger.info(f"👁️  Using vision={vision} for all agents (backward compatibility mode)")
+            self.vision_config = VisionConfig(manager=vision, executor=vision, codeact=vision)
+        else:
+            raise TypeError(f"vision must be VisionConfig, dict, or bool, got {type(vision)}")
+
+        # Store individual vision flags for easy access
+        self.manager_vision = self.vision_config.manager
+        self.executor_vision = self.vision_config.executor
+        self.codeact_vision = self.vision_config.codeact
+
 
         self.event_counter = 0
         # Handle backward compatibility: bool -> str mapping
@@ -182,8 +228,8 @@ class DroidAgent(Workflow):
         if self.reasoning:
             logger.info("📝 Initializing Manager and Executor Agents...")
             self.manager_agent = ManagerAgent(
-                llm=llm,
-                vision=vision,
+                llm=self.manager_llm,
+                vision=self.manager_vision,
                 personas=personas,
                 tools_instance=tools,
                 shared_state=self.shared_state,
@@ -191,8 +237,8 @@ class DroidAgent(Workflow):
                 debug=debug,
             )
             self.executor_agent = ExecutorAgent(
-                llm=llm,
-                vision=vision,
+                llm=self.executor_llm,
+                vision=self.executor_vision,
                 tools_instance=tools,
                 shared_state=self.shared_state,
                 persona=None,  # Need to figure this out
@@ -218,12 +264,12 @@ class DroidAgent(Workflow):
             # TODO: do proper telemetry instead of this ductaped crap
             DroidAgentInitEvent(
                 goal=goal,
-                llm=llm.class_name(),
+                llm=self.llm.class_name(),
                 tools=",".join(atomic_tools + ["remember", "complete"]),
                 personas=",".join([p.name for p in personas]),
                 max_steps=max_steps,
                 timeout=timeout,
-                vision=vision,
+                vision=self.vision,
                 reasoning=reasoning,
                 enable_tracing=enable_tracing,
                 debug=debug,
@@ -287,9 +333,9 @@ class DroidAgent(Workflow):
 
         try:
             codeact_agent = CodeActAgent(
-                llm=self.llm,
+                llm=self.codeact_llm,
                 persona=persona,
-                vision=self.vision,
+                vision=self.codeact_vision,
                 max_steps=self.max_codeact_steps,
                 tools_instance=self.tools_instance,
                 debug=self.debug,

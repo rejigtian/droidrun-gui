@@ -36,6 +36,8 @@ class AdbTools(Tools):
         serial: str | None = None,
         use_tcp: bool = False,
         remote_tcp_port: int = PORTAL_DEFAULT_TCP_PORT,
+        app_opener_llm = None,
+        text_manipulator_llm = None,
     ) -> None:
         """Initialize the AdbTools instance.
 
@@ -43,6 +45,8 @@ class AdbTools(Tools):
             serial: Device serial number
             use_tcp: Whether to use TCP communication (default: False)
             tcp_port: TCP port for communication (default: 8080)
+            app_opener_llm: LLM instance for app opening workflow (optional)
+            text_manipulator_llm: LLM instance for text manipulation (optional)
         """
         self.device = adb.device(serial=serial)
         self.use_tcp = use_tcp
@@ -62,6 +66,10 @@ class AdbTools(Tools):
         self.screenshots: List[Dict[str, Any]] = []
         # Trajectory saving level
         self.save_trajectories = "none"
+        
+        # LLM instances for specialized workflows
+        self.app_opener_llm = app_opener_llm
+        self.text_manipulator_llm = text_manipulator_llm
 
         self.setup_keyboard()
 

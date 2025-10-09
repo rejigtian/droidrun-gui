@@ -17,48 +17,59 @@ def _default_config_text() -> str:
 agent:
   # Maximum number of steps per task
   max_steps: 15
-  # Enable vision capabilities (screenshots)
-  vision: false
+  # Enable vision capabilities per agent (screenshots)
+  vision:
+    manager: false
+    executor: false
+    codeact: false
   # Enable planning with reasoning mode
   reasoning: false
 
 # === LLM Profiles ===
-# Define multiple LLM configurations for different use cases
+# Define LLM configurations for each agent type
 llm_profiles:
-  # Fast: Quick responses, lower cost
-  fast:
+  # Manager: Plans and reasons about task progress
+  manager:
     provider: GoogleGenAI
-    model: models/gemini-2.0-flash-exp
+    model: models/gemini-2.5-pro
     temperature: 0.2
-    # Additional provider-specific kwargs
+    kwargs:
+      max_tokens: 8192
+      
+  # Executor: Selects and executes atomic actions
+  executor:
+    provider: GoogleGenAI
+    model: models/gemini-2.5-pro
+    temperature: 0.1
     kwargs:
       max_tokens: 4096
       
-  # Mid: Balanced performance and cost
-  mid:
+  # CodeAct: Generates and executes code actions
+  codeact:
     provider: GoogleGenAI
-    model: models/gemini-1.5-flash
-    temperature: 0.3
+    model: models/gemini-2.5-pro
+    temperature: 0.2
     kwargs:
       max_tokens: 8192
       
-  # Smart: Best quality, higher cost
-  smart:
-    provider: Anthropic
-    model: claude-3-7-sonnet-latest
-    temperature: 0.2
+  # Text Manipulator: Edits text in input fields
+  text_manipulator:
+    provider: GoogleGenAI
+    model: models/gemini-2.5-pro
+    temperature: 0.3
     kwargs:
-      max_tokens: 16384
+      max_tokens: 4096
       
-  # Custom: User-defined configuration
-  custom:
+  # App Opener: Opens apps by name/description
+  app_opener:
     provider: OpenAI
-    model: gpt-4o
-    temperature: 0.2
+    model: gpt-4o-mini
+    temperature: 0.0
     base_url: null
     api_base: null
     kwargs:
-      max_tokens: 8192
+      max_tokens: 512
+      api_key: YOUR_API_KEY
 
 # === Device Settings ===
 device:
@@ -127,11 +138,36 @@ class LLMProfile:
 
 
 @dataclass
+class VisionConfig:
+    """Per-agent vision settings."""
+    manager: bool = False
+    executor: bool = False
+    codeact: bool = False
+    
+    def to_dict(self) -> Dict[str, bool]:
+        return {"manager": self.manager, "executor": self.executor, "codeact": self.codeact}
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "VisionConfig":
+        """Create VisionConfig from dictionary or bool."""
+        if isinstance(data, bool):
+            # Support single bool → apply to all agents
+            return cls(manager=data, executor=data, codeact=data)
+        return cls(
+            manager=data.get("manager", False),
+            executor=data.get("executor", False),
+            codeact=data.get("codeact", False),
+        )
+
+
+@dataclass
 class AgentConfig:
     """Agent-related configuration."""
     max_steps: int = 15
-    vision: bool = False
+    vision: VisionConfig = field(default_factory=VisionConfig)
     reasoning: bool = False
+    after_sleep_action: float = 1.0
+    wait_for_stable_ui: float = 0.3
 
 
 @dataclass
@@ -139,7 +175,6 @@ class DeviceConfig:
     """Device-related configuration."""
     serial: Optional[str] = None
     use_tcp: bool = False
-    after_sleep_action: float = 1.0
 
 
 @dataclass
@@ -185,31 +220,37 @@ class DroidRunConfig:
     
     @staticmethod
     def _default_profiles() -> Dict[str, LLMProfile]:
-        """Get default LLM profiles."""
+        """Get default agent specific LLM profiles."""
         return {
-            "fast": LLMProfile(
+            "manager": LLMProfile(
                 provider="GoogleGenAI",
-                model="models/gemini-2.0-flash-exp",
+                model="models/gemini-2.5-pro",
                 temperature=0.2,
-                kwargs={"max_tokens": 4096}
+                kwargs={}
             ),
-            "mid": LLMProfile(
+            "executor": LLMProfile(
                 provider="GoogleGenAI",
-                model="models/gemini-1.5-flash",
+                model="models/gemini-2.5-pro",
+                temperature=0.1,
+                kwargs={}
+            ),
+            "codeact": LLMProfile(
+                provider="GoogleGenAI",
+                model="models/gemini-2.5-pro",
+                temperature=0.2,
+                kwargs={"max_tokens": 8192 }
+            ),
+            "text_manipulator": LLMProfile(
+                provider="GoogleGenAI",
+                model="models/gemini-2.5-pro",
                 temperature=0.3,
-                kwargs={"max_tokens": 8192}
+                kwargs={}
             ),
-            "smart": LLMProfile(
-                provider="Anthropic",
-                model="claude-3-7-sonnet-latest",
-                temperature=0.2,
-                kwargs={"max_tokens": 16384}
-            ),
-            "custom": LLMProfile(
+            "app_opener": LLMProfile(
                 provider="OpenAI",
-                model="gpt-4o",
-                temperature=0.2,
-                kwargs={"max_tokens": 8192}
+                model="models/gemini-2.5-pro",
+                temperature=0.0,
+                kwargs={}
             ),
         }
 
@@ -220,6 +261,11 @@ class DroidRunConfig:
         result["llm_profiles"] = {
             name: asdict(profile) for name, profile in self.llm_profiles.items()
         }
+        # Convert VisionConfig to dict
+        if isinstance(result["agent"]["vision"], dict):
+            pass  # Already a dict from asdict
+        else:
+            result["agent"]["vision"] = self.agent.vision.to_dict()
         return result
 
     @classmethod
@@ -230,8 +276,19 @@ class DroidRunConfig:
         for name, profile_data in data.get("llm_profiles", {}).items():
             llm_profiles[name] = LLMProfile(**profile_data)
         
+        # Parse agent config with vision
+        agent_data = data.get("agent", {})
+        vision_data = agent_data.get("vision", {})
+        vision_config = VisionConfig.from_dict(vision_data)
+        
+        agent_config = AgentConfig(
+            max_steps=agent_data.get("max_steps", 15),
+            vision=vision_config,
+            reasoning=agent_data.get("reasoning", False),
+        )
+        
         return cls(
-            agent=AgentConfig(**data.get("agent", {})),
+            agent=agent_config,
             llm_profiles=llm_profiles,
             device=DeviceConfig(**data.get("device", {})),
             telemetry=TelemetryConfig(**data.get("telemetry", {})),
@@ -251,7 +308,6 @@ class ConfigManager:
         
         # Access typed config objects
         print(config.agent.max_steps)
-        print(config.device.after_sleep_action)
         
         # Load all 3 LLMs
         llms = config.load_all_llms()
@@ -260,7 +316,6 @@ class ConfigManager:
         smart_llm = llms['smart']
         
         # Modify and save
-        config.device.after_sleep_action = 2.0
         config.save()
     """
     _instance: Optional["ConfigManager"] = None
@@ -344,11 +399,6 @@ class ConfigManager:
         """Access LLM profiles."""
         with self._lock:
             return self._config.llm_profiles
-
-    @property
-    def after_sleep_action(self) -> float:
-        """Legacy access to after_sleep_action."""
-        return self.device.after_sleep_action
     
     # ---------------- LLM Profile Helpers ----------------
     def get_llm_profile(self, profile_name: str) -> LLMProfile:
@@ -409,33 +459,33 @@ class ConfigManager:
         Load multiple LLMs from profiles for different use cases.
         
         Args:
-            profile_names: List of profile names to load. If None, loads ["fast", "mid", "smart"]
+            profile_names: List of profile names to load. If None, loads agent-specific profiles
             **override_kwargs_per_profile: Dict of profile-specific overrides
-                Example: fast={'temperature': 0.1}, smart={'max_tokens': 32000}
+                Example: manager={'temperature': 0.1}, executor={'max_tokens': 8000}
         
         Returns:
             Dict mapping profile names to initialized LLM instances
             
         Example:
-            # Load all default profiles
+            # Load all agent-specific profiles
             llms = config.load_all_llms()
-            fast_llm = llms['fast']
-            mid_llm = llms['mid']
-            smart_llm = llms['smart']
+            manager_llm = llms['manager']
+            executor_llm = llms['executor']
+            codeact_llm = llms['codeact']
             
             # Load specific profiles
-            llms = config.load_all_llms(['fast', 'smart'])
+            llms = config.load_all_llms(['manager', 'executor'])
             
             # Load with overrides
             llms = config.load_all_llms(
-                fast={'temperature': 0.1},
-                smart={'max_tokens': 32000}
+                manager={'temperature': 0.1},
+                executor={'max_tokens': 8000}
             )
         """
         from droidrun.agent.utils.llm_picker import load_llm
         
         if profile_names is None:
-            profile_names = ["fast", "mid", "smart"]
+            profile_names = ["manager", "executor", "codeact", "text_manipulator", "app_opener"]
         
         llms = {}
         for profile_name in profile_names:

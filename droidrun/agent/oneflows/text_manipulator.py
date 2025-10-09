@@ -28,21 +28,23 @@ raw code produced by the model (potentially after corrections).
 import traceback
 
 from llama_index.core.llms import ChatMessage
-from llama_index.llms.google_genai import GoogleGenAI
+from llama_index.core.llms.llm import LLM
 
 from droidrun.agent.utils.inference import call_with_retries
 from droidrun.telemetry.phoenix import clean_span
 
-llm = GoogleGenAI(model_name="gemini-2.5-pro", temperature=0.3)
-
 
 @clean_span("text_manipulator")
-def run_text_manipulation_agent(instruction: str, current_subgoal: str, current_text: str, overall_plan, hitorical_plan, max_retries: int = 4) -> tuple[str, str]:
+def run_text_manipulation_agent(instruction: str, current_subgoal: str, current_text: str, overall_plan, hitorical_plan, llm: LLM, max_retries: int = 4) -> tuple[str, str]:
     """Convenience function to run CodeAct text manipulation with error correction.
 
     Args:
-        task_instruction: Natural language description of how to modify the text
+        instruction: User's overall instruction
+        current_subgoal: Current subgoal to accomplish
         current_text: The current content of the focused text field
+        overall_plan: Overall plan context
+        hitorical_plan: Historical progress
+        llm: LLM instance to use for text manipulation
         max_retries: Maximum number of retry attempts if code execution fails
 
     Returns:

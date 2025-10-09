@@ -261,7 +261,7 @@ class ManagerAgent(Workflow):
         device_state_text, focused_text = get_device_state_exact_format(self.tools_instance.get_state())
 
         # ====================================================================
-        # Step 2: Capture screenshot (if vision enabled)
+        # Step 2: Capture screenshot if vision enabled
         # ====================================================================
         screenshot = None
         if self.vision:
@@ -273,6 +273,7 @@ class ManagerAgent(Workflow):
                         screenshot = None
                 else:
                     screenshot = result
+                logger.debug("📸 Screenshot captured for Manager")
             except Exception as e:
                 logger.warning(f"Failed to capture screenshot: {e}")
                 screenshot = None

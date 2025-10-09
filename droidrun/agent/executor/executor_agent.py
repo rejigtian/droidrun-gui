@@ -92,8 +92,11 @@ class ExecutorAgent(Workflow):
         blocks = [TextBlock(text=system_prompt)]
         if self.vision:
             screenshot = self.shared_state.screenshot
-            assert screenshot is not None, "Screenshot is required for vision but got None"
-            blocks.append(ImageBlock(image=screenshot))
+            if screenshot is not None:
+                blocks.append(ImageBlock(image=screenshot))
+                logger.debug("📸 Using screenshot for Executor")
+            else:
+                logger.warning("⚠️ Vision enabled but no screenshot available")
         messages = [ChatMessage(role="user", blocks=blocks)]
 
         try:
@@ -154,7 +157,7 @@ class ExecutorAgent(Workflow):
         outcome, error, summary = await self._execute_action(action_dict, ev.description)
 
         if outcome:
-            await asyncio.sleep(config.device.after_sleep_action)
+            await asyncio.sleep(config.agent.after_sleep_action)
 
         logger.info(f"{'✅' if outcome else '❌'} Execution complete: {summary}")
 
