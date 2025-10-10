@@ -14,7 +14,6 @@ class ManagerPlanEvent(Event):
     """Manager has created a plan"""
     plan: str
     current_subgoal: str
-    completed_plan: str
     thought: str
     manager_answer: str = ""
     memory_update: str = ""

@@ -163,7 +163,6 @@ def parse_manager_response(response: str) -> dict:
     - <add_memory>...</add_memory>
     - <plan>...</plan>
     - <request_accomplished>...</request_accomplished> (answer)
-    - <historical_operations>...</historical_operations> (optional, for completed plan)
 
     Also derives:
     - current_subgoal: first line of plan (with list markers removed)
@@ -177,8 +176,7 @@ def parse_manager_response(response: str) -> dict:
             - memory: str
             - plan: str
             - current_subgoal: str (first line of plan, cleaned)
-            - completed_subgoal: str
-            - answer: str (from request_accomplished tag)
+            - request_accomplished: str (from request_accomplished tag)
     """
     def extract(tag: str) -> str:
         """Extract content between XML-style tags."""
@@ -190,12 +188,6 @@ def parse_manager_response(response: str) -> dict:
     memory_section = extract("add_memory")
     plan = extract("plan")
     answer = extract("request_accomplished")
-
-    # Extract completed subgoal (optional historical_operations tag)
-    if "<historical_operations>" in response:
-        completed_subgoal = extract("historical_operations")
-    else:
-        completed_subgoal = "No completed subgoal."
 
     # Parse current subgoal from first line of plan
     current_goal_text = plan
@@ -215,7 +207,6 @@ def parse_manager_response(response: str) -> dict:
 
     return {
         "thought": thought,
-        "completed_subgoal": completed_subgoal,
         "plan": plan,
         "memory": memory_section,
         "current_subgoal": current_subgoal,

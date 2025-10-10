@@ -227,7 +227,6 @@ class DroidAgent(Workflow):
                 config=self.config,
                 timeout=timeout,
             )
-            self.max_codeact_steps = 5
             self.planner_agent = None
         else:
             logger.debug("🚫 Reasoning disabled - executing directly with CodeActAgent")
@@ -448,7 +447,6 @@ class DroidAgent(Workflow):
         return ManagerPlanEvent(
             plan=result["plan"],
             current_subgoal=result["current_subgoal"],
-            completed_plan=result["completed_plan"],
             thought=result["thought"],
             manager_answer=result.get("manager_answer", "")
         )

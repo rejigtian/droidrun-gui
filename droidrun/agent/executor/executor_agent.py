@@ -162,8 +162,7 @@ class ExecutorAgent(Workflow): # TODO: Fix a bug in bad prompt
 
         outcome, error, summary = await self._execute_action(action_dict, ev.description)
 
-        if outcome:
-            await asyncio.sleep(self.config.agent.after_sleep_action)
+        await asyncio.sleep(self.config.agent.after_sleep_action)
 
         logger.info(f"{'✅' if outcome else '❌'} Execution complete: {summary}")
 

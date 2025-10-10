@@ -424,7 +424,6 @@ class ManagerAgent(Workflow):
         # Update planning fields
         self.shared_state.plan = parsed["plan"]
         self.shared_state.current_subgoal = parsed["current_subgoal"]
-        self.shared_state.completed_plan = parsed.get("completed_subgoal", "No completed subgoal.")
         self.shared_state.finish_thought = parsed["thought"]
         self.shared_state.manager_answer = parsed["answer"]
 
@@ -435,7 +434,6 @@ class ManagerAgent(Workflow):
         event = ManagerPlanEvent(
             plan=parsed["plan"],
             current_subgoal=parsed["current_subgoal"],
-            completed_plan=parsed.get("completed_subgoal", "No completed subgoal."),
             thought=parsed["thought"],
             manager_answer=parsed["answer"],
             memory_update=memory_update
