@@ -9,12 +9,23 @@ import warnings
 from contextlib import nullcontext
 from functools import wraps
 from pathlib import Path
+
 import click
 from adbutils import adb
 from rich.console import Console
+
 from droidrun.agent.droid import DroidAgent
 from droidrun.agent.utils.llm_picker import load_llm
 from droidrun.cli.logs import LogHandler
+from droidrun.config_manager import config
+from droidrun.config_manager.config_manager import (
+    AgentConfig,
+    DeviceConfig,
+    LoggingConfig,
+    ToolsConfig,
+    TracingConfig,
+    VisionConfig,
+)
 from droidrun.macro.cli import macro_cli
 from droidrun.portal import (
     PORTAL_PACKAGE_NAME,
@@ -26,15 +37,6 @@ from droidrun.portal import (
 )
 from droidrun.telemetry import print_telemetry_message
 from droidrun.tools import AdbTools, IOSTools
-from droidrun.config_manager import config
-from droidrun.config_manager.config_manager import (
-    VisionConfig,
-    AgentConfig,
-    DeviceConfig,
-    ToolsConfig,
-    LoggingConfig,
-    TracingConfig,
-)
 
 # Suppress all warnings
 warnings.filterwarnings("ignore")
@@ -157,43 +159,43 @@ async def run_command(
             tracing_cfg = TracingConfig(
                 enabled=tracing if tracing is not None else config.tracing.enabled,
             )
-            
+
             # ================================================================
             # STEP 3: Load LLMs
             # ================================================================
-            
+
             log_handler.update_step("Loading LLMs...")
-            
+
             # Check if user wants custom LLM for all agents
             if provider is not None or model is not None:
                 # User specified custom provider/model - use for all agents
                 logger.info("🔧 Using custom LLM for all agents")
-                
+
                 # Use provided values or fall back to first profile's defaults
                 if provider is None:
                     provider = list(config.llm_profiles.values())[0].provider
                 if model is None:
                     model = list(config.llm_profiles.values())[0].model
-                
+
                 # Build kwargs
                 llm_kwargs = {}
                 if temperature is not None:
                     llm_kwargs['temperature'] = temperature
                 else:
-                    llm_kwargs['temperature'] = kwargs.get('temperature', 1)
+                    llm_kwargs['temperature'] = kwargs.get('temperature', 0.3)
                 if base_url is not None:
                     llm_kwargs['base_url'] = base_url
                 if api_base is not None:
                     llm_kwargs['api_base'] = api_base
                 llm_kwargs.update(kwargs)
-                
+
                 # Load single LLM for all agents
                 custom_llm = load_llm(
                     provider_name=provider,
                     model=model,
                     **llm_kwargs
                 )
-                
+
                 # Use same LLM for all agents
                 llms = {
                     'manager': custom_llm,
@@ -206,17 +208,17 @@ async def run_command(
             else:
                 # No custom provider/model - use profiles from config
                 logger.info("📋 Loading LLMs from config profiles...")
-                
+
                 profile_names = ['manager', 'executor', 'codeact', 'text_manipulator', 'app_opener']
-                
+
                 # Apply temperature override to all profiles if specified
                 overrides = {}
                 if temperature is not None:
                     overrides = {name: {'temperature': temperature} for name in profile_names}
-                
+
                 llms = config.load_all_llms(profile_names=profile_names, **overrides)
                 logger.info(f"🧠 Loaded {len(llms)} agent-specific LLMs from profiles")
-            
+
             # ================================================================
             # STEP 4: Setup device and tools
             # ================================================================
@@ -276,11 +278,11 @@ async def run_command(
                 excluded_tools=excluded_tools,
                 timeout=1000,
             )
-            
+
             # ================================================================
             # STEP 6: Run agent
             # ================================================================
-            
+
             logger.info("▶️  Starting agent execution...")
             logger.info("Press Ctrl+C to stop")
             log_handler.update_step("Running agent...")
@@ -582,11 +584,11 @@ def disconnect(serial: str):
 )
 def setup(path: str | None, device: str | None, debug: bool):
     """Install and enable the DroidRun Portal on a device."""
-    
+
     # Ensure config.yaml exists in parent directory
     config_path = Path(__file__).resolve().parents[2] / "config.yaml"
     config_example_path = Path(__file__).resolve().parents[2] / "config_example.yaml"
-    
+
     if not config_path.exists():
         if config_example_path.exists():
             import shutil

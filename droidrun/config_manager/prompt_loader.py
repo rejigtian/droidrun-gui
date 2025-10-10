@@ -7,9 +7,9 @@ Supports variable substitution with escape sequences:
 - Missing variables → left as {variable}
 """
 
-from pathlib import Path
-from typing import Dict, Any
 import re
+from pathlib import Path
+from typing import Any, Dict
 
 
 class PromptLoader:

@@ -28,9 +28,8 @@ from droidrun.agent.droid.events import (
     FinalizeEvent,
     ManagerInputEvent,
 )
-from droidrun.agent.manager.events import ManagerInternalPlanEvent
 from droidrun.agent.executor.events import ExecutorInternalActionEvent, ExecutorInternalResultEvent
-
+from droidrun.agent.manager.events import ManagerInternalPlanEvent
 from droidrun.backend.models import EventType, FormattedEvent
 
 logger = logging.getLogger("droidrun.backend")

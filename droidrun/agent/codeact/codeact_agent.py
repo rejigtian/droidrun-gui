@@ -8,7 +8,6 @@ from typing import List, Union
 from llama_index.core.base.llms.types import ChatMessage, ChatResponse
 from llama_index.core.llms.llm import LLM
 from llama_index.core.memory import Memory
-from llama_index.core.prompts import PromptTemplate
 from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
 
 from droidrun.agent.codeact.events import (
@@ -22,12 +21,16 @@ from droidrun.agent.codeact.events import (
 from droidrun.agent.common.constants import LLM_HISTORY_LIMIT
 from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
 from droidrun.agent.context.episodic_memory import EpisodicMemory, EpisodicMemoryStep
-from droidrun.config_manager.config_manager import CodeActConfig
-from droidrun.config_manager.prompt_loader import PromptLoader
 from droidrun.agent.usage import get_usage_from_response
 from droidrun.agent.utils import chat_utils
 from droidrun.agent.utils.executer import SimpleCodeExecutor
-from droidrun.agent.utils.tools import ATOMIC_ACTION_SIGNATURES, get_atomic_tool_descriptions, build_custom_tool_descriptions
+from droidrun.agent.utils.tools import (
+    ATOMIC_ACTION_SIGNATURES,
+    build_custom_tool_descriptions,
+    get_atomic_tool_descriptions,
+)
+from droidrun.config_manager.config_manager import AgentConfig
+from droidrun.config_manager.prompt_loader import PromptLoader
 from droidrun.tools import Tools
 
 logger = logging.getLogger("droidrun")
@@ -43,7 +46,7 @@ class CodeActAgent(Workflow):
     def __init__(
         self,
         llm: LLM,
-        config: CodeActConfig,
+        agent_config: AgentConfig,
         tools_instance: "Tools",
         custom_tools: dict = None,
         debug: bool = False,
@@ -54,9 +57,10 @@ class CodeActAgent(Workflow):
         super().__init__(*args, **kwargs)
 
         self.llm = llm
-        self.config = config
-        self.max_steps = config.max_steps
-        self.vision = config.vision
+        self.agent_config = agent_config
+        self.config = agent_config.codeact  # Shortcut to codeact config
+        self.max_steps = agent_config.codeact.max_steps
+        self.vision = agent_config.codeact.vision
         self.debug = debug
         self.tools = tools_instance
 
@@ -75,13 +79,14 @@ class CodeActAgent(Workflow):
         for action_name, signature in merged_signatures.items():
             func = signature["function"]
             if asyncio.iscoroutinefunction(func):
-                async def make_async_bound(f, ti):
+                # Create async bound function with proper closure
+                def make_bound(f, ti):
                     async def bound_func(*args, **kwargs):
                         return await f(ti, *args, **kwargs)
                     return bound_func
-                self.tool_list[action_name] = asyncio.run(make_async_bound(func, tools_instance))
+                self.tool_list[action_name] = make_bound(func, tools_instance)
             else:
-                self.tool_list[action_name] = lambda *args, f=func, ti=tools_instance: f(ti, *args)
+                self.tool_list[action_name] = lambda *args, f=func, ti=tools_instance, **kwargs: f(ti, *args, **kwargs)
 
         self.tool_list["remember"] = tools_instance.remember
         self.tool_list["complete"] = tools_instance.complete
@@ -96,15 +101,14 @@ class CodeActAgent(Workflow):
 
         # Load prompts from config
         system_prompt_text = PromptLoader.load_prompt(
-            config.system_prompt_path,
+            self.config.system_prompt_path,
             {"tool_descriptions": self.tool_descriptions}
         )
         self.system_prompt = ChatMessage(role="system", content=system_prompt_text)
 
-        self.user_prompt_template = PromptLoader.load_prompt(config.user_prompt_path)
+        self.user_prompt_template = PromptLoader.load_prompt(self.config.user_prompt_path)
 
         self.executor = SimpleCodeExecutor(
-            loop=asyncio.get_event_loop(),
             locals={},
             tools=self.tool_list,
             tools_instance=tools_instance,
@@ -262,6 +266,7 @@ Now, describe the next step you will take to address the original goal: {goal}""
             self.code_exec_counter += 1
             result = await self.executor.execute(ctx, code)
             logger.info(f"💡 Code execution successful. Result: {result['output']}")
+            await asyncio.sleep(self.agent_config.after_sleep_action)
             screenshots = result['screenshots']
             for screenshot in screenshots[:-1]: # the last screenshot will be captured by next step
                 ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
@@ -461,9 +466,11 @@ Now, describe the next step you will take to address the original goal: {goal}""
                 logger.warning(f"Failed to capture final screenshot: {e}")
 
             try:
-                (a11y_tree, phone_state) = self.tools.get_state()
+                state = self.tools.get_state()
+                a11y_tree = state.get("a11y_tree", "")
+                phone_state = state.get("phone_state", "")
             except Exception as e:
-                logger.warning(f"Failed to capture final UI state: {e}")
+                raise Exception(f"Failed to capture final UI state: {e}") from e
 
             # Create final observation chat history and response
             final_chat_history = [{"role": "system", "content": "Final state observation after task completion"}]

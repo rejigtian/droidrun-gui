@@ -28,9 +28,9 @@ class SimpleCodeExecutor:
     def __init__(
         self,
         loop: AbstractEventLoop,
-        locals: Dict[str, Any] = {},  # noqa: B006
-        globals: Dict[str, Any] = {},  # noqa: B006
-        tools={},  # noqa: B006
+        locals: Dict[str, Any] = None,
+        globals: Dict[str, Any] = None,
+        tools=None,
         tools_instance=None,
         use_same_scope: bool = True,
     ):
@@ -43,7 +43,9 @@ class SimpleCodeExecutor:
             tools: List of tools available for execution
             tools_instance: Original tools instance (e.g., AdbTools instance)
         """
-
+        self.locals = locals or {}
+        self.globals = globals or {}
+        self.tools = tools or {}
         self.tools_instance = tools_instance
 
         # loop throught tools and add them to globals, but before that check if tool value is async, if so convert it to sync. tools is a dictionary of tool name: function

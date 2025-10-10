@@ -16,16 +16,6 @@ from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, 
 from llama_index.core.workflow.handler import WorkflowHandler
 from workflows.events import Event
 
-from droidrun.config_manager.config_manager import (
-    DroidRunConfig,
-    AgentConfig,
-    DeviceConfig,
-    ToolsConfig,
-    LoggingConfig,
-    TracingConfig,
-    TelemetryConfig,
-)
-
 from droidrun.agent.codeact import CodeActAgent
 from droidrun.agent.codeact.events import EpisodicMemoryEvent
 from droidrun.agent.common.events import MacroEvent, RecordUIStateEvent, ScreenshotEvent
@@ -44,6 +34,15 @@ from droidrun.agent.executor import ExecutorAgent
 from droidrun.agent.manager import ManagerAgent
 from droidrun.agent.utils.tools import ATOMIC_ACTION_SIGNATURES
 from droidrun.agent.utils.trajectory import Trajectory
+from droidrun.config_manager.config_manager import (
+    AgentConfig,
+    DeviceConfig,
+    DroidRunConfig,
+    LoggingConfig,
+    TelemetryConfig,
+    ToolsConfig,
+    TracingConfig,
+)
 from droidrun.telemetry import (
     DroidAgentFinalizeEvent,
     DroidAgentInitEvent,
@@ -139,7 +138,7 @@ class DroidAgent(Workflow):
             llm_profiles=base_config.llm_profiles,
         )
 
-        super().__init__(timeout=timeout, *args, **kwargs)  # noqa: B026
+        super().__init__(timeout=timeout, *args, **kwargs)
 
         self._configure_default_logging(debug=self.config.logging.debug)
 
@@ -213,7 +212,7 @@ class DroidAgent(Workflow):
                 llm=self.executor_llm,
                 tools_instance=tools,
                 shared_state=self.shared_state,
-                config=self.config.agent.executor,
+                agent_config=self.config.agent,
                 custom_tools=self.custom_tools,
                 timeout=timeout,
             )
@@ -229,7 +228,14 @@ class DroidAgent(Workflow):
         capture(
             DroidAgentInitEvent(
                 goal=goal,
-                llms={"manager": self.manager_llm.class_name(), "executor": self.executor_llm.class_name(), "codeact": self.codeact_llm.class_name(), "text_manipulator": self.text_manipulator_llm.class_name(), "app_opener": self.app_opener_llm.class_name()},
+                llms={
+                    "manager": self.manager_llm.class_name() if self.manager_llm else "None",
+                    "executor": self.executor_llm.class_name() if self.executor_llm else "None",
+                    "codeact": self.codeact_llm.class_name() if self.codeact_llm else "None",
+                    "text_manipulator": self.text_manipulator_llm.class_name() if
+                self.text_manipulator_llm else "None",
+                    "app_opener": self.app_opener_llm.class_name() if self.app_opener_llm else "None",
+                },
                 tools=",".join(atomic_tools + ["remember", "complete"]),
                 max_steps=self.config.agent.max_steps,
                 timeout=timeout,
@@ -299,10 +305,9 @@ class DroidAgent(Workflow):
         logger.info(f"🔧 Executing task: {task.description}")
 
         try:
-            max_codeact_steps = 5 if self.config.agent.reasoning else self.config.agent.max_steps
             codeact_agent = CodeActAgent(
                 llm=self.codeact_llm,
-                config=self.config.agent.codeact,
+                agent_config=self.config.agent,
                 tools_instance=self.tools_instance,
                 custom_tools=self.custom_tools,
                 debug=self.config.logging.debug,
@@ -339,7 +344,7 @@ class DroidAgent(Workflow):
             if self.config.logging.debug:
                 import traceback
                 logger.error(traceback.format_exc())
-            return CodeActResultEvent(success=False, reason=f"Error: {str(e)}", task=task, steps=[])
+            return CodeActResultEvent(success=False, reason=f"Error: {str(e)}", task=task, steps=0)
 
     @step
     async def handle_codeact_execute(

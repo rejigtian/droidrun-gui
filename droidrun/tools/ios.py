@@ -39,13 +39,14 @@ SYSTEM_BUNDLE_IDENTIFIERS = [
 class IOSTools(Tools):
     """Core UI interaction tools for iOS device control."""
 
-    def __init__(self, url: str, bundle_identifiers: List[str] = []) -> None:  # noqa: B006
+    def __init__(self, url: str, bundle_identifiers: List[str] | None = None) -> None:
         """Initialize the IOSTools instance.
 
         Args:
             url: iOS device URL. This is the URL of the iOS device. It is used to send requests to the iOS device.
             bundle_identifiers: List of bundle identifiers to include in the list of packages
         """
+
         self.clickable_elements_cache: List[Dict[str, Any]] = []
         self.url = url
         self.last_screenshot = None
@@ -57,7 +58,7 @@ class IOSTools(Tools):
         self.last_tapped_rect: Optional[str] = (
             None  # Store last tapped element's rect for text input
         )
-        self.bundle_identifiers = bundle_identifiers
+        self.bundle_identifiers = bundle_identifiers or []
         logger.info(f"iOS device URL: {url}")
 
     def get_state(self) -> List[Dict[str, Any]]:

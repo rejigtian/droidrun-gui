@@ -66,7 +66,7 @@ class AdbTools(Tools):
         self.screenshots: List[Dict[str, Any]] = []
         # Trajectory saving level
         self.save_trajectories = "none"
-        
+
         # LLM instances for specialized workflows
         self.app_opener_llm = app_opener_llm
         self.text_manipulator_llm = text_manipulator_llm

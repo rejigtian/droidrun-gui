@@ -383,7 +383,7 @@ You can reference these custom actions or tell the Executer agent to use them in
         if self.shared_state.last_summary:
             parts.append(f"<last_action_description>\n{self.shared_state.last_summary}\n</last_action_description>\n")
 
-        
+
         self.shared_state.message_history.append({
             "role": "user",
             "content": [{"text": "".join(parts)}]

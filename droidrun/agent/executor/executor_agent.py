@@ -9,6 +9,7 @@ This agent is responsible for:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import TYPE_CHECKING
@@ -19,11 +20,18 @@ from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, 
 
 from droidrun.agent.executor.events import ExecutorInternalActionEvent, ExecutorInternalResultEvent
 from droidrun.agent.executor.prompts import parse_executor_response
-from droidrun.agent.utils.tools import click, long_press, open_app, swipe, system_button, type, ATOMIC_ACTION_SIGNATURES
 from droidrun.agent.utils.inference import acall_with_retries
-from droidrun.config_manager.config_manager import ExecutorConfig
+from droidrun.agent.utils.tools import (
+    ATOMIC_ACTION_SIGNATURES,
+    click,
+    long_press,
+    open_app,
+    swipe,
+    system_button,
+    type,
+)
+from droidrun.config_manager.config_manager import AgentConfig
 from droidrun.config_manager.prompt_loader import PromptLoader
-import asyncio
 
 if TYPE_CHECKING:
     from droidrun.agent.droid.events import DroidAgentState
@@ -48,16 +56,17 @@ class ExecutorAgent(Workflow): # TODO: Fix a bug in bad prompt
         llm: LLM,
         tools_instance,
         shared_state: "DroidAgentState",
-        config: ExecutorConfig,
+        agent_config: AgentConfig,
         custom_tools: dict = None,
         **kwargs
     ):
         super().__init__(**kwargs)
         self.llm = llm
-        self.vision = config.vision
+        self.agent_config = agent_config
+        self.config = agent_config.executor
+        self.vision = agent_config.executor.vision
         self.tools_instance = tools_instance
         self.shared_state = shared_state
-        self.config = config
         self.custom_tools = custom_tools or {}
 
         logger.info("✅ ExecutorAgent initialized successfully.")
@@ -104,7 +113,7 @@ class ExecutorAgent(Workflow): # TODO: Fix a bug in bad prompt
         # Format action history
         if self.shared_state.action_history:
             action_history_text = "Recent actions you took previously and whether they were successful:\n" + "\n".join(
-                (f"Action: {act} | Description: {summ} | Outcome: Successful" if outcome == "A"
+                (f"Action: {act} | Description: {summ} | Outcome: Successful" if outcome
                  else f"Action: {act} | Description: {summ} | Outcome: Failed | Feedback: {err_des}")
                 for act, summ, outcome, err_des in zip(
                     self.shared_state.action_history[-min(5, len(self.shared_state.action_history)):],
@@ -201,9 +210,9 @@ class ExecutorAgent(Workflow): # TODO: Fix a bug in bad prompt
 
         outcome, error, summary = await self._execute_action(action_dict, ev.description)
 
-        # Sleep duration is now in agent-level config, accessed via DroidAgent
-        # For now, skip sleep here as it's handled by DroidAgent
-        # await asyncio.sleep(1.0)  # TODO: pass after_sleep_action from DroidAgent
+        # TODO: Add sleep after action (should be in DroidAgent.handle_executor_result)
+        # Available via: self.agent_config.after_sleep_action
+        # await asyncio.sleep(self.agent_config.after_sleep_action)
 
         logger.info(f"{'✅' if outcome else '❌'} Execution complete: {summary}")
 

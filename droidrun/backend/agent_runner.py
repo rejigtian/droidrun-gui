@@ -7,33 +7,31 @@ events to the web interface.
 
 import asyncio
 import logging
+from datetime import datetime
 from typing import AsyncIterator, Optional
 
 from adbutils import adb
-from droidrun.backend.models import EventType
 
 from droidrun.agent.droid import DroidAgent
 from droidrun.agent.utils.llm_picker import load_llm
-from droidrun.config_manager.config_manager import (
-    AgentConfig,
-    DeviceConfig,
-    ToolsConfig,
-    LoggingConfig,
-    TracingConfig,
-)
-from droidrun.tools import AdbTools, IOSTools
-
-from datetime import datetime
 from droidrun.backend.event_formatter import EventFormatter
 from droidrun.backend.models import (
     AgentRunRequest,
+    EventType,
     FormattedEvent,
     LLMConfig,
     SessionStatus,
 )
 from droidrun.backend.session_manager import get_session_manager
-
 from droidrun.config_manager import config as droidrun_config
+from droidrun.config_manager.config_manager import (
+    AgentConfig,
+    DeviceConfig,
+    LoggingConfig,
+    ToolsConfig,
+    TracingConfig,
+)
+from droidrun.tools import AdbTools, IOSTools
 
 logger = logging.getLogger("droidrun.backend")
 

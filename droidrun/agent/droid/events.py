@@ -24,6 +24,7 @@ class CodeActExecuteEvent(Event):
 class CodeActResultEvent(Event):
     success: bool
     reason: str
+    task: Task
     steps: int
 
 
@@ -68,7 +69,7 @@ class DroidAgentState(BaseModel):
     action_pool: List[Dict] = Field(default_factory=list)
     action_history: List[Dict] = Field(default_factory=list)
     summary_history: List[str] = Field(default_factory=list)
-    action_outcomes: List[str] = Field(default_factory=list)  # "A", "B", "C"
+    action_outcomes: List[bool] = Field(default_factory=list)  # "A", "B", "C"
     error_descriptions: List[str] = Field(default_factory=list)
 
     # Last action info

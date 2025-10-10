@@ -4,7 +4,6 @@ Backend configuration for DroidRun web interface.
 This module provides configuration settings for the backend server.
 """
 
-import os
 from typing import Optional
 
 from pydantic import Field

@@ -298,12 +298,12 @@ def remove_empty_messages(messages):
     """Remove empty messages and duplicates, with span decoration."""
     if not messages or all(has_non_empty_content(msg) for msg in messages):
         return messages
-    
+
     @clean_span("remove_empty_messages")
     def process_messages():
         # Remove empty messages first
         cleaned = [msg for msg in messages if has_non_empty_content(msg)]
-        
+
         # Remove duplicates based on content
         seen_contents = set()
         unique_messages = []
@@ -313,8 +313,8 @@ def remove_empty_messages(messages):
             if content_str not in seen_contents:
                 seen_contents.add(content_str)
                 unique_messages.append(msg)
-        
+
         logger.debug(f"Removed empty messages and duplicates: {len(messages)} -> {len(unique_messages)}")
         return unique_messages
-    
+
     return process_messages()

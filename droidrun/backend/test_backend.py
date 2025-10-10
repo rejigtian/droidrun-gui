@@ -54,7 +54,7 @@ async def test_backend():
                 if response.status == 200:
                     data = await response.json()
                     session_id = data["session_id"]
-                    print(f"   ✅ Agent started successfully")
+                    print("   ✅ Agent started successfully")
                     print(f"   Session ID: {session_id}")
                 else:
                     error = await response.text()
@@ -132,7 +132,7 @@ async def test_backend():
         try:
             async with session.get(f"{base_url}/api/admin/stats") as response:
                 data = await response.json()
-                print(f"   ✅ Stats retrieved:")
+                print("   ✅ Stats retrieved:")
                 print(f"      Total sessions: {data['total_sessions']}")
                 print(f"      Running sessions: {data['running_sessions']}")
         except Exception as e:

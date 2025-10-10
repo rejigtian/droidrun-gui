@@ -100,11 +100,11 @@ async def run_agent(request: AgentRunRequest):
 
     except ValueError as e:
         logger.error(f"Validation error: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
     except Exception as e:
         logger.error(f"Error starting agent: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error starting agent: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error starting agent: {str(e)}") from e
 
 
 @app.get("/api/agent/status/{session_id}", response_model=AgentStatusResponse)
@@ -122,7 +122,7 @@ async def get_agent_status(session_id: str):
     if not session:
         raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
 
-    is_running = await agent_runner.is_running(session_id)
+    await agent_runner.is_running(session_id)
 
     return AgentStatusResponse(
         session=session,
@@ -245,13 +245,13 @@ async def stream_events(session_id: str):
         except ValueError as e:
             # Session not found or no event queue
             error_data = json.dumps({"error": str(e)})
-            yield f"event: error\n"
+            yield "event: error\n"
             yield f"data: {error_data}\n\n"
 
         except Exception as e:
             logger.error(f"Error streaming events for session {session_id}: {e}", exc_info=True)
             error_data = json.dumps({"error": f"Streaming error: {str(e)}"})
-            yield f"event: error\n"
+            yield "event: error\n"
             yield f"data: {error_data}\n\n"
 
     return StreamingResponse(

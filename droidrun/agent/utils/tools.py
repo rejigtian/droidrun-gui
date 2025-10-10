@@ -116,7 +116,7 @@ def open_app(tool_instance: "Tools", text: str) -> str:
             "app_opener_llm not configured. "
             "provide app_opener_llm when initializing Tools."
         )
-    
+
     # Create workflow instance
     workflow = AppStarter(tools=tool_instance, llm=tool_instance.app_opener_llm, timeout=60, verbose=True)
 
@@ -229,10 +229,12 @@ if __name__ == "__main__":
     Simple test for the tool functions.
     Tests the atomic action wrapper functions.
     """
-    from typing import List
-    from droidrun.tools.adb import AdbTools
-    from llama_index.llms.google_genai import GoogleGenAI
     import asyncio
+    from typing import List
+
+    from llama_index.llms.google_genai import GoogleGenAI
+
+    from droidrun.tools.adb import AdbTools
     llm = GoogleGenAI(model="gemini-2.5-pro", temperature=0.0)
     # Create mock tools instance
     mock_tools = AdbTools(app_opener_llm=llm, text_manipulator_llm=llm)
@@ -247,18 +249,18 @@ if __name__ == "__main__":
     result = type(mock_tools, "Hello World", -1)
     print(f"Result: {result}")
     input("Press Enter to continue...")
-    
+
     print("\n=== Testing system_button ===")
     result = system_button(mock_tools, "back")
     print(f"Result: {result}")
     input("Press Enter to continue...")
-    
-    
+
+
     print("\n=== Testing swipe ===")
     result = swipe(mock_tools, [500, 0], [500, 1000])
     print(f"Result: {result}")
     input("Press Enter to continue...")
-    
+
     print("\n=== Testing open_app ===")
     # This one is more complex and requires real LLM setup, so just show the structure
     try:
@@ -268,6 +270,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Expected error (no LLM): {e}")
         input("Press Enter to continue...")
-    
-    print("\n=== All tests completed ===")  
+
+    print("\n=== All tests completed ===")
 

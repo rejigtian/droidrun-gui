@@ -76,7 +76,7 @@ The atomic action functions are listed in the format of `action(arguments): desc
 \n
 ### Latest Action History ###
 {(("Recent actions you took previously and whether they were successful:\n" + "\n".join(
-    (f"Action: {act} | Description: {summ} | Outcome: Successful" if outcome == "A"
+    (f"Action: {act} | Description: {summ} | Outcome: Successful" if outcome
      else f"Action: {act} | Description: {summ} | Outcome: Failed | Feedback: {err_des}")
     for act, summ, outcome, err_des in zip(
         state.action_history[-min(5, len(state.action_history)):],
