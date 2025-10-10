@@ -36,6 +36,10 @@ agent:
     vision: false
     system_prompt_path: config/prompts/executor/system.md
 
+  app_cards:
+    enabled: true
+    app_cards_dir: config/app_cards
+
 # === LLM Profiles ===
 # Define LLM configurations for each agent type
 llm_profiles:
@@ -170,6 +174,13 @@ class ExecutorConfig:
 
 
 @dataclass
+class AppCardConfig:
+    """App card configuration."""
+    enabled: bool = True
+    app_cards_dir: str = "config/app_cards"
+
+
+@dataclass
 class AgentConfig:
     """Agent-related configuration."""
     max_steps: int = 15
@@ -180,6 +191,7 @@ class AgentConfig:
     codeact: CodeActConfig = field(default_factory=CodeActConfig)
     manager: ManagerConfig = field(default_factory=ManagerConfig)
     executor: ExecutorConfig = field(default_factory=ExecutorConfig)
+    app_cards: AppCardConfig = field(default_factory=AppCardConfig)
 
 
 @dataclass
@@ -295,6 +307,9 @@ class DroidRunConfig:
         executor_data = agent_data.get("executor", {})
         executor_config = ExecutorConfig(**executor_data) if executor_data else ExecutorConfig()
 
+        app_cards_data = agent_data.get("app_cards", {})
+        app_cards_config = AppCardConfig(**app_cards_data) if app_cards_data else AppCardConfig()
+
         agent_config = AgentConfig(
             max_steps=agent_data.get("max_steps", 15),
             reasoning=agent_data.get("reasoning", False),
@@ -303,6 +318,7 @@ class DroidRunConfig:
             codeact=codeact_config,
             manager=manager_config,
             executor=executor_config,
+            app_cards=app_cards_config,
         )
 
         return cls(

@@ -23,12 +23,14 @@ from droidrun.agent.utils.chat_utils import remove_empty_messages
 from droidrun.agent.utils.device_state_formatter import format_device_state
 from droidrun.agent.utils.inference import acall_with_retries
 from droidrun.agent.utils.tools import build_custom_tool_descriptions
-from droidrun.config_manager.config_manager import ManagerConfig
 from droidrun.config_manager.prompt_loader import PromptLoader
+from droidrun.config_manager.app_card_loader import AppCardLoader
 
 if TYPE_CHECKING:
     from droidrun.agent.droid.events import DroidAgentState
     from droidrun.tools import Tools
+    from droidrun.config_manager.config_manager import AgentConfig
+
 
 logger = logging.getLogger("droidrun")
 
@@ -49,17 +51,19 @@ class ManagerAgent(Workflow):
         llm: LLM,
         tools_instance: "Tools",
         shared_state: "DroidAgentState",
-        config: ManagerConfig,
+        agent_config: "AgentConfig",
         custom_tools: dict = None,
         **kwargs
     ):
         super().__init__(**kwargs)
         self.llm = llm
-        self.vision = config.vision
+        self.config = agent_config.manager
+        self.vision = self.config.vision
         self.tools_instance = tools_instance
         self.shared_state = shared_state
-        self.config = config
         self.custom_tools = custom_tools or {}
+        self.agent_config = agent_config
+        self.app_card_loader = self.agent_config.app_cards
 
         logger.info("✅ ManagerAgent initialized successfully.")
 
@@ -69,14 +73,15 @@ class ManagerAgent(Workflow):
 
     def _build_system_prompt(
         self,
-        has_text_to_modify: bool
+        has_text_to_modify: bool,
+        app_card: str = ""
     ) -> str:
         """
         Build system prompt with all context.
 
         Args:
             has_text_to_modify: Whether text manipulation mode is enabled
-
+            app_card: App card content
         Returns:
             Complete system prompt
         """
@@ -130,7 +135,7 @@ class ManagerAgent(Workflow):
             device_date_text = f"<device_date>\n{device_date}\n</device_date>\n\n"
 
         # App card (include tags in variable value or empty string)
-        app_card = ""  # TODO: implement app card retrieval
+        app_card = app_card
         app_card_text = ""
         if app_card.strip():
             app_card_text = "App card gives information on how to operate the app and perform actions.\n<app_card>\n" + app_card.strip() + "\n</app_card>\n\n"
@@ -334,6 +339,8 @@ You can reference these custom actions or tell the Executer agent to use them in
         self.shared_state.current_package_name = phone_state.get('packageName', 'Unknown')
         self.shared_state.current_app_name = phone_state.get('currentApp', 'Unknown')
 
+        # App cards
+
         # ====================================================================
         # Step 2: Capture screenshot if vision enabled
         # ====================================================================
@@ -345,6 +352,7 @@ You can reference these custom actions or tell the Executer agent to use them in
                     success, screenshot = result
                     if not success:
                         screenshot = None
+
                 else:
                     screenshot = result
                 logger.debug("📸 Screenshot captured for Manager")
@@ -409,11 +417,12 @@ You can reference these custom actions or tell the Executer agent to use them in
 
         has_text_to_modify = self.shared_state.has_text_to_modify
         screenshot = self.shared_state.screenshot
+        app_card = AppCardLoader.load_app_card(self.shared_state.current_package_name, self.app_card_loader.app_cards_dir)
 
         # ====================================================================
         # Step 1: Build system prompt
         # ====================================================================
-        system_prompt = self._build_system_prompt(has_text_to_modify)
+        system_prompt = self._build_system_prompt(has_text_to_modify, app_card)
 
         # ====================================================================
         # Step 2: Build messages with context

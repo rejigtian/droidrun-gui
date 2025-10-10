@@ -204,7 +204,7 @@ class DroidAgent(Workflow):
                 llm=self.manager_llm,
                 tools_instance=tools,
                 shared_state=self.shared_state,
-                config=self.config.agent.manager,
+                agent_config=self.config.agent,
                 custom_tools=self.custom_tools,
                 timeout=timeout,
             )
