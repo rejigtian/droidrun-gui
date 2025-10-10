@@ -19,14 +19,11 @@ from droidrun.agent.codeact.events import (
     TaskInputEvent,
     TaskThinkingEvent,
 )
-from droidrun.agent.codeact.prompts import (
-    DEFAULT_CODE_ACT_USER_PROMPT,
-    DEFAULT_NO_THOUGHTS_PROMPT,
-)
 from droidrun.agent.common.constants import LLM_HISTORY_LIMIT
 from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
-from droidrun.agent.context.agent_persona import AgentPersona
 from droidrun.agent.context.episodic_memory import EpisodicMemory, EpisodicMemoryStep
+from droidrun.config_manager.config_manager import CodeActConfig
+from droidrun.config_manager.prompt_loader import PromptLoader
 from droidrun.agent.usage import get_usage_from_response
 from droidrun.agent.utils import chat_utils
 from droidrun.agent.utils.executer import SimpleCodeExecutor
@@ -46,48 +43,37 @@ class CodeActAgent(Workflow):
     def __init__(
         self,
         llm: LLM,
-        persona: AgentPersona,
-        vision: bool,
+        config: CodeActConfig,
         tools_instance: "Tools",
-        max_steps: int = 5,
         custom_tools: dict = None,
         debug: bool = False,
         *args,
         **kwargs,
     ):
-        # assert instead of if
         assert llm, "llm must be provided."
         super().__init__(*args, **kwargs)
 
         self.llm = llm
-        self.max_steps = max_steps
-
-        self.user_prompt = persona.user_prompt
-        self.no_thoughts_prompt = None
-
-        self.vision = vision
+        self.config = config
+        self.max_steps = config.max_steps
+        self.vision = config.vision
+        self.debug = debug
+        self.tools = tools_instance
 
         self.chat_memory = None
-        self.episodic_memory = EpisodicMemory(persona=persona)
+        self.episodic_memory = EpisodicMemory()
         self.remembered_info = None
 
         self.goal = None
         self.steps_counter = 0
         self.code_exec_counter = 0
-        self.debug = debug
 
-        self.tools = tools_instance
-
-        # Merge custom_tools with ATOMIC_ACTION_SIGNATURES
-        # Custom tools are treated the same as atomic actions by CodeAct
+        # Build tool list
         merged_signatures = {**ATOMIC_ACTION_SIGNATURES, **(custom_tools or {})}
 
-        # Build tool_list from merged signatures
         self.tool_list = {}
         for action_name, signature in merged_signatures.items():
             func = signature["function"]
-            # Create bound function (curry tools_instance as first argument)
-            # Handle both sync and async functions
             if asyncio.iscoroutinefunction(func):
                 async def make_async_bound(f, ti):
                     async def bound_func(*args, **kwargs):
@@ -97,30 +83,25 @@ class CodeActAgent(Workflow):
             else:
                 self.tool_list[action_name] = lambda *args, f=func, ti=tools_instance: f(ti, *args)
 
-        # Add non-atomic tools (remember, complete) from tools_instance
         self.tool_list["remember"] = tools_instance.remember
         self.tool_list["complete"] = tools_instance.complete
 
-        # Get tool descriptions from ATOMIC_ACTION_SIGNATURES and custom_tools
+        # Build tool descriptions
         self.tool_descriptions = get_atomic_tool_descriptions()
-
-        # Add custom tool descriptions if provided
         custom_descriptions = build_custom_tool_descriptions(custom_tools or {})
         if custom_descriptions:
             self.tool_descriptions += "\n" + custom_descriptions
-
-        # Add descriptions for remember/complete
         self.tool_descriptions += "\n- remember(information: str): Remember information for later use"
         self.tool_descriptions += "\n- complete(success: bool, reason: str): Mark task as complete"
 
-        self.system_prompt_content = persona.system_prompt.format(
-            tool_descriptions=self.tool_descriptions
+        # Load prompts from config
+        system_prompt_text = PromptLoader.load_prompt(
+            config.system_prompt_path,
+            {"tool_descriptions": self.tool_descriptions}
         )
-        self.system_prompt = ChatMessage(
-            role="system", content=self.system_prompt_content
-        )
+        self.system_prompt = ChatMessage(role="system", content=system_prompt_text)
 
-        self.required_context = persona.required_context
+        self.user_prompt_template = PromptLoader.load_prompt(config.user_prompt_path)
 
         self.executor = SimpleCodeExecutor(
             loop=asyncio.get_event_loop(),
@@ -150,16 +131,21 @@ class CodeActAgent(Workflow):
 
         logger.debug("  - Adding goal to memory.")
         goal = user_input
-        self.user_message = ChatMessage(
-            role="user",
-            content=PromptTemplate(
-                self.user_prompt or DEFAULT_CODE_ACT_USER_PROMPT
-            ).format(goal=goal),
+
+        # Format user prompt with goal
+        user_prompt_text = PromptLoader.load_prompt(
+            self.config.user_prompt_path,
+            {"goal": goal}
         )
-        self.no_thoughts_prompt = ChatMessage(
-            role="user",
-            content=PromptTemplate(DEFAULT_NO_THOUGHTS_PROMPT).format(goal=goal),
-        )
+        self.user_message = ChatMessage(role="user", content=user_prompt_text)
+
+        # No thoughts prompt
+        no_thoughts_text = f"""Your previous response provided code without explaining your reasoning first. Remember to always describe your thought process and plan *before* providing the code block.
+
+The code you provided will be executed below.
+
+Now, describe the next step you will take to address the original goal: {goal}"""
+        self.no_thoughts_prompt = ChatMessage(role="user", content=no_thoughts_text)
 
 
         await self.chat_memory.aput(self.user_message)
@@ -194,38 +180,26 @@ class CodeActAgent(Workflow):
             await ctx.store.set("remembered_info", self.remembered_info)
             chat_history = await chat_utils.add_memory_block(self.remembered_info, chat_history)
 
-        for context in self.required_context:
-            if context == "screenshot":
-                # if vision is disabled, screenshot should save to trajectory
-                screenshot = (self.tools.take_screenshot())[1]
-                ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
+        # Always capture screenshot for trajectory
+        screenshot = (self.tools.take_screenshot())[1]
+        ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
+        await ctx.store.set("screenshot", screenshot)
 
-                await ctx.store.set("screenshot", screenshot)
-                if model == "DeepSeek":
-                    logger.warning(
-                        "[yellow]DeepSeek doesnt support images. Disabling screenshots[/]"
-                    )
-                elif self.vision: # if vision is enabled, add screenshot to chat history
-                    chat_history = await chat_utils.add_screenshot_image_block(screenshot, chat_history)
+        # Add screenshot to chat only if vision enabled
+        if self.vision and model != "DeepSeek":
+            chat_history = await chat_utils.add_screenshot_image_block(screenshot, chat_history)
 
-            if context == "ui_state":
-                try:
-                    state = self.tools.get_state()
-                    await ctx.store.set("ui_state", state["a11y_tree"])
-                    ctx.write_event_to_stream(RecordUIStateEvent(ui_state=state["a11y_tree"]))
-                    chat_history = await chat_utils.add_ui_text_block(
-                        state["a11y_tree"], chat_history
-                    )
-                    chat_history = await chat_utils.add_phone_state_block(state["phone_state"], chat_history)
-                except Exception:
-                    logger.warning("⚠️ Error retrieving state from the connected device. Is the Accessibility Service enabled?")
-
-
-            if context == "packages":
-                chat_history = await chat_utils.add_packages_block(
-                    self.tools.list_packages(include_system_apps=True),
-                    chat_history,
-                )
+        # Always get UI state
+        try:
+            state = self.tools.get_state()
+            await ctx.store.set("ui_state", state["a11y_tree"])
+            ctx.write_event_to_stream(RecordUIStateEvent(ui_state=state["a11y_tree"]))
+            chat_history = await chat_utils.add_ui_text_block(
+                state["a11y_tree"], chat_history
+            )
+            chat_history = await chat_utils.add_phone_state_block(state["phone_state"], chat_history)
+        except Exception:
+            logger.warning("⚠️ Error retrieving state from the connected device. Is the Accessibility Service enabled?")
 
         response = await self._get_llm_response(ctx, chat_history)
         if response is None:

@@ -1,3 +1,15 @@
+"""
+DroidAgent coordination events.
+
+These events are used for WORKFLOW COORDINATION between DroidAgent and its child agents.
+They carry minimal data needed for routing workflow steps.
+
+For internal events with full debugging metadata, see:
+- manager/events.py (ManagerInternalPlanEvent)
+- executor/events.py (ExecutorInternalActionEvent, ExecutorInternalResultEvent)
+- codeact/events.py (Task*, EpisodicMemoryEvent)
+"""
+
 from typing import Dict, List
 
 from llama_index.core.workflow import Event
@@ -70,7 +82,6 @@ class DroidAgentState(BaseModel):
 
     # Planning
     plan: str = ""
-    completed_plan: str = ""
     current_subgoal: str = ""
     finish_thought: str = ""
     progress_status: str = ""
@@ -94,10 +105,14 @@ class ManagerInputEvent(Event):
 
 
 class ManagerPlanEvent(Event):
-    """Manager has created a plan"""
+    """
+    Coordination event from ManagerAgent to DroidAgent.
+
+    Used for workflow step routing only (NOT streamed to frontend).
+    For internal events with memory_update metadata, see ManagerInternalPlanEvent.
+    """
     plan: str
     current_subgoal: str
-    completed_plan: str
     thought: str
     manager_answer: str = ""
 
@@ -108,7 +123,12 @@ class ExecutorInputEvent(Event):
 
 
 class ExecutorResultEvent(Event):
-    """Executor action result"""
+    """
+    Coordination event from ExecutorAgent to DroidAgent.
+
+    Used for workflow step routing only (NOT streamed to frontend).
+    For internal events with thought/action_json metadata, see ExecutorInternalResultEvent.
+    """
     action: Dict
     outcome: bool
     error: str

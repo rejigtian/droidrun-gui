@@ -29,9 +29,6 @@ from droidrun.config_manager.config_manager import (
 from droidrun.agent.codeact import CodeActAgent
 from droidrun.agent.codeact.events import EpisodicMemoryEvent
 from droidrun.agent.common.events import MacroEvent, RecordUIStateEvent, ScreenshotEvent
-from droidrun.agent.context import ContextInjectionManager
-from droidrun.agent.context.agent_persona import AgentPersona
-from droidrun.agent.context.personas import DEFAULT
 from droidrun.agent.context.task_manager import Task, TaskManager
 from droidrun.agent.droid.events import (
     CodeActExecuteEvent,
@@ -102,7 +99,6 @@ class DroidAgent(Workflow):
         logging_config: LoggingConfig | None = None,
         tracing_config: TracingConfig | None = None,
         telemetry_config: TelemetryConfig | None = None,
-        personas: List[AgentPersona] = [DEFAULT],  # noqa: B006
         excluded_tools: List[str] = None,
         custom_tools: dict = None,
         timeout: int = 1000,
@@ -123,7 +119,6 @@ class DroidAgent(Workflow):
             logging_config: Logging config override (optional)
             tracing_config: Tracing config override (optional)
             telemetry_config: Telemetry config override (optional)
-            personas: Agent personas
             excluded_tools: Tools to exclude
             custom_tools: Custom tool definitions
             timeout: Workflow timeout in seconds
@@ -191,7 +186,6 @@ class DroidAgent(Workflow):
         self.trajectory = Trajectory(goal=goal)
         self.task_manager = TaskManager()
         self.task_iter = None
-        self.cim = ContextInjectionManager(personas=personas)
         self.current_episodic_memory = None
 
         logger.info("🤖 Initializing DroidAgent...")
@@ -209,22 +203,18 @@ class DroidAgent(Workflow):
             logger.info("📝 Initializing Manager and Executor Agents...")
             self.manager_agent = ManagerAgent(
                 llm=self.manager_llm,
-                vision=self.config.agent.vision.manager,
-                personas=personas,
                 tools_instance=tools,
                 shared_state=self.shared_state,
+                config=self.config.agent.manager,
                 custom_tools=self.custom_tools,
-                config=self.config,
                 timeout=timeout,
             )
             self.executor_agent = ExecutorAgent(
                 llm=self.executor_llm,
-                vision=self.config.agent.vision.executor,
                 tools_instance=tools,
                 shared_state=self.shared_state,
-                persona=None,
+                config=self.config.agent.executor,
                 custom_tools=self.custom_tools,
-                config=self.config,
                 timeout=timeout,
             )
             self.planner_agent = None
@@ -241,10 +231,13 @@ class DroidAgent(Workflow):
                 goal=goal,
                 llms={"manager": self.manager_llm.class_name(), "executor": self.executor_llm.class_name(), "codeact": self.codeact_llm.class_name(), "text_manipulator": self.text_manipulator_llm.class_name(), "app_opener": self.app_opener_llm.class_name()},
                 tools=",".join(atomic_tools + ["remember", "complete"]),
-                personas=",".join([p.name for p in personas]),
                 max_steps=self.config.agent.max_steps,
                 timeout=timeout,
-                vision=self.config.agent.vision.to_dict(),
+                vision={
+                    "manager": self.config.agent.manager.vision,
+                    "executor": self.config.agent.executor.vision,
+                    "codeact": self.config.agent.codeact.vision
+                },
                 reasoning=self.config.agent.reasoning,
                 enable_tracing=self.config.tracing.enabled,
                 debug=self.config.logging.debug,
@@ -302,7 +295,6 @@ class DroidAgent(Workflow):
             Tuple of (success, reason)
         """
         task: Task = ev.task
-        persona = self.cim.get_persona(task.agent_type)
 
         logger.info(f"🔧 Executing task: {task.description}")
 
@@ -310,9 +302,7 @@ class DroidAgent(Workflow):
             max_codeact_steps = 5 if self.config.agent.reasoning else self.config.agent.max_steps
             codeact_agent = CodeActAgent(
                 llm=self.codeact_llm,
-                persona=persona,
-                vision=self.config.agent.vision.codeact,
-                max_steps=max_codeact_steps,
+                config=self.config.agent.codeact,
                 tools_instance=self.tools_instance,
                 custom_tools=self.custom_tools,
                 debug=self.config.logging.debug,
@@ -508,7 +498,6 @@ class DroidAgent(Workflow):
         self.shared_state.last_summary = result["summary"]
         self.shared_state.last_action_thought = result.get("thought", "")
         self.shared_state.action_pool.append(result["action_json"])
-        self.shared_state.progress_status = self.shared_state.completed_plan
 
         return ExecutorResultEvent(
             action=result["action"],

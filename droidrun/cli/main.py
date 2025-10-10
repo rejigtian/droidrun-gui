@@ -12,7 +12,6 @@ from pathlib import Path
 import click
 from adbutils import adb
 from rich.console import Console
-from droidrun.agent.context.personas import BIG_AGENT, DEFAULT
 from droidrun.agent.droid import DroidAgent
 from droidrun.agent.utils.llm_picker import load_llm
 from droidrun.cli.logs import LogHandler
@@ -250,8 +249,7 @@ async def run_command(
             )
 
             excluded_tools = [] if tools_cfg.allow_drag else ["drag"]
-            personas = [BIG_AGENT] if tools_cfg.allow_drag else [DEFAULT]
-            
+
             # ================================================================
             # STEP 5: Initialize DroidAgent with all settings
             # ================================================================
@@ -275,7 +273,6 @@ async def run_command(
                 tools_config=tools_cfg,
                 logging_config=logging_cfg,
                 tracing_config=tracing_cfg,
-                personas=personas,
                 excluded_tools=excluded_tools,
                 timeout=1000,
             )
@@ -322,7 +319,7 @@ async def run_command(
 class DroidRunCLI(click.Group):
     def parse_args(self, ctx, args):
         # If the first arg is not an option and not a known command, treat as 'run'
-        if args and """not args[0].startswith("-")""" and args[0] not in self.commands:
+        if args and """not args[0].startswith("-")""" and args[0] not in self.commands: # TODO: the string always evaluates to True
             args.insert(0, "run")
 
         return super().parse_args(ctx, args)

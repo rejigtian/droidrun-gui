@@ -9,7 +9,6 @@ class DroidAgentInitEvent(TelemetryEvent):
     goal: str
     llms: str | Dict[str, str]
     tools: str
-    personas: str
     max_steps: int
     timeout: int
     vision: bool | Dict[str, bool]

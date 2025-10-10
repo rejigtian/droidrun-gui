@@ -25,12 +25,11 @@ from droidrun.agent.droid.events import (
     CodeActExecuteEvent,
     CodeActResultEvent,
     ExecutorInputEvent,
-    ExecutorResultEvent,
     FinalizeEvent,
     ManagerInputEvent,
-    ManagerPlanEvent,
 )
-from droidrun.agent.executor.events import ExecutorActionEvent
+from droidrun.agent.manager.events import ManagerInternalPlanEvent
+from droidrun.agent.executor.events import ExecutorInternalActionEvent, ExecutorInternalResultEvent
 
 from droidrun.backend.models import EventType, FormattedEvent
 
@@ -75,9 +74,9 @@ class EventFormatter:
             ScreenshotEvent: self._format_screenshot_event,
             RecordUIStateEvent: self._format_ui_state_event,
             EpisodicMemoryEvent: self._format_episodic_memory_event,
-            ManagerPlanEvent: self._format_manager_plan_event,
-            ExecutorActionEvent: self._format_executor_action_event,
-            ExecutorResultEvent: self._format_executor_result_event,
+            ManagerInternalPlanEvent: self._format_manager_plan_event,
+            ExecutorInternalActionEvent: self._format_executor_action_event,
+            ExecutorInternalResultEvent: self._format_executor_result_event,
             FinalizeEvent: self._format_finalize_event,
             # Input events - don't stream these to frontend
             TaskInputEvent: lambda e: None,
@@ -219,7 +218,6 @@ class EventFormatter:
         if hasattr(event, "episodic_memory") and event.episodic_memory:
             memory = event.episodic_memory
             memory_data = {
-                "persona_name": memory.persona.name if hasattr(memory, "persona") else None,
                 "steps_count": len(memory.steps) if hasattr(memory, "steps") else 0,
             }
 
@@ -232,7 +230,7 @@ class EventFormatter:
             },
         )
 
-    def _format_manager_plan_event(self, event: ManagerPlanEvent) -> FormattedEvent:
+    def _format_manager_plan_event(self, event: ManagerInternalPlanEvent) -> FormattedEvent:
         """Format ManagerPlanEvent."""
         return FormattedEvent(
             event_type=EventType.MANAGER_PLAN,
@@ -241,15 +239,14 @@ class EventFormatter:
                 "agent": "manager",
                 "plan": event.plan,
                 "current_subgoal": event.current_subgoal,
-                "completed_plan": event.completed_plan,
                 "thought": event.thought,
                 "answer": event.manager_answer if hasattr(event, "manager_answer") else None,
                 "message": "Manager created plan",
             },
         )
 
-    def _format_executor_action_event(self, event: ExecutorActionEvent) -> FormattedEvent:
-        """Format ExecutorActionEvent."""
+    def _format_executor_action_event(self, event: ExecutorInternalActionEvent) -> FormattedEvent:
+        """Format ExecutorInternalActionEvent."""
         # Parse action JSON
         action_dict = None
         try:
@@ -269,7 +266,7 @@ class EventFormatter:
             },
         )
 
-    def _format_executor_result_event(self, event: ExecutorResultEvent) -> FormattedEvent:
+    def _format_executor_result_event(self, event: ExecutorInternalResultEvent) -> FormattedEvent:
         """Format ExecutorResultEvent."""
         return FormattedEvent(
             event_type=EventType.EXECUTOR_ACTION,

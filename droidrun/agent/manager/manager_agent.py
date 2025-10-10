@@ -11,19 +11,20 @@ This agent is responsible for:
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
 
-from droidrun.agent.manager.events import ManagerPlanEvent, ManagerThinkingEvent
-from droidrun.agent.manager.prompts import build_manager_system_prompt, parse_manager_response
+from droidrun.agent.manager.events import ManagerInternalPlanEvent, ManagerThinkingEvent
+from droidrun.agent.manager.prompts import parse_manager_response
 from droidrun.agent.utils import convert_messages_to_chatmessages
 from droidrun.agent.utils.chat_utils import remove_empty_messages
 from droidrun.agent.utils.device_state_formatter import get_device_state_exact_format
 from droidrun.agent.utils.inference import acall_with_retries
 from droidrun.agent.utils.tools import build_custom_tool_descriptions
-from droidrun.config_manager.config_manager import DroidRunConfig
+from droidrun.config_manager.config_manager import ManagerConfig
+from droidrun.config_manager.prompt_loader import PromptLoader
 
 if TYPE_CHECKING:
     from droidrun.agent.droid.events import DroidAgentState
@@ -46,18 +47,15 @@ class ManagerAgent(Workflow):
     def __init__(
         self,
         llm: LLM,
-        vision: bool,
-        personas: List,
         tools_instance: "Tools",
         shared_state: "DroidAgentState",
-        config: DroidRunConfig,
+        config: ManagerConfig,
         custom_tools: dict = None,
         **kwargs
     ):
         super().__init__(**kwargs)
         self.llm = llm
-        self.vision = vision
-        self.personas = personas
+        self.vision = config.vision
         self.tools_instance = tools_instance
         self.shared_state = shared_state
         self.config = config
@@ -82,12 +80,11 @@ class ManagerAgent(Workflow):
         Returns:
             Complete system prompt
         """
-
-        # Get error history if error_flag_plan is set
-        error_history = []
+        # Format error history
+        error_history_text = ""
         if self.shared_state.error_flag_plan:
             k = self.shared_state.err_to_manager_thresh
-            error_history = [
+            errors = [
                 {
                     "action": act,
                     "summary": summ,
@@ -99,19 +96,76 @@ class ManagerAgent(Workflow):
                     self.shared_state.error_descriptions[-k:], strict=True
                 )
             ]
+            error_history_text = (
+                "<potentially_stuck>\n"
+                "You have encountered several failed attempts. Here are some logs:\n"
+            )
+            for error in errors:
+                error_history_text += (
+                    f"- Attempt: Action: {error['action']} | "
+                    f"Description: {error['summary']} | "
+                    f"Outcome: Failed | "
+                    f"Feedback: {error['error']}\n"
+                )
+            error_history_text += "</potentially_stuck>\n\n"
 
-        # Build custom tools descriptions
-        custom_tools_descriptions = build_custom_tool_descriptions(self.custom_tools)
+        # Text manipulation section
+        text_manipulation_section = ""
+        if has_text_to_modify:
+            text_manipulation_section = """
 
-        return build_manager_system_prompt(
-            instruction=self.shared_state.instruction,
-            has_text_to_modify=has_text_to_modify,
-            app_card="",  # TODO: implement app card retrieval system
-            device_date=self.tools_instance.get_date(),
-            important_notes="",  # TODO: expose important_notes in DroidAgentState if needed
-            error_flag=self.shared_state.error_flag_plan,
-            error_history=error_history,
-            custom_tools_descriptions=custom_tools_descriptions
+<text_manipulation>
+1. Use **TEXT_TASK:** prefix in your plan when you need to modify text in the currently focused text input field
+2. TEXT_TASK is for editing, formatting, or transforming existing text content in text boxes using Python code
+3. Do not use TEXT_TASK for extracting text from messages, typing new text, or composing messages
+4. The focused text field contains editable text that you can modify
+5. Example plan item: 'TEXT_TASK: Add "Hello World" at the beginning of the text'
+6. Always use TEXT_TASK for modifying text, do not try to select the text to copy/cut/paste or adjust the text
+</text_manipulation>"""
+
+        # Device date (include tags in variable value or empty string)
+        device_date = self.tools_instance.get_date()
+        device_date_text = ""
+        if device_date.strip():
+            device_date_text = f"<device_date>\n{device_date}\n</device_date>\n\n"
+
+        # App card (include tags in variable value or empty string)
+        app_card = ""  # TODO: implement app card retrieval
+        app_card_text = ""
+        if app_card.strip():
+            app_card_text = "App card gives information on how to operate the app and perform actions.\n<app_card>\n" + app_card.strip() + "\n</app_card>\n\n"
+
+        # Important notes (include tags in variable value or empty string)
+        important_notes = ""  # TODO: implement
+        important_notes_text = ""
+        if important_notes.strip():
+            important_notes_text = "<important_notes>\n" + important_notes + "\n</important_notes>\n\n"
+
+        # Custom tools
+        custom_tools_desc = build_custom_tool_descriptions(self.custom_tools)
+        custom_tools_text = ""
+        if custom_tools_desc.strip():
+            custom_tools_text = """
+
+<custom_actions>
+The executor has access to these additional custom actions beyond the standard actions (click, type, swipe, etc.):
+""" + custom_tools_desc + """
+
+You can reference these custom actions or tell the Executer agent to use them in your plan when they help achieve the user's goal.
+</custom_actions>"""
+
+        # Load and format prompt
+        return PromptLoader.load_prompt(
+            self.config.system_prompt_path,
+            {
+                "instruction": self.shared_state.instruction,
+                "device_date": device_date_text,
+                "app_card": app_card_text,
+                "important_notes": important_notes_text,
+                "error_history": error_history_text,
+                "text_manipulation_section": text_manipulation_section,
+                "custom_tools_descriptions": custom_tools_text
+            }
         )
 
     def _build_messages_with_context(
@@ -347,7 +401,7 @@ class ManagerAgent(Workflow):
         self,
         ctx: Context,
         ev: ManagerThinkingEvent
-    ) -> ManagerPlanEvent:
+    ) -> ManagerInternalPlanEvent:
         """
         Manager reasons and creates plan.
 
@@ -431,7 +485,7 @@ class ManagerAgent(Workflow):
         logger.debug(f"  - Current subgoal: {parsed['current_subgoal']}")
         logger.debug(f"  - Manager answer: {parsed['answer'][:50] if parsed['answer'] else 'None'}")
 
-        event = ManagerPlanEvent(
+        event = ManagerInternalPlanEvent(
             plan=parsed["plan"],
             current_subgoal=parsed["current_subgoal"],
             thought=parsed["thought"],
@@ -448,7 +502,7 @@ class ManagerAgent(Workflow):
     async def finalize(
         self,
         ctx: Context,
-        ev: ManagerPlanEvent
+        ev: ManagerInternalPlanEvent
     ) -> StopEvent:
         """Return manager results to parent workflow."""
         logger.debug("✅ Manager planning complete")
@@ -456,7 +510,6 @@ class ManagerAgent(Workflow):
         return StopEvent(result={
             "plan": ev.plan,
             "current_subgoal": ev.current_subgoal,
-            "completed_plan": ev.completed_plan,
             "thought": ev.thought,
             "manager_answer": ev.manager_answer,
             "memory_update": ev.memory_update

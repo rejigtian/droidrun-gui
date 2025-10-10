@@ -17,11 +17,12 @@ from llama_index.core.llms import ChatMessage, ImageBlock, TextBlock
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
 
-from droidrun.agent.executor.events import ExecutorActionEvent, ExecutorResultEvent
-from droidrun.agent.executor.prompts import build_executor_system_prompt, parse_executor_response
-from droidrun.agent.utils.tools import click, long_press, open_app, swipe, system_button, type
+from droidrun.agent.executor.events import ExecutorInternalActionEvent, ExecutorInternalResultEvent
+from droidrun.agent.executor.prompts import parse_executor_response
+from droidrun.agent.utils.tools import click, long_press, open_app, swipe, system_button, type, ATOMIC_ACTION_SIGNATURES
 from droidrun.agent.utils.inference import acall_with_retries
-from droidrun.config_manager.config_manager import DroidRunConfig
+from droidrun.config_manager.config_manager import ExecutorConfig
+from droidrun.config_manager.prompt_loader import PromptLoader
 import asyncio
 
 if TYPE_CHECKING:
@@ -45,21 +46,18 @@ class ExecutorAgent(Workflow): # TODO: Fix a bug in bad prompt
     def __init__(
         self,
         llm: LLM,
-        vision: bool,
         tools_instance,
         shared_state: "DroidAgentState",
-        config: DroidRunConfig,
-        persona=None,
+        config: ExecutorConfig,
         custom_tools: dict = None,
         **kwargs
     ):
         super().__init__(**kwargs)
         self.llm = llm
-        self.vision = vision
+        self.vision = config.vision
         self.tools_instance = tools_instance
         self.shared_state = shared_state
         self.config = config
-        self.persona = persona
         self.custom_tools = custom_tools or {}
 
         logger.info("✅ ExecutorAgent initialized successfully.")
@@ -70,7 +68,7 @@ class ExecutorAgent(Workflow): # TODO: Fix a bug in bad prompt
         self,
         ctx: Context,
         ev: StartEvent
-    ) -> ExecutorActionEvent:
+    ) -> ExecutorInternalActionEvent:
         """
         Executor decides which action to take.
 
@@ -83,12 +81,53 @@ class ExecutorAgent(Workflow): # TODO: Fix a bug in bad prompt
         subgoal = ev.get("subgoal", "")
         logger.info(f"🧠 Executor thinking about action for: {subgoal}")
 
+        # Format app card (include tags in variable value or empty string)
         app_card = ""  # TODO: Implement app card retrieval
+        app_card_text = ""
+        if app_card.strip():
+            app_card_text = "App card gives information on how to operate the app and perform actions.\n### App Card ###\n" + app_card.strip() + "\n\n"
 
-        system_prompt = build_executor_system_prompt(
-            state=self.shared_state,
-            subgoal=subgoal,
-            app_card=app_card
+        # Format device state (include tags in variable value or empty string)
+        device_state_text = ""
+        if self.shared_state.device_state_text and self.shared_state.device_state_text.strip():
+            device_state_text = "### Device State ###\n" + self.shared_state.device_state_text.strip() + "\n\n"
+
+        # Format progress status
+        progress_status_text = self.shared_state.progress_status + "\n\n" if self.shared_state.progress_status else "No progress yet.\n\n"
+
+        # Format atomic actions
+        atomic_actions_text = chr(10).join(
+            f"- {action_name}({', '.join(action_info['arguments'])}): {action_info['description']}"
+            for action_name, action_info in ATOMIC_ACTION_SIGNATURES.items()
+        ) + "\n"
+
+        # Format action history
+        if self.shared_state.action_history:
+            action_history_text = "Recent actions you took previously and whether they were successful:\n" + "\n".join(
+                (f"Action: {act} | Description: {summ} | Outcome: Successful" if outcome == "A"
+                 else f"Action: {act} | Description: {summ} | Outcome: Failed | Feedback: {err_des}")
+                for act, summ, outcome, err_des in zip(
+                    self.shared_state.action_history[-min(5, len(self.shared_state.action_history)):],
+                    self.shared_state.summary_history[-min(5, len(self.shared_state.action_history)):],
+                    self.shared_state.action_outcomes[-min(5, len(self.shared_state.action_history)):],
+                    self.shared_state.error_descriptions[-min(5, len(self.shared_state.action_history)):], strict=True)
+            ) + "\n\n"
+        else:
+            action_history_text = "No actions have been taken yet.\n\n"
+
+        # Load and format prompt
+        system_prompt = PromptLoader.load_prompt(
+            self.config.system_prompt_path,
+            {
+                "instruction": self.shared_state.instruction,
+                "app_card": app_card_text,
+                "device_state_text": device_state_text,
+                "plan": self.shared_state.plan,
+                "subgoal": subgoal,
+                "progress_status": progress_status_text,
+                "atomic_actions": atomic_actions_text,
+                "action_history": action_history_text
+            }
         )
 
         blocks = [TextBlock(text=system_prompt)]
@@ -112,7 +151,7 @@ class ExecutorAgent(Workflow): # TODO: Fix a bug in bad prompt
             parsed = parse_executor_response(response_text)
         except Exception as e:
             logger.error(f"❌ Failed to parse executor response: {e}")
-            return ExecutorActionEvent(
+            return ExecutorInternalActionEvent(
                 action_json=json.dumps({"action": "invalid"}),
                 thought=f"Failed to parse response: {str(e)}",
                 description="Invalid response format from LLM"
@@ -122,7 +161,7 @@ class ExecutorAgent(Workflow): # TODO: Fix a bug in bad prompt
         logger.info(f"🎯 Action: {parsed['action']}")
         logger.debug(f"  - Description: {parsed['description']}")
 
-        event = ExecutorActionEvent(
+        event = ExecutorInternalActionEvent(
             action_json=parsed["action"],
             thought=parsed["thought"],
             description=parsed["description"]
@@ -137,8 +176,8 @@ class ExecutorAgent(Workflow): # TODO: Fix a bug in bad prompt
     async def execute(
         self,
         ctx: Context,
-        ev: ExecutorActionEvent
-    ) -> ExecutorResultEvent:
+        ev: ExecutorInternalActionEvent
+    ) -> ExecutorInternalResultEvent:
         """
         Execute the selected action using the tools instance.
 
@@ -151,7 +190,7 @@ class ExecutorAgent(Workflow): # TODO: Fix a bug in bad prompt
             action_dict = json.loads(ev.action_json)
         except json.JSONDecodeError as e:
             logger.error(f"❌ Failed to parse action JSON: {e}")
-            return ExecutorResultEvent(
+            return ExecutorInternalResultEvent(
                 action={"action": "invalid"},
                 outcome=False,
                 error=f"Invalid action JSON: {str(e)}",
@@ -162,11 +201,13 @@ class ExecutorAgent(Workflow): # TODO: Fix a bug in bad prompt
 
         outcome, error, summary = await self._execute_action(action_dict, ev.description)
 
-        await asyncio.sleep(self.config.agent.after_sleep_action)
+        # Sleep duration is now in agent-level config, accessed via DroidAgent
+        # For now, skip sleep here as it's handled by DroidAgent
+        # await asyncio.sleep(1.0)  # TODO: pass after_sleep_action from DroidAgent
 
         logger.info(f"{'✅' if outcome else '❌'} Execution complete: {summary}")
 
-        result_event = ExecutorResultEvent(
+        result_event = ExecutorInternalResultEvent(
             action=action_dict,
             outcome=outcome,
             error=error,
@@ -320,7 +361,7 @@ class ExecutorAgent(Workflow): # TODO: Fix a bug in bad prompt
     async def finalize(
         self,
         ctx: Context,
-        ev: ExecutorResultEvent
+        ev: ExecutorInternalResultEvent
     ) -> StopEvent:
         """Return executor results to parent workflow."""
         logger.debug("✅ Executor execution complete")

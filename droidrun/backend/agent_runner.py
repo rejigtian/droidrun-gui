@@ -12,11 +12,9 @@ from typing import AsyncIterator, Optional
 from adbutils import adb
 from droidrun.backend.models import EventType
 
-from droidrun.agent.context.personas import BIG_AGENT, DEFAULT
 from droidrun.agent.droid import DroidAgent
 from droidrun.agent.utils.llm_picker import load_llm
 from droidrun.config_manager.config_manager import (
-    VisionConfig as DroidVisionConfig,
     AgentConfig,
     DeviceConfig,
     ToolsConfig,
@@ -103,14 +101,15 @@ class AgentRunner:
             # ================================================================
             # Build config objects
             # ================================================================
-            vision_cfg = self._setup_vision_config(config)
-
+            # Use default agent config from global config and override specific settings
             agent_cfg = AgentConfig(
                 max_steps=config.max_steps,
-                vision=vision_cfg,
                 reasoning=config.reasoning,
                 after_sleep_action=droidrun_config.agent.after_sleep_action,
                 wait_for_stable_ui=droidrun_config.agent.wait_for_stable_ui,
+                codeact=droidrun_config.agent.codeact,
+                manager=droidrun_config.agent.manager,
+                executor=droidrun_config.agent.executor,
             )
 
             device_cfg = DeviceConfig(
@@ -133,9 +132,8 @@ class AgentRunner:
             )
 
             # ================================================================
-            # Setup personas and excluded tools
+            # Setup excluded tools
             # ================================================================
-            personas = [BIG_AGENT] if config.allow_drag else [DEFAULT]
             excluded_tools = [] if config.allow_drag else ["drag"]
             if config.excluded_tools:
                 excluded_tools.extend(config.excluded_tools)
@@ -154,7 +152,6 @@ class AgentRunner:
                 tools_config=tools_cfg,
                 logging_config=logging_cfg,
                 tracing_config=tracing_cfg,
-                personas=personas,
                 excluded_tools=excluded_tools,
                 timeout=config.timeout,
             )
@@ -393,18 +390,6 @@ class AgentRunner:
             text_manipulator_llm=llms.get("text_manipulator"),
         )
 
-    def _setup_vision_config(self, config: AgentRunRequest) -> DroidVisionConfig:
-        """Setup vision configuration."""
-        if config.vision:
-            return DroidVisionConfig(
-                manager=config.vision.manager,
-                executor=config.vision.executor,
-                codeact=config.vision.codeact,
-            )
-
-        # Use default from config
-
-        return droidrun_config.agent.vision
 
 
 # Global agent runner instance

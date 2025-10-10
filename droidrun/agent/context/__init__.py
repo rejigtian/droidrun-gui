@@ -1,19 +1,15 @@
 """
-Agent Context Module - Provides specialized agent personas and context injection management.
+Agent Context Module - Provides episodic memory and task management.
 
 This module contains:
-- AgentPersona: Dataclass for defining specialized agent configurations
-- ContextInjectionManager: Manager for handling different agent personas and their contexts
+- EpisodicMemory: Memory system for tracking agent steps
+- TaskManager: Manages tasks and their execution
 """
 
-from droidrun.agent.context.agent_persona import AgentPersona
-from droidrun.agent.context.context_injection_manager import ContextInjectionManager
 from droidrun.agent.context.episodic_memory import EpisodicMemory, EpisodicMemoryStep
 from droidrun.agent.context.task_manager import Task, TaskManager
 
 __all__ = [
-    "AgentPersona",
-    "ContextInjectionManager",
     "EpisodicMemory",
     "EpisodicMemoryStep",
     "TaskManager",

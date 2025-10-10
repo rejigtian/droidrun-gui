@@ -15,15 +15,24 @@ def _default_config_text() -> str:
 
 # === Agent Settings ===
 agent:
-  # Maximum number of steps per task
   max_steps: 15
-  # Enable vision capabilities per agent (screenshots)
-  vision:
-    manager: false
-    executor: false
-    codeact: false
-  # Enable planning with reasoning mode
   reasoning: false
+  after_sleep_action: 1.0
+  wait_for_stable_ui: 0.3
+
+  codeact:
+    vision: false
+    max_steps: 15
+    system_prompt_path: config/prompts/codeact/system.md
+    user_prompt_path: config/prompts/codeact/user.md
+
+  manager:
+    vision: false
+    system_prompt_path: config/prompts/manager/system.md
+
+  executor:
+    vision: false
+    system_prompt_path: config/prompts/executor/system.md
 
 # === LLM Profiles ===
 # Define LLM configurations for each agent type
@@ -77,8 +86,6 @@ device:
   serial: null
   # Use TCP communication instead of content provider
   use_tcp: false
-  # Sleep duration after each action (seconds)
-  after_sleep_action: 1.0
 
 # === Telemetry Settings ===
 telemetry:
@@ -138,36 +145,39 @@ class LLMProfile:
 
 
 @dataclass
-class VisionConfig:
-    """Per-agent vision settings."""
-    manager: bool = False
-    executor: bool = False
-    codeact: bool = False
-    
-    def to_dict(self) -> Dict[str, bool]:
-        return {"manager": self.manager, "executor": self.executor, "codeact": self.codeact}
-    
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "VisionConfig":
-        """Create VisionConfig from dictionary or bool."""
-        if isinstance(data, bool):
-            # Support single bool → apply to all agents
-            return cls(manager=data, executor=data, codeact=data)
-        return cls(
-            manager=data.get("manager", False),
-            executor=data.get("executor", False),
-            codeact=data.get("codeact", False),
-        )
+class CodeActConfig:
+    """CodeAct agent configuration."""
+    vision: bool = False
+    max_steps: int = 15
+    system_prompt_path: str = "config/prompts/codeact/system.md"
+    user_prompt_path: str = "config/prompts/codeact/user.md"
+
+
+@dataclass
+class ManagerConfig:
+    """Manager agent configuration."""
+    vision: bool = False
+    system_prompt_path: str = "config/prompts/manager/system.md"
+
+
+@dataclass
+class ExecutorConfig:
+    """Executor agent configuration."""
+    vision: bool = False
+    system_prompt_path: str = "config/prompts/executor/system.md"
 
 
 @dataclass
 class AgentConfig:
     """Agent-related configuration."""
     max_steps: int = 15
-    vision: VisionConfig = field(default_factory=VisionConfig)
     reasoning: bool = False
     after_sleep_action: float = 1.0
     wait_for_stable_ui: float = 0.3
+
+    codeact: CodeActConfig = field(default_factory=CodeActConfig)
+    manager: ManagerConfig = field(default_factory=ManagerConfig)
+    executor: ExecutorConfig = field(default_factory=ExecutorConfig)
 
 
 @dataclass
@@ -261,11 +271,6 @@ class DroidRunConfig:
         result["llm_profiles"] = {
             name: asdict(profile) for name, profile in self.llm_profiles.items()
         }
-        # Convert VisionConfig to dict
-        if isinstance(result["agent"]["vision"], dict):
-            pass  # Already a dict from asdict
-        else:
-            result["agent"]["vision"] = self.agent.vision.to_dict()
         return result
 
     @classmethod
@@ -275,18 +280,29 @@ class DroidRunConfig:
         llm_profiles = {}
         for name, profile_data in data.get("llm_profiles", {}).items():
             llm_profiles[name] = LLMProfile(**profile_data)
-        
-        # Parse agent config with vision
+
+        # Parse agent config with sub-configs
         agent_data = data.get("agent", {})
-        vision_data = agent_data.get("vision", {})
-        vision_config = VisionConfig.from_dict(vision_data)
-        
+
+        codeact_data = agent_data.get("codeact", {})
+        codeact_config = CodeActConfig(**codeact_data) if codeact_data else CodeActConfig()
+
+        manager_data = agent_data.get("manager", {})
+        manager_config = ManagerConfig(**manager_data) if manager_data else ManagerConfig()
+
+        executor_data = agent_data.get("executor", {})
+        executor_config = ExecutorConfig(**executor_data) if executor_data else ExecutorConfig()
+
         agent_config = AgentConfig(
             max_steps=agent_data.get("max_steps", 15),
-            vision=vision_config,
             reasoning=agent_data.get("reasoning", False),
+            after_sleep_action=agent_data.get("after_sleep_action", 1.0),
+            wait_for_stable_ui=agent_data.get("wait_for_stable_ui", 0.3),
+            codeact=codeact_config,
+            manager=manager_config,
+            executor=executor_config,
         )
-        
+
         return cls(
             agent=agent_config,
             llm_profiles=llm_profiles,
