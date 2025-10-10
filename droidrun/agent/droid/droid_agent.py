@@ -311,6 +311,7 @@ class DroidAgent(Workflow):
                 tools_instance=self.tools_instance,
                 custom_tools=self.custom_tools,
                 debug=self.config.logging.debug,
+                shared_state=self.shared_state,
                 timeout=self.timeout,
             )
 

@@ -42,11 +42,6 @@ class TaskRunnerEvent(Event):
     pass
 
 
-
-# ============================================================================
-# DroidAgentState - State model for llama-index Context
-# ============================================================================
-
 class DroidAgentState(BaseModel):
     """
     State model for DroidAgent workflow - shared across parent and child workflows.
@@ -55,14 +50,29 @@ class DroidAgentState(BaseModel):
     # Task context
     instruction: str = ""
 
-    # UI State
-    ui_elements_list_before: str = ""
-    ui_elements_list_after: str = ""
+    # Formatted device state for prompts (complete text)
+    formatted_device_state: str = ""
+
+    # Focused element text
     focused_text: str = ""
-    device_state_text: str = ""
+
+    # Raw device state components (for access to raw data)
+    a11y_tree: List[Dict] = Field(default_factory=list)
+    phone_state: Dict = Field(default_factory=dict)
+
+    # Derived fields (extracted from phone_state)
+    current_package_name: str = ""
+    current_app_name: str = ""
+
+    # Previous device state (for before/after comparison in Manager)
+    previous_formatted_device_state: str = ""
+
+    # Screen dimensions and screenshot
     width: int = 0
     height: int = 0
     screenshot: str | bytes | None = None
+
+    # Text manipulation flag
     has_text_to_modify: bool = False
 
     # Action tracking

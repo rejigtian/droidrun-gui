@@ -20,7 +20,7 @@ from droidrun.agent.manager.events import ManagerInternalPlanEvent, ManagerThink
 from droidrun.agent.manager.prompts import parse_manager_response
 from droidrun.agent.utils import convert_messages_to_chatmessages
 from droidrun.agent.utils.chat_utils import remove_empty_messages
-from droidrun.agent.utils.device_state_formatter import get_device_state_exact_format
+from droidrun.agent.utils.device_state_formatter import format_device_state
 from droidrun.agent.utils.inference import acall_with_retries
 from droidrun.agent.utils.tools import build_custom_tool_descriptions
 from droidrun.config_manager.config_manager import ManagerConfig
@@ -210,28 +210,28 @@ You can reference these custom actions or tell the Executer agent to use them in
                 else:
                     messages[last_user_idx]['content'].insert(0, {"text": f"<memory>\n{current_memory}\n</memory>\n"})
 
-            # Add device state to last user message
-            current_a11y = (self.shared_state.ui_elements_list_after or self.shared_state.device_state_text or "").strip()
-            if current_a11y:
+            # Add CURRENT device state to last user message (use unified state)
+            current_state = self.shared_state.formatted_device_state.strip()
+            if current_state:
                 if messages[last_user_idx]['content'] and 'text' in messages[last_user_idx]['content'][0]:
-                    messages[last_user_idx]['content'][0]['text'] += f"\n<device_state>\n{current_a11y}\n</device_state>\n"
+                    messages[last_user_idx]['content'][0]['text'] += f"\n<device_state>\n{current_state}\n</device_state>\n"
                 else:
-                    messages[last_user_idx]['content'].insert(0, {"text": f"<device_state>\n{current_a11y}\n</device_state>\n"})
+                    messages[last_user_idx]['content'].insert(0, {"text": f"<device_state>\n{current_state}\n</device_state>\n"})
 
             # Add screenshot to last user message
             if screenshot and self.vision:
                 messages[last_user_idx]['content'].append({"image": screenshot})
 
-            # Add previous device state to SECOND-TO-LAST user message (if exists)
+            # Add PREVIOUS device state to SECOND-TO-LAST user message (if exists)
             if len(user_indices) >= 2:
                 second_last_user_idx = user_indices[-2]
-                prev_a11y = (self.shared_state.ui_elements_list_before or "").strip()
+                prev_state = self.shared_state.previous_formatted_device_state.strip()
 
-                if prev_a11y:
+                if prev_state:
                     if messages[second_last_user_idx]['content'] and 'text' in messages[second_last_user_idx]['content'][0]:
-                        messages[second_last_user_idx]['content'][0]['text'] += f"\n<device_state>\n{prev_a11y}\n</device_state>\n"
+                        messages[second_last_user_idx]['content'][0]['text'] += f"\n<device_state>\n{prev_state}\n</device_state>\n"
                     else:
-                        messages[second_last_user_idx]['content'].insert(0, {"text": f"<device_state>\n{prev_a11y}\n</device_state>\n"})
+                        messages[second_last_user_idx]['content'].insert(0, {"text": f"<device_state>\n{prev_state}\n</device_state>\n"})
         messages = remove_empty_messages(messages)
         return messages
 
@@ -318,9 +318,21 @@ You can reference these custom actions or tell the Executer agent to use them in
         logger.info("💬 Preparing manager input...")
 
         # ====================================================================
-        # Step 1: Get device state (UI elements accessibility tree)
+        # Step 1: Get and format device state using unified formatter
         # ====================================================================
-        device_state_text, focused_text = get_device_state_exact_format(self.tools_instance.get_state())
+        raw_state = self.tools_instance.get_state()
+        formatted_text, focused_text, a11y_tree, phone_state = format_device_state(raw_state)
+
+        # Update shared state (previous ← current, current ← new)
+        self.shared_state.previous_formatted_device_state = self.shared_state.formatted_device_state
+        self.shared_state.formatted_device_state = formatted_text
+        self.shared_state.focused_text = focused_text
+        self.shared_state.a11y_tree = a11y_tree
+        self.shared_state.phone_state = phone_state
+
+        # Extract and store package/app name
+        self.shared_state.current_package_name = phone_state.get('packageName', 'Unknown')
+        self.shared_state.current_app_name = phone_state.get('currentApp', 'Unknown')
 
         # ====================================================================
         # Step 2: Capture screenshot if vision enabled
@@ -343,28 +355,8 @@ You can reference these custom actions or tell the Executer agent to use them in
         # ====================================================================
         # Step 3: Detect text manipulation mode
         # ====================================================================
-        focused_text = focused_text or ""
         focused_text_clean = focused_text.replace("'", "").strip()
-
-        # Check if focused text differs from last typed text
-        # last_typed_text = ""
-        # if self.shared_state.action_history:
-        #     recent_actions = self.shared_state.action_history[-1:] if len(self.shared_state.action_history) >= 1 else []
-        #     for action in reversed(recent_actions):
-        #         if isinstance(action, dict) and action.get('action') == 'type':
-        #             last_typed_text = action.get('text', '')
-        #             break
-
         has_text_to_modify = (focused_text_clean != "")
-
-        # ====================================================================
-        # Step 4: Update state with device info
-        # ====================================================================
-        self.shared_state.device_state_text = device_state_text
-        self.shared_state.focused_text = focused_text
-        # Shift UI elements: before ← after, after ← current
-        self.shared_state.ui_elements_list_before = self.shared_state.ui_elements_list_after
-        self.shared_state.ui_elements_list_after = device_state_text
 
         # ====================================================================
         # Step 5: Build user message entry

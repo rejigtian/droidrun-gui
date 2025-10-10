@@ -101,50 +101,75 @@ def format_ui_elements(ui_data: List[Dict[str, Any]], level: int = 0) -> str:
     return "\n".join(formatted_lines)
 
 
-def get_device_state_exact_format(state: Dict[str, Any]) -> Tuple[str, str]:
+def format_device_state(state: Dict[str, Any]) -> Tuple[str, str, List[Dict], Dict]:
     """
-    Get device state in exactly the format requested:
+    Format device state with all necessary data.
 
-    **Current Phone State:**
-    • **App:** App Name (package.name)
-    • **Keyboard:** Hidden/Visible
-    • **Focused Element:** 'text'
-
-    Current Clickable UI elements from the device in the schema 'index. className: resourceId, text - bounds(x1,y1,x2,y2)':
-    1. ClassName: "resourceId", "text" - (x1, y1, x2, y2)
+    Returns formatted text for prompts plus raw components for storage.
 
     Args:
-        state: Dictionary containing device state data from collector.get_device_state()
+        state: Dictionary containing device state data from tools.get_state()
 
     Returns:
-        Tuple of (formatted_string, focused_text) where focused_text is the actual
-        text content of the focused element, or empty string if none.
+        Tuple of:
+        - formatted_text (str): Complete formatted device state for prompts
+        - focused_text (str): Text content of focused element (empty if none)
+        - a11y_tree (List[Dict]): Raw accessibility tree
+        - phone_state (Dict): Raw phone state dict
     """
     try:
         if "error" in state:
-            return (f"Error getting device state: {state.get('message', 'Unknown error')}", "")
+            error_msg = f"Error getting device state: {state.get('message', 'Unknown error')}"
+            return (error_msg, "", [], {})
+
+        # Extract raw components
+        phone_state = state.get("phone_state", {})
+        a11y_tree = state.get("a11y_tree", [])
 
         # Extract focused element text
-        phone_state = state.get("phone_state", {})
         focused_element = phone_state.get('focusedElement')
         focused_text = ""
         if focused_element:
             focused_text = focused_element.get('text', '')
 
-        # Format the state data
+        # Format phone state section
         phone_state_text = format_phone_state(phone_state)
-        ui_data = state.get("a11y_tree", [])
-        if ui_data:
-            formatted_ui = format_ui_elements(ui_data)
-            ui_elements_text = f"Current Clickable UI elements from the device in the schema 'index. className: resourceId, text - bounds(x1,y1,x2,y2)':\n{formatted_ui}"
+
+        # Format UI elements section
+        if a11y_tree:
+            formatted_ui = format_ui_elements(a11y_tree)
+            ui_elements_text = (
+                "Current Clickable UI elements from the device in the schema "
+                "'index. className: resourceId, text - bounds(x1,y1,x2,y2)':\n"
+                f"{formatted_ui}"
+            )
         else:
-            ui_elements_text = "Current Clickable UI elements from the device in the schema 'index. className: resourceId, text - bounds(x1,y1,x2,y2)':\nNo UI elements found"
+            ui_elements_text = (
+                "Current Clickable UI elements from the device in the schema "
+                "'index. className: resourceId, text - bounds(x1,y1,x2,y2)':\n"
+                "No UI elements found"
+            )
 
-        formatted_string = f"{phone_state_text}\n        \n\n{ui_elements_text}"
+        # Combine into complete formatted text
+        formatted_text = f"{phone_state_text}\n\n{ui_elements_text}"
 
-        return (formatted_string, focused_text)
+        # Return all 4 components
+        return (formatted_text, focused_text, a11y_tree, phone_state)
+
     except Exception as e:
-        return (f"Error getting device state: {e}", "")
+        return (f"Error formatting device state: {e}", "", [], {})
+
+
+# Backward compatibility alias
+def get_device_state_exact_format(state: Dict[str, Any]) -> Tuple[str, str]:
+    """
+    Deprecated: Use format_device_state() instead.
+
+    This function is kept for backward compatibility with ManagerAgent and ExecutorAgent.
+    Returns only the first two values (formatted_text, focused_text).
+    """
+    formatted_text, focused_text, _, _ = format_device_state(state)
+    return (formatted_text, focused_text)
 
 
 def main():
@@ -167,10 +192,13 @@ def main():
         ]
     }
 
-    formatted_string, focused_text = get_device_state_exact_format(example_state)
-    print("Formatted String:")
-    print(formatted_string)
+    # Test new format_device_state function
+    formatted_text, focused_text, a11y_tree, phone_state = format_device_state(example_state)
+    print("Formatted Text:")
+    print(formatted_text)
     print(f"\nFocused Text: '{focused_text}'")
+    print(f"\nA11y Tree: {a11y_tree}")
+    print(f"\nPhone State: {phone_state}")
 
 
 if __name__ == "__main__":

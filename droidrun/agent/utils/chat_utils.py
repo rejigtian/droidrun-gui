@@ -155,6 +155,47 @@ async def add_packages_block(packages, chat_history: List[ChatMessage]) -> List[
     chat_history[-1].blocks.append(ui_block)
     return chat_history
 
+async def add_device_state_block(
+    formatted_device_state: str,
+    chat_history: List[ChatMessage],
+    copy: bool = True
+) -> List[ChatMessage]:
+    """
+    Add formatted device state to the LAST user message in chat history.
+
+    This follows the pattern of other chat_utils functions:
+    - Doesn't create a new message
+    - Appends to last user message content
+    - Prevents device state from being saved to every message in memory
+
+    Args:
+        formatted_device_state: Complete formatted device state text
+        chat_history: Current chat history
+        copy: Whether to copy the history before modifying (default: True)
+
+    Returns:
+        Updated chat history with device state in last user message
+    """
+    if not formatted_device_state or not formatted_device_state.strip():
+        return chat_history
+
+    if not chat_history:
+        return chat_history
+
+    # Create device state block
+    device_state_block = TextBlock(text=f"\n{formatted_device_state}\n")
+
+    # Copy history if requested
+    if copy:
+        chat_history = chat_history.copy()
+        chat_history[-1] = message_copy(chat_history[-1])
+
+    # Append to last message blocks
+    chat_history[-1].blocks.append(device_state_block)
+
+    return chat_history
+
+
 async def add_memory_block(memory: List[str], chat_history: List[ChatMessage]) -> List[ChatMessage]:
     memory_block = "\n### Remembered Information:\n"
     for idx, item in enumerate(memory, 1):

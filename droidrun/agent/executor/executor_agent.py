@@ -96,10 +96,10 @@ class ExecutorAgent(Workflow): # TODO: Fix a bug in bad prompt
         if app_card.strip():
             app_card_text = "App card gives information on how to operate the app and perform actions.\n### App Card ###\n" + app_card.strip() + "\n\n"
 
-        # Format device state (include tags in variable value or empty string)
+        # Format device state (use unified state)
         device_state_text = ""
-        if self.shared_state.device_state_text and self.shared_state.device_state_text.strip():
-            device_state_text = "### Device State ###\n" + self.shared_state.device_state_text.strip() + "\n\n"
+        if self.shared_state.formatted_device_state and self.shared_state.formatted_device_state.strip():
+            device_state_text = "### Device State ###\n" + self.shared_state.formatted_device_state.strip() + "\n\n"
 
         # Format progress status
         progress_status_text = self.shared_state.progress_status + "\n\n" if self.shared_state.progress_status else "No progress yet.\n\n"

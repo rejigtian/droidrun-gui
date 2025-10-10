@@ -3,7 +3,7 @@ import json
 import logging
 import re
 import time
-from typing import List, Union
+from typing import List, Union, TYPE_CHECKING
 
 from llama_index.core.base.llms.types import ChatMessage, ChatResponse
 from llama_index.core.llms.llm import LLM
@@ -24,6 +24,8 @@ from droidrun.agent.context.episodic_memory import EpisodicMemory, EpisodicMemor
 from droidrun.agent.usage import get_usage_from_response
 from droidrun.agent.utils import chat_utils
 from droidrun.agent.utils.executer import SimpleCodeExecutor
+from droidrun.agent.utils.device_state_formatter import format_device_state
+
 from droidrun.agent.utils.tools import (
     ATOMIC_ACTION_SIGNATURES,
     build_custom_tool_descriptions,
@@ -32,6 +34,9 @@ from droidrun.agent.utils.tools import (
 from droidrun.config_manager.config_manager import AgentConfig
 from droidrun.config_manager.prompt_loader import PromptLoader
 from droidrun.tools import Tools
+
+if TYPE_CHECKING:
+    from droidrun.agent.droid.droid_agent import DroidAgentState
 
 logger = logging.getLogger("droidrun")
 
@@ -50,6 +55,7 @@ class CodeActAgent(Workflow):
         tools_instance: "Tools",
         custom_tools: dict = None,
         debug: bool = False,
+        shared_state: "DroidAgentState" | None = None,
         *args,
         **kwargs,
     ):
@@ -63,6 +69,7 @@ class CodeActAgent(Workflow):
         self.vision = agent_config.codeact.vision
         self.debug = debug
         self.tools = tools_instance
+        self.shared_state = shared_state
 
         self.chat_memory = None
         self.episodic_memory = EpisodicMemory()
@@ -193,17 +200,37 @@ Now, describe the next step you will take to address the original goal: {goal}""
         if self.vision and model != "DeepSeek":
             chat_history = await chat_utils.add_screenshot_image_block(screenshot, chat_history)
 
-        # Always get UI state
+        # Get and format device state using unified formatter
         try:
-            state = self.tools.get_state()
-            await ctx.store.set("ui_state", state["a11y_tree"])
-            ctx.write_event_to_stream(RecordUIStateEvent(ui_state=state["a11y_tree"]))
-            chat_history = await chat_utils.add_ui_text_block(
-                state["a11y_tree"], chat_history
-            )
-            chat_history = await chat_utils.add_phone_state_block(state["phone_state"], chat_history)
-        except Exception:
-            logger.warning("⚠️ Error retrieving state from the connected device. Is the Accessibility Service enabled?")
+
+            # Get raw state from device
+            raw_state = self.tools.get_state()
+
+            # Format using unified function (returns 4 values)
+            formatted_text, focused_text, a11y_tree, phone_state = format_device_state(raw_state)
+
+            # Update shared_state if available
+            if self.shared_state is not None:
+                self.shared_state.formatted_device_state = formatted_text
+                self.shared_state.focused_text = focused_text
+                self.shared_state.a11y_tree = a11y_tree
+                self.shared_state.phone_state = phone_state
+
+                # Extract and store package/app name
+                self.shared_state.current_package_name = phone_state.get('packageName', 'Unknown')
+                self.shared_state.current_app_name = phone_state.get('currentApp', 'Unknown')
+
+            # Stream formatted state for trajectory (only formatted text, not raw)
+            ctx.write_event_to_stream(RecordUIStateEvent(ui_state=formatted_text))
+
+            # Add device state to chat using new chat_utils function
+            # This injects into LAST user message, doesn't create new message
+            chat_history = await chat_utils.add_device_state_block(formatted_text, chat_history)
+
+        except Exception as e:
+            logger.warning(f"⚠️ Error retrieving state from the connected device: {e}")
+            if self.debug:
+                logger.error("State retrieval error details:", exc_info=True)
 
         response = await self._get_llm_response(ctx, chat_history)
         if response is None:
