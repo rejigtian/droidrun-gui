@@ -5,18 +5,44 @@
 agent:
   # Maximum number of steps per task
   max_steps: 15
-  # Enable vision capabilities per agent (screenshots)
-  vision:
-    manager: true
-    executor: true
-    codeact: true
   # Enable planning with reasoning mode
-  reasoning: true
+  reasoning: false
   # Sleep duration after each action, waits for ui state to be updated (seconds)
   after_sleep_action: 1.0
+  # Wait duration for UI to stabilize (seconds)
+  wait_for_stable_ui: 0.3
+  # Base directory for prompt templates
+  prompts_dir: config/prompts
 
+  # CodeAct Agent Configuration
+  codeact:
+    # Enable vision capabilities (screenshots)
+    vision: false
+    # System prompt filename (located in prompts_dir/codeact/)
+    system_prompt: system.md
+    # User prompt filename (located in prompts_dir/codeact/)
+    user_prompt: user.md
 
-  # wait_for_stable_ui: 0.3 # TODO: doesn't do anything now
+  # Manager Agent Configuration
+  manager:
+    # Enable vision capabilities (screenshots)
+    vision: false
+    # System prompt filename (located in prompts_dir/manager/)
+    system_prompt: system.md
+
+  # Executor Agent Configuration
+  executor:
+    # Enable vision capabilities (screenshots)
+    vision: false
+    # System prompt filename (located in prompts_dir/executor/)
+    system_prompt: system.md
+
+  # App Cards Configuration
+  app_cards:
+    # Enable app-specific instruction cards
+    enabled: true
+    # Directory containing app card files
+    app_cards_dir: config/app_cards
 
 # === LLM Profiles ===
 # Define LLM configurations for each agent type
@@ -32,7 +58,7 @@ llm_profiles:
   # Executor: Selects and executes atomic actions
   executor:
     provider: GoogleGenAI
-    model: models/gemini-2.5-pro
+    model: models/gemini-2.5-flash
     temperature: 0.1
     # kwargs:
     #   max_tokens: 4096
@@ -76,16 +102,16 @@ telemetry:
 # === Tracing Settings ===
 tracing:
   # Enable Arize Phoenix tracing
-  enabled: true
+  enabled: false
 
 # === Logging Settings ===
 logging:
   # Enable debug logging
-  debug: true
+  debug: false
   # Trajectory saving level (none, step, action)
   save_trajectory: none
 
-  rich_text: true
+  rich_text: false
 
 # === Tool Settings ===
 tools:

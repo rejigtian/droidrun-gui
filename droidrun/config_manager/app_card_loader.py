@@ -8,6 +8,8 @@ import json
 from pathlib import Path
 from typing import Dict, Optional
 
+from droidrun.config_manager.path_resolver import PathResolver
+
 
 class AppCardLoader:
     """Load app cards based on package names with content caching."""
@@ -17,34 +19,31 @@ class AppCardLoader:
     _content_cache: Dict[str, str] = {}
 
     @staticmethod
-    def get_project_root() -> Path:
-        """Get project root directory (where config.yaml lives)."""
-        return Path(__file__).resolve().parents[2]
-
-    @staticmethod
     def load_app_card(
         package_name: str, app_cards_dir: str = "config/app_cards"
     ) -> str:
         """
         Load app card for a package name.
 
-        File loading supports THREE path types in app_cards.json:
+        Path resolution:
+        - Checks working directory first (for user overrides)
+        - Falls back to project directory (for default cards)
+        - Supports absolute paths (used as-is)
 
+        File loading from app_cards.json:
         1. Relative to app_cards_dir (most common):
            {"com.google.gm": "gmail.md"}
-           → {project_root}/{app_cards_dir}/gmail.md
+           → {app_cards_dir}/gmail.md
 
-        2. Relative to project root (starts with config/, prompts/, etc.):
+        2. Relative path (checks working dir, then project dir):
            {"com.google.gm": "config/custom_cards/gmail.md"}
-           → {project_root}/config/custom_cards/gmail.md
 
-        3. Absolute path (starts with / or C:):
+        3. Absolute path:
            {"com.google.gm": "/usr/share/droidrun/cards/gmail.md"}
-           → /usr/share/droidrun/cards/gmail.md
 
         Args:
             package_name: Android package name (e.g., "com.google.android.gm")
-            app_cards_dir: Directory path relative to project root
+            app_cards_dir: Directory path (relative or absolute)
 
         Returns:
             App card content or empty string if not found
@@ -73,17 +72,13 @@ class AppCardLoader:
         if file_path.is_absolute():
             # Absolute path: use as-is
             app_card_path = file_path
+        elif file_path_str.startswith(("config/", "prompts/", "docs/")):
+            # Project-relative path: resolve with unified resolver
+            app_card_path = PathResolver.resolve(file_path_str)
         else:
-            # Relative path: determine if project-relative or app_cards-relative
-            project_root = AppCardLoader.get_project_root()
-
-            # Check if it looks like a project-relative path (starts with known dirs)
-            if file_path_str.startswith(("config/", "prompts/", "docs/")):
-                # Project-relative
-                app_card_path = project_root / file_path_str
-            else:
-                # App_cards-relative (default)
-                app_card_path = project_root / app_cards_dir / file_path_str
+            # App_cards-relative: resolve dir first, then append filename
+            cards_dir_resolved = PathResolver.resolve(app_cards_dir)
+            app_card_path = cards_dir_resolved / file_path_str
 
         # Read file
         try:
@@ -111,8 +106,9 @@ class AppCardLoader:
         ):
             return AppCardLoader._mapping_cache
 
-        project_root = AppCardLoader.get_project_root()
-        mapping_path = project_root / app_cards_dir / "app_cards.json"
+        # Resolve app cards directory
+        cards_dir_resolved = PathResolver.resolve(app_cards_dir)
+        mapping_path = cards_dir_resolved / "app_cards.json"
 
         try:
             if not mapping_path.exists():

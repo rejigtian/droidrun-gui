@@ -8,6 +8,8 @@ from typing import Any, Callable, Dict, List, Optional
 
 import yaml
 
+from droidrun.config_manager.path_resolver import PathResolver
+
 
 # ---------- Helpers / defaults ----------
 def _default_config_text() -> str:
@@ -114,7 +116,7 @@ device:
 # === Telemetry Settings ===
 telemetry:
   # Enable anonymous telemetry
-  enabled: true
+  enabled: false
 
 # === Tracing Settings ===
 tracing:
@@ -127,18 +129,14 @@ logging:
   debug: false
   # Trajectory saving level (none, step, action)
   save_trajectory: none
-  rich_text: true
+  rich_text: false
 # === Tool Settings ===
 tools:
   # Enable drag tool
   allow_drag: false
 """
 
-def _default_project_config_path() -> Path:
-    """
-    Use module-relative resolution: two parents above this file -> project root.
-    """
-    return Path(__file__).resolve().parents[2] / "config.yaml"
+# Removed: _default_project_config_path() - now using PathResolver
 
 
 # ---------- Config Schema ----------
@@ -238,7 +236,7 @@ class DeviceConfig:
 @dataclass
 class TelemetryConfig:
     """Telemetry configuration."""
-    enabled: bool = True
+    enabled: bool = False
 
 
 @dataclass
@@ -252,7 +250,7 @@ class LoggingConfig:
     """Logging configuration."""
     debug: bool = False
     save_trajectory: str = "none"
-    rich_text: bool = True
+    rich_text: bool = False
 
 @dataclass
 class ToolsConfig:
@@ -373,16 +371,19 @@ class ConfigManager:
     Thread-safe singleton ConfigManager with typed configuration schema.
 
     Usage:
-        from droidrun.config_manager import config
+        from droidrun.config_manager.config_manager import ConfigManager
+
+        # Create config instance (singleton pattern)
+        config = ConfigManager()
 
         # Access typed config objects
         print(config.agent.max_steps)
 
-        # Load all 3 LLMs
+        # Load all LLMs
         llms = config.load_all_llms()
-        fast_llm = llms['fast']
-        mid_llm = llms['mid']
-        smart_llm = llms['smart']
+        manager_llm = llms['manager']
+        executor_llm = llms['executor']
+        codeact_llm = llms['codeact']
 
         # Modify and save
         config.save()
@@ -404,18 +405,19 @@ class ConfigManager:
 
         self._lock = threading.RLock()
 
-        # resolution order:
-        # 1) explicit path arg
+        # Resolution order:
+        # 1) Explicit path arg
         # 2) DROIDRUN_CONFIG env var
-        # 3) module-relative project_root/config.yaml (two parents up)
+        # 3) Default "config.yaml" (checks working dir, then project dir)
         if path:
-            self.path = Path(path).expanduser().resolve()
+            self.path = PathResolver.resolve(path)
         else:
             env = os.environ.get("DROIDRUN_CONFIG")
             if env:
-                self.path = Path(env).expanduser().resolve()
+                self.path = PathResolver.resolve(env)
             else:
-                self.path = _default_project_config_path().resolve()
+                # Default: checks CWD first, then project dir
+                self.path = PathResolver.resolve("config.yaml")
 
         # Initialize with default config
         self._config = DroidRunConfig()
@@ -657,7 +659,9 @@ class ConfigManager:
         if agent_type not in ["codeact", "manager", "executor"]:
             raise ValueError(f"Invalid agent_type: {agent_type}. Must be one of: codeact, manager, executor")
 
-        prompts_dir = Path(self.path).parent / self.agent.prompts_dir / agent_type
+        # Resolve prompts directory
+        prompts_path = f"{self.agent.prompts_dir}/{agent_type}"
+        prompts_dir = PathResolver.resolve(prompts_path)
 
         if not prompts_dir.exists():
             return []

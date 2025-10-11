@@ -84,21 +84,21 @@ def coro(f):
 @coro
 async def run_command(
     command: str,
-    config_path: str | None,
-    device: str | None,
-    provider: str | None,
-    model: str | None,
-    steps: int | None,
-    base_url: str | None,
-    api_base: str | None,
-    vision: bool | None,
-    manager_vision: bool | None,
-    executor_vision: bool | None,
-    codeact_vision: bool | None,
-    reasoning: bool | None,
-    tracing: bool | None,
-    debug: bool | None,
-    use_tcp: bool | None,
+    config_path: str | None = None,
+    device: str | None = None,
+    provider: str | None = None,
+    model: str | None = None,
+    steps: int | None = None,
+    base_url: str | None = None,
+    api_base: str | None = None,
+    vision: bool | None = None,
+    manager_vision: bool | None = None,
+    executor_vision: bool | None = None,
+    codeact_vision: bool | None = None,
+    reasoning: bool | None = None,
+    tracing: bool | None = None,
+    debug: bool | None = None,
+    use_tcp: bool | None = None,
     save_trajectory: str | None = None,
     ios: bool = False,
     allow_drag: bool | None = None,
@@ -294,6 +294,7 @@ async def run_command(
                 goal=command,
                 llms=llms,
                 tools=tools,
+                config=config,
                 agent_config=agent_cfg,
                 device_config=device_cfg,
                 tools_config=tools_cfg,
@@ -612,20 +613,23 @@ def disconnect(serial: str):
 )
 def setup(path: str | None, device: str | None, debug: bool):
     """Install and enable the DroidRun Portal on a device."""
+    from droidrun.config_manager.path_resolver import PathResolver
 
-    # Ensure config.yaml exists in parent directory
-    config_path = Path(__file__).resolve().parents[2] / "config.yaml"
-    config_example_path = Path(__file__).resolve().parents[2] / "config_example.yaml"
+    # Ensure config.yaml exists (check working dir, then project dir)
+    try:
+        config_path = PathResolver.resolve("config.yaml")
+        console.print(f"[blue]Using existing config: {config_path}[/]")
+    except FileNotFoundError:
+        # Config not found, try to create from example
+        try:
+            example_path = PathResolver.resolve("config_example.yaml")
+            config_path = PathResolver.resolve("config.yaml", create_if_missing=True)
 
-    if not config_path.exists():
-        if config_example_path.exists():
             import shutil
-            shutil.copy2(config_example_path, config_path)
-            console.print("[blue]Created config.yaml from config_example.yaml[/]")
-        else:
+            shutil.copy2(example_path, config_path)
+            console.print(f"[blue]Created config.yaml from example at: {config_path}[/]")
+        except FileNotFoundError:
             console.print("[yellow]Warning: config_example.yaml not found, config.yaml not created[/]")
-    else:
-        console.print("[blue]Using existing config.yaml[/]")
     try:
         if not device:
             devices = adb.list()
@@ -771,19 +775,5 @@ if __name__ == "__main__":
     save_trajectory = "none"
     allow_drag = False
     run_command(
-        command,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
+        command
     )

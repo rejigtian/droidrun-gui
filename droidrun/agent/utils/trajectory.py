@@ -16,6 +16,8 @@ from typing import Any, Dict, List
 from llama_index.core.workflow import Event
 from PIL import Image
 
+from droidrun.config_manager.path_resolver import PathResolver
+
 logger = logging.getLogger("droidrun")
 
 
@@ -136,16 +138,19 @@ class Trajectory:
         Creates a dedicated folder for each trajectory containing all related files.
 
         Args:
-            directory: Base directory to save the trajectory files
+            directory: Base directory to save the trajectory files (relative or absolute)
 
         Returns:
             Path to the trajectory folder
         """
-        os.makedirs(directory, exist_ok=True)
+        # Resolve directory (prefer working dir for output)
+        base_dir = PathResolver.resolve(directory, create_if_missing=True)
+        base_dir.mkdir(parents=True, exist_ok=True)
+
         timestamp = time.strftime("%Y%m%d_%H%M%S")
         unique_id = str(uuid.uuid4())[:8]
-        trajectory_folder = os.path.join(directory, f"{timestamp}_{unique_id}")
-        os.makedirs(trajectory_folder, exist_ok=True)
+        trajectory_folder = base_dir / f"{timestamp}_{unique_id}"
+        trajectory_folder.mkdir(parents=True, exist_ok=True)
 
         serializable_events = []
         for event in self.events:
@@ -189,7 +194,7 @@ class Trajectory:
             serializable_events.append(event_dict)
 
 
-        trajectory_json_path = os.path.join(trajectory_folder, "trajectory.json")
+        trajectory_json_path = trajectory_folder / "trajectory.json"
         with open(trajectory_json_path, "w") as f:
             json.dump(serializable_events, f, indent=2)
 
@@ -207,7 +212,7 @@ class Trajectory:
                 }
                 macro_data.append(macro_dict)
 
-            macro_json_path = os.path.join(trajectory_folder, "macro.json")
+            macro_json_path = trajectory_folder / "macro.json"
             with open(macro_json_path, "w") as f:
                 json.dump(
                     {
@@ -224,11 +229,11 @@ class Trajectory:
             logger.info(
                 f"💾 Saved macro sequence with {len(macro_data)} actions to {macro_json_path}"
             )
-        screenshots_folder = os.path.join(trajectory_folder, "screenshots")
-        os.makedirs(screenshots_folder, exist_ok=True)
+        screenshots_folder = trajectory_folder / "screenshots"
+        screenshots_folder.mkdir(parents=True, exist_ok=True)
 
         gif_path = self.create_screenshot_gif(
-            screenshots_folder
+            str(screenshots_folder)
         )
         if gif_path:
             logger.info(f"🎬 Saved screenshot GIF to {gif_path}")
@@ -238,12 +243,13 @@ class Trajectory:
         if len(self.ui_states) != len(self.screenshots):
             logger.warning("UI states and screenshots are not the same length!")
 
-        os.makedirs(os.path.join(trajectory_folder, "ui_states"), exist_ok=True)
+        ui_states_folder = trajectory_folder / "ui_states"
+        ui_states_folder.mkdir(parents=True, exist_ok=True)
         for idx, ui_state in enumerate(self.ui_states):
-            ui_states_path = os.path.join(trajectory_folder, "ui_states", f"{idx}.json")
+            ui_states_path = ui_states_folder / f"{idx}.json"
             with open(ui_states_path, "w", encoding="utf-8") as f:
                 json.dump(ui_state, f, ensure_ascii=False, indent=2)
-        return trajectory_folder
+        return str(trajectory_folder)
 
     @staticmethod
     def load_trajectory_folder(trajectory_folder: str) -> Dict[str, Any]:

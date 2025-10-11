@@ -11,24 +11,21 @@ import re
 from pathlib import Path
 from typing import Any, Dict
 
+from droidrun.config_manager.path_resolver import PathResolver
+
 
 class PromptLoader:
     """Load and format markdown prompts with variable substitution."""
-
-    @staticmethod
-    def get_project_root() -> Path:
-        """Get project root directory (where config.yaml lives)."""
-        # This file is at droidrun/config_manager/prompt_loader.py
-        # Project root is 2 parents up
-        return Path(__file__).resolve().parents[2]
 
     @staticmethod
     def load_prompt(path: str, variables: Dict[str, Any] = None) -> str:
         """
         Load prompt from .md file and substitute variables.
 
-        Path is relative to project root. For example:
-        - "config/prompts/codeact/system.md"
+        Path resolution:
+        - Checks working directory first (for user overrides)
+        - Falls back to project directory (for default prompts)
+        - Example: "config/prompts/codeact/system.md"
 
         Variable substitution:
         - {variable} → replaced with value from variables dict
@@ -36,7 +33,7 @@ class PromptLoader:
         - Missing variables → left as {variable} (no error)
 
         Args:
-            path: Path relative to project root
+            path: Path to prompt file (relative or absolute)
             variables: Dict of variable names to values
 
         Returns:
@@ -45,16 +42,8 @@ class PromptLoader:
         Raises:
             FileNotFoundError: If prompt file doesn't exist
         """
-        # Resolve path from project root
-        project_root = PromptLoader.get_project_root()
-        prompt_path = project_root / path
-
-        if not prompt_path.exists():
-            raise FileNotFoundError(
-                f"Prompt file not found: {prompt_path}\n"
-                f"(resolved from project root: {project_root})\n"
-                f"(relative path: {path})"
-            )
+        # Resolve path (checks working dir, then project dir)
+        prompt_path = PathResolver.resolve(path, must_exist=True)
 
         prompt_text = prompt_path.read_text(encoding="utf-8")
 

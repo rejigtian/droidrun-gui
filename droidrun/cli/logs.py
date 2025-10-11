@@ -21,10 +21,13 @@ from droidrun.agent.droid.events import (
     FinalizeEvent,
     TaskRunnerEvent,
 )
-from droidrun.agent.planner.events import (
-    PlanCreatedEvent,
-    PlanInputEvent,
-    PlanThinkingEvent,
+from droidrun.agent.manager.events import (
+    ManagerInternalPlanEvent,
+    ManagerThinkingEvent,
+)
+from droidrun.agent.executor.events import (
+    ExecutorInternalActionEvent,
+    ExecutorInternalResultEvent,
 )
 
 
@@ -193,7 +196,7 @@ class LogHandler(logging.Handler):
             )
         )
 
-    def handle_event(self, event): # TODO: fix event handling for the refactor
+    def handle_event(self, event):
         """Handle streaming events from the agent workflow."""
         logger = logging.getLogger("droidrun")
 
@@ -204,32 +207,72 @@ class LogHandler(logging.Handler):
         elif isinstance(event, RecordUIStateEvent):
             logger.debug("✏️ Recording UI state")
 
-        # Planner events
-        elif isinstance(event, PlanInputEvent):
-            self.current_step = "Planning..."
-            logger.info("💭 Planner receiving input...")
+        # Manager events (reasoning mode - planning)
+        elif isinstance(event, ManagerThinkingEvent):
+            self.current_step = "Manager analyzing state..."
+            logger.info("🧠 Manager analyzing current state...")
 
-        elif isinstance(event, PlanThinkingEvent):
-            if event.thoughts:
-                thoughts_preview = (
-                    event.thoughts[:150] + "..."
-                    if len(event.thoughts) > 150
-                    else event.thoughts
+        elif isinstance(event, ManagerInternalPlanEvent):
+            self.current_step = "Plan created"
+            # Show thought (concise reasoning)
+            if hasattr(event, "thought") and event.thought:
+                thought_preview = (
+                    event.thought[:120] + "..."
+                    if len(event.thought) > 120
+                    else event.thought
                 )
-                logger.info(f"🧠 Planning: {thoughts_preview}")
-            if event.code:
-                logger.info("📝 Generated plan code")
+                logger.info(f"💭 Thought: {thought_preview}")
 
-        elif isinstance(event, PlanCreatedEvent):
-            if event.tasks:
-                task_count = len(event.tasks) if event.tasks else 0
-                self.current_step = f"Plan ready ({task_count} tasks)"
-                logger.info(f"📋 Plan created with {task_count} tasks")
-                for task in event.tasks:
-                    desc = task.description
-                    logger.info(f"- {desc}")
+            # Show current subgoal (what we're working on next)
+            if hasattr(event, "current_subgoal") and event.current_subgoal:
+                subgoal_preview = (
+                    event.current_subgoal[:150] + "..."
+                    if len(event.current_subgoal) > 150
+                    else event.current_subgoal
+                )
+                logger.info(f"📋 Next step: {subgoal_preview}")
 
-        # CodeAct events
+            # Show answer if provided (task complete)
+            if hasattr(event, "manager_answer") and event.manager_answer:
+                answer_preview = (
+                    event.manager_answer[:200] + "..."
+                    if len(event.manager_answer) > 200
+                    else event.manager_answer
+                )
+                logger.info(f"💬 Answer: {answer_preview}")
+
+            # Debug: show memory updates
+            if hasattr(event, "memory_update") and event.memory_update:
+                logger.debug(f"🧠 Memory: {event.memory_update[:100]}...")
+
+        # Executor events (reasoning mode - action execution)
+        elif isinstance(event, ExecutorInternalActionEvent):
+            self.current_step = "Selecting action..."
+            # Show what action was chosen
+            if hasattr(event, "description") and event.description:
+                logger.info(f"🎯 Action: {event.description}")
+
+            # Debug: show executor's reasoning
+            if hasattr(event, "thought") and event.thought:
+                thought_preview = (
+                    event.thought[:120] + "..."
+                    if len(event.thought) > 120
+                    else event.thought
+                )
+                logger.debug(f"💭 Reasoning: {thought_preview}")
+
+        elif isinstance(event, ExecutorInternalResultEvent):
+            # Show result with appropriate emoji
+            if hasattr(event, "outcome") and hasattr(event, "summary"):
+                if event.outcome:
+                    self.current_step = "Action completed"
+                    logger.info(f"✅ {event.summary}")
+                else:
+                    self.current_step = "Action failed"
+                    error_msg = event.error if hasattr(event, "error") else "Unknown error"
+                    logger.info(f"❌ {event.summary} ({error_msg})")
+
+        # CodeAct events (direct mode)
         elif isinstance(event, TaskInputEvent):
             self.current_step = "Processing task input..."
             logger.info("💬 Task input received...")
@@ -286,10 +329,6 @@ class LogHandler(logging.Handler):
                 else:
                     self.current_step = "Task failed"
                     logger.info(f"❌ Task failed: {event.reason}")
-
-        # elif isinstance(event, ReasoningLogicEvent): TODO: fix event handling
-        #     self.current_step = "Planning..."
-        #     logger.info("🤔 Planning next steps...")
 
         elif isinstance(event, TaskRunnerEvent):
             self.current_step = "Processing tasks..."

@@ -13,6 +13,7 @@ from rich.console import Console
 from rich.table import Table
 
 from droidrun.agent.utils.trajectory import Trajectory
+from droidrun.config_manager.path_resolver import PathResolver
 from droidrun.macro.replay import MacroPlayer
 
 console = Console()
@@ -79,16 +80,19 @@ def replay(path: str, device: Optional[str], delay: float, start_from: int, max_
 async def _replay_async(path: str, device: str, delay: float, start_from: int, max_steps: Optional[int], dry_run: bool, logger: logging.Logger):
     """Async function to handle macro replay."""
     try:
-        if os.path.isfile(path):
-            logger.info(f"📄 Loading macro from file: {path}")
+        # Resolve path (checks working dir, then project dir)
+        resolved_path = PathResolver.resolve(path, must_exist=True)
+
+        if resolved_path.is_file():
+            logger.info(f"📄 Loading macro from file: {resolved_path}")
             player = MacroPlayer(device_serial=device, delay_between_actions=delay)
-            macro_data = player.load_macro_from_file(path)
-        elif os.path.isdir(path):
-            logger.info(f"📁 Loading macro from folder: {path}")
+            macro_data = player.load_macro_from_file(str(resolved_path))
+        elif resolved_path.is_dir():
+            logger.info(f"📁 Loading macro from folder: {resolved_path}")
             player = MacroPlayer(device_serial=device, delay_between_actions=delay)
-            macro_data = player.load_macro_from_folder(path)
+            macro_data = player.load_macro_from_folder(str(resolved_path))
         else:
-            logger.error(f"❌ Invalid path: {path}")
+            logger.error(f"❌ Invalid path: {resolved_path}")
             return
 
         if not macro_data:
@@ -182,24 +186,25 @@ def list(directory: str, debug: bool):
     """List available trajectory folders in a directory."""
     logger = configure_logging(debug)
 
-    logger.info(f"📁 Scanning directory: {directory}")
+    # Resolve directory (checks working dir, then project dir)
+    resolved_dir = PathResolver.resolve(directory, must_exist=True)
+    logger.info(f"📁 Scanning directory: {resolved_dir}")
 
     try:
         folders = []
-        for item in os.listdir(directory):
-            item_path = os.path.join(directory, item)
-            if os.path.isdir(item_path):
-                macro_file = os.path.join(item_path, "macro.json")
-                if os.path.exists(macro_file):
+        for item in resolved_dir.iterdir():
+            if item.is_dir():
+                macro_file = item / "macro.json"
+                if macro_file.exists():
                     # Load macro info
                     try:
-                        macro_data = Trajectory.load_macro_sequence(item_path)
+                        macro_data = Trajectory.load_macro_sequence(str(item))
                         description = macro_data.get("description", "No description")
                         total_actions = macro_data.get("total_actions", 0)
-                        folders.append((item, description, total_actions))
+                        folders.append((item.name, description, total_actions))
                     except Exception as e:
-                        logger.debug(f"Error loading macro from {item}: {e}")
-                        folders.append((item, "Error loading", 0))
+                        logger.debug(f"Error loading macro from {item.name}: {e}")
+                        folders.append((item.name, "Error loading", 0))
 
         if not folders:
             logger.info("📭 No trajectory folders found")
@@ -217,7 +222,7 @@ def list(directory: str, debug: bool):
 
         # Still use console for table display as it's structured data
         console.print(table)
-        logger.info(f"💡 Use 'droidrun macro replay {directory}/<folder>' to replay a trajectory")
+        logger.info(f"💡 Use 'droidrun macro replay {resolved_dir}/<folder>' to replay a trajectory")
 
     except Exception as e:
         logger.error(f"💥 Error: {e}")

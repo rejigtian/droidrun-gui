@@ -31,5 +31,5 @@ config.yaml
 !.gitignore
 !.github/
 
-droidrun/backend/
+backend/
 frontend/

@@ -3,6 +3,8 @@ import os
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
+from droidrun.config_manager.path_resolver import PathResolver
+
 
 @dataclass
 class Task:
@@ -36,7 +38,8 @@ class TaskManager:
         self.goal_completed = False
         self.message = None
         self.task_history = []
-        self.file_path = os.path.join(os.path.dirname(__file__), "todo.txt")
+        # Save to working directory for user visibility
+        self.file_path = PathResolver.resolve("droidrun_tasks.txt", create_if_missing=True)
 
     def get_all_tasks(self) -> List[Task]:
         return self.tasks
@@ -71,8 +74,11 @@ class TaskManager:
 
 
     def save_to_file(self):
-        """Saves the current task list to a Markdown file."""
+        """Saves the current task list to a text file."""
         try:
+            # Ensure parent directory exists
+            self.file_path.parent.mkdir(parents=True, exist_ok=True)
+
             with open(self.file_path, 'w', encoding='utf-8') as f:
                 for i, task in enumerate(self.tasks, 1):
                     f.write(f"Task {i}: {task.description}\n")

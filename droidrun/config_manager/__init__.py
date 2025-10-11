@@ -10,12 +10,10 @@ from droidrun.config_manager.config_manager import (
     TelemetryConfig,
     ToolsConfig,
     TracingConfig,
-    config,
 )
 
 __all__ = [
     "ConfigManager",
-    "config",
     "DroidRunConfig",
     "LLMProfile",
     "AgentConfig",
