@@ -30,3 +30,6 @@ config.yaml
 .*/
 !.gitignore
 !.github/
+
+droidrun/backend/
+frontend/
