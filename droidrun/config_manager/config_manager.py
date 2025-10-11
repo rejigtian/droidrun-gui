@@ -4,7 +4,7 @@ import os
 import threading
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import yaml
 
@@ -17,27 +17,45 @@ def _default_config_text() -> str:
 
 # === Agent Settings ===
 agent:
+  # Maximum number of steps per task
   max_steps: 15
+  # Enable planning with reasoning mode
   reasoning: false
+  # Sleep duration after each action, waits for ui state to be updated (seconds)
   after_sleep_action: 1.0
+  # Wait duration for UI to stabilize (seconds)
   wait_for_stable_ui: 0.3
+  # Base directory for prompt templates
+  prompts_dir: config/prompts
 
+  # CodeAct Agent Configuration
   codeact:
+    # Enable vision capabilities (screenshots)
     vision: false
-    max_steps: 15
-    system_prompt_path: config/prompts/codeact/system.md
-    user_prompt_path: config/prompts/codeact/user.md
+    # System prompt filename (located in prompts_dir/codeact/)
+    system_prompt: system.md
+    # User prompt filename (located in prompts_dir/codeact/)
+    user_prompt: user.md
 
+  # Manager Agent Configuration
   manager:
+    # Enable vision capabilities (screenshots)
     vision: false
-    system_prompt_path: config/prompts/manager/system.md
+    # System prompt filename (located in prompts_dir/manager/)
+    system_prompt: system.md
 
+  # Executor Agent Configuration
   executor:
+    # Enable vision capabilities (screenshots)
     vision: false
-    system_prompt_path: config/prompts/executor/system.md
+    # System prompt filename (located in prompts_dir/executor/)
+    system_prompt: system.md
 
+  # App Cards Configuration
   app_cards:
+    # Enable app-specific instruction cards
     enabled: true
+    # Directory containing app card files
     app_cards_dir: config/app_cards
 
 # === LLM Profiles ===
@@ -154,23 +172,22 @@ class LLMProfile:
 class CodeActConfig:
     """CodeAct agent configuration."""
     vision: bool = False
-    max_steps: int = 15
-    system_prompt_path: str = "config/prompts/codeact/system.md"
-    user_prompt_path: str = "config/prompts/codeact/user.md"
+    system_prompt: str = "system.md"
+    user_prompt: str = "user.md"
 
 
 @dataclass
 class ManagerConfig:
     """Manager agent configuration."""
     vision: bool = False
-    system_prompt_path: str = "config/prompts/manager/system.md"
+    system_prompt: str = "system.md"
 
 
 @dataclass
 class ExecutorConfig:
     """Executor agent configuration."""
     vision: bool = False
-    system_prompt_path: str = "config/prompts/executor/system.md"
+    system_prompt: str = "system.md"
 
 
 @dataclass
@@ -187,11 +204,28 @@ class AgentConfig:
     reasoning: bool = False
     after_sleep_action: float = 1.0
     wait_for_stable_ui: float = 0.3
+    prompts_dir: str = "config/prompts"
 
     codeact: CodeActConfig = field(default_factory=CodeActConfig)
     manager: ManagerConfig = field(default_factory=ManagerConfig)
     executor: ExecutorConfig = field(default_factory=ExecutorConfig)
     app_cards: AppCardConfig = field(default_factory=AppCardConfig)
+
+    def get_codeact_system_prompt_path(self) -> str:
+        """Get full path to CodeAct system prompt."""
+        return f"{self.prompts_dir}/codeact/{self.codeact.system_prompt}"
+
+    def get_codeact_user_prompt_path(self) -> str:
+        """Get full path to CodeAct user prompt."""
+        return f"{self.prompts_dir}/codeact/{self.codeact.user_prompt}"
+
+    def get_manager_system_prompt_path(self) -> str:
+        """Get full path to Manager system prompt."""
+        return f"{self.prompts_dir}/manager/{self.manager.system_prompt}"
+
+    def get_executor_system_prompt_path(self) -> str:
+        """Get full path to Executor system prompt."""
+        return f"{self.prompts_dir}/executor/{self.executor.system_prompt}"
 
 
 @dataclass
@@ -315,6 +349,7 @@ class DroidRunConfig:
             reasoning=agent_data.get("reasoning", False),
             after_sleep_action=agent_data.get("after_sleep_action", 1.0),
             wait_for_stable_ui=agent_data.get("wait_for_stable_ui", 0.3),
+            prompts_dir=agent_data.get("prompts_dir", "config/prompts"),
             codeact=codeact_config,
             manager=manager_config,
             executor=executor_config,
@@ -603,6 +638,33 @@ class ConfigManager:
             import copy
             return copy.deepcopy(self._config.to_dict())
 
+    # Implemented for for config webiu so we can have dropdown prompt selection. but canceled webui plan.
+    def list_available_prompts(self, agent_type: str) -> List[str]:
+        """
+        List all available prompt files for a given agent type.
+
+        Args:
+            agent_type: One of "codeact", "manager", "executor"
+
+        Returns:
+            List of prompt filenames available in the agent's prompts directory
+
+        Example:
+            >>> config.list_available_prompts("manager")
+            ['system.md', 'experimental.md', 'minimal.md']
+        """
+        agent_type = agent_type.lower()
+        if agent_type not in ["codeact", "manager", "executor"]:
+            raise ValueError(f"Invalid agent_type: {agent_type}. Must be one of: codeact, manager, executor")
+
+        prompts_dir = Path(self.path).parent / self.agent.prompts_dir / agent_type
+
+        if not prompts_dir.exists():
+            return []
+
+        # List all .md files in the directory
+        return sorted([f.name for f in prompts_dir.glob("*.md")])
+
     # useful for tests to reset singleton state
     @classmethod
     def _reset_instance_for_testing(cls) -> None:
@@ -613,5 +675,3 @@ class ConfigManager:
         return f"<ConfigManager path={self.path!s}>"
 
 
-# ---------- global singleton ----------
-config = ConfigManager()

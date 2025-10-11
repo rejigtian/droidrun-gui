@@ -122,11 +122,10 @@ class DroidAgent(Workflow):
             custom_tools: Custom tool definitions
             timeout: Workflow timeout in seconds
         """
-        from droidrun.config_manager import config as global_config
 
         self.user_id = kwargs.pop("user_id", None)
 
-        base_config = config if config is not None else global_config
+        base_config = config
 
         self.config = DroidRunConfig(
             agent=agent_config or base_config.agent,
@@ -138,7 +137,7 @@ class DroidAgent(Workflow):
             llm_profiles=base_config.llm_profiles,
         )
 
-        super().__init__(timeout=timeout, *args, **kwargs)
+        super().__init__(*args, timeout=timeout, **kwargs)
 
         self._configure_default_logging(debug=self.config.logging.debug)
 

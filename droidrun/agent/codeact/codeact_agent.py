@@ -65,7 +65,7 @@ class CodeActAgent(Workflow):
         self.llm = llm
         self.agent_config = agent_config
         self.config = agent_config.codeact  # Shortcut to codeact config
-        self.max_steps = agent_config.codeact.max_steps
+        self.max_steps = agent_config.max_steps
         self.vision = agent_config.codeact.vision
         self.debug = debug
         self.tools = tools_instance
@@ -108,12 +108,12 @@ class CodeActAgent(Workflow):
 
         # Load prompts from config
         system_prompt_text = PromptLoader.load_prompt(
-            self.config.system_prompt_path,
+            agent_config.get_codeact_system_prompt_path(),
             {"tool_descriptions": self.tool_descriptions}
         )
         self.system_prompt = ChatMessage(role="system", content=system_prompt_text)
 
-        self.user_prompt_template = PromptLoader.load_prompt(self.config.user_prompt_path)
+        self.user_prompt_template = PromptLoader.load_prompt(agent_config.get_codeact_user_prompt_path())
 
         self.executor = SimpleCodeExecutor(
             loop=asyncio.get_event_loop(),
@@ -146,7 +146,7 @@ class CodeActAgent(Workflow):
 
         # Format user prompt with goal
         user_prompt_text = PromptLoader.load_prompt(
-            self.config.user_prompt_path,
+            self.agent_config.get_codeact_user_prompt_path(),
             {"goal": goal}
         )
         self.user_message = ChatMessage(role="user", content=user_prompt_text)

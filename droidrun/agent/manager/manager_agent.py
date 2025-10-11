@@ -161,7 +161,7 @@ You can reference these custom actions or tell the Executer agent to use them in
 
         # Load and format prompt
         return PromptLoader.load_prompt(
-            self.config.system_prompt_path,
+            self.agent_config.get_manager_system_prompt_path(),
             {
                 "instruction": self.shared_state.instruction,
                 "device_date": device_date_text,
@@ -417,7 +417,10 @@ You can reference these custom actions or tell the Executer agent to use them in
 
         has_text_to_modify = self.shared_state.has_text_to_modify
         screenshot = self.shared_state.screenshot
-        app_card = AppCardLoader.load_app_card(self.shared_state.current_package_name, self.app_card_loader.app_cards_dir)
+        if self.app_card_loader.enabled:
+            app_card = AppCardLoader.load_app_card(self.shared_state.current_package_name, self.app_card_loader.app_cards_dir)
+        else:
+            app_card = ""
 
         # ====================================================================
         # Step 1: Build system prompt

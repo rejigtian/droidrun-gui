@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING, List
+import time
 
 if TYPE_CHECKING:
     from droidrun.tools import Tools
@@ -122,6 +123,7 @@ def open_app(tool_instance: "Tools", text: str) -> str:
 
     # Run workflow to open an app
     result = workflow.run(app_description=text)
+    time.sleep(1)
     return result
 
 

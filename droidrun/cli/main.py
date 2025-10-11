@@ -17,7 +17,6 @@ from rich.console import Console
 from droidrun.agent.droid import DroidAgent
 from droidrun.agent.utils.llm_picker import load_llm
 from droidrun.cli.logs import LogHandler
-from droidrun.config_manager import config
 from droidrun.config_manager.config_manager import (
     AgentConfig,
     CodeActConfig,
@@ -39,6 +38,8 @@ from droidrun.portal import (
 )
 from droidrun.telemetry import print_telemetry_message
 from droidrun.tools import AdbTools, IOSTools
+from droidrun.config_manager import ConfigManager
+
 
 # Suppress all warnings
 warnings.filterwarnings("ignore")
@@ -48,12 +49,9 @@ os.environ["GRPC_ENABLE_FORK_SUPPORT"] = "false"
 console = Console()
 
 
-def configure_logging(goal: str, debug: bool):
+def configure_logging(goal: str, debug: bool, rich_text: bool = True):
     logger = logging.getLogger("droidrun")
     logger.handlers = []
-
-    # Get rich_text setting from config (assuming it exists)
-    rich_text = config.logging.rich_text
 
     handler = LogHandler(goal, rich_text=rich_text)
     handler.setFormatter(
@@ -86,6 +84,7 @@ def coro(f):
 @coro
 async def run_command(
     command: str,
+    config_path: str | None,
     device: str | None,
     provider: str | None,
     model: str | None,
@@ -107,9 +106,11 @@ async def run_command(
     **kwargs,
 ):
     """Run a command on your Android device using natural language."""
+    # Load custom config if provided
+    config = ConfigManager(config_path)
     # Initialize logging first (use config default if debug not specified)
     debug_mode = debug if debug is not None else config.logging.debug
-    log_handler = configure_logging(command, debug_mode)
+    log_handler = configure_logging(command, debug_mode, config.logging.rich_text)
     logger = logging.getLogger("droidrun")
 
     log_handler.update_step("Initializing...")
@@ -138,18 +139,18 @@ async def run_command(
 
             manager_cfg = ManagerConfig(
                 vision=manager_vision_val,
-                system_prompt_path=config.agent.manager.system_prompt_path
+                system_prompt=config.agent.manager.system_prompt
             )
 
             executor_cfg = ExecutorConfig(
                 vision=executor_vision_val,
-                system_prompt_path=config.agent.executor.system_prompt_path
+                system_prompt=config.agent.executor.system_prompt
             )
 
             codeact_cfg = CodeActConfig(
                 vision=codeact_vision_val,
-                system_prompt_path=config.agent.codeact.system_prompt_path,
-                user_prompt_path=config.agent.codeact.user_prompt_path
+                system_prompt=config.agent.codeact.system_prompt,
+                user_prompt=config.agent.codeact.user_prompt
             )
 
             agent_cfg = AgentConfig(
@@ -157,6 +158,7 @@ async def run_command(
                 reasoning=reasoning if reasoning is not None else config.agent.reasoning,
                 after_sleep_action=config.agent.after_sleep_action,
                 wait_for_stable_ui=config.agent.wait_for_stable_ui,
+                prompts_dir=config.agent.prompts_dir,
                 manager=manager_cfg,
                 executor=executor_cfg,
                 codeact=codeact_cfg,
@@ -425,6 +427,7 @@ def cli(
 
 @cli.command()
 @click.argument("command", type=str)
+@click.option("--config", "-c", help="Path to custom config file", default=None)
 @click.option("--device", "-d", help="Device serial number or IP address", default=None)
 @click.option(
     "--provider",
@@ -506,6 +509,7 @@ def cli(
 @click.option("--ios", type=bool, default=None, help="Run on iOS device")
 def run(
     command: str,
+    config: str | None,
     device: str | None,
     provider: str | None,
     model: str | None,
@@ -526,9 +530,11 @@ def run(
     ios: bool | None,
 ):
     """Run a command on your Android device using natural language."""
+
     # Call our standalone function
     return run_command(
         command,
+        config,
         device,
         provider,
         model,

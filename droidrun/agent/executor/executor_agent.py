@@ -126,7 +126,7 @@ class ExecutorAgent(Workflow): # TODO: Fix a bug in bad prompt
 
         # Load and format prompt
         system_prompt = PromptLoader.load_prompt(
-            self.config.system_prompt_path,
+            self.agent_config.get_executor_system_prompt_path(),
             {
                 "instruction": self.shared_state.instruction,
                 "app_card": app_card_text,
