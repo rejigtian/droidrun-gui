@@ -26,3 +26,7 @@ patch_apis.py
 todo.txt
 
 config.yaml
+
+.*/
+!.gitignore
+!.github/

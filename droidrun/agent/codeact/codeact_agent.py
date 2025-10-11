@@ -3,7 +3,7 @@ import json
 import logging
 import re
 import time
-from typing import List, Union, TYPE_CHECKING
+from typing import List, Union, Optional, TYPE_CHECKING
 
 from llama_index.core.base.llms.types import ChatMessage, ChatResponse
 from llama_index.core.llms.llm import LLM
@@ -55,7 +55,7 @@ class CodeActAgent(Workflow):
         tools_instance: "Tools",
         custom_tools: dict = None,
         debug: bool = False,
-        shared_state: "DroidAgentState" | None = None,
+        shared_state: Optional["DroidAgentState"] = None,
         *args,
         **kwargs,
     ):
@@ -116,6 +116,7 @@ class CodeActAgent(Workflow):
         self.user_prompt_template = PromptLoader.load_prompt(self.config.user_prompt_path)
 
         self.executor = SimpleCodeExecutor(
+            loop=asyncio.get_event_loop(),
             locals={},
             tools=self.tool_list,
             tools_instance=tools_instance,
@@ -220,8 +221,8 @@ Now, describe the next step you will take to address the original goal: {goal}""
                 self.shared_state.current_package_name = phone_state.get('packageName', 'Unknown')
                 self.shared_state.current_app_name = phone_state.get('currentApp', 'Unknown')
 
-            # Stream formatted state for trajectory (only formatted text, not raw)
-            ctx.write_event_to_stream(RecordUIStateEvent(ui_state=formatted_text))
+            # Stream formatted state for trajectory
+            ctx.write_event_to_stream(RecordUIStateEvent(ui_state=a11y_tree))
 
             # Add device state to chat using new chat_utils function
             # This injects into LAST user message, doesn't create new message

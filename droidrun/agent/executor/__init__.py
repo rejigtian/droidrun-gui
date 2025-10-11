@@ -2,12 +2,14 @@
 Executor Agent - Action execution workflow.
 """
 
-from droidrun.agent.executor.events import ExecutorActionEvent, ExecutorResultEvent
+from droidrun.agent.droid.events import ExecutorInputEvent, ExecutorResultEvent
+from droidrun.agent.executor.events import ExecutorInternalActionEvent, ExecutorInternalResultEvent
 from droidrun.agent.executor.executor_agent import ExecutorAgent
 
 __all__ = [
     "ExecutorAgent",
-    "ExecutorThinkingEvent",
-    "ExecutorActionEvent",
-    "ExecutorResultEvent"
+    "ExecutorInputEvent",
+    "ExecutorResultEvent",
+    "ExecutorInternalActionEvent",
+    "ExecutorInternalResultEvent"
 ]
