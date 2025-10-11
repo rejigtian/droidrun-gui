@@ -26,7 +26,7 @@ Example of proper code format:
 **(Step 1) Agent Action:**
 ```python
 # First step: Navigate to Wi-Fi settings
-tap_by_index(3)
+click(3)
 ```
 
 **(Step 2) Agent Analysis:** Good! I've successfully navigated to the Wi-Fi settings screen. Now I can see the Wi-Fi settings interface. I notice that Wi-Fi appears to be turned off based on the toggle switch at index 1. I need to turn it on before I can see available networks and connect to 'HomeNetwork'.
@@ -34,7 +34,7 @@ tap_by_index(3)
 **(Step 2) Agent Action:**
 ```python
 # Second step: Turn on Wi-Fi to see available networks
-tap_by_index(1)
+click(1)
 ```
 
 **(Step 3) Agent Analysis:** Excellent! Wi-Fi is now enabled and I can see a list of available networks appearing on the screen. I can see 'HomeNetwork' in the list at index 5. This is the final step - I need to tap on it to initiate the connection, which will complete my assigned task.
@@ -42,7 +42,7 @@ tap_by_index(1)
 **(Step 3) Agent Action:**
 ```python
 # Final step: Connect to the target network
-tap_by_index(5)
+click(5)
 complete(success=True, reason="Successfully navigated to Wi-Fi settings and initiated connection to HomeNetwork")
 ```
 ```
