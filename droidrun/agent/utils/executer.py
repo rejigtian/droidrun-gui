@@ -1,18 +1,19 @@
-import asyncio
-import contextlib
 import io
-import logging
-import threading
+import contextlib
 import traceback
+import logging
+from typing import Any, Dict, Optional
 from asyncio import AbstractEventLoop
-from typing import Any, Dict
-
-from llama_index.core.workflow import Context
-
-from droidrun.agent.utils.async_utils import async_to_sync
-from droidrun.tools.adb import AdbTools
+from pydantic import BaseModel
 
 logger = logging.getLogger("droidrun")
+
+class ExecuterState(BaseModel):
+    """State object for the code executor."""
+    ui_state: Optional[Any] = None
+    
+    class Config:
+        arbitrary_types_allowed = True
 
 
 class SimpleCodeExecutor:
@@ -31,121 +32,104 @@ class SimpleCodeExecutor:
         locals: Dict[str, Any] = None,
         globals: Dict[str, Any] = None,
         tools=None,
-        tools_instance=None,
         use_same_scope: bool = True,
     ):
         """
         Initialize the code executor.
 
         Args:
+            loop: The event loop to use for async execution
             locals: Local variables to use in the execution context
             globals: Global variables to use in the execution context
-            tools: List of tools available for execution
-            tools_instance: Original tools instance (e.g., AdbTools instance)
+            tools: Dict or list of tools available for execution
+            use_same_scope: Whether to use the same scope for globals and locals
         """
-        self.locals = locals or {}
-        self.globals = globals or {}
-        self.tools = tools or {}
-        self.tools_instance = tools_instance
+        if locals is None:
+            locals = {}
+        if globals is None:
+            globals = {}
+        if tools is None:
+            tools = {}
 
-        # loop throught tools and add them to globals, but before that check if tool value is async, if so convert it to sync. tools is a dictionary of tool name: function
-        # e.g. tools = {'tool_name': tool_function}
-
-        # check if tools is a dictionary
+        # Add tools to globals
         if isinstance(tools, dict):
-            logger.debug(
-                f"🔧 Initializing SimpleCodeExecutor with tools: {tools.items()}"
-            )
-            for tool_name, tool_function in tools.items():
-                if asyncio.iscoroutinefunction(tool_function):
-                    # If the function is async, convert it to sync
-                    tool_function = async_to_sync(tool_function)
-                # Add the tool to globals
-                globals[tool_name] = tool_function
+            logger.debug(f"🔧 Initializing SimpleCodeExecutor with tools: {list(tools.keys())}")
+            globals.update(tools)
         elif isinstance(tools, list):
-            logger.debug(f"🔧 Initializing SimpleCodeExecutor with tools: {tools}")
-            # If tools is a list, convert it to a dictionary with tool name as key and function as value
+            logger.debug(f"🔧 Initializing SimpleCodeExecutor with {len(tools)} tools")
             for tool in tools:
-                if asyncio.iscoroutinefunction(tool):
-                    # If the function is async, convert it to sync
-                    tool = async_to_sync(tool)
-                # Add the tool to globals
                 globals[tool.__name__] = tool
         else:
             raise ValueError("Tools must be a dictionary or a list of functions.")
 
+        # Add common imports
         import time
-
         globals["time"] = time
 
         self.globals = globals
         self.locals = locals
         self.loop = loop
         self.use_same_scope = use_same_scope
-        self.tools = tools
+        
         if self.use_same_scope:
-            # If using the same scope, set the globals and locals to the same dictionary
+            # If using the same scope, merge globals and locals
             self.globals = self.locals = {
                 **self.locals,
                 **{k: v for k, v in self.globals.items() if k not in self.locals},
             }
 
-    async def execute(self, ctx: Context, code: str) -> str:
+    def _execute_in_thread(self, code: str, ui_state: Any) -> str:
         """
-        Execute Python code and capture output and return values.
-
-        Args:
-            code: Python code to execute
-
-        Returns:
-            str: Output from the execution, including print statements.
+        Execute code synchronously in a thread.
+        All async tools will be called synchronously here.
         """
-        # Update UI elements before execution
-        self.globals['ui_state'] = await ctx.store.get("ui_state", None)
-        self.globals['step_screenshots'] = []
-        self.globals['step_ui_states'] = []
-
-        if self.tools_instance and isinstance(self.tools_instance, AdbTools):
-            self.tools_instance._set_context(ctx)
-
+        # Update UI state
+        self.globals['ui_state'] = ui_state
+        
         # Capture stdout and stderr
         stdout = io.StringIO()
         stderr = io.StringIO()
 
         output = ""
         try:
-            # Execute with captured output
-            thread_exception = []
             with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
-
-                def execute_code():
-                    try:
-                        exec(code, self.globals, self.locals)
-                    except Exception as e:
-                        import traceback
-
-                        thread_exception.append((e, traceback.format_exc()))
-
-                t = threading.Thread(target=execute_code)
-                t.start()
-                t.join()
+                # Just exec the code directly - no async needed!
+                exec(code, self.globals, self.locals)
 
             # Get output
             output = stdout.getvalue()
             if stderr.getvalue():
                 output += "\n" + stderr.getvalue()
-            if thread_exception:
-                e, tb = thread_exception[0]
-                output += f"\nError: {type(e).__name__}: {str(e)}\n{tb}"
 
         except Exception as e:
             # Capture exception information
             output = f"Error: {type(e).__name__}: {str(e)}\n"
             output += traceback.format_exc()
 
-        result = {
-            'output': output,
-            'screenshots': self.globals['step_screenshots'],
-            'ui_states': self.globals['step_ui_states'],
-        }
-        return result
+        return output
+
+    async def execute(self, state: ExecuterState, code: str) -> str:
+        """
+        Execute Python code and capture output and return values.
+        
+        Runs the code in a separate thread to prevent blocking.
+
+        Args:
+            state: ExecuterState containing ui_state and other execution context.
+            code: Python code to execute
+
+        Returns:
+            str: Output from the execution, including print statements.
+        """
+        # Get UI state from the state object
+        ui_state = state.ui_state
+        
+        # Run the execution in a thread pool executor
+        output = await self.loop.run_in_executor(
+            None,
+            self._execute_in_thread,
+            code,
+            ui_state
+        )
+        
+        return output

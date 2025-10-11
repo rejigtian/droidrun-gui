@@ -23,7 +23,7 @@ from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
 from droidrun.agent.context.episodic_memory import EpisodicMemory, EpisodicMemoryStep
 from droidrun.agent.usage import get_usage_from_response
 from droidrun.agent.utils import chat_utils
-from droidrun.agent.utils.executer import SimpleCodeExecutor
+from droidrun.agent.utils.executer import SimpleCodeExecutor, ExecuterState
 from droidrun.agent.utils.device_state_formatter import format_device_state
 
 from droidrun.agent.utils.tools import (
@@ -292,7 +292,7 @@ Now, describe the next step you will take to address the original goal: {goal}""
 
         try:
             self.code_exec_counter += 1
-            result = await self.executor.execute(ctx, code)
+            result = await self.executor.execute(ExecuterState(ui_state=ctx.store.get("ui_state", None)), code)
             logger.info(f"💡 Code execution successful. Result: {result['output']}")
             await asyncio.sleep(self.agent_config.after_sleep_action)
             screenshots = result['screenshots']
