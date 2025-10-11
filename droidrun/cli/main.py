@@ -20,11 +20,13 @@ from droidrun.cli.logs import LogHandler
 from droidrun.config_manager import config
 from droidrun.config_manager.config_manager import (
     AgentConfig,
+    CodeActConfig,
+    ManagerConfig,
+    ExecutorConfig,
     DeviceConfig,
     LoggingConfig,
     ToolsConfig,
     TracingConfig,
-    VisionConfig,
 )
 from droidrun.macro.cli import macro_cli
 from droidrun.portal import (
@@ -121,24 +123,44 @@ async def run_command(
             # STEP 1: Build config objects with CLI overrides
             # ================================================================
 
-            vision_cfg = config.agent.vision
+            # Build agent-specific configs with vision overrides
             if vision is not None:
-                vision_cfg = VisionConfig(manager=vision, executor=vision, codeact=vision)
+                # --vision flag overrides all agents
+                manager_vision_val = vision
+                executor_vision_val = vision
+                codeact_vision_val = vision
                 logger.debug(f"CLI override: vision={vision} (all agents)")
             else:
-                if manager_vision is not None or executor_vision is not None or codeact_vision is not None:
-                    vision_cfg = VisionConfig(
-                        manager=manager_vision if manager_vision is not None else config.agent.vision.manager,
-                        executor=executor_vision if executor_vision is not None else config.agent.vision.executor,
-                        codeact=codeact_vision if codeact_vision is not None else config.agent.vision.codeact
-                    )
+                # Use individual overrides or config defaults
+                manager_vision_val = manager_vision if manager_vision is not None else config.agent.manager.vision
+                executor_vision_val = executor_vision if executor_vision is not None else config.agent.executor.vision
+                codeact_vision_val = codeact_vision if codeact_vision is not None else config.agent.codeact.vision
+
+            manager_cfg = ManagerConfig(
+                vision=manager_vision_val,
+                system_prompt_path=config.agent.manager.system_prompt_path
+            )
+
+            executor_cfg = ExecutorConfig(
+                vision=executor_vision_val,
+                system_prompt_path=config.agent.executor.system_prompt_path
+            )
+
+            codeact_cfg = CodeActConfig(
+                vision=codeact_vision_val,
+                system_prompt_path=config.agent.codeact.system_prompt_path,
+                user_prompt_path=config.agent.codeact.user_prompt_path
+            )
 
             agent_cfg = AgentConfig(
                 max_steps=steps if steps is not None else config.agent.max_steps,
-                vision=vision_cfg,
                 reasoning=reasoning if reasoning is not None else config.agent.reasoning,
                 after_sleep_action=config.agent.after_sleep_action,
                 wait_for_stable_ui=config.agent.wait_for_stable_ui,
+                manager=manager_cfg,
+                executor=executor_cfg,
+                codeact=codeact_cfg,
+                app_cards=config.agent.app_cards,
             )
 
             device_cfg = DeviceConfig(
@@ -260,8 +282,8 @@ async def run_command(
 
             mode = "planning with reasoning" if agent_cfg.reasoning else "direct execution"
             logger.info(f"🤖 Agent mode: {mode}")
-            logger.info(f"👁️  Vision settings: Manager={agent_cfg.vision.manager}, "
-                       f"Executor={agent_cfg.vision.executor}, CodeAct={agent_cfg.vision.codeact}")
+            logger.info(f"👁️  Vision settings: Manager={agent_cfg.manager.vision}, "
+                       f"Executor={agent_cfg.executor.vision}, CodeAct={agent_cfg.codeact.vision}")
 
             if tracing_cfg.enabled:
                 logger.info("🔍 Tracing enabled")
