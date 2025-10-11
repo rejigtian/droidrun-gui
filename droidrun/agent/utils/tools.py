@@ -157,11 +157,6 @@ ATOMIC_ACTION_SIGNATURES = {
         "description": "Scroll from the position with coordinate to the position with coordinate2. Please make sure the start and end points of your swipe are within the swipeable area and away from the keyboard (y1 < 1400). Usage Example: {\"action\": \"swipe\", \"coordinate\": [x1, y1], \"coordinate2\": [x2, y2]}",
         "function": swipe,
     },
-    "open_app": {
-        "arguments": ["text"],
-        "description": "Open an app. Usage example: {\"action\": \"open_app\", \"text\": \"the name of app\"}",
-        "function": open_app,
-    },
     # "copy": {
     #     "arguments": ["text"],
     #     "description": "Copy the specified text to the clipboard. Provide the text to copy using the 'text' argument. Example: {\"action\": \"copy\", \"text\": \"the text you want to copy\"}\nAlways use copy action to copy text to clipboard."

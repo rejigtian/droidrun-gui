@@ -43,6 +43,8 @@ from droidrun.config_manager.config_manager import (
     ToolsConfig,
     TracingConfig,
 )
+
+from droidrun.agent.utils.tools import open_app
 from droidrun.telemetry import (
     DroidAgentFinalizeEvent,
     DroidAgentInitEvent,
@@ -186,11 +188,21 @@ class DroidAgent(Workflow):
         self.task_iter = None
         self.current_episodic_memory = None
 
+        open_app_tool = {
+            "arguments": ["text"],
+            "description": "Open an app by name. Usage example: {\"action\": \"open_app\", \"text\": \"the name of app\"}",
+            "function": open_app,
+        }
+        # Merge with user-provided custom tools
+        self.custom_tools = {**self.custom_tools, "open_app": open_app_tool}
+
         logger.info("🤖 Initializing DroidAgent...")
         logger.info(f"💾 Trajectory saving: {self.config.logging.save_trajectory}")
 
         self.tools_instance = tools
         self.tools_instance.save_trajectories = self.config.logging.save_trajectory
+        # Set app_opener_llm on tools instance for open_app custom tool
+        self.tools_instance.app_opener_llm = self.app_opener_llm
 
         self.shared_state = DroidAgentState(
             instruction=goal,
