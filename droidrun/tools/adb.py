@@ -2,15 +2,11 @@
 UI Actions - Core UI interaction tools for Android device control.
 """
 
-import base64
-import io
-import json
 import logging
 import os
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
-import requests
 from adbutils import adb
 from llama_index.core.workflow import Context
 
@@ -24,6 +20,7 @@ from droidrun.agent.common.events import (
 )
 from droidrun.tools.tools import Tools
 
+from droidrun.tools.portal_client import PortalClient
 logger = logging.getLogger("droidrun-tools")
 PORTAL_DEFAULT_TCP_PORT = 8080
 
@@ -49,9 +46,8 @@ class AdbTools(Tools):
             text_manipulator_llm: LLM instance for text manipulation (optional)
         """
         self.device = adb.device(serial=serial)
-        self.use_tcp = use_tcp
-        self.remote_tcp_port = remote_tcp_port
-        self.tcp_forwarded = False
+
+        self.portal = PortalClient(self.device, prefer_tcp=use_tcp)
 
         self._ctx = None
         # Instance‐level cache for clickable elements (index-based tapping)
@@ -75,10 +71,6 @@ class AdbTools(Tools):
         from droidrun.portal import setup_keyboard
         setup_keyboard(self.device)
 
-        # Set up TCP forwarding if requested
-        if self.use_tcp:
-            self.setup_tcp_forward()
-
 
     def get_date(self) -> str:
         """
@@ -86,126 +78,8 @@ class AdbTools(Tools):
         """
         return self.device.shell("date").strip()
 
-
-    def setup_tcp_forward(self) -> bool:
-        """
-        Set up ADB TCP port forwarding for communication with the portal app.
-
-        Returns:
-            bool: True if forwarding was set up successfully, False otherwise
-        """
-        try:
-            logger.debug(
-                f"Setting up TCP port forwarding for port tcp:{self.remote_tcp_port} on device {self.device.serial}"
-            )
-            # Use adb forward command to set up port forwarding
-            self.local_tcp_port = self.device.forward_port(self.remote_tcp_port)
-            self.tcp_base_url = f"http://localhost:{self.local_tcp_port}"
-            logger.debug(
-                f"TCP port forwarding set up successfully to {self.tcp_base_url}"
-            )
-
-            # Test the connection with a ping
-            try:
-                response = requests.get(f"{self.tcp_base_url}/ping", timeout=5)
-                if response.status_code == 200:
-                    logger.debug("TCP connection test successful")
-                    self.tcp_forwarded = True
-                    return True
-                else:
-                    logger.warning(
-                        f"TCP connection test failed with status: {response.status_code}"
-                    )
-                    return False
-            except requests.exceptions.RequestException as e:
-                logger.warning(f"TCP connection test failed: {e}")
-                return False
-
-        except Exception as e:
-            logger.error(f"Failed to set up TCP port forwarding: {e}")
-            self.tcp_forwarded = False
-            return False
-
-    def teardown_tcp_forward(self) -> bool:
-        """
-        Remove ADB TCP port forwarding.
-
-        Returns:
-            bool: True if forwarding was removed successfully, False otherwise
-        """
-        try:
-            if self.tcp_forwarded:
-                logger.debug(
-                    f"Removing TCP port forwarding for port {self.local_tcp_port}"
-                )
-                # remove forwarding
-                cmd = f"killforward:tcp:{self.local_tcp_port}"
-                logger.debug(f"Removing TCP port forwarding: {cmd}")
-                c = self.device.open_transport(cmd)
-                c.close()
-
-                self.tcp_forwarded = False
-                logger.debug("TCP port forwarding removed")
-                return True
-            return True
-        except Exception as e:
-            logger.error(f"Failed to remove TCP port forwarding: {e}")
-            return False
-
-    def __del__(self):
-        """Cleanup when the object is destroyed."""
-        if hasattr(self, "tcp_forwarded") and self.tcp_forwarded:
-            self.teardown_tcp_forward()
-
     def _set_context(self, ctx: Context):
         self._ctx = ctx
-
-    def _parse_content_provider_output(
-        self, raw_output: str
-    ) -> Optional[Dict[str, Any]]:
-        """
-        Parse the raw ADB content provider output and extract JSON data.
-
-        Args:
-            raw_output (str): Raw output from ADB content query command
-
-        Returns:
-            dict: Parsed JSON data or None if parsing failed
-        """
-        # The ADB content query output format is: "Row: 0 result={json_data}"
-        # We need to extract the JSON part after "result="
-        lines = raw_output.strip().split("\n")
-
-        for line in lines:
-            line = line.strip()
-
-            # Look for lines that contain "result=" pattern
-            if "result=" in line:
-                # Extract everything after "result="
-                result_start = line.find("result=") + 7
-                json_str = line[result_start:]
-
-                try:
-                    # Parse the JSON string
-                    json_data = json.loads(json_str)
-                    return json_data
-                except json.JSONDecodeError:
-                    continue
-
-            # Fallback: try to parse lines that start with { or [
-            elif line.startswith("{") or line.startswith("["):
-                try:
-                    json_data = json.loads(line)
-                    return json_data
-                except json.JSONDecodeError:
-                    continue
-
-        # If no valid JSON found in individual lines, try the entire output
-        try:
-            json_data = json.loads(raw_output.strip())
-            return json_data
-        except json.JSONDecodeError:
-            return None
 
     @Tools.ui_action
     def _extract_element_coordinates_by_index(self, index: int) -> Tuple[int, int]:
@@ -510,52 +384,9 @@ class AdbTools(Tools):
         try:
             if index != -1:
                 self.tap_by_index(index)
-            # Encode the text to Base64 (needed for both TCP and content provider)
-            encoded_text = base64.b64encode(text.encode()).decode()
 
-            if self.use_tcp and self.tcp_forwarded:
-                # Use TCP communication
-                payload = {
-                    "base64_text": encoded_text,
-                    "clear": clear  # Include clear parameter for TCP
-                }
-                response = requests.post(
-                    f"{self.tcp_base_url}/keyboard/input",
-                    json=payload,
-                    headers={"Content-Type": "application/json"},
-                    timeout=10,
-                )
-
-                print(
-                    f"Keyboard input TCP response: {response.status_code}, {response.text}"
-                )
-
-                if response.status_code != 200:
-                    return f"Error: HTTP request failed with status {response.status_code}: {response.text}"
-
-                # For TCP, you might want to parse the response for success/error details
-                try:
-                    result_data = response.json()
-                    if result_data.get("status") == "success":
-                        return f"Text input completed (clear={clear}): {text[:50]}{'...' if len(text) > 50 else ''}"
-                    else:
-                        return f"Error: {result_data.get('error', 'Unknown error')}"
-                except:  # noqa: E722
-                    return f"Text input completed (clear={clear}): {text[:50]}{'...' if len(text) > 50 else ''}"
-
-            else:
-                # Fallback to content provider method
-                # Build the content insert command with clear parameter
-                clear_str = "true" if clear else "false"
-                cmd = (
-                    f'content insert --uri "content://com.droidrun.portal/keyboard/input" '
-                    f'--bind base64_text:s:"{encoded_text}" '
-                    f'--bind clear:b:{clear_str}'
-                )
-
-                # Execute the command and capture output for better error handling
-                result = self.device.shell(cmd)
-                print(f"Content provider result: {result}")
+            # Use PortalClient for text input (automatic TCP/content provider selection)
+            success = self.portal.input_text(text, clear)
 
             if self._ctx:
                 input_event = InputTextActionEvent(
@@ -565,15 +396,12 @@ class AdbTools(Tools):
                 )
                 self._ctx.write_event_to_stream(input_event)
 
-            print(
-                f"Text input completed (clear={clear}): {text[:50]}{'...' if len(text) > 50 else ''}"
-            )
-            return f"Text input completed (clear={clear}): {text[:50]}{'...' if len(text) > 50 else ''}"
+            if success:
+                print(f"Text input completed (clear={clear}): {text[:50]}{'...' if len(text) > 50 else ''}")
+                return f"Text input completed (clear={clear}): {text[:50]}{'...' if len(text) > 50 else ''}"
+            else:
+                return "Error: Text input failed"
 
-        except requests.exceptions.RequestException as e:
-            return f"Error: TCP request failed: {str(e)}"
-        except ValueError as e:
-            return f"Error: {str(e)}"
         except Exception as e:
             return f"Error sending text input: {str(e)}"
 
@@ -714,56 +542,21 @@ class AdbTools(Tools):
         """
         try:
             logger.debug("Taking screenshot")
-            img_format = "PNG"
-            image_bytes = None
 
-            if self.use_tcp and self.tcp_forwarded:
-                # Add hideOverlay parameter to URL
-                url = f"{self.tcp_base_url}/screenshot"
-                if not hide_overlay:
-                    url += "?hideOverlay=false"
-
-                response = requests.get(url, timeout=10)
-                if response.status_code == 200:
-                    tcp_response = response.json()
-
-                    # Check if response has the expected format with data field
-                    if tcp_response.get("status") == "success" and "data" in tcp_response:
-                        # Decode base64 string to bytes
-                        base64_data = tcp_response["data"]
-                        image_bytes = base64.b64decode(base64_data)
-                        logger.debug("Screenshot taken via TCP")
-                    else:
-                        # Handle error response from server
-                        error_msg = tcp_response.get("error", "Unknown error")
-                        raise ValueError(f"Error taking screenshot via TCP: {error_msg}")
-                else:
-                    raise ValueError(f"Error taking screenshot via TCP: {response.status_code}")
-
-            else:
-                # Fallback to ADB screenshot method
-                img = self.device.screenshot()
-                img_buf = io.BytesIO()
-                img.save(img_buf, format=img_format)
-                image_bytes = img_buf.getvalue()
-                logger.debug("Screenshot taken via ADB")
+            image_bytes = self.portal.take_screenshot(hide_overlay)
 
             # Store screenshot with timestamp
             self.screenshots.append(
                 {
                     "timestamp": time.time(),
                     "image_data": image_bytes,
-                    "format": img_format,
+                    "format": "PNG",
                 }
             )
-            return img_format, image_bytes
+            return "PNG", image_bytes
 
-        except requests.exceptions.RequestException as e:
-            raise ValueError(f"Error taking screenshot via TCP: {str(e)}") from e
-        except ValueError as e:
-            raise ValueError(f"Error taking screenshot: {str(e)}") from e
         except Exception as e:
-            raise ValueError(f"Unexpected error taking screenshot: {str(e)}") from e
+            raise ValueError(f"Error taking screenshot: {str(e)}") from e
 
 
     def list_packages(self, include_system_apps: bool = False) -> List[str]:
@@ -792,38 +585,7 @@ class AdbTools(Tools):
         Returns:
             List of dictionaries containing 'package' and 'label' keys
         """
-        try:
-            logger.debug("Getting apps via content provider")
-
-            # Query the content provider for packages
-            adb_output = self.device.shell(
-                "content query --uri content://com.droidrun.portal/packages"
-            )
-
-            # Parse the content provider output
-            packages_data = self._parse_content_provider_output(adb_output)
-
-            if not packages_data or "packages" not in packages_data:
-                logger.warning("No packages data found in content provider response")
-                return []
-
-            apps = []
-            for package_info in packages_data["packages"]:
-                # Filter system apps if requested
-                if not include_system and package_info.get("isSystemApp", False):
-                    continue
-
-                apps.append({
-                    "package": package_info.get("packageName", ""),
-                    "label": package_info.get("label", "")
-                })
-
-            logger.debug(f"Found {len(apps)} apps")
-            return apps
-
-        except Exception as e:
-            logger.error(f"Error getting apps: {str(e)}")
-            raise ValueError(f"Error getting apps: {str(e)}") from e
+        return self.portal.get_apps(include_system)
 
     @Tools.ui_action
     def complete(self, success: bool, reason: str = ""):
@@ -881,82 +643,22 @@ class AdbTools(Tools):
         """
         return self.memory.copy()
 
-    def get_state(self, serial: Optional[str] = None) -> Dict[str, Any]:
+    def get_state(self) -> Dict[str, Any]:
         """
         Get both the a11y tree and phone state in a single call using the combined /state endpoint.
-
-        Args:
-            serial: Optional device serial number
 
         Returns:
             Dictionary containing both 'a11y_tree' and 'phone_state' data
         """
-
         try:
             logger.debug("Getting state")
 
-            if self.use_tcp and self.tcp_forwarded:
-                # Use TCP communication
-                response = requests.get(f"{self.tcp_base_url}/state", timeout=10)
+            # Use PortalClient for state (automatic TCP/content provider selection)
+            combined_data = self.portal.get_state()
 
-                if response.status_code == 200:
-                    tcp_response = response.json()
-
-                    # Check if response has the expected format
-                    if isinstance(tcp_response, dict) and "data" in tcp_response:
-                        data_str = tcp_response["data"]
-                        try:
-                            combined_data = json.loads(data_str)
-                        except json.JSONDecodeError:
-                            return {
-                                "error": "Parse Error",
-                                "message": "Failed to parse JSON data from TCP response data field",
-                            }
-                    else:
-                        # Fallback: assume direct JSON format
-                        combined_data = tcp_response
-                else:
-                    return {
-                        "error": "HTTP Error",
-                        "message": f"HTTP request failed with status {response.status_code}",
-                    }
-            else:
-                # Fallback to content provider method
-                adb_output = self.device.shell(
-                    "content query --uri content://com.droidrun.portal/state",
-                )
-
-                state_data = self._parse_content_provider_output(adb_output)
-
-                if state_data is None:
-                    return {
-                        "error": "Parse Error",
-                        "message": "Failed to parse state data from ContentProvider response",
-                    }
-
-                if isinstance(state_data, dict):
-                    data_str = None
-                    if "data" in state_data:
-                        data_str = state_data["data"]
-
-                    if data_str:
-                        try:
-                            combined_data = json.loads(data_str)
-                        except json.JSONDecodeError:
-                            return {
-                                "error": "Parse Error",
-                                "message": "Failed to parse JSON data from ContentProvider response",
-                            }
-                    else:
-                        return {
-                            "error": "Format Error",
-                            "message": "Neither 'data' nor 'message' field found in ContentProvider response",
-                        }
-                else:
-                    return {
-                        "error": "Format Error",
-                        "message": f"Unexpected state data format: {type(state_data)}",
-                    }
+            # Handle error responses
+            if "error" in combined_data:
+                return combined_data
 
             # Validate that both a11y_tree and phone_state are present
             if "a11y_tree" not in combined_data:
@@ -994,11 +696,6 @@ class AdbTools(Tools):
                 "phone_state": combined_data["phone_state"],
             }
 
-        except requests.exceptions.RequestException as e:
-            return {
-                "error": "TCP Error",
-                "message": f"TCP request failed: {str(e)}",
-            }
         except Exception as e:
             return {
                 "error": str(e),
@@ -1007,51 +704,12 @@ class AdbTools(Tools):
 
     def ping(self) -> Dict[str, Any]:
         """
-        Test the TCP connection using the /ping endpoint.
+        Test the Portal connection.
 
         Returns:
             Dictionary with ping result
         """
-        try:
-            if self.use_tcp and self.tcp_forwarded:
-                response = requests.get(f"{self.tcp_base_url}/ping", timeout=5)
-
-                if response.status_code == 200:
-                    try:
-                        tcp_response = response.json() if response.content else {}
-                        logger.debug(f"Ping TCP response: {tcp_response}")
-                        return {
-                            "status": "success",
-                            "message": "Ping successful",
-                            "response": tcp_response,
-                        }
-                    except json.JSONDecodeError:
-                        return {
-                            "status": "success",
-                            "message": "Ping successful (non-JSON response)",
-                            "response": response.text,
-                        }
-                else:
-                    return {
-                        "status": "error",
-                        "message": f"Ping failed with status {response.status_code}: {response.text}",
-                    }
-            else:
-                return {
-                    "status": "error",
-                    "message": "TCP communication is not enabled",
-                }
-
-        except requests.exceptions.RequestException as e:
-            return {
-                "status": "error",
-                "message": f"Ping failed: {str(e)}",
-            }
-        except Exception as e:
-            return {
-                "status": "error",
-                "message": f"Error during ping: {str(e)}",
-            }
+        return self.portal.ping()
 
 
 def _shell_test_cli(serial: str, command: str) -> tuple[str, float]:

@@ -555,18 +555,15 @@ def run(
         )
     finally:
         # Disable DroidRun keyboard after execution
+        # Note: Port forwards are managed automatically and persist until device disconnect
         try:
             if not (ios if ios is not None else False):
-                device_serial = adb.device().serial
-                if device_serial:
-                    tools = AdbTools(serial=device, use_tcp=use_tcp if use_tcp is not None else False)
-                    if hasattr(tools, 'device') and tools.device:
-                        tools.device.shell("ime disable com.droidrun.portal/.DroidrunKeyboardIME")
-                        click.echo("DroidRun keyboard disabled successfully")
-                    # Cleanup tools
-                    del tools
-        except Exception as disable_e:
-            click.echo(f"Warning: Failed to disable DroidRun keyboard: {disable_e}")
+                device_obj = adb.device(device)
+                if device_obj:
+                    device_obj.shell("ime disable com.droidrun.portal/.DroidrunKeyboardIME")
+        except Exception:
+            click.echo("Failed to disable DroidRun keyboard")
+            pass
 
 
 @cli.command()
