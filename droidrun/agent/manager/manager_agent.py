@@ -24,8 +24,14 @@ from droidrun.agent.utils.device_state_formatter import format_device_state
 from droidrun.agent.utils.inference import acall_with_retries
 from droidrun.agent.utils.tools import build_custom_tool_descriptions
 from droidrun.config_manager.prompt_loader import PromptLoader
-from droidrun.config_manager.app_card_loader import AppCardLoader
+from droidrun.config_manager.app_card_provider import AppCardProvider
+from droidrun.config_manager.providers import (
+    LocalAppCardProvider,
+    ServerAppCardProvider,
+    CompositeAppCardProvider,
+)
 
+import asyncio
 if TYPE_CHECKING:
     from droidrun.agent.droid.events import DroidAgentState
     from droidrun.tools import Tools
@@ -63,9 +69,59 @@ class ManagerAgent(Workflow):
         self.shared_state = shared_state
         self.custom_tools = custom_tools or {}
         self.agent_config = agent_config
-        self.app_card_loader = self.agent_config.app_cards
+        self.app_card_config = self.agent_config.app_cards
+
+        # Initialize app card provider based on mode
+        self.app_card_provider: AppCardProvider = self._initialize_app_card_provider()
 
         logger.info("✅ ManagerAgent initialized successfully.")
+
+    def _initialize_app_card_provider(self) -> AppCardProvider:
+        """Initialize app card provider based on configuration mode."""
+        if not self.app_card_config.enabled:
+            # Return a dummy provider that always returns empty string
+            class DisabledProvider(AppCardProvider):
+                async def load_app_card(self, package_name: str, instruction: str = "") -> str:
+                    return ""
+            return DisabledProvider()
+
+        mode = self.app_card_config.mode.lower()
+
+        if mode == "local":
+            logger.info(f"Initializing local app card provider (dir: {self.app_card_config.app_cards_dir})")
+            return LocalAppCardProvider(app_cards_dir=self.app_card_config.app_cards_dir)
+
+        elif mode == "server":
+            if not self.app_card_config.server_url:
+                logger.warning("Server mode enabled but no server_url configured, falling back to local")
+                return LocalAppCardProvider(app_cards_dir=self.app_card_config.app_cards_dir)
+
+            logger.info(f"Initializing server app card provider (url: {self.app_card_config.server_url})")
+            return ServerAppCardProvider(
+                server_url=self.app_card_config.server_url,
+                timeout=self.app_card_config.server_timeout,
+                max_retries=self.app_card_config.server_max_retries,
+            )
+
+        elif mode == "composite":
+            if not self.app_card_config.server_url:
+                logger.warning("Composite mode enabled but no server_url configured, falling back to local")
+                return LocalAppCardProvider(app_cards_dir=self.app_card_config.app_cards_dir)
+
+            logger.info(
+                f"Initializing composite app card provider "
+                f"(server: {self.app_card_config.server_url}, local: {self.app_card_config.app_cards_dir})"
+            )
+            return CompositeAppCardProvider(
+                server_url=self.app_card_config.server_url,
+                app_cards_dir=self.app_card_config.app_cards_dir,
+                server_timeout=self.app_card_config.server_timeout,
+                server_max_retries=self.app_card_config.server_max_retries,
+            )
+
+        else:
+            logger.warning(f"Unknown app_card mode '{mode}', falling back to local")
+            return LocalAppCardProvider(app_cards_dir=self.app_card_config.app_cards_dir)
 
     # ========================================================================
     # Helper Methods
@@ -73,8 +129,7 @@ class ManagerAgent(Workflow):
 
     def _build_system_prompt(
         self,
-        has_text_to_modify: bool,
-        app_card: str = ""
+        has_text_to_modify: bool
     ) -> str:
         """Build system prompt with all context."""
 
@@ -102,7 +157,7 @@ class ManagerAgent(Workflow):
             {
                 "instruction": self.shared_state.instruction,
                 "device_date": self.tools_instance.get_date(),
-                "app_card": app_card,
+                "app_card": self.shared_state.app_card,
                 "important_notes": "",  # TODO: implement
                 "error_history": error_history,
                 "text_manipulation_enabled": has_text_to_modify,
@@ -276,7 +331,17 @@ class ManagerAgent(Workflow):
         self.shared_state.current_package_name = phone_state.get('packageName', 'Unknown')
         self.shared_state.current_app_name = phone_state.get('currentApp', 'Unknown')
 
-        # App cards
+        # ====================================================================
+        # Step 1.5: Start loading app card in background
+        # ====================================================================
+        if self.app_card_config.enabled:
+            loading_task = asyncio.create_task(
+                self.app_card_provider.load_app_card(
+                    package_name=self.shared_state.current_package_name,
+                    instruction=self.shared_state.instruction
+                )
+            )
+            self.shared_state.app_card_loading_task = loading_task
 
         # ====================================================================
         # Step 2: Capture screenshot if vision enabled
@@ -354,15 +419,30 @@ class ManagerAgent(Workflow):
 
         has_text_to_modify = self.shared_state.has_text_to_modify
         screenshot = self.shared_state.screenshot
-        if self.app_card_loader.enabled:
-            app_card = AppCardLoader.load_app_card(self.shared_state.current_package_name, self.app_card_loader.app_cards_dir)
+
+        # ====================================================================
+        # Try to get app card from previous iteration's loading task
+        # ====================================================================
+        if self.app_card_config.enabled and self.shared_state.app_card_loading_task:
+            try:
+                # Wait briefly for the background task to complete (0.1s timeout)
+                self.shared_state.app_card = await asyncio.wait_for(
+                    self.shared_state.app_card_loading_task,
+                    timeout=0.1
+                )
+            except asyncio.TimeoutError:
+                # Task not ready yet, use empty string
+                self.shared_state.app_card = ""
+            except Exception as e:
+                logger.warning(f"Error getting app card: {e}")
+                self.shared_state.app_card = ""
         else:
-            app_card = ""
+            self.shared_state.app_card = ""
 
         # ====================================================================
         # Step 1: Build system prompt
         # ====================================================================
-        system_prompt = self._build_system_prompt(has_text_to_modify, app_card)
+        system_prompt = self._build_system_prompt(has_text_to_modify)
 
         # ====================================================================
         # Step 2: Build messages with context

@@ -57,8 +57,16 @@ agent:
   app_cards:
     # Enable app-specific instruction cards
     enabled: true
-    # Directory containing app card files
+    # Mode: local (file-based), server (HTTP API), or composite (server with local fallback)
+    mode: local
+    # Directory containing app card files (for local/composite modes)
     app_cards_dir: config/app_cards
+    # Server URL for remote app cards (for server/composite modes)
+    server_url: null
+    # Server request timeout in seconds
+    server_timeout: 2.0
+    # Number of server retry attempts
+    server_max_retries: 2
 
 # === LLM Profiles ===
 # Define LLM configurations for each agent type
@@ -192,7 +200,11 @@ class ExecutorConfig:
 class AppCardConfig:
     """App card configuration."""
     enabled: bool = True
+    mode: str = "local"  # local | server | composite
     app_cards_dir: str = "config/app_cards"
+    server_url: Optional[str] = None
+    server_timeout: float = 2.0
+    server_max_retries: int = 2
 
 
 @dataclass

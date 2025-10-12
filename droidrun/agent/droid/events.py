@@ -10,6 +10,7 @@ For internal events with full debugging metadata, see:
 - codeact/events.py (Task*, EpisodicMemoryEvent)
 """
 
+import asyncio
 from typing import Dict, List
 
 from llama_index.core.workflow import Event
@@ -49,7 +50,9 @@ class DroidAgentState(BaseModel):
 
     # Task context
     instruction: str = ""
-
+    # App Cards
+    app_card: str = ""
+    app_card_loading_task: asyncio.Task[str] | None = None
     # Formatted device state for prompts (complete text)
     formatted_device_state: str = ""
 
