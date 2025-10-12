@@ -9,7 +9,7 @@ from typing import Dict
 
 import httpx
 
-from droidrun.config_manager.app_card_provider import AppCardProvider
+from droidrun.app_cards.app_card_provider import AppCardProvider
 
 logger = logging.getLogger("droidrun")
 

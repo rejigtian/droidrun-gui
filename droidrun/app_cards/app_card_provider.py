@@ -8,7 +8,6 @@ Supports multiple backends: local files, remote servers, or composite strategies
 from abc import ABC, abstractmethod
 
 
-
 class AppCardProvider(ABC):
     """Abstract interface for loading app-specific instruction cards."""
 

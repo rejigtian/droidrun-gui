@@ -32,7 +32,7 @@ from droidrun.agent.droid.events import (
 )
 from droidrun.agent.executor import ExecutorAgent
 from droidrun.agent.manager import ManagerAgent
-from droidrun.agent.utils.tools import ATOMIC_ACTION_SIGNATURES
+from droidrun.agent.utils.tools import ATOMIC_ACTION_SIGNATURES, open_app
 from droidrun.agent.utils.trajectory import Trajectory
 from droidrun.config_manager.config_manager import (
     AgentConfig,
@@ -43,8 +43,6 @@ from droidrun.config_manager.config_manager import (
     ToolsConfig,
     TracingConfig,
 )
-
-from droidrun.agent.utils.tools import open_app
 from droidrun.telemetry import (
     DroidAgentFinalizeEvent,
     DroidAgentInitEvent,

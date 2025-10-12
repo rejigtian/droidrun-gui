@@ -3,7 +3,7 @@ import json
 import logging
 import re
 import time
-from typing import List, Union, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Optional, Union
 
 from llama_index.core.base.llms.types import ChatMessage, ChatResponse
 from llama_index.core.llms.llm import LLM
@@ -23,9 +23,8 @@ from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
 from droidrun.agent.context.episodic_memory import EpisodicMemory, EpisodicMemoryStep
 from droidrun.agent.usage import get_usage_from_response
 from droidrun.agent.utils import chat_utils
-from droidrun.agent.utils.executer import SimpleCodeExecutor, ExecuterState
 from droidrun.agent.utils.device_state_formatter import format_device_state
-
+from droidrun.agent.utils.executer import ExecuterState, SimpleCodeExecutor
 from droidrun.agent.utils.tools import (
     ATOMIC_ACTION_SIGNATURES,
     build_custom_tool_descriptions,
@@ -489,7 +488,7 @@ Now, describe the next step you will take to address the original goal: {goal}""
             try:
                 state = self.tools.get_state()
                 a11y_tree = state.get("a11y_tree", "")
-                phone_state = state.get("phone_state", "")
+                phone_state = state.get("phone_state", "")  # noqa: F841
             except Exception as e:
                 raise Exception(f"Failed to capture final UI state: {e}") from e
 

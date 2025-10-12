@@ -10,6 +10,7 @@ This agent is responsible for:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING
 
@@ -23,19 +24,18 @@ from droidrun.agent.utils.chat_utils import remove_empty_messages
 from droidrun.agent.utils.device_state_formatter import format_device_state
 from droidrun.agent.utils.inference import acall_with_retries
 from droidrun.agent.utils.tools import build_custom_tool_descriptions
-from droidrun.config_manager.prompt_loader import PromptLoader
 from droidrun.app_cards.app_card_provider import AppCardProvider
 from droidrun.app_cards.providers import (
+    CompositeAppCardProvider,
     LocalAppCardProvider,
     ServerAppCardProvider,
-    CompositeAppCardProvider,
 )
+from droidrun.config_manager.prompt_loader import PromptLoader
 
-import asyncio
 if TYPE_CHECKING:
     from droidrun.agent.droid.events import DroidAgentState
-    from droidrun.tools import Tools
     from droidrun.config_manager.config_manager import AgentConfig
+    from droidrun.tools import Tools
 
 
 logger = logging.getLogger("droidrun")

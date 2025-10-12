@@ -1,9 +1,10 @@
-import io
 import contextlib
-import traceback
+import io
 import logging
-from typing import Any, Dict, Optional
+import traceback
 from asyncio import AbstractEventLoop
+from typing import Any, Dict, Optional
+
 from pydantic import BaseModel
 
 logger = logging.getLogger("droidrun")
@@ -11,7 +12,7 @@ logger = logging.getLogger("droidrun")
 class ExecuterState(BaseModel):
     """State object for the code executor."""
     ui_state: Optional[Any] = None
-    
+
     class Config:
         arbitrary_types_allowed = True
 
@@ -70,7 +71,7 @@ class SimpleCodeExecutor:
         self.locals = locals
         self.loop = loop
         self.use_same_scope = use_same_scope
-        
+
         if self.use_same_scope:
             # If using the same scope, merge globals and locals
             self.globals = self.locals = {
@@ -85,7 +86,7 @@ class SimpleCodeExecutor:
         """
         # Update UI state
         self.globals['ui_state'] = ui_state
-        
+
         # Capture stdout and stderr
         stdout = io.StringIO()
         stderr = io.StringIO()
@@ -111,7 +112,7 @@ class SimpleCodeExecutor:
     async def execute(self, state: ExecuterState, code: str) -> str:
         """
         Execute Python code and capture output and return values.
-        
+
         Runs the code in a separate thread to prevent blocking.
 
         Args:
@@ -123,7 +124,7 @@ class SimpleCodeExecutor:
         """
         # Get UI state from the state object
         ui_state = state.ui_state
-        
+
         # Run the execution in a thread pool executor
         output = await self.loop.run_in_executor(
             None,
@@ -131,5 +132,5 @@ class SimpleCodeExecutor:
             code,
             ui_state
         )
-        
+
         return output

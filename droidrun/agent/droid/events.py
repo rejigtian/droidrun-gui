@@ -14,7 +14,7 @@ import asyncio
 from typing import Dict, List
 
 from llama_index.core.workflow import Event
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from droidrun.agent.context import Task
 
@@ -47,7 +47,7 @@ class DroidAgentState(BaseModel):
     """
     State model for DroidAgent workflow - shared across parent and child workflows.
     """
-
+    model_config = ConfigDict(arbitrary_types_allowed=True)
     # Task context
     instruction: str = ""
     # App Cards

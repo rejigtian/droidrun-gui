@@ -21,13 +21,13 @@ from droidrun.agent.droid.events import (
     FinalizeEvent,
     TaskRunnerEvent,
 )
-from droidrun.agent.manager.events import (
-    ManagerInternalPlanEvent,
-    ManagerThinkingEvent,
-)
 from droidrun.agent.executor.events import (
     ExecutorInternalActionEvent,
     ExecutorInternalResultEvent,
+)
+from droidrun.agent.manager.events import (
+    ManagerInternalPlanEvent,
+    ManagerThinkingEvent,
 )
 
 

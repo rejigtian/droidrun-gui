@@ -6,10 +6,9 @@ Loads app cards from local filesystem using app_cards.json mapping.
 
 import json
 import logging
-from pathlib import Path
 from typing import Dict
 
-from droidrun.config_manager.app_card_provider import AppCardProvider
+from droidrun.app_cards.app_card_provider import AppCardProvider
 from droidrun.config_manager.path_resolver import PathResolver
 
 logger = logging.getLogger("droidrun")

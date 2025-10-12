@@ -16,13 +16,14 @@ from rich.console import Console
 from droidrun.agent.droid import DroidAgent
 from droidrun.agent.utils.llm_picker import load_llm, load_llms_from_profiles
 from droidrun.cli.logs import LogHandler
+from droidrun.config_manager import ConfigManager
 from droidrun.config_manager.config_manager import (
     AgentConfig,
     CodeActConfig,
-    ManagerConfig,
-    ExecutorConfig,
     DeviceConfig,
+    ExecutorConfig,
     LoggingConfig,
+    ManagerConfig,
     ToolsConfig,
     TracingConfig,
 )
@@ -37,8 +38,6 @@ from droidrun.portal import (
 )
 from droidrun.telemetry import print_telemetry_message
 from droidrun.tools import AdbTools, IOSTools
-from droidrun.config_manager import ConfigManager
-
 
 # Suppress all warnings
 warnings.filterwarnings("ignore")

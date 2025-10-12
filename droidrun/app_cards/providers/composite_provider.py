@@ -7,9 +7,9 @@ Tries server first, falls back to local if server fails or returns empty.
 import logging
 from typing import Dict
 
-from droidrun.config_manager.app_card_provider import AppCardProvider
-from droidrun.config_manager.providers.local_provider import LocalAppCardProvider
-from droidrun.config_manager.providers.server_provider import ServerAppCardProvider
+from droidrun.app_cards.app_card_provider import AppCardProvider
+from droidrun.app_cards.providers.local_provider import LocalAppCardProvider
+from droidrun.app_cards.providers.server_provider import ServerAppCardProvider
 
 logger = logging.getLogger("droidrun")
 
@@ -65,7 +65,7 @@ class CompositeAppCardProvider(AppCardProvider):
         server_result = await self.server_provider.load_app_card(package_name, instruction)
 
         if server_result:
-            return server_result   
+            return server_result
 
         # Server failed or returned empty, try local
         logger.debug(f"Composite provider: falling back to local for {package_name}")
