@@ -79,7 +79,7 @@ def replay(path: str, device: Optional[str], delay: float, start_from: int, max_
 async def _replay_async(path: str, device: str, delay: float, start_from: int, max_steps: Optional[int], dry_run: bool, logger: logging.Logger):
     """Async function to handle macro replay."""
     try:
-        # Resolve path (checks working dir, then project dir)
+        # Resolve path (checks working dir, then package dir)
         resolved_path = PathResolver.resolve(path, must_exist=True)
 
         if resolved_path.is_file():
@@ -185,7 +185,7 @@ def list(directory: str, debug: bool):
     """List available trajectory folders in a directory."""
     logger = configure_logging(debug)
 
-    # Resolve directory (checks working dir, then project dir)
+    # Resolve directory (checks working dir, then package dir)
     resolved_dir = PathResolver.resolve(directory, must_exist=True)
     logger.info(f"📁 Scanning directory: {resolved_dir}")
 

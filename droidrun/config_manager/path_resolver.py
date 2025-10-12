@@ -2,7 +2,7 @@
 Unified path resolution for DroidRun.
 
 This module provides a single path resolver that handles all file path resolution
-with consistent priority: working directory first, then project directory.
+with consistent priority: working directory first, then package directory.
 """
 
 from pathlib import Path
@@ -15,19 +15,19 @@ class PathResolver:
 
     Resolution order:
     1. Absolute paths → use as-is
-    2. Relative paths → check working dir first, then project dir
+    2. Relative paths → check working dir first, then package dir (bundled resources)
     3. For creation → prefer working dir
     """
 
     @staticmethod
     def get_project_root() -> Path:
         """
-        Get the project root directory (where config.yaml lives).
+        Get the package root directory (where config/ bundled resources live).
 
-        This is 2 parents up from this file's location:
-        droidrun/config_manager/path_resolver.py -> droidrun/ (project root)
+        This is 1 parent up from this file's location:
+        droidrun/config_manager/path_resolver.py -> droidrun/ (package root)
         """
-        return Path(__file__).resolve().parents[2]
+        return Path(__file__).resolve().parents[1]
 
     @staticmethod
     def resolve(
@@ -41,8 +41,8 @@ class PathResolver:
         Resolution order:
         1. Absolute path → use as-is
         2. Relative path:
-           - If creating: prefer working directory
-           - If reading: check working dir first, then project dir
+           - If creating: prefer working directory (for user outputs)
+           - If reading: check working dir first, then package dir (for bundled resources)
         3. If must_exist and not found → raise FileNotFoundError
 
         Args:
@@ -57,7 +57,7 @@ class PathResolver:
             FileNotFoundError: If must_exist=True and path not found in any location
 
         Examples:
-            # Reading config (checks CWD first, then project dir)
+            # Reading config (checks CWD first, then package dir)
             config_path = PathResolver.resolve("config.yaml")
 
             # Creating output (creates in CWD)
@@ -78,9 +78,9 @@ class PathResolver:
                 raise FileNotFoundError(f"Path not found: {path}")
             return path
 
-        # Relative paths: check working dir and project dir
+        # Relative paths: check working dir and package dir
         cwd_path = Path.cwd() / path
-        project_path = PathResolver.get_project_root() / path
+        package_path = PathResolver.get_project_root() / path
 
         # For creation, always prefer working directory (user's context)
         if create_if_missing:
@@ -89,15 +89,15 @@ class PathResolver:
         # For reading, check both locations (working dir first)
         if cwd_path.exists():
             return cwd_path
-        if project_path.exists():
-            return project_path
+        if package_path.exists():
+            return package_path
 
         # Not found in either location
         if must_exist:
             raise FileNotFoundError(
                 f"Path not found in:\n"
                 f"  - Working dir: {cwd_path}\n"
-                f"  - Project dir: {project_path}"
+                f"  - Package dir: {package_path}"
             )
 
         # Default to working dir (user's context)

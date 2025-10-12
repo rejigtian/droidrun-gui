@@ -624,7 +624,7 @@ def setup(path: str | None, device: str | None, debug: bool):
     """Install and enable the DroidRun Portal on a device."""
     from droidrun.config_manager.path_resolver import PathResolver
 
-    # Ensure config.yaml exists (check working dir, then project dir)
+    # Ensure config.yaml exists (check working dir, then package dir)
     try:
         config_path = PathResolver.resolve("config.yaml")
         console.print(f"[blue]Using existing config: {config_path}[/]")

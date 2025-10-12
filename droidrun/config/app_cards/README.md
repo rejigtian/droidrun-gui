@@ -60,13 +60,15 @@ App cards support three path types:
    ```json
    {"com.google.gm": "gmail.md"}
    ```
-   Resolves to: `config/app_cards/gmail.md`
+   Resolves to: `config/app_cards/gmail.md` (in package)
 
-2. **Relative to project root**:
+2. **Relative paths with PathResolver**:
    ```json
    {"com.google.gm": "config/custom_cards/gmail.md"}
    ```
-   Resolves to: `config/custom_cards/gmail.md`
+   Checks working directory first, then package directory
+   - Working dir: `./config/custom_cards/gmail.md`
+   - Package dir: `<package>/config/custom_cards/gmail.md`
 
 3. **Absolute path**:
    ```json

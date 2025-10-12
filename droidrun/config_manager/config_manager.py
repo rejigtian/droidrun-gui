@@ -431,7 +431,7 @@ class ConfigManager:
         # Resolution order:
         # 1) Explicit path arg
         # 2) DROIDRUN_CONFIG env var
-        # 3) Default "config.yaml" (checks working dir, then project dir)
+        # 3) Default "config.yaml" (checks working dir, then package dir)
         if path:
             self.path = PathResolver.resolve(path)
         else:
@@ -439,7 +439,7 @@ class ConfigManager:
             if env:
                 self.path = PathResolver.resolve(env)
             else:
-                # Default: checks CWD first, then project dir
+                # Default: checks CWD first, then package dir
                 self.path = PathResolver.resolve("config.yaml")
 
         # Initialize with default config
