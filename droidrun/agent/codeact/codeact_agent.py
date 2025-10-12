@@ -113,8 +113,6 @@ class CodeActAgent(Workflow):
         )
         self.system_prompt = ChatMessage(role="system", content=system_prompt_text)
 
-        self.user_prompt_template = PromptLoader.load_prompt(agent_config.get_codeact_user_prompt_path())
-
         self.executor = SimpleCodeExecutor(
             loop=asyncio.get_event_loop(),
             locals={},

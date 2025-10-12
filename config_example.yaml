@@ -19,23 +19,23 @@ agent:
     # Enable vision capabilities (screenshots)
     vision: false
     # System prompt filename (located in prompts_dir/codeact/)
-    system_prompt: system.md
+    system_prompt: system.jinja2
     # User prompt filename (located in prompts_dir/codeact/)
-    user_prompt: user.md
+    user_prompt: user.jinja2
 
   # Manager Agent Configuration
   manager:
     # Enable vision capabilities (screenshots)
     vision: false
     # System prompt filename (located in prompts_dir/manager/)
-    system_prompt: system.md
+    system_prompt: system.jinja2
 
   # Executor Agent Configuration
   executor:
     # Enable vision capabilities (screenshots)
     vision: false
     # System prompt filename (located in prompts_dir/executor/)
-    system_prompt: system.md
+    system_prompt: system.jinja2
 
   # App Cards Configuration
   app_cards:

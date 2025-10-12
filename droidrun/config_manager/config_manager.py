@@ -35,23 +35,23 @@ agent:
     # Enable vision capabilities (screenshots)
     vision: false
     # System prompt filename (located in prompts_dir/codeact/)
-    system_prompt: system.md
+    system_prompt: system.jinja2
     # User prompt filename (located in prompts_dir/codeact/)
-    user_prompt: user.md
+    user_prompt: user.jinja2
 
   # Manager Agent Configuration
   manager:
     # Enable vision capabilities (screenshots)
     vision: false
     # System prompt filename (located in prompts_dir/manager/)
-    system_prompt: system.md
+    system_prompt: system.jinja2
 
   # Executor Agent Configuration
   executor:
     # Enable vision capabilities (screenshots)
     vision: false
     # System prompt filename (located in prompts_dir/executor/)
-    system_prompt: system.md
+    system_prompt: system.jinja2
 
   # App Cards Configuration
   app_cards:
@@ -170,22 +170,22 @@ class LLMProfile:
 class CodeActConfig:
     """CodeAct agent configuration."""
     vision: bool = False
-    system_prompt: str = "system.md"
-    user_prompt: str = "user.md"
+    system_prompt: str = "system.jinja2"
+    user_prompt: str = "user.jinja2"
 
 
 @dataclass
 class ManagerConfig:
     """Manager agent configuration."""
     vision: bool = False
-    system_prompt: str = "system.md"
+    system_prompt: str = "system.jinja2"
 
 
 @dataclass
 class ExecutorConfig:
     """Executor agent configuration."""
     vision: bool = False
-    system_prompt: str = "system.md"
+    system_prompt: str = "system.jinja2"
 
 
 @dataclass
@@ -210,20 +210,24 @@ class AgentConfig:
     app_cards: AppCardConfig = field(default_factory=AppCardConfig)
 
     def get_codeact_system_prompt_path(self) -> str:
-        """Get full path to CodeAct system prompt."""
-        return f"{self.prompts_dir}/codeact/{self.codeact.system_prompt}"
+        """Get resolved absolute path to CodeAct system prompt."""
+        path = f"{self.prompts_dir}/codeact/{self.codeact.system_prompt}"
+        return str(PathResolver.resolve(path, must_exist=True))
 
     def get_codeact_user_prompt_path(self) -> str:
-        """Get full path to CodeAct user prompt."""
-        return f"{self.prompts_dir}/codeact/{self.codeact.user_prompt}"
+        """Get resolved absolute path to CodeAct user prompt."""
+        path = f"{self.prompts_dir}/codeact/{self.codeact.user_prompt}"
+        return str(PathResolver.resolve(path, must_exist=True))
 
     def get_manager_system_prompt_path(self) -> str:
-        """Get full path to Manager system prompt."""
-        return f"{self.prompts_dir}/manager/{self.manager.system_prompt}"
+        """Get resolved absolute path to Manager system prompt."""
+        path = f"{self.prompts_dir}/manager/{self.manager.system_prompt}"
+        return str(PathResolver.resolve(path, must_exist=True))
 
     def get_executor_system_prompt_path(self) -> str:
-        """Get full path to Executor system prompt."""
-        return f"{self.prompts_dir}/executor/{self.executor.system_prompt}"
+        """Get resolved absolute path to Executor system prompt."""
+        path = f"{self.prompts_dir}/executor/{self.executor.system_prompt}"
+        return str(PathResolver.resolve(path, must_exist=True))
 
 
 @dataclass
@@ -653,7 +657,7 @@ class ConfigManager:
 
         Example:
             >>> config.list_available_prompts("manager")
-            ['system.md', 'experimental.md', 'minimal.md']
+            ['system.jinja2', 'experimental.jinja2', 'minimal.jinja2']
         """
         agent_type = agent_type.lower()
         if agent_type not in ["codeact", "manager", "executor"]:
@@ -667,7 +671,7 @@ class ConfigManager:
             return []
 
         # List all .md files in the directory
-        return sorted([f.name for f in prompts_dir.glob("*.md")])
+        return sorted([f.name for f in prompts_dir.glob("*.jinja2")])
 
     # useful for tests to reset singleton state
     @classmethod

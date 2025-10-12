@@ -90,52 +90,38 @@ class ExecutorAgent(Workflow): # TODO: Fix a bug in bad prompt
         subgoal = ev.get("subgoal", "")
         logger.info(f"🧠 Executor thinking about action for: {subgoal}")
 
-        # Format app card (include tags in variable value or empty string)
-        app_card = ""  # TODO: Implement app card retrieval
-        app_card_text = ""
-        if app_card.strip():
-            app_card_text = "App card gives information on how to operate the app and perform actions.\n### App Card ###\n" + app_card.strip() + "\n\n"
-
-        # Format device state (use unified state)
-        device_state_text = ""
-        if self.shared_state.formatted_device_state and self.shared_state.formatted_device_state.strip():
-            device_state_text = "### Device State ###\n" + self.shared_state.formatted_device_state.strip() + "\n\n"
-
-        # Format progress status
-        progress_status_text = self.shared_state.progress_status + "\n\n" if self.shared_state.progress_status else "No progress yet.\n\n"
-
-        # Format atomic actions
-        atomic_actions_text = chr(10).join(
-            f"- {action_name}({', '.join(action_info['arguments'])}): {action_info['description']}"
-            for action_name, action_info in ATOMIC_ACTION_SIGNATURES.items()
-        ) + "\n"
-
-        # Format action history
+        # Prepare action history as structured data (last 5 actions)
+        action_history = []
         if self.shared_state.action_history:
-            action_history_text = "Recent actions you took previously and whether they were successful:\n" + "\n".join(
-                (f"Action: {act} | Description: {summ} | Outcome: Successful" if outcome
-                 else f"Action: {act} | Description: {summ} | Outcome: Failed | Feedback: {err_des}")
+            n = min(5, len(self.shared_state.action_history))
+            action_history = [
+                {
+                    "action": act,
+                    "summary": summ,
+                    "outcome": outcome,
+                    "error": err_des
+                }
                 for act, summ, outcome, err_des in zip(
-                    self.shared_state.action_history[-min(5, len(self.shared_state.action_history)):],
-                    self.shared_state.summary_history[-min(5, len(self.shared_state.action_history)):],
-                    self.shared_state.action_outcomes[-min(5, len(self.shared_state.action_history)):],
-                    self.shared_state.error_descriptions[-min(5, len(self.shared_state.action_history)):], strict=True)
-            ) + "\n\n"
-        else:
-            action_history_text = "No actions have been taken yet.\n\n"
+                    self.shared_state.action_history[-n:],
+                    self.shared_state.summary_history[-n:],
+                    self.shared_state.action_outcomes[-n:],
+                    self.shared_state.error_descriptions[-n:],
+                    strict=True
+                )
+            ]
 
-        # Load and format prompt
+        # Let Jinja2 handle all formatting
         system_prompt = PromptLoader.load_prompt(
             self.agent_config.get_executor_system_prompt_path(),
             {
                 "instruction": self.shared_state.instruction,
-                "app_card": app_card_text,
-                "device_state_text": device_state_text,
+                "app_card": "",  # TODO: Implement app card loader
+                "device_state": self.shared_state.formatted_device_state,
                 "plan": self.shared_state.plan,
                 "subgoal": subgoal,
-                "progress_status": progress_status_text,
-                "atomic_actions": atomic_actions_text,
-                "action_history": action_history_text
+                "progress_status": self.shared_state.progress_status,
+                "atomic_actions": ATOMIC_ACTION_SIGNATURES,
+                "action_history": action_history
             }
         )
 

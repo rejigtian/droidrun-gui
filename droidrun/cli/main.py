@@ -802,12 +802,12 @@ async def test(command: str):
 
             manager_cfg = ManagerConfig(
                 vision=manager_vision_val,
-                system_prompt="rev1.md"
+                system_prompt="rev1.jinja2"
             )
 
             executor_cfg = ExecutorConfig(
                 vision=executor_vision_val,
-                system_prompt="rev1.md"
+                system_prompt="rev1.jinja2"
             )
 
             codeact_cfg = CodeActConfig(

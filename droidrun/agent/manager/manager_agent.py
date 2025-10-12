@@ -76,20 +76,13 @@ class ManagerAgent(Workflow):
         has_text_to_modify: bool,
         app_card: str = ""
     ) -> str:
-        """
-        Build system prompt with all context.
+        """Build system prompt with all context."""
 
-        Args:
-            has_text_to_modify: Whether text manipulation mode is enabled
-            app_card: App card content
-        Returns:
-            Complete system prompt
-        """
-        # Format error history
-        error_history_text = ""
+        # Prepare error history as structured data (if needed)
+        error_history = None
         if self.shared_state.error_flag_plan:
             k = self.shared_state.err_to_manager_thresh
-            errors = [
+            error_history = [
                 {
                     "action": act,
                     "summary": summ,
@@ -98,78 +91,22 @@ class ManagerAgent(Workflow):
                 for act, summ, err_des in zip(
                     self.shared_state.action_history[-k:],
                     self.shared_state.summary_history[-k:],
-                    self.shared_state.error_descriptions[-k:], strict=True
+                    self.shared_state.error_descriptions[-k:],
+                    strict=True
                 )
             ]
-            error_history_text = (
-                "<potentially_stuck>\n"
-                "You have encountered several failed attempts. Here are some logs:\n"
-            )
-            for error in errors:
-                error_history_text += (
-                    f"- Attempt: Action: {error['action']} | "
-                    f"Description: {error['summary']} | "
-                    f"Outcome: Failed | "
-                    f"Feedback: {error['error']}\n"
-                )
-            error_history_text += "</potentially_stuck>\n\n"
 
-        # Text manipulation section
-        text_manipulation_section = ""
-        if has_text_to_modify:
-            text_manipulation_section = """
-
-<text_manipulation>
-1. Use **TEXT_TASK:** prefix in your plan when you need to modify text in the currently focused text input field
-2. TEXT_TASK is for editing, formatting, or transforming existing text content in text boxes using Python code
-3. Do not use TEXT_TASK for extracting text from messages, typing new text, or composing messages
-4. The focused text field contains editable text that you can modify
-5. Example plan item: 'TEXT_TASK: Add "Hello World" at the beginning of the text'
-6. Always use TEXT_TASK for modifying text, do not try to select the text to copy/cut/paste or adjust the text
-</text_manipulation>"""
-
-        # Device date (include tags in variable value or empty string)
-        device_date = self.tools_instance.get_date()
-        device_date_text = ""
-        if device_date.strip():
-            device_date_text = f"<device_date>\n{device_date}\n</device_date>\n\n"
-
-        # App card (include tags in variable value or empty string)
-        app_card = app_card
-        app_card_text = ""
-        if app_card.strip():
-            app_card_text = "App card gives information on how to operate the app and perform actions.\n<app_card>\n" + app_card.strip() + "\n</app_card>\n\n"
-
-        # Important notes (include tags in variable value or empty string)
-        important_notes = ""  # TODO: implement
-        important_notes_text = ""
-        if important_notes.strip():
-            important_notes_text = "<important_notes>\n" + important_notes + "\n</important_notes>\n\n"
-
-        # Custom tools
-        custom_tools_desc = build_custom_tool_descriptions(self.custom_tools)
-        custom_tools_text = ""
-        if custom_tools_desc.strip():
-            custom_tools_text = """
-
-<custom_actions>
-The executor has access to these additional custom actions beyond the standard actions (click, type, swipe, etc.):
-""" + custom_tools_desc + """
-
-You can reference these custom actions or tell the Executer agent to use them in your plan when they help achieve the user's goal.
-</custom_actions>"""
-
-        # Load and format prompt
+        # Let Jinja2 handle all formatting and conditionals
         return PromptLoader.load_prompt(
             self.agent_config.get_manager_system_prompt_path(),
             {
                 "instruction": self.shared_state.instruction,
-                "device_date": device_date_text,
-                "app_card": app_card_text,
-                "important_notes": important_notes_text,
-                "error_history": error_history_text,
-                "text_manipulation_section": text_manipulation_section,
-                "custom_tools_descriptions": custom_tools_text
+                "device_date": self.tools_instance.get_date(),
+                "app_card": app_card,
+                "important_notes": "",  # TODO: implement
+                "error_history": error_history,
+                "text_manipulation_enabled": has_text_to_modify,
+                "custom_tools_descriptions": build_custom_tool_descriptions(self.custom_tools)
             }
         )
 

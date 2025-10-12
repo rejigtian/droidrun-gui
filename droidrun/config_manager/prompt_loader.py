@@ -1,75 +1,72 @@
 """
-Prompt loading utility for markdown-based prompts.
+Prompt loading utility using Jinja2 templates.
 
-Supports variable substitution with escape sequences:
-- {variable} → replaced with value
-- {{variable}} → literal {variable}
-- Missing variables → left as {variable}
+Features:
+- Loads from absolute file paths (resolved by AgentConfig + PathResolver)
+- Conditional rendering: {% if variable %}...{% endif %}
+- Loops with slicing: {% for item in items[-5:] %}...{% endfor %}
+- Filters: {{ variable|default("fallback") }}
+- Missing variables: silently ignored (renders as empty string)
+- Extra variables: silently ignored
 """
 
-import re
 from pathlib import Path
 from typing import Any, Dict
 
-from droidrun.config_manager.path_resolver import PathResolver
+from jinja2 import Environment
 
 
 class PromptLoader:
-    """Load and format markdown prompts with variable substitution."""
+    """Simple Jinja2 template renderer - loads from absolute file paths."""
+
+    _env = None  # Cached Jinja2 environment
+
+    @classmethod
+    def _get_environment(cls) -> Environment:
+        """Get or create cached Jinja2 environment."""
+        if cls._env is None:
+            cls._env = Environment(
+                trim_blocks=True,           # Remove first newline after block
+                lstrip_blocks=True,         # Strip leading whitespace before blocks
+                keep_trailing_newline=False,
+            )
+
+        return cls._env
 
     @staticmethod
-    def load_prompt(path: str, variables: Dict[str, Any] = None) -> str:
+    def load_prompt(file_path: str, variables: Dict[str, Any] = None) -> str:
         """
-        Load prompt from .md file and substitute variables.
+        Load and render Jinja2 template from absolute file path.
 
-        Path resolution:
-        - Checks working directory first (for user overrides)
-        - Falls back to project directory (for default prompts)
-        - Example: "config/prompts/codeact/system.md"
-
-        Variable substitution:
-        - {variable} → replaced with value from variables dict
-        - {{variable}} → becomes literal {variable} in output
-        - Missing variables → left as {variable} (no error)
+        Path resolution is handled by AgentConfig + PathResolver.
+        This method just loads and renders.
 
         Args:
-            path: Path to prompt file (relative or absolute)
-            variables: Dict of variable names to values
+            file_path: ABSOLUTE path to template file (from AgentConfig methods)
+            variables: Dict of variables to pass to template
+                      - Missing variables: silently ignored (render as empty string)
+                      - Extra variables: silently ignored
 
         Returns:
-            Formatted prompt string
+            Rendered prompt string
 
         Raises:
-            FileNotFoundError: If prompt file doesn't exist
+            FileNotFoundError: If template file doesn't exist
+
         """
-        # Resolve path (checks working dir, then project dir)
-        prompt_path = PathResolver.resolve(path, must_exist=True)
+        path = Path(file_path)
 
-        prompt_text = prompt_path.read_text(encoding="utf-8")
+        if not path.exists():
+            raise FileNotFoundError(f"Prompt file not found: {file_path}")
 
-        if variables is None:
-            return prompt_text
+        # Read template content
+        template_content = path.read_text(encoding="utf-8")
 
-        # Handle escaped braces: {{variable}} → {variable}
-        # Strategy: Replace {{...}} with placeholder, do substitution, restore
-        escaped_pattern = re.compile(r'\{\{([^}]+)\}\}')
-        placeholders = {}
-        counter = [0]
+        # Get cached environment and create template from string
+        env = PromptLoader._get_environment()
+        template = env.from_string(template_content)
 
-        def escape_replacer(match):
-            placeholder = f"__ESCAPED_{counter[0]}__"
-            placeholders[placeholder] = "{" + match.group(1) + "}"
-            counter[0] += 1
-            return placeholder
-
-        prompt_text = escaped_pattern.sub(escape_replacer, prompt_text)
-
-        # Substitute variables
-        for key, value in variables.items():
-            prompt_text = prompt_text.replace(f"{{{key}}}", str(value))
-
-        # Restore escaped braces
-        for placeholder, original in placeholders.items():
-            prompt_text = prompt_text.replace(placeholder, original)
-
-        return prompt_text
+        # Render with variables (empty dict if None)
+        # Missing variables render as empty string (default Undefined behavior)
+        # Extra variables are silently ignored
+        return template.render(**(variables or {}))

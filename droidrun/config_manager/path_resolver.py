@@ -64,7 +64,7 @@ class PathResolver:
             output_dir = PathResolver.resolve("trajectories", create_if_missing=True)
 
             # Loading prompts (must exist, checks both locations)
-            prompt = PathResolver.resolve("config/prompts/system.md", must_exist=True)
+            prompt = PathResolver.resolve("config/prompts/system.jinja2", must_exist=True)
 
             # Absolute path (used as-is)
             abs_path = PathResolver.resolve("/tmp/output")
