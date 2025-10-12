@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import requests
 from adbutils import adb
 from llama_index.core.workflow import Context
+from droidrun.portal import setup_keyboard
 
 from droidrun.agent.common.events import (
     DragActionEvent,
@@ -71,7 +72,7 @@ class AdbTools(Tools):
         self.app_opener_llm = app_opener_llm
         self.text_manipulator_llm = text_manipulator_llm
 
-        self.setup_keyboard()
+        setup_keyboard(self.device)
 
         # Set up TCP forwarding if requested
         if self.use_tcp:
@@ -148,24 +149,6 @@ class AdbTools(Tools):
             return True
         except Exception as e:
             logger.error(f"Failed to remove TCP port forwarding: {e}")
-            return False
-
-    def setup_keyboard(self) -> bool:
-        """
-        Set up the DroidRun keyboard as the default input method.
-        Simple setup that just switches to DroidRun keyboard without saving/restoring.
-
-        Returns:
-            bool: True if setup was successful, False otherwise
-        """
-        try:
-            self.device.shell("ime enable com.droidrun.portal/.DroidrunKeyboardIME")
-            self.device.shell("ime set com.droidrun.portal/.DroidrunKeyboardIME")
-            logger.debug("DroidRun keyboard setup completed")
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to setup DroidRun keyboard: {e}")
             return False
 
     def __del__(self):

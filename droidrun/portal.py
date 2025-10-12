@@ -190,6 +190,23 @@ def setup_keyboard(device: AdbDevice):
     except Exception as e:
         raise Exception("Error setting up keyboard") from e
 
+def disable_keyboard(device: AdbDevice, target_ime: str = "com.droidrun.portal/.DroidrunKeyboardIME"):
+    """
+    Disable a specific IME (keyboard) and optionally switch to another.
+    By default, disables the DroidRun keyboard.
+
+    Args:
+        target_ime: The IME package/activity to disable (default: DroidRun keyboard)
+
+    Returns:
+        bool: True if disabled successfully, False otherwise
+    """
+    try:
+        device.shell(f"ime disable {target_ime}")
+        return True
+    except Exception as e:
+        raise Exception("Error disabling keyboard") from e
+
 def test():
     device = adb.device()
     ping_portal(device, debug=False)

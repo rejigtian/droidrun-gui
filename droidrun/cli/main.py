@@ -8,7 +8,6 @@ import os
 import warnings
 from contextlib import nullcontext
 from functools import wraps
-from pathlib import Path
 
 import click
 from adbutils import adb
@@ -532,29 +531,43 @@ def run(
 ):
     """Run a command on your Android device using natural language."""
 
-    # Call our standalone function
-    return run_command(
-        command,
-        config,
-        device,
-        provider,
-        model,
-        steps,
-        base_url,
-        api_base,
-        vision,
-        manager_vision,
-        executor_vision,
-        codeact_vision,
-        reasoning,
-        tracing,
-        debug,
-        use_tcp,
-        temperature=temperature,
-        save_trajectory=save_trajectory,
-        allow_drag=allow_drag,
-        ios=ios if ios is not None else False,
-    )
+    try:
+        run_command(
+            command,
+            config,
+            device,
+            provider,
+            model,
+            steps,
+            base_url,
+            api_base,
+            vision,
+            manager_vision,
+            executor_vision,
+            codeact_vision,
+            reasoning,
+            tracing,
+            debug,
+            use_tcp,
+            temperature=temperature,
+            save_trajectory=save_trajectory,
+            allow_drag=allow_drag,
+            ios=ios if ios is not None else False,
+        )
+    finally:
+        # Disable DroidRun keyboard after execution
+        try:
+            if not (ios if ios is not None else False):
+                device_serial = adb.device().serial
+                if device_serial:
+                    tools = AdbTools(serial=device, use_tcp=use_tcp if use_tcp is not None else False)
+                    if hasattr(tools, 'device') and tools.device:
+                        tools.device.shell("ime disable com.droidrun.portal/.DroidrunKeyboardIME")
+                        click.echo("DroidRun keyboard disabled successfully")
+                    # Cleanup tools
+                    del tools
+        except Exception as disable_e:
+            click.echo(f"Warning: Failed to disable DroidRun keyboard: {disable_e}")
 
 
 @cli.command()
@@ -756,8 +769,206 @@ def ping(device: str | None, use_tcp: bool, debug: bool):
 cli.add_command(macro_cli, name="macro")
 
 
+async def test(command: str):
+    config = ConfigManager(path="config.yaml")
+    # Initialize logging first (use config default if debug not specified)
+    debug_mode = debug if debug is not None else config.logging.debug
+    log_handler = configure_logging(command, debug_mode, config.logging.rich_text)
+    logger = logging.getLogger("droidrun")
+
+    log_handler.update_step("Initializing...")
+
+    with log_handler.render():
+        try:
+            logger.info(f"🚀 Starting: {command}")
+            print_telemetry_message()
+
+            # ================================================================
+            # STEP 1: Build config objects with CLI overrides
+            # ================================================================
+
+            # Build agent-specific configs with vision overrides
+            if vision is not None:
+                # --vision flag overrides all agents
+                manager_vision_val = vision
+                executor_vision_val = vision
+                codeact_vision_val = vision
+                logger.debug(f"CLI override: vision={vision} (all agents)")
+            else:
+                # Use individual overrides or config defaults
+                manager_vision_val = config.agent.manager.vision
+                executor_vision_val = config.agent.executor.vision
+                codeact_vision_val = config.agent.codeact.vision
+
+            manager_cfg = ManagerConfig(
+                vision=manager_vision_val,
+                system_prompt="rev1.md"
+            )
+
+            executor_cfg = ExecutorConfig(
+                vision=executor_vision_val,
+                system_prompt="rev1.md"
+            )
+
+            codeact_cfg = CodeActConfig(
+                vision=codeact_vision_val,
+                system_prompt=config.agent.codeact.system_prompt,
+                user_prompt=config.agent.codeact.user_prompt
+            )
+
+            agent_cfg = AgentConfig(
+                max_steps=steps if steps is not None else config.agent.max_steps,
+                reasoning=reasoning if reasoning is not None else config.agent.reasoning,
+                after_sleep_action=config.agent.after_sleep_action,
+                wait_for_stable_ui=config.agent.wait_for_stable_ui,
+                prompts_dir=config.agent.prompts_dir,
+                manager=manager_cfg,
+                executor=executor_cfg,
+                codeact=codeact_cfg,
+                app_cards=config.agent.app_cards,
+            )
+
+            device_cfg = DeviceConfig(
+                serial=device if device is not None else config.device.serial,
+                use_tcp=use_tcp if use_tcp is not None else config.device.use_tcp,
+            )
+
+            tools_cfg = ToolsConfig(
+                allow_drag=allow_drag if allow_drag is not None else config.tools.allow_drag,
+            )
+
+            logging_cfg = LoggingConfig(
+                debug=debug if debug is not None else config.logging.debug,
+                save_trajectory=save_trajectory if save_trajectory is not None else config.logging.save_trajectory,
+                rich_text=config.logging.rich_text,
+            )
+
+            tracing_cfg = TracingConfig(
+                enabled=tracing if tracing is not None else config.tracing.enabled,
+            )
+
+            # ================================================================
+            # STEP 3: Load LLMs
+            # ================================================================
+
+            log_handler.update_step("Loading LLMs...")
+
+            # No custom provider/model - use profiles from config
+            logger.info("📋 Loading LLMs from config profiles...")
+
+            profile_names = ['manager', 'executor', 'codeact', 'text_manipulator', 'app_opener']
+
+            # Apply temperature override to all profiles if specified
+            overrides = {}
+            if temperature is not None:
+                overrides = {name: {'temperature': temperature} for name in profile_names}
+
+            llms = config.load_all_llms(profile_names=profile_names, **overrides)
+            logger.info(f"🧠 Loaded {len(llms)} agent-specific LLMs from profiles")
+
+            # ================================================================
+            # STEP 4: Setup device and tools
+            # ================================================================
+
+            log_handler.update_step("Setting up tools...")
+
+            device_serial = device_cfg.serial
+            if device_serial is None and not ios:
+                logger.info("🔍 Finding connected device...")
+                devices = adb.list()
+                if not devices:
+                    raise ValueError("No connected devices found.")
+                device_serial = devices[0].serial
+                device_cfg = DeviceConfig(serial=device_serial, use_tcp=device_cfg.use_tcp)
+                logger.info(f"📱 Using device: {device_serial}")
+            elif device_serial is None and ios:
+                raise ValueError("iOS device not specified. Please specify device base url via --device")
+            else:
+                logger.info(f"📱 Using device: {device_serial}")
+
+            tools = (
+                AdbTools(
+                    serial=device_serial,
+                    use_tcp=device_cfg.use_tcp,
+                    app_opener_llm=llms.get('app_opener'),
+                    text_manipulator_llm=llms.get('text_manipulator')
+                )
+                if not ios
+                else IOSTools(url=device_serial)
+            )
+
+            excluded_tools = [] if tools_cfg.allow_drag else ["drag"]
+
+            # ================================================================
+            # STEP 5: Initialize DroidAgent with all settings
+            # ================================================================
+
+            log_handler.update_step("Initializing DroidAgent...")
+
+            mode = "planning with reasoning" if agent_cfg.reasoning else "direct execution"
+            logger.info(f"🤖 Agent mode: {mode}")
+            logger.info(f"👁️  Vision settings: Manager={agent_cfg.manager.vision}, "
+                       f"Executor={agent_cfg.executor.vision}, CodeAct={agent_cfg.codeact.vision}")
+
+            if tracing_cfg.enabled:
+                logger.info("🔍 Tracing enabled")
+
+            droid_agent = DroidAgent(
+                goal=command,
+                llms=llms,
+                tools=tools,
+                config=config,
+                agent_config=agent_cfg,
+                device_config=device_cfg,
+                tools_config=tools_cfg,
+                logging_config=logging_cfg,
+                tracing_config=tracing_cfg,
+                excluded_tools=excluded_tools,
+                timeout=1000,
+            )
+
+            # ================================================================
+            # STEP 6: Run agent
+            # ================================================================
+
+            logger.info("▶️  Starting agent execution...")
+            logger.info("Press Ctrl+C to stop")
+            log_handler.update_step("Running agent...")
+
+            try:
+                handler = droid_agent.run()
+
+                async for event in handler.stream_events():
+                    log_handler.handle_event(event)
+                result = await handler  # noqa: F841
+
+            except KeyboardInterrupt:
+                log_handler.is_completed = True
+                log_handler.is_success = False
+                log_handler.current_step = "Stopped by user"
+                logger.info("⏹️ Stopped by user")
+
+            except Exception as e:
+                log_handler.is_completed = True
+                log_handler.is_success = False
+                log_handler.current_step = f"Error: {e}"
+                logger.error(f"💥 Error: {e}")
+                if logging_cfg.debug:
+                    import traceback
+                    logger.debug(traceback.format_exc())
+
+        except Exception as e:
+            log_handler.current_step = f"Error: {e}"
+            logger.error(f"💥 Setup error: {e}")
+            debug_mode = debug if debug is not None else config.logging.debug
+            if debug_mode:
+                import traceback
+                logger.debug(traceback.format_exc())
+
+
+
 if __name__ == "__main__":
-    command = "Download clash royale app"
+    command = "extract the last command and error in termux"
     device = None
     provider = "GoogleGenAI"
     model = "models/gemini-2.5-flash"
@@ -774,6 +985,6 @@ if __name__ == "__main__":
     ios = False
     save_trajectory = "none"
     allow_drag = False
-    run_command(
-        command
+    asyncio.run(
+        test(command)
     )
