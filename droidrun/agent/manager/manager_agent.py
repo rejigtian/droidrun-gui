@@ -24,8 +24,8 @@ from droidrun.agent.utils.device_state_formatter import format_device_state
 from droidrun.agent.utils.inference import acall_with_retries
 from droidrun.agent.utils.tools import build_custom_tool_descriptions
 from droidrun.config_manager.prompt_loader import PromptLoader
-from droidrun.config_manager.app_card_provider import AppCardProvider
-from droidrun.config_manager.providers import (
+from droidrun.app_cards.app_card_provider import AppCardProvider
+from droidrun.app_cards.providers import (
     LocalAppCardProvider,
     ServerAppCardProvider,
     CompositeAppCardProvider,
