@@ -14,7 +14,7 @@ from adbutils import adb
 from rich.console import Console
 
 from droidrun.agent.droid import DroidAgent
-from droidrun.agent.utils.llm_picker import load_llm
+from droidrun.agent.utils.llm_picker import load_llm, load_llms_from_profiles
 from droidrun.cli.logs import LogHandler
 from droidrun.config_manager.config_manager import (
     AgentConfig,
@@ -239,7 +239,7 @@ async def run_command(
                 if temperature is not None:
                     overrides = {name: {'temperature': temperature} for name in profile_names}
 
-                llms = config.load_all_llms(profile_names=profile_names, **overrides)
+                llms = load_llms_from_profiles(config.llm_profiles, profile_names=profile_names, **overrides)
                 logger.info(f"🧠 Loaded {len(llms)} agent-specific LLMs from profiles")
 
             # ================================================================
@@ -863,7 +863,7 @@ async def test(command: str):
             if temperature is not None:
                 overrides = {name: {'temperature': temperature} for name in profile_names}
 
-            llms = config.load_all_llms(profile_names=profile_names, **overrides)
+            llms = load_llms_from_profiles(config.llm_profiles, profile_names=profile_names, **overrides)
             logger.info(f"🧠 Loaded {len(llms)} agent-specific LLMs from profiles")
 
             # ================================================================

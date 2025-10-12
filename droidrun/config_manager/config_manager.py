@@ -376,6 +376,7 @@ class ConfigManager:
 
     Usage:
         from droidrun.config_manager.config_manager import ConfigManager
+        from droidrun.agent.utils.llm_picker import load_llms_from_profiles
 
         # Create config instance (singleton pattern)
         config = ConfigManager()
@@ -383,11 +384,18 @@ class ConfigManager:
         # Access typed config objects
         print(config.agent.max_steps)
 
-        # Load all LLMs
-        llms = config.load_all_llms()
+        # Load all LLMs from profiles
+        llms = load_llms_from_profiles(config.llm_profiles)
         manager_llm = llms['manager']
         executor_llm = llms['executor']
         codeact_llm = llms['codeact']
+
+        # Load specific profiles with overrides
+        llms = load_llms_from_profiles(
+            config.llm_profiles,
+            profile_names=['manager', 'executor'],
+            manager={'temperature': 0.1}
+        )
 
         # Modify and save
         config.save()
@@ -497,86 +505,6 @@ class ConfigManager:
                 )
 
             return self._config.llm_profiles[profile_name]
-
-    def load_llm_from_profile(self, profile_name: str, **override_kwargs):
-        """
-        Load an LLM using a profile configuration.
-
-        Args:
-            profile_name: Name of the profile to use (fast, mid, smart, custom)
-            **override_kwargs: Additional kwargs to override profile settings
-
-        Returns:
-            Initialized LLM instance
-
-        Example:
-            # Use specific profile
-            llm = config.load_llm_from_profile("smart")
-
-            # Override specific settings
-            llm = config.load_llm_from_profile("fast", temperature=0.5)
-        """
-        from droidrun.agent.utils.llm_picker import load_llm
-
-        profile = self.get_llm_profile(profile_name)
-
-        # Get kwargs from profile
-        kwargs = profile.to_load_llm_kwargs()
-
-        # Override with any provided kwargs
-        kwargs.update(override_kwargs)
-
-        # Load the LLM
-        return load_llm(provider_name=profile.provider, **kwargs)
-
-    def load_all_llms(self, profile_names: Optional[list[str]] = None, **override_kwargs_per_profile):
-        """
-        Load multiple LLMs from profiles for different use cases.
-
-        Args:
-            profile_names: List of profile names to load. If None, loads agent-specific profiles
-            **override_kwargs_per_profile: Dict of profile-specific overrides
-                Example: manager={'temperature': 0.1}, executor={'max_tokens': 8000}
-
-        Returns:
-            Dict mapping profile names to initialized LLM instances
-
-        Example:
-            # Load all agent-specific profiles
-            llms = config.load_all_llms()
-            manager_llm = llms['manager']
-            executor_llm = llms['executor']
-            codeact_llm = llms['codeact']
-
-            # Load specific profiles
-            llms = config.load_all_llms(['manager', 'executor'])
-
-            # Load with overrides
-            llms = config.load_all_llms(
-                manager={'temperature': 0.1},
-                executor={'max_tokens': 8000}
-            )
-        """
-        from droidrun.agent.utils.llm_picker import load_llm
-
-        if profile_names is None:
-            profile_names = ["manager", "executor", "codeact", "text_manipulator", "app_opener"]
-
-        llms = {}
-        for profile_name in profile_names:
-            profile = self.get_llm_profile(profile_name)
-
-            # Get kwargs from profile
-            kwargs = profile.to_load_llm_kwargs()
-
-            # Apply profile-specific overrides if provided
-            if profile_name in override_kwargs_per_profile:
-                kwargs.update(override_kwargs_per_profile[profile_name])
-
-            # Load the LLM
-            llms[profile_name] = load_llm(provider_name=profile.provider, **kwargs)
-
-        return llms
 
     # ---------------- I/O ----------------
     def _ensure_file_exists(self) -> None:

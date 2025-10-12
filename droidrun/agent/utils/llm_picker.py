@@ -1,10 +1,13 @@
 import importlib
 import logging
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from llama_index.core.llms.llm import LLM
 
 from droidrun.agent.usage import track_usage
+
+if TYPE_CHECKING:
+    from droidrun.config_manager.config_manager import LLMProfile
 
 # Configure logging
 logger = logging.getLogger("droidrun")
@@ -102,6 +105,65 @@ def load_llm(provider_name: str, **kwargs: Any) -> LLM:
     except Exception as e:
         logger.error(f"An unexpected error occurred initializing {provider_name}: {e}")
         raise e
+
+
+def load_llms_from_profiles(
+    profiles: dict[str, "LLMProfile"],
+    profile_names: list[str] | None = None,
+    **override_kwargs_per_profile
+) -> dict[str, LLM]:
+    """
+    Load multiple LLMs from LLMProfile objects.
+
+    Args:
+        profiles: Dict of profile_name -> LLMProfile objects
+        profile_names: List of profile names to load. If None, loads all profiles
+        **override_kwargs_per_profile: Dict of profile-specific overrides
+            Example: manager={'temperature': 0.1}, executor={'max_tokens': 8000}
+
+    Returns:
+        Dict mapping profile names to initialized LLM instances
+
+    Example:
+        >>> config = ConfigManager()
+        >>> llms = load_llms_from_profiles(config.llm_profiles)
+        >>> manager_llm = llms['manager']
+
+        >>> # Load specific profiles with overrides
+        >>> llms = load_llms_from_profiles(
+        ...     config.llm_profiles,
+        ...     profile_names=['manager', 'executor'],
+        ...     manager={'temperature': 0.1}
+        ... )
+    """
+    if profile_names is None:
+        profile_names = list(profiles.keys())
+
+    llms = {}
+    for profile_name in profile_names:
+        logger.debug(f"Loading LLM for profile: {profile_name}")
+
+        if profile_name not in profiles:
+            raise KeyError(
+                f"Profile '{profile_name}' not found. "
+                f"Available profiles: {list(profiles.keys())}"
+            )
+
+        profile = profiles[profile_name]
+
+        # Get base kwargs from profile
+        kwargs = profile.to_load_llm_kwargs()
+
+        # Apply profile-specific overrides if provided
+        if profile_name in override_kwargs_per_profile:
+            logger.debug(f"Applying overrides for {profile_name}: {override_kwargs_per_profile[profile_name]}")
+            kwargs.update(override_kwargs_per_profile[profile_name])
+
+        # Load the LLM
+        llms[profile_name] = load_llm(provider_name=profile.provider, **kwargs)
+        logger.debug(f"Successfully loaded {profile_name} LLM: {profile.provider}/{profile.model}")
+
+    return llms
 
 
 # --- Example Usage ---
