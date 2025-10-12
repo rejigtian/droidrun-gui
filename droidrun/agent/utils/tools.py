@@ -127,6 +127,35 @@ def open_app(tool_instance: "Tools", text: str) -> str:
     return result
 
 
+def remember(tool_instance: "Tools", information: str) -> str:
+    """
+    Remember important information for later use.
+
+    Args:
+        tool_instance: The Tools instance
+        information: The information to remember
+
+    Returns:
+        Confirmation message
+    """
+    return tool_instance.remember(information)
+
+
+def complete(tool_instance: "Tools", success: bool, reason: str = "") -> None:
+    """
+    Mark the task as complete.
+
+    Args:
+        tool_instance: The Tools instance
+        success: Whether the task was completed successfully
+        reason: Explanation for success or failure
+
+    Returns:
+        None
+    """
+    tool_instance.complete(success, reason)
+
+
 # =============================================================================
 # ATOMIC ACTION SIGNATURES - Single source of truth for both Executor and CodeAct
 # =============================================================================

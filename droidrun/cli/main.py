@@ -968,7 +968,7 @@ async def test(command: str):
 
 
 if __name__ == "__main__":
-    command = "extract the last command and error in termux"
+    command = "set gboard to the default keyboard"
     device = None
     provider = "GoogleGenAI"
     model = "models/gemini-2.5-flash"
@@ -976,7 +976,7 @@ if __name__ == "__main__":
     api_key = os.getenv("GOOGLE_API_KEY")
     steps = 15
     vision = True
-    reasoning = True
+    reasoning = False
     tracing = True
     debug = True
     use_tcp = False

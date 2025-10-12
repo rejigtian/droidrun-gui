@@ -13,7 +13,6 @@ from typing import Any, Dict, List, Optional, Tuple
 import requests
 from adbutils import adb
 from llama_index.core.workflow import Context
-from droidrun.portal import setup_keyboard
 
 from droidrun.agent.common.events import (
     DragActionEvent,
@@ -72,6 +71,8 @@ class AdbTools(Tools):
         self.app_opener_llm = app_opener_llm
         self.text_manipulator_llm = text_manipulator_llm
 
+        # Set up keyboard
+        from droidrun.portal import setup_keyboard
         setup_keyboard(self.device)
 
         # Set up TCP forwarding if requested
@@ -295,12 +296,9 @@ class AdbTools(Tools):
             # Extract coordinates using the helper function
             x, y = self._extract_element_coordinates_by_index(index)
 
-            logger.debug(
-                f"Tapping element with index {index} at coordinates ({x}, {y})"
-            )
             # Get the device and tap at the coordinates
             self.device.click(x, y)
-            logger.debug(f"Tapped element with index {index} at coordinates ({x}, {y})")
+            print(f"Tapped element with index {index} at coordinates ({x}, {y})")
 
             # Emit coordinate action event for trajectory recording
             if self._ctx:
@@ -333,8 +331,7 @@ class AdbTools(Tools):
                 )
                 self._ctx.write_event_to_stream(tap_event)
 
-            # Add a small delay to allow UI to update
-            time.sleep(0.5)
+
 
             # Create a descriptive response
             def find_element_by_index(elements, target_index):
@@ -446,7 +443,7 @@ class AdbTools(Tools):
 
             self.device.swipe(start_x, start_y, end_x, end_y, float(duration_ms / 1000))
             time.sleep(duration_ms / 1000)
-            logger.debug(
+            print(
                 f"Swiped from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration_ms} milliseconds"
             )
             return True
@@ -529,7 +526,7 @@ class AdbTools(Tools):
                     timeout=10,
                 )
 
-                logger.debug(
+                print(
                     f"Keyboard input TCP response: {response.status_code}, {response.text}"
                 )
 
@@ -558,7 +555,7 @@ class AdbTools(Tools):
 
                 # Execute the command and capture output for better error handling
                 result = self.device.shell(cmd)
-                logger.debug(f"Content provider result: {result}")
+                print(f"Content provider result: {result}")
 
             if self._ctx:
                 input_event = InputTextActionEvent(
@@ -568,7 +565,7 @@ class AdbTools(Tools):
                 )
                 self._ctx.write_event_to_stream(input_event)
 
-            logger.debug(
+            print(
                 f"Text input completed (clear={clear}): {text[:50]}{'...' if len(text) > 50 else ''}"
             )
             return f"Text input completed (clear={clear}): {text[:50]}{'...' if len(text) > 50 else ''}"
@@ -587,7 +584,7 @@ class AdbTools(Tools):
         This presses the Android back button.
         """
         try:
-            logger.debug("Pressing key BACK")
+            print("Pressing key BACK")
             self.device.keyevent(4)
 
             if self._ctx:
@@ -635,9 +632,8 @@ class AdbTools(Tools):
                 )
                 self._ctx.write_event_to_stream(key_event)
 
-            logger.debug(f"Pressing key {key_name}")
             self.device.keyevent(keycode)
-            logger.debug(f"Pressed key {key_name}")
+            print(f"Pressed key {key_name}")
             return f"Pressed key {key_name}"
         except ValueError as e:
             return f"Error: {str(e)}"
@@ -653,7 +649,7 @@ class AdbTools(Tools):
         """
         try:
 
-            logger.debug(f"Starting app {package} with activity {activity}")
+            print(f"Starting app {package} with activity {activity}")
             if not activity:
                 dumpsys_output = self.device.shell(
                     f"cmd package resolve-activity --brief {package}"
@@ -672,7 +668,7 @@ class AdbTools(Tools):
             print(f"Activity: {activity}")
 
             self.device.app_start(package, activity)
-            logger.debug(f"App started: {package} with activity {activity}")
+            print(f"App started: {package} with activity {activity}")
             return f"App started: {package} with activity {activity}"
         except Exception as e:
             return f"Error: {str(e)}"

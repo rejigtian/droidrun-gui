@@ -85,15 +85,8 @@ class CodeActAgent(Workflow):
         self.tool_list = {}
         for action_name, signature in merged_signatures.items():
             func = signature["function"]
-            if asyncio.iscoroutinefunction(func):
-                # Create async bound function with proper closure
-                def make_bound(f, ti):
-                    async def bound_func(*args, **kwargs):
-                        return await f(ti, *args, **kwargs)
-                    return bound_func
-                self.tool_list[action_name] = make_bound(func, tools_instance)
-            else:
-                self.tool_list[action_name] = lambda *args, f=func, ti=tools_instance, **kwargs: f(ti, *args, **kwargs)
+
+            self.tool_list[action_name] = lambda *args, f=func, ti=tools_instance, **kwargs: f(ti, *args, **kwargs)
 
         self.tool_list["remember"] = tools_instance.remember
         self.tool_list["complete"] = tools_instance.complete
@@ -117,7 +110,6 @@ class CodeActAgent(Workflow):
             loop=asyncio.get_event_loop(),
             locals={},
             tools=self.tool_list,
-            tools_instance=tools_instance,
             globals={"__builtins__": __builtins__},
         )
 
@@ -291,27 +283,30 @@ Now, describe the next step you will take to address the original goal: {goal}""
         try:
             self.code_exec_counter += 1
             result = await self.executor.execute(ExecuterState(ui_state=ctx.store.get("ui_state", None)), code)
-            logger.info(f"💡 Code execution successful. Result: {result['output']}")
+            logger.info(f"💡 Code execution successful. Result: {result}")
             await asyncio.sleep(self.agent_config.after_sleep_action)
-            screenshots = result['screenshots']
-            for screenshot in screenshots[:-1]: # the last screenshot will be captured by next step
-                ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
 
-            ui_states = result['ui_states']
-            for ui_state in ui_states[:-1]:
-                ctx.write_event_to_stream(RecordUIStateEvent(ui_state=ui_state['a11y_tree']))
-
+            # Check if complete() was called
             if self.tools.finished:
-                logger.debug("  - Task completed.")
-                event = TaskEndEvent(
-                    success=self.tools.success, reason=self.tools.reason
-                )
+                logger.info("✅ Task marked as complete via complete() function")
+
+                # Validate completion state
+                success = self.tools.success if self.tools.success is not None else False
+                reason = self.tools.reason if self.tools.reason else "Task completed without reason"
+
+                # Reset finished flag for next execution
+                self.tools.finished = False
+
+                logger.info(f"  - Success: {success}")
+                logger.info(f"  - Reason: {reason}")
+
+                event = TaskEndEvent(success=success, reason=reason)
                 ctx.write_event_to_stream(event)
                 return event
 
             self.remembered_info = self.tools.memory
 
-            event = TaskExecutionResultEvent(output=str(result['output']))
+            event = TaskExecutionResultEvent(output=str(result))
             ctx.write_event_to_stream(event)
             return event
 
