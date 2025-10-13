@@ -836,7 +836,7 @@ wheels = [
 
 [[package]]
 name = "droidrun"
-version = "0.3.10.dev9"
+version = "0.3.10.dev10"
 source = { editable = "." }
 dependencies = [
     { name = "adbutils" },
