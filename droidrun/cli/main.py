@@ -563,7 +563,6 @@ def run(
                     device_obj.shell("ime disable com.droidrun.portal/.DroidrunKeyboardIME")
         except Exception:
             click.echo("Failed to disable DroidRun keyboard")
-            pass
 
 
 @cli.command()

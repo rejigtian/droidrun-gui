@@ -39,7 +39,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger("droidrun")
 
 
-class ExecutorAgent(Workflow): # TODO: Fix a bug in bad prompt
+class ExecutorAgent(Workflow):
     """
     Action execution agent that performs specific actions.
 
@@ -115,7 +115,7 @@ class ExecutorAgent(Workflow): # TODO: Fix a bug in bad prompt
             self.agent_config.get_executor_system_prompt_path(),
             {
                 "instruction": self.shared_state.instruction,
-                "app_card": "",  # TODO: Implement app card loader
+                "app_card": "",  # TODO: optionally implement app card loader
                 "device_state": self.shared_state.formatted_device_state,
                 "plan": self.shared_state.plan,
                 "subgoal": subgoal,
@@ -196,9 +196,7 @@ class ExecutorAgent(Workflow): # TODO: Fix a bug in bad prompt
 
         outcome, error, summary = await self._execute_action(action_dict, ev.description)
 
-        # TODO: Add sleep after action (should be in DroidAgent.handle_executor_result)
-        # Available via: self.agent_config.after_sleep_action
-        # await asyncio.sleep(self.agent_config.after_sleep_action)
+        await asyncio.sleep(self.agent_config.after_sleep_action)
 
         logger.info(f"{'✅' if outcome else '❌'} Execution complete: {summary}")
 

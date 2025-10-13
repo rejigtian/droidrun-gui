@@ -144,8 +144,8 @@ class AdbTools(Tools):
         # Parse the bounds (format: "left,top,right,bottom")
         try:
             left, top, right, bottom = map(int, bounds_str.split(","))
-        except ValueError:
-            raise ValueError(f"Invalid bounds format for element with index {index}: {bounds_str}") from ValueError
+        except ValueError as e:
+            raise ValueError(f"Invalid bounds format for element with index {index}: {bounds_str}") from e
 
         # Calculate the center of the element
         x = (left + right) // 2
