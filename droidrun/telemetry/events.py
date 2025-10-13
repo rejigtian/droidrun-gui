@@ -28,7 +28,6 @@ class PackageVisitEvent(TelemetryEvent):
 
 
 class DroidAgentFinalizeEvent(TelemetryEvent):
-    tasks: str
     success: bool
     reason: str
     steps: int

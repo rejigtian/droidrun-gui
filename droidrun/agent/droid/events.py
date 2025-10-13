@@ -31,7 +31,6 @@ class CodeActResultEvent(Event):
 class FinalizeEvent(Event):
     success: bool
     reason: str
-    tasks: List[Task]
 
 class TaskRunnerEvent(Event):
     pass

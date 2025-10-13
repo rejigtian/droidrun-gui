@@ -300,6 +300,7 @@ async def run_command(
                 tracing_config=tracing_cfg,
                 excluded_tools=excluded_tools,
                 timeout=1000,
+                runtype="cli"
             )
 
             # ================================================================

@@ -329,22 +329,18 @@ class DroidAgent(Workflow):
         self, ctx: Context, ev: CodeActResultEvent
     ) -> FinalizeEvent:
         try:
-            task = ev.task
             return FinalizeEvent(
                 success=ev.success,
-                reason=ev.reason,
-                tasks=[task]
+                reason=ev.reason
             )
         except Exception as e:
             logger.error(f"❌ Error during DroidAgent execution: {e}")
             if self.config.logging.debug:
                 import traceback
                 logger.error(traceback.format_exc())
-            tasks = self.task_manager.get_task_history()
             return FinalizeEvent(
                 success=False,
                 reason=str(e),
-                tasks=tasks
             )
 
     @step
@@ -393,8 +389,7 @@ class DroidAgent(Workflow):
             logger.warning(f"⚠️ Reached maximum steps ({self.config.agent.max_steps})")
             return FinalizeEvent(
                 success=False,
-                reason=f"Reached maximum steps ({self.config.agent.max_steps})",
-                tasks=[]
+                reason=f"Reached maximum steps ({self.config.agent.max_steps})"
             )
 
         logger.info(f"📋 Running Manager for planning... (step {self.shared_state.step_number}/{self.config.agent.max_steps})")
@@ -434,8 +429,7 @@ class DroidAgent(Workflow):
 
             return FinalizeEvent(
                 success=True,
-                reason=ev.manager_answer,
-                tasks=[]
+                reason=ev.manager_answer
             )
 
         # Continue to Executor with current subgoal
@@ -521,7 +515,6 @@ class DroidAgent(Workflow):
         ctx.write_event_to_stream(ev)
         capture(
             DroidAgentFinalizeEvent(
-                tasks=",".join([f"{t.agent_type}:{t.description}" for t in ev.tasks]),
                 success=ev.success,
                 reason=ev.reason,
                 steps=self.shared_state.step_number,

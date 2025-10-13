@@ -1,7 +1,7 @@
 import logging
 import os
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from posthog import Posthog
 
@@ -44,14 +44,42 @@ def print_telemetry_message():
 print_telemetry_message()
 
 
-def get_user_id() -> str:
+def _is_valid_uuid(value: str) -> bool:
+    """Check if string is a valid UUID format."""
     try:
-        if not USER_ID_PATH.exists():
-            USER_ID_PATH.parent.mkdir(parents=True, exist_ok=True)
-            USER_ID_PATH.touch()
-            USER_ID_PATH.write_text(str(uuid4()))
-        logger.debug(f"User ID: {USER_ID_PATH.read_text()}")
-        return USER_ID_PATH.read_text()
+        UUID(value)
+        return True
+    except (ValueError, AttributeError):
+        return False
+
+
+def get_user_id() -> str:
+    """Get or create persistent anonymous user ID.
+
+    Returns:
+        User UUID string, or "unknown" if an error occurs.
+    """
+    try:
+        # Ensure directory exists
+        USER_ID_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+        # Read existing ID if valid
+        if USER_ID_PATH.exists():
+            user_id = USER_ID_PATH.read_text().strip()
+
+            # Validate UUID format
+            if user_id and _is_valid_uuid(user_id):
+                logger.debug(f"User ID: {user_id}")
+                return user_id
+            else:
+                logger.debug(f"Invalid user ID found in {USER_ID_PATH}, regenerating")
+
+        # Generate new UUID (file missing or invalid)
+        user_id = str(uuid4())
+        USER_ID_PATH.write_text(user_id)
+        logger.debug(f"Generated new user ID: {user_id}")
+        return user_id
+
     except Exception as e:
         logger.error(f"Error getting user ID: {e}")
         return "unknown"
