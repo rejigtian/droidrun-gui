@@ -518,8 +518,8 @@ class DroidAgent(Workflow):
                 success=ev.success,
                 reason=ev.reason,
                 steps=self.shared_state.step_number,
-                unique_packages_count=len(self.shared_state._visited_packages),
-                unique_activities_count=len(self.shared_state._visited_activities),
+                unique_packages_count=len(self.shared_state.visited_packages),
+                unique_activities_count=len(self.shared_state.visited_activities),
             ),
             self.user_id,
         )
