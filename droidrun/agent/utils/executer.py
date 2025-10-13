@@ -1,3 +1,4 @@
+import asyncio
 import contextlib
 import io
 import logging
@@ -109,7 +110,7 @@ class SimpleCodeExecutor:
 
         return output
 
-    async def execute(self, state: ExecuterState, code: str) -> str:
+    async def execute(self, state: ExecuterState, code: str, timeout: float = 10.0) -> str:
         """
         Execute Python code and capture output and return values.
 
@@ -118,6 +119,7 @@ class SimpleCodeExecutor:
         Args:
             state: ExecuterState containing ui_state and other execution context.
             code: Python code to execute
+            timeout: Maximum execution time in seconds (default: 30.0)
 
         Returns:
             str: Output from the execution, including print statements.
@@ -125,12 +127,16 @@ class SimpleCodeExecutor:
         # Get UI state from the state object
         ui_state = state.ui_state
 
-        # Run the execution in a thread pool executor
-        output = await self.loop.run_in_executor(
-            None,
-            self._execute_in_thread,
-            code,
-            ui_state
-        )
-
-        return output
+        try:
+            output = await asyncio.wait_for(
+                self.loop.run_in_executor(
+                    None,
+                    self._execute_in_thread,
+                    code,
+                    ui_state
+                ),
+                timeout=timeout
+            )
+            return output
+        except asyncio.TimeoutError:
+            return f"Error: Execution timed out after {timeout} seconds"
