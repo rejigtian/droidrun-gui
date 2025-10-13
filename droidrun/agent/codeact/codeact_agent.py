@@ -75,7 +75,6 @@ class CodeActAgent(Workflow):
         self.remembered_info = None
 
         self.goal = None
-        self.steps_counter = 0
         self.code_exec_counter = 0
 
         # Build tool list
@@ -164,7 +163,7 @@ Now, describe the next step you will take to address the original goal: {goal}""
         assert len(chat_history) > 0, "Chat history cannot be empty."
         ctx.write_event_to_stream(ev)
 
-        if self.steps_counter >= self.max_steps:
+        if self.shared_state.step_number + 1 > self.max_steps:
             ev = TaskEndEvent(
                 success=False,
                 reason=f"Reached max step count of {self.max_steps} steps",
@@ -172,8 +171,7 @@ Now, describe the next step you will take to address the original goal: {goal}""
             ctx.write_event_to_stream(ev)
             return ev
 
-        self.steps_counter += 1
-        logger.info(f"🧠 Step {self.steps_counter}: Thinking...")
+        logger.info(f"🧠 Step {self.shared_state.step_number + 1}: Thinking...")
 
         model = self.llm.class_name()
 
@@ -200,15 +198,17 @@ Now, describe the next step you will take to address the original goal: {goal}""
             formatted_text, focused_text, a11y_tree, phone_state = format_device_state(raw_state)
 
             # Update shared_state if available
-            if self.shared_state is not None:
-                self.shared_state.formatted_device_state = formatted_text
-                self.shared_state.focused_text = focused_text
-                self.shared_state.a11y_tree = a11y_tree
-                self.shared_state.phone_state = phone_state
+            assert self.shared_state is not None, "Shared state is not set"
+            self.shared_state.formatted_device_state = formatted_text
+            self.shared_state.focused_text = focused_text
+            self.shared_state.a11y_tree = a11y_tree
+            self.shared_state.phone_state = phone_state
 
-                # Extract and store package/app name
-                self.shared_state.current_package_name = phone_state.get('packageName', 'Unknown')
-                self.shared_state.current_app_name = phone_state.get('currentApp', 'Unknown')
+            # Extract and store package/app name (using unified update method)
+            self.shared_state.update_current_app(
+                package_name=phone_state.get('packageName', 'Unknown'),
+                activity_name=phone_state.get('currentApp', 'Unknown')
+            )
 
             # Stream formatted state for trajectory
             ctx.write_event_to_stream(RecordUIStateEvent(ui_state=a11y_tree))
@@ -235,6 +235,7 @@ Now, describe the next step you will take to address the original goal: {goal}""
             usage = None
 
         await self.chat_memory.aput(response.message)
+        self.shared_state.step_number += 1
 
         code, thoughts = chat_utils.extract_code_and_thought(response.message.content)
 
@@ -359,8 +360,6 @@ Now, describe the next step you will take to address the original goal: {goal}""
             {
                 "success": ev.success,
                 "reason": ev.reason,
-                "output": ev.reason,
-                "codeact_steps": self.steps_counter,
                 "code_executions": self.code_exec_counter,
             }
         )

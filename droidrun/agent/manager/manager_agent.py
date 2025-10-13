@@ -328,21 +328,38 @@ class ManagerAgent(Workflow):
         self.shared_state.phone_state = phone_state
 
         # Extract and store package/app name
-        self.shared_state.current_package_name = phone_state.get('packageName', 'Unknown')
-        self.shared_state.current_app_name = phone_state.get('currentApp', 'Unknown')
+        self.shared_state.update_current_app(
+            package_name=phone_state.get('packageName', 'Unknown'),
+            activity_name=phone_state.get('currentApp', 'Unknown')
+        )
 
         # ====================================================================
-        # Step 1.5: Start loading app card in background
+        # Step 1.5: Start loading app card in background (only if package/instruction changed)
         # ====================================================================
         if self.app_card_config.enabled:
-            loading_task = asyncio.create_task(
-                self.app_card_provider.load_app_card(
-                    package_name=self.shared_state.current_package_name,
-                    instruction=self.shared_state.instruction
-                )
-            )
-            self.shared_state.app_card_loading_task = loading_task
+            current_package = self.shared_state.current_package_name
+            current_instruction = self.shared_state.instruction
 
+            # Check if we need to start a new loading task
+            package_changed = current_package != self.shared_state._app_card_package
+            instruction_changed = current_instruction != self.shared_state._app_card_instruction
+
+            if package_changed or instruction_changed:
+                # Cancel old task if it exists and is still running (non-blocking)
+                if (self.shared_state.app_card_loading_task and
+                    not self.shared_state.app_card_loading_task.done()):
+                    self.shared_state.app_card_loading_task.cancel()
+
+                # Start new loading task
+                loading_task = asyncio.create_task(
+                    self.app_card_provider.load_app_card(
+                        package_name=current_package,
+                        instruction=current_instruction
+                    )
+                )
+                self.shared_state.app_card_loading_task = loading_task
+                self.shared_state._app_card_package = current_package
+                self.shared_state._app_card_instruction = current_instruction
         # ====================================================================
         # Step 2: Capture screenshot if vision enabled
         # ====================================================================
@@ -432,6 +449,10 @@ class ManagerAgent(Workflow):
                 )
             except asyncio.TimeoutError:
                 # Task not ready yet, use empty string
+                self.shared_state.app_card = ""
+            except asyncio.CancelledError:
+                # Task was cancelled (app/instruction changed), use empty string
+                logger.debug("App card task was cancelled")
                 self.shared_state.app_card = ""
             except Exception as e:
                 logger.warning(f"Error getting app card: {e}")

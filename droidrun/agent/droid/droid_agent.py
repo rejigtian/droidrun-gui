@@ -124,7 +124,11 @@ class DroidAgent(Workflow):
         """
 
         self.user_id = kwargs.pop("user_id", None)
-
+        self.runtype = kwargs.pop("runtype", "developer")
+        self.shared_state = DroidAgentState(
+            instruction=goal,
+            err_to_manager_thresh=2
+        )
         base_config = config
 
         self.config = DroidRunConfig(
@@ -154,7 +158,6 @@ class DroidAgent(Workflow):
                     "    • If installed via pip: `uv pip install droidrun[phoenix]`\n"
                 )
 
-        self.goal = goal
         self.timeout = timeout
         self.custom_tools = custom_tools or {}
 
@@ -180,8 +183,7 @@ class DroidAgent(Workflow):
             self.app_opener_llm = llms
 
 
-        self.event_counter = 0
-        self.trajectory = Trajectory(goal=goal)
+        self.trajectory = Trajectory(goal=self.shared_state.instruction)
         self.task_manager = TaskManager()
         self.task_iter = None
         self.current_episodic_memory = None
@@ -202,10 +204,6 @@ class DroidAgent(Workflow):
         # Set app_opener_llm on tools instance for open_app custom tool
         self.tools_instance.app_opener_llm = self.app_opener_llm
 
-        self.shared_state = DroidAgentState(
-            instruction=goal,
-            err_to_manager_thresh=2
-        )
 
         if self.config.agent.reasoning:
             logger.info("📝 Initializing Manager and Executor Agents...")
@@ -236,7 +234,7 @@ class DroidAgent(Workflow):
 
         capture(
             DroidAgentInitEvent(
-                goal=goal,
+                goal=self.shared_state.instruction,
                 llms={
                     "manager": self.manager_llm.class_name() if self.manager_llm else "None",
                     "executor": self.executor_llm.class_name() if self.executor_llm else "None",
@@ -257,6 +255,7 @@ class DroidAgent(Workflow):
                 enable_tracing=self.config.tracing.enabled,
                 debug=self.config.logging.debug,
                 save_trajectories=self.config.logging.save_trajectory,
+                runtype=self.runtype,
             ),
             self.user_id,
         )
@@ -268,35 +267,6 @@ class DroidAgent(Workflow):
         Run the DroidAgent workflow.
         """
         return super().run(*args, **kwargs)
-
-    def _create_finalize_event(
-        self,
-        success: bool,
-        reason: str,
-        output: str
-    ) -> FinalizeEvent:
-        """
-        Single source of truth for creating FinalizeEvent.
-
-        This helper ensures all FinalizeEvent creation is consistent
-        across the workflow.
-
-        Args:
-            success: Whether the task succeeded
-            reason: Reason for completion (deprecated, use output)
-            output: Output message
-
-        Returns:
-            FinalizeEvent ready to be returned
-        """
-        return FinalizeEvent(
-            success=success,
-            reason=reason,
-            output=output,
-            task=[], # TODO: use the final plan as the tasks and the goal as task
-            tasks=[],
-            steps=self.step_counter
-        )
 
     @step
     async def execute_task(self, ctx: Context, ev: CodeActExecuteEvent) -> CodeActResultEvent:
@@ -339,14 +309,12 @@ class DroidAgent(Workflow):
                     success=True,
                     reason=result["reason"],
                     task=task,
-                    steps=result["codeact_steps"],
                 )
             else:
                 return CodeActResultEvent(
                     success=False,
                     reason=result["reason"],
                     task=task,
-                    steps=result["codeact_steps"],
                 )
 
         except Exception as e:
@@ -354,7 +322,7 @@ class DroidAgent(Workflow):
             if self.config.logging.debug:
                 import traceback
                 logger.error(traceback.format_exc())
-            return CodeActResultEvent(success=False, reason=f"Error: {str(e)}", task=task, steps=0)
+            return CodeActResultEvent(success=False, reason=f"Error: {str(e)}", task=task)
 
     @step
     async def handle_codeact_execute(
@@ -365,10 +333,7 @@ class DroidAgent(Workflow):
             return FinalizeEvent(
                 success=ev.success,
                 reason=ev.reason,
-                output=ev.reason,
-                task=[task],
-                tasks=[task],
-                steps=ev.steps,
+                tasks=[task]
             )
         except Exception as e:
             logger.error(f"❌ Error during DroidAgent execution: {e}")
@@ -379,10 +344,7 @@ class DroidAgent(Workflow):
             return FinalizeEvent(
                 success=False,
                 reason=str(e),
-                output=str(e),
-                task=tasks,
-                tasks=tasks,
-                steps=self.step_counter,
+                tasks=tasks
             )
 
     @step
@@ -395,16 +357,14 @@ class DroidAgent(Workflow):
         Returns:
             Event to trigger next step based on reasoning mode
         """
-        logger.info(f"🚀 Running DroidAgent to achieve goal: {self.goal}")
+        logger.info(f"🚀 Running DroidAgent to achieve goal: {self.shared_state.instruction}")
         ctx.write_event_to_stream(ev)
 
-        self.step_counter = 0
-        self.retry_counter = 0
 
         if not self.config.agent.reasoning:
-            logger.info(f"🔄 Direct execution mode - executing goal: {self.goal}")
+            logger.info(f"🔄 Direct execution mode - executing goal: {self.shared_state.instruction}")
             task = Task(
-                description=self.goal,
+                description=self.shared_state.instruction,
                 status=self.task_manager.STATUS_PENDING,
                 agent_type="Default",
             )
@@ -429,15 +389,15 @@ class DroidAgent(Workflow):
         Pre-flight checks for termination before running manager.
         The Manager analyzes current state and creates a plan with subgoals.
         """
-        if self.step_counter >= self.config.agent.max_steps:
+        if self.shared_state.step_number >= self.config.agent.max_steps:
             logger.warning(f"⚠️ Reached maximum steps ({self.config.agent.max_steps})")
-            return self._create_finalize_event(
+            return FinalizeEvent(
                 success=False,
                 reason=f"Reached maximum steps ({self.config.agent.max_steps})",
-                output=f"Reached maximum steps ({self.config.agent.max_steps})"
+                tasks=[]
             )
 
-        logger.info(f"📋 Running Manager for planning... (step {self.step_counter}/{self.config.agent.max_steps})")
+        logger.info(f"📋 Running Manager for planning... (step {self.shared_state.step_number}/{self.config.agent.max_steps})")
 
         # Run Manager workflow
         handler = self.manager_agent.run()
@@ -472,10 +432,10 @@ class DroidAgent(Workflow):
             logger.info(f"💬 Manager provided answer: {ev.manager_answer}")
             self.shared_state.progress_status = f"Answer: {ev.manager_answer}"
 
-            return self._create_finalize_event(
+            return FinalizeEvent(
                 success=True,
                 reason=ev.manager_answer,
-                output=ev.manager_answer
+                tasks=[]
             )
 
         # Continue to Executor with current subgoal
@@ -533,7 +493,7 @@ class DroidAgent(Workflow):
         Checks for error escalation and loops back to Manager.
         Note: Max steps check is now done in run_manager pre-flight.
         """
-        # Check error escalation
+        # Check error escalation and reset flag when errors are resolved
         err_thresh = self.shared_state.err_to_manager_thresh
 
         if len(self.shared_state.action_outcomes) >= err_thresh:
@@ -542,9 +502,13 @@ class DroidAgent(Workflow):
             if error_count == err_thresh:
                 logger.warning(f"⚠️ Error escalation: {err_thresh} consecutive errors")
                 self.shared_state.error_flag_plan = True
+            else:
+                if self.shared_state.error_flag_plan:
+                    logger.info("✅ Error resolved - resetting error flag")
+                self.shared_state.error_flag_plan = False
 
-        self.step_counter += 1
-        logger.info(f"🔄 Step {self.step_counter}/{self.config.agent.max_steps} complete, looping to Manager")
+        self.shared_state.step_number += 1
+        logger.info(f"🔄 Step {self.shared_state.step_number}/{self.config.agent.max_steps} complete, looping to Manager")
 
         return ManagerInputEvent()
 
@@ -557,10 +521,12 @@ class DroidAgent(Workflow):
         ctx.write_event_to_stream(ev)
         capture(
             DroidAgentFinalizeEvent(
-                tasks=",".join([f"{t.agent_type}:{t.description}" for t in ev.task]),
+                tasks=",".join([f"{t.agent_type}:{t.description}" for t in ev.tasks]),
                 success=ev.success,
-                output=ev.output,
-                steps=ev.steps,
+                reason=ev.reason,
+                steps=self.shared_state.step_number,
+                unique_packages_count=len(self.shared_state._visited_packages),
+                unique_activities_count=len(self.shared_state._visited_activities),
             ),
             self.user_id,
         )
@@ -569,8 +535,7 @@ class DroidAgent(Workflow):
         result = {
             "success": ev.success,
             "reason": ev.reason,
-            "output": ev.output,
-            "steps": ev.steps,
+            "steps": self.shared_state.step_number,
         }
 
         if self.trajectory and self.config.logging.save_trajectory != "none":

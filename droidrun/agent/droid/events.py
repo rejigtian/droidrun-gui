@@ -26,18 +26,12 @@ class CodeActResultEvent(Event):
     success: bool
     reason: str
     task: Task
-    steps: int
 
 
 class FinalizeEvent(Event):
     success: bool
-    # deprecated. use output instead.
     reason: str
-    output: str
-    # deprecated. use tasks instead.
-    task: List[Task]
     tasks: List[Task]
-    steps: int = 1
 
 class TaskRunnerEvent(Event):
     pass
@@ -50,9 +44,12 @@ class DroidAgentState(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     # Task context
     instruction: str = ""
+    step_number: int = 0
     # App Cards
     app_card: str = ""
     app_card_loading_task: asyncio.Task[str] | None = None
+    _app_card_package: str = ""  # Track which package the loading task is for
+    _app_card_instruction: str = ""  # Track which instruction the loading task is for
     # Formatted device state for prompts (complete text)
     formatted_device_state: str = ""
 
@@ -63,9 +60,11 @@ class DroidAgentState(BaseModel):
     a11y_tree: List[Dict] = Field(default_factory=list)
     phone_state: Dict = Field(default_factory=dict)
 
-    # Derived fields (extracted from phone_state)
-    current_package_name: str = ""
-    current_app_name: str = ""
+    # Private fields
+    _current_package_name: str = ""
+    _current_activity_name: str = ""
+    _visited_packages: set = Field(default_factory=set)
+    _visited_activities: set = Field(default_factory=set)
 
     # Previous device state (for before/after comparison in Manager)
     previous_formatted_device_state: str = ""
@@ -107,6 +106,50 @@ class DroidAgentState(BaseModel):
 
     # Output
     output_dir: str = ""
+
+    @property
+    def current_package_name(self) -> str:
+        """Get current package name"""
+        return self._current_package_name
+
+    @property
+    def current_activity_name(self) -> str:
+        """Get current activity name"""
+        return self._current_activity_name
+
+    def update_current_app(self, package_name: str, activity_name: str):
+        """
+        Update package and activity together, capturing telemetry event only once.
+
+        This prevents duplicate PackageVisitEvents when both package and activity change.
+        """
+        # Check if either changed
+        package_changed = package_name != self._current_package_name
+        activity_changed = activity_name != self._current_activity_name
+
+        if not (package_changed or activity_changed):
+            return  # No change, nothing to do
+
+        # Update tracking sets
+        if package_changed and package_name:
+            self._visited_packages.add(package_name)
+        if activity_changed and activity_name:
+            self._visited_activities.add(activity_name)
+
+        # Update values
+        self._current_package_name = package_name
+        self._current_activity_name = activity_name
+
+        # Capture telemetry event for any change
+        # This ensures we track when apps close or transitions to empty state occur
+        from droidrun.telemetry import PackageVisitEvent, capture
+        capture(
+            PackageVisitEvent(
+                package_name=package_name or "Unknown",
+                activity_name=activity_name or "Unknown",
+                step_number=self.step_number,
+            )
+        )
 
 
 # ============================================================================
