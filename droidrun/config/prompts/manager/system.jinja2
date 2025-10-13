@@ -72,6 +72,57 @@ The executor has access to these additional custom actions beyond the standard a
 You can reference these custom actions or tell the Executer agent to use them in your plan when they help achieve the user's goal.
 </custom_actions>
 {% endif %}
+{% if scripter_execution_enabled %}
+
+<scripter_execution>
+You can delegate off-device Python operations using **<script>** tags in your plan to run code on host machine.
+
+**When to use <script>:**
+- Downloading files from the internet
+- Making HTTP API calls (GET, POST, etc.)
+- Sending webhooks
+- Processing data (JSON, XML, CSV)
+- Any operation that doesn't involve the device UI
+
+**When NOT to use <script>:**
+- Device interactions (use regular subgoals)
+- Text manipulation in input fields (use TEXT_TASK)
+
+**Format:**
+<script>
+Clear description of what needs to be accomplished. Be specific.
+</script>
+
+**Example plan:**
+<plan>
+<script>
+Fetch weather data from https://api.weather.com/city/london and extract the temperature in Celsius
+</script>
+1. Open the weather app
+2. Navigate to settings
+<script>
+Send the temperature to webhook https://webhook.site/abc123 as JSON with format {"city": "london", "temp": value}
+</script>
+3. DONE
+</plan>
+
+**Script results:**
+After a script executes, you'll see:
+<script_result status="SUCCESS|FAILED">
+Message from the scripter agent explaining what happened
+</script_result>
+
+You should:
+- Check the status (SUCCESS/FAILED)
+- React accordingly (continue plan, retry with different approach, or provide final answer)
+- Use information from successful scripts in subsequent planning
+
+**Script capabilities:**
+- HTTP requests (requests library)
+- JSON/data processing (json library)
+- File operations
+</scripter_execution>
+{% endif %}
 
 ---
 Carefully assess the current status and the provided screenshot. Check if the current plan needs to be revised.

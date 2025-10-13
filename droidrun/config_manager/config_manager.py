@@ -52,6 +52,17 @@ agent:
     # System prompt filename (located in prompts_dir/executor/)
     system_prompt: system.jinja2
 
+  # Scripter Agent Configuration
+  scripter:
+    # Enable scripter execution for off-device operations
+    enabled: true
+    # Maximum steps per script task
+    max_steps: 10
+    # Execution timeout per code block (seconds)
+    execution_timeout: 30.0
+    # System prompt filename (located in prompts_dir/scripter/)
+    system_prompt_path: system.jinja2
+
   # App Cards Configuration
   app_cards:
     # Enable app-specific instruction cards
@@ -112,6 +123,14 @@ llm_profiles:
     kwargs:
       max_tokens: 512
       api_key: YOUR_API_KEY
+
+  # Scripter: Executes Python scripts for off-device operations
+  scripter:
+    provider: GoogleGenAI
+    model: models/gemini-2.5-flash
+    temperature: 0.1
+    kwargs:
+      max_tokens: 4096
 
 # === Device Settings ===
 device:
@@ -196,6 +215,15 @@ class ExecutorConfig:
 
 
 @dataclass
+class ScripterConfig:
+    """Scripter agent configuration."""
+    enabled: bool = True
+    max_steps: int = 10
+    execution_timeout: float = 30.0
+    system_prompt_path: str = "system.jinja2"
+
+
+@dataclass
 class AppCardConfig:
     """App card configuration."""
     enabled: bool = True
@@ -218,6 +246,7 @@ class AgentConfig:
     codeact: CodeActConfig = field(default_factory=CodeActConfig)
     manager: ManagerConfig = field(default_factory=ManagerConfig)
     executor: ExecutorConfig = field(default_factory=ExecutorConfig)
+    scripter: ScripterConfig = field(default_factory=ScripterConfig)
     app_cards: AppCardConfig = field(default_factory=AppCardConfig)
 
     def get_codeact_system_prompt_path(self) -> str:
@@ -238,6 +267,11 @@ class AgentConfig:
     def get_executor_system_prompt_path(self) -> str:
         """Get resolved absolute path to Executor system prompt."""
         path = f"{self.prompts_dir}/executor/{self.executor.system_prompt}"
+        return str(PathResolver.resolve(path, must_exist=True))
+
+    def get_scripter_system_prompt_path(self) -> str:
+        """Get resolved absolute path to Scripter system prompt."""
+        path = f"{self.prompts_dir}/scripter/{self.scripter.system_prompt_path}"
         return str(PathResolver.resolve(path, must_exist=True))
 
 
@@ -323,6 +357,12 @@ class DroidRunConfig:
                 temperature=0.0,
                 kwargs={}
             ),
+            "scripter": LLMProfile(
+                provider="GoogleGenAI",
+                model="models/gemini-2.5-flash",
+                temperature=0.1,
+                kwargs={"max_tokens": 4096}
+            ),
         }
 
     def to_dict(self) -> Dict[str, Any]:
@@ -354,6 +394,9 @@ class DroidRunConfig:
         executor_data = agent_data.get("executor", {})
         executor_config = ExecutorConfig(**executor_data) if executor_data else ExecutorConfig()
 
+        script_data = agent_data.get("scripter", {})
+        scripter_config = ScripterConfig(**script_data) if script_data else ScripterConfig()
+
         app_cards_data = agent_data.get("app_cards", {})
         app_cards_config = AppCardConfig(**app_cards_data) if app_cards_data else AppCardConfig()
 
@@ -366,6 +409,7 @@ class DroidRunConfig:
             codeact=codeact_config,
             manager=manager_config,
             executor=executor_config,
+            scripter=scripter_config,
             app_cards=app_cards_config,
         )
 

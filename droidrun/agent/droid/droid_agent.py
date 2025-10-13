@@ -8,6 +8,7 @@ Architecture:
 """
 
 import logging
+import re
 from typing import List
 
 import llama_index.core
@@ -29,9 +30,12 @@ from droidrun.agent.droid.events import (
     FinalizeEvent,
     ManagerInputEvent,
     ManagerPlanEvent,
+    ScripterExecutorInputEvent,
+    ScripterExecutorResultEvent,
 )
 from droidrun.agent.executor import ExecutorAgent
 from droidrun.agent.manager import ManagerAgent
+from droidrun.agent.scripter import ScripterAgent
 from droidrun.agent.utils.tools import ATOMIC_ACTION_SIGNATURES, open_app
 from droidrun.agent.utils.trajectory import Trajectory
 from droidrun.config_manager.config_manager import (
@@ -167,6 +171,7 @@ class DroidAgent(Workflow):
             self.codeact_llm = llms.get('codeact')
             self.text_manipulator_llm = llms.get('text_manipulator')
             self.app_opener_llm = llms.get('app_opener')
+            self.scripter_llm = llms.get('scripter', self.codeact_llm)
 
             if self.config.agent.reasoning and (not self.manager_llm or not self.executor_llm):
                 raise ValueError("When reasoning=True, 'manager' and 'executor' LLMs must be provided in llms dict")
@@ -181,6 +186,7 @@ class DroidAgent(Workflow):
             self.codeact_llm = llms
             self.text_manipulator_llm = llms
             self.app_opener_llm = llms
+            self.scripter_llm = llms
 
 
         self.trajectory = Trajectory(goal=self.shared_state.instruction)
@@ -416,11 +422,11 @@ class DroidAgent(Workflow):
         self,
         ctx: Context,
         ev: ManagerPlanEvent
-    ) -> ExecutorInputEvent | FinalizeEvent:
+    ) -> ExecutorInputEvent | ScripterExecutorInputEvent | FinalizeEvent:
         """
         Process Manager output and decide next step.
 
-        Checks if task is complete or if Executor should take action.
+        Checks if task is complete, if ScripterAgent should run, or if Executor should take action.
         """
         # Check for answer-type termination
         if ev.manager_answer.strip():
@@ -431,6 +437,14 @@ class DroidAgent(Workflow):
                 success=True,
                 reason=ev.manager_answer
             )
+
+        # Check for <script> tag in current_subgoal
+        script_match = re.search(r'<script>(.*?)</script>', ev.current_subgoal, re.DOTALL)
+
+        if script_match:
+            task = script_match.group(1).strip()
+            logger.info(f"🐍 Routing to ScripterAgent: {task[:80]}...")
+            return ScripterExecutorInputEvent(task=task)
 
         # Continue to Executor with current subgoal
         logger.info(f"▶️  Proceeding to Executor with subgoal: {ev.current_subgoal}")
@@ -507,7 +521,81 @@ class DroidAgent(Workflow):
         return ManagerInputEvent()
 
     # ========================================================================
-    # End Manager/Executor Workflow Steps
+    # Script Executor Workflow Steps
+    # ========================================================================
+
+    @step
+    async def run_scripter(
+        self,
+        ctx: Context,
+        ev: ScripterExecutorInputEvent
+    ) -> ScripterExecutorResultEvent:
+        """
+        Instantiate and run ScripterAgent for off-device operations.
+        """
+        logger.info(f"🐍 Starting ScripterAgent for task: {ev.task[:2000]}...")
+
+        # Create fresh ScripterAgent instance for this task
+        scripter_agent = ScripterAgent(
+            llm=self.scripter_llm,
+            agent_config=self.config.agent,
+            shared_state=self.shared_state,
+            task=ev.task,
+            timeout=self.timeout
+        )
+
+        # Run ScripterAgent workflow
+        handler = scripter_agent.run()
+
+        # Stream nested events
+        async for nested_ev in handler.stream_events():
+            ctx.write_event_to_stream(nested_ev)
+
+        result = await handler
+
+        # Store in shared state
+        script_record = {
+            'task': ev.task,
+            'message': result['message'],
+            'success': result['success'],
+            'code_executions': result.get('code_executions', 0)
+        }
+        self.shared_state.scripter_history.append(script_record)
+        self.shared_state.last_scripter_message = result['message']
+        self.shared_state.last_scripter_success = result['success']
+
+        logger.info(f"🐍 ScripterAgent finished: {result['message'][:2000]}...")
+
+        return ScripterExecutorResultEvent(
+            task=ev.task,
+            message=result['message'],
+            success=result['success'],
+            code_executions=result.get('code_executions', 0)
+        )
+
+    @step
+    async def handle_scripter_result(
+        self,
+        ctx: Context,
+        ev: ScripterExecutorResultEvent
+    ) -> ManagerInputEvent:
+        """
+        Process ScripterAgent result and loop back to Manager.
+        """
+        if ev.success:
+            logger.info(f"✅ Script completed successfully in {ev.code_executions} steps")
+        else:
+            logger.warning(f"⚠️ Script failed or reached max steps: {ev.message}")
+
+        # Increment DroidAgent step counter
+        self.shared_state.step_number += 1
+        logger.info(f"🔄 Step {self.shared_state.step_number}/{self.config.agent.max_steps} complete, looping to Manager")
+
+        # Loop back to Manager (script result in shared_state)
+        return ManagerInputEvent()
+
+    # ========================================================================
+    # End Manager/Executor/Script Workflow Steps
     # ========================================================================
 
     @step

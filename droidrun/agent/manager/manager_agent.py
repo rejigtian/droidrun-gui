@@ -161,7 +161,9 @@ class ManagerAgent(Workflow):
                 "important_notes": "",  # TODO: implement
                 "error_history": error_history,
                 "text_manipulation_enabled": has_text_to_modify,
-                "custom_tools_descriptions": build_custom_tool_descriptions(self.custom_tools)
+                "custom_tools_descriptions": build_custom_tool_descriptions(self.custom_tools),
+                "scripter_execution_enabled": self.agent_config.scripter.enabled,
+                "scripter_max_steps": self.agent_config.scripter.max_steps,
             }
         )
 
@@ -218,6 +220,23 @@ class ManagerAgent(Workflow):
             # Add screenshot to last user message
             if screenshot and self.vision:
                 messages[last_user_idx]['content'].append({"image": screenshot})
+
+            # Add script result if available
+            if self.shared_state.last_scripter_message:
+                status = "SUCCESS" if self.shared_state.last_scripter_success else "FAILED"
+                script_context = (
+                    f"\n<script_result status=\"{status}\">\n"
+                    f"{self.shared_state.last_scripter_message}\n"
+                    f"</script_result>\n"
+                )
+
+                if messages[last_user_idx]['content'] and 'text' in messages[last_user_idx]['content'][0]:
+                    messages[last_user_idx]['content'][0]['text'] += script_context
+                else:
+                    messages[last_user_idx]['content'].insert(0, {"text": script_context})
+
+                # Clear after injection (avoid duplicate injection)
+                self.shared_state.last_scripter_message = ""
 
             # Add PREVIOUS device state to SECOND-TO-LAST user message (if exists)
             if len(user_indices) >= 2:

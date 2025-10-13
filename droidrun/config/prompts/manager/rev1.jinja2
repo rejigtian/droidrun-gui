@@ -74,6 +74,61 @@ You can reference these custom actions or tell the Executer agent to use them in
 </text_manipulation>
 {% endif %}
 
+**Scripter Operations:**
+{% if scripter_execution_enabled %}
+
+<scripter_execution>
+You can delegate off-device Python operations using **<script>** tags in your plan.
+
+**When to use <script>:**
+- Downloading files from the internet
+- Making HTTP API calls (GET, POST, etc.)
+- Sending webhooks
+- Processing data (JSON, XML, CSV)
+- Any operation that doesn't involve the device UI
+
+**When NOT to use <script>:**
+- Device interactions (use regular subgoals)
+- Text manipulation in input fields (use TEXT_TASK)
+
+**Format:**
+<script>
+Clear description of what needs to be accomplished. Be specific.
+</script>
+
+**Example plan:**
+<plan>
+<script>
+Fetch weather data from https://api.weather.com/city/london and extract the temperature in Celsius
+</script>
+1. Open the weather app
+2. Navigate to settings
+<script>
+Send the temperature to webhook https://webhook.site/abc123 as JSON with format {"city": "london", "temp": value}
+</script>
+3. DONE
+</plan>
+
+**Scripter results:**
+After a script executes, you'll see:
+<script_result status="SUCCESS|FAILED">
+Message from the scripter agent explaining what happened
+</script_result>
+
+You should:
+- Check the status (SUCCESS/FAILED)
+- React accordingly (continue plan, retry with different approach, or provide final answer)
+- Use information from successful scripts in subsequent planning
+
+**Scripter capabilities:**
+- HTTP requests (requests library)
+- JSON/data processing (json library)
+- File operations in temp directory
+- Iterative problem solving (like Jupyter notebook)
+- Max {{ scripter_max_steps }} steps per scripter task
+</scripter_execution>
+{% endif %}
+
 ---
 
 ## Your Task

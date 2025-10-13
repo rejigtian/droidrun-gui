@@ -160,6 +160,7 @@ async def run_command(
                 manager=manager_cfg,
                 executor=executor_cfg,
                 codeact=codeact_cfg,
+                scripter=config.agent.scripter,
                 app_cards=config.agent.app_cards,
             )
 
@@ -225,13 +226,14 @@ async def run_command(
                     'codeact': custom_llm,
                     'text_manipulator': custom_llm,
                     'app_opener': custom_llm,
+                    'scripter': custom_llm,
                 }
                 logger.info(f"🧠 Custom LLM ready: {provider}/{model}")
             else:
                 # No custom provider/model - use profiles from config
                 logger.info("📋 Loading LLMs from config profiles...")
 
-                profile_names = ['manager', 'executor', 'codeact', 'text_manipulator', 'app_opener']
+                profile_names = ['manager', 'executor', 'codeact', 'text_manipulator', 'app_opener', 'scripter']
 
                 # Apply temperature override to all profiles if specified
                 overrides = {}
@@ -765,7 +767,20 @@ def ping(device: str | None, use_tcp: bool, debug: bool):
 cli.add_command(macro_cli, name="macro")
 
 
-async def test(command: str):
+async def test(
+    command: str,
+    device: str | None = None,
+    steps: int | None = None,
+    vision: bool | None = None,
+    reasoning: bool | None = None,
+    tracing: bool | None = None,
+    debug: bool | None = None,
+    use_tcp: bool | None = None,
+    save_trajectory: str | None = None,
+    allow_drag: bool | None = None,
+    temperature: float | None = None,
+    ios: bool = False,
+):
     config = ConfigManager(path="config.yaml")
     # Initialize logging first (use config default if debug not specified)
     debug_mode = debug if debug is not None else config.logging.debug
@@ -821,6 +836,7 @@ async def test(command: str):
                 manager=manager_cfg,
                 executor=executor_cfg,
                 codeact=codeact_cfg,
+                scripter=config.agent.scripter,
                 app_cards=config.agent.app_cards,
             )
 
@@ -852,7 +868,7 @@ async def test(command: str):
             # No custom provider/model - use profiles from config
             logger.info("📋 Loading LLMs from config profiles...")
 
-            profile_names = ['manager', 'executor', 'codeact', 'text_manipulator', 'app_opener']
+            profile_names = ['manager', 'executor', 'codeact', 'text_manipulator', 'app_opener', 'scripter']
 
             # Apply temperature override to all profiles if specified
             overrides = {}
@@ -964,7 +980,7 @@ async def test(command: str):
 
 
 if __name__ == "__main__":
-    command = "set gboard to the default keyboard"
+    command = "check which keyboard i am using and let me know by sending a message on this webhook https://discord.com/api/webhooks/1413748479628410963/vEBXLMbAmGf0N1KKxO308084S9_w8TFPLQ8gQfn7BJC4wCG5Mmfdtxmo4J-y6KDaRZTy"
     device = None
     provider = "GoogleGenAI"
     model = "models/gemini-2.5-flash"

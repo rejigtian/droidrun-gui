@@ -37,6 +37,17 @@ agent:
     # System prompt filename (located in prompts_dir/executor/)
     system_prompt: system.jinja2
 
+  # Scripter Agent Configuration
+  scripter:
+    # Enable scripter execution for off-device operations
+    enabled: true
+    # Maximum steps per scripter task
+    max_steps: 10
+    # Execution timeout per code block (seconds)
+    execution_timeout: 30.0
+    # System prompt filename (located in prompts_dir/scripter/)
+    system_prompt_path: system.jinja2
+
   # App Cards Configuration
   app_cards:
     # Enable app-specific instruction cards
@@ -94,6 +105,14 @@ llm_profiles:
     temperature: 0.0
     # kwargs:
     #   max_tokens: 512
+
+  # Scripter: Executes Python scripts for off-device operations
+  scripter:
+    provider: GoogleGenAI
+    model: models/gemini-2.5-flash
+    temperature: 0.1
+    # kwargs:
+    #   max_tokens: 4096
 
 # === Device Settings ===
 device:

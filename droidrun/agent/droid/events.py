@@ -103,6 +103,11 @@ class DroidAgentState(BaseModel):
     error_flag_plan: bool = False
     err_to_manager_thresh: int = 2
 
+    # Script execution tracking
+    scripter_history: List[Dict] = Field(default_factory=list)
+    last_scripter_message: str = ""
+    last_scripter_success: bool = True
+
     # Output
     output_dir: str = ""
 
@@ -179,3 +184,24 @@ class ExecutorResultEvent(Event):
     outcome: bool
     error: str
     summary: str
+
+
+# ============================================================================
+# Script executor coordination events
+# ============================================================================
+
+class ScripterExecutorInputEvent(Event):
+    """Trigger ScripterAgent workflow for off-device operations"""
+    task: str
+
+
+class ScripterExecutorResultEvent(Event):
+    """
+    Coordination event from ScripterAgent to DroidAgent.
+
+    Used for workflow step routing only (NOT streamed to frontend).
+    """
+    task: str
+    message: str  # Response from response() function
+    success: bool
+    code_executions: int

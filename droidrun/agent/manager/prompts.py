@@ -17,6 +17,7 @@ def parse_manager_response(response: str) -> dict:
 
     Also derives:
     - current_subgoal: first line of plan (with list markers removed)
+    - If first item is <script> tag, extract script content as current_subgoal
 
     Args:
         response: Raw LLM response text
@@ -26,7 +27,7 @@ def parse_manager_response(response: str) -> dict:
             - thought: str
             - memory: str
             - plan: str
-            - current_subgoal: str (first line of plan, cleaned)
+            - current_subgoal: str (first line of plan, cleaned, or script content)
             - request_accomplished: str (from request_accomplished tag)
     """
     def extract(tag: str) -> str:
@@ -42,19 +43,27 @@ def parse_manager_response(response: str) -> dict:
 
     # Parse current subgoal from first line of plan
     current_goal_text = plan
-    # Prefer newline-separated plans; take the first non-empty line
-    plan_lines = [line.strip() for line in current_goal_text.splitlines() if line.strip()]
-    if plan_lines:
-        first_line = plan_lines[0]
+
+    # Check if first item is a <script> tag
+    script_match = re.search(r'^\s*<script>(.*?)</script>', current_goal_text, re.DOTALL)
+
+    if script_match:
+        # Script is first task - extract script content with tag
+        current_subgoal = f"<script>{script_match.group(1).strip()}</script>"
     else:
-        first_line = current_goal_text.strip()
+        # Regular subgoal - use existing logic
+        plan_lines = [line.strip() for line in current_goal_text.splitlines() if line.strip()]
+        if plan_lines:
+            first_line = plan_lines[0]
+        else:
+            first_line = current_goal_text.strip()
 
-    # Remove common list markers like "1.", "-", "*", or bullet characters
-    first_line = re.sub(r"^\s*\d+\.\s*", "", first_line)  # Remove "1. ", "2. ", etc.
-    first_line = re.sub(r"^\s*[-*]\s*", "", first_line)    # Remove "- " or "* "
-    first_line = re.sub(r"^\s*•\s*", "", first_line)      # Remove bullet "• "
+        # Remove common list markers like "1.", "-", "*", or bullet characters
+        first_line = re.sub(r"^\s*\d+\.\s*", "", first_line)  # Remove "1. ", "2. ", etc.
+        first_line = re.sub(r"^\s*[-*]\s*", "", first_line)    # Remove "- " or "* "
+        first_line = re.sub(r"^\s*•\s*", "", first_line)      # Remove bullet "• "
 
-    current_subgoal = first_line.strip()
+        current_subgoal = first_line.strip()
 
     return {
         "thought": thought,
