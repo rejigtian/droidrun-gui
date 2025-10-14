@@ -103,11 +103,13 @@ async def run_command(
     **kwargs,
 ):
     """Run a command on your Android device using natural language."""
-    # Load custom config if provided
+    # Load config and apply CLI overrides via direct mutation
     config_manager = ConfigManager(config_path)
+    config = config_manager.config
+
     # Initialize logging first (use config default if debug not specified)
-    debug_mode = debug if debug is not None else config_manager.logging.debug
-    log_handler = configure_logging(command, debug_mode, config_manager.logging.rich_text)
+    debug_mode = debug if debug is not None else config.logging.debug
+    log_handler = configure_logging(command, debug_mode, config.logging.rich_text)
     logger = logging.getLogger("droidrun")
 
     log_handler.update_step("Initializing...")
@@ -118,84 +120,65 @@ async def run_command(
             print_telemetry_message()
 
             # ================================================================
-            # STEP 1: Build config objects with CLI overrides
+            # STEP 1: Apply CLI overrides via direct mutation
             # ================================================================
 
-            # Build agent-specific configs with vision overrides
+            # Vision overrides
             if vision is not None:
                 # --vision flag overrides all agents
-                manager_vision_val = vision
-                executor_vision_val = vision
-                codeact_vision_val = vision
+                config.agent.manager.vision = vision
+                config.agent.executor.vision = vision
+                config.agent.codeact.vision = vision
                 logger.debug(f"CLI override: vision={vision} (all agents)")
             else:
-                # Use individual overrides or config defaults
-                manager_vision_val = manager_vision if manager_vision is not None else config_manager.agent.manager.vision
-                executor_vision_val = executor_vision if executor_vision is not None else config_manager.agent.executor.vision
-                codeact_vision_val = codeact_vision if codeact_vision is not None else config_manager.agent.codeact.vision
+                # Apply individual agent vision overrides
+                if manager_vision is not None:
+                    config.agent.manager.vision = manager_vision
+                if executor_vision is not None:
+                    config.agent.executor.vision = executor_vision
+                if codeact_vision is not None:
+                    config.agent.codeact.vision = codeact_vision
 
-            manager_cfg = ManagerConfig(
-                vision=manager_vision_val,
-                system_prompt=config_manager.agent.manager.system_prompt
-            )
+            # Agent overrides
+            if steps is not None:
+                config.agent.max_steps = steps
+            if reasoning is not None:
+                config.agent.reasoning = reasoning
 
-            executor_cfg = ExecutorConfig(
-                vision=executor_vision_val,
-                system_prompt=config_manager.agent.executor.system_prompt
-            )
+            # Device overrides
+            if device is not None:
+                config.device.serial = device
+            if use_tcp is not None:
+                config.device.use_tcp = use_tcp
 
-            codeact_cfg = CodeActConfig(
-                vision=codeact_vision_val,
-                system_prompt=config_manager.agent.codeact.system_prompt,
-                user_prompt=config_manager.agent.codeact.user_prompt
-            )
+            # Tools overrides
+            if allow_drag is not None:
+                config.tools.allow_drag = allow_drag
 
-            agent_cfg = AgentConfig(
-                max_steps=steps if steps is not None else config_manager.agent.max_steps,
-                reasoning=reasoning if reasoning is not None else config_manager.agent.reasoning,
-                after_sleep_action=config_manager.agent.after_sleep_action,
-                wait_for_stable_ui=config_manager.agent.wait_for_stable_ui,
-                prompts_dir=config_manager.agent.prompts_dir,
-                manager=manager_cfg,
-                executor=executor_cfg,
-                codeact=codeact_cfg,
-                scripter=config_manager.agent.scripter,
-                app_cards=config_manager.agent.app_cards,
-            )
+            # Logging overrides
+            if debug is not None:
+                config.logging.debug = debug
+            if save_trajectory is not None:
+                config.logging.save_trajectory = save_trajectory
 
-            device_cfg = DeviceConfig(
-                serial=device if device is not None else config_manager.device.serial,
-                use_tcp=use_tcp if use_tcp is not None else config_manager.device.use_tcp,
-            )
-
-            tools_cfg = ToolsConfig(
-                allow_drag=allow_drag if allow_drag is not None else config_manager.tools.allow_drag,
-            )
-
-            logging_cfg = LoggingConfig(
-                debug=debug if debug is not None else config_manager.logging.debug,
-                save_trajectory=save_trajectory if save_trajectory is not None else config_manager.logging.save_trajectory,
-                rich_text=config_manager.logging.rich_text,
-            )
-
-            tracing_cfg = TracingConfig(
-                enabled=tracing if tracing is not None else config_manager.tracing.enabled,
-            )
+            # Tracing overrides
+            if tracing is not None:
+                config.tracing.enabled = tracing
 
             # ================================================================
-            # STEP 3: Setup device and tools
+            # STEP 2: Setup device and tools
             # ================================================================
 
             log_handler.update_step("Setting up tools...")
 
-            device_serial = device_cfg.serial
+            device_serial = config.device.serial
             if device_serial is None and not ios:
                 logger.info("🔍 Finding connected device...")
                 devices = adb.list()
                 if not devices:
                     raise ValueError("No connected devices found.")
                 device_serial = devices[0].serial
-                device_cfg = DeviceConfig(serial=device_serial, use_tcp=device_cfg.use_tcp)
+                config.device.serial = device_serial
                 logger.info(f"📱 Using device: {device_serial}")
             elif device_serial is None and ios:
                 raise ValueError("iOS device not specified. Please specify device base url via --device")
@@ -205,26 +188,26 @@ async def run_command(
             tools = (
                 AdbTools(
                     serial=device_serial,
-                    use_tcp=device_cfg.use_tcp,
+                    use_tcp=config.device.use_tcp,
                 )
                 if not ios
                 else IOSTools(url=device_serial)
             )
 
-            excluded_tools = [] if tools_cfg.allow_drag else ["drag"]
+            excluded_tools = [] if config.tools.allow_drag else ["drag"]
 
             # ================================================================
-            # STEP 5: Initialize DroidAgent with all settings
+            # STEP 3: Initialize DroidAgent with config
             # ================================================================
 
             log_handler.update_step("Initializing DroidAgent...")
 
-            mode = "planning with reasoning" if agent_cfg.reasoning else "direct execution"
+            mode = "planning with reasoning" if config.agent.reasoning else "direct execution"
             logger.info(f"🤖 Agent mode: {mode}")
-            logger.info(f"👁️  Vision settings: Manager={agent_cfg.manager.vision}, "
-                       f"Executor={agent_cfg.executor.vision}, CodeAct={agent_cfg.codeact.vision}")
+            logger.info(f"👁️  Vision settings: Manager={config.agent.manager.vision}, "
+                       f"Executor={config.agent.executor.vision}, CodeAct={config.agent.codeact.vision}")
 
-            if tracing_cfg.enabled:
+            if config.tracing.enabled:
                 logger.info("🔍 Tracing enabled")
 
             # Build DroidAgent kwargs for LLM loading
@@ -247,19 +230,14 @@ async def run_command(
             droid_agent = DroidAgent(
                 goal=command,
                 tools=tools,
-                config=config_manager.config,
-                agent_config=agent_cfg,
-                device_config=device_cfg,
-                tools_config=tools_cfg,
-                logging_config=logging_cfg,
-                tracing_config=tracing_cfg,
+                config=config,
                 excluded_tools=excluded_tools,
                 timeout=1000,
                 **droid_agent_kwargs
             )
 
             # ================================================================
-            # STEP 5: Run agent
+            # STEP 4: Run agent
             # ================================================================
 
             logger.info("▶️  Starting agent execution...")
@@ -284,14 +262,14 @@ async def run_command(
                 log_handler.is_success = False
                 log_handler.current_step = f"Error: {e}"
                 logger.error(f"💥 Error: {e}")
-                if logging_cfg.debug:
+                if config.logging.debug:
                     import traceback
                     logger.debug(traceback.format_exc())
 
         except Exception as e:
             log_handler.current_step = f"Error: {e}"
             logger.error(f"💥 Setup error: {e}")
-            debug_mode = debug if debug is not None else config_manager.logging.debug
+            debug_mode = debug if debug is not None else config.logging.debug
             if debug_mode:
                 import traceback
                 logger.debug(traceback.format_exc())
@@ -734,7 +712,9 @@ async def test(
     temperature: float | None = None,
     ios: bool = False,
 ):
-    config = ConfigManager(path="config.yaml")
+    config_manager = ConfigManager(path="config.yaml")
+    config = config_manager.config
+
     # Initialize logging first (use config default if debug not specified)
     debug_mode = debug if debug is not None else config.logging.debug
     log_handler = configure_logging(command, debug_mode, config.logging.rich_text)
@@ -748,84 +728,57 @@ async def test(
             print_telemetry_message()
 
             # ================================================================
-            # STEP 1: Build config objects with CLI overrides
+            # STEP 1: Apply CLI overrides via direct mutation
             # ================================================================
 
-            # Build agent-specific configs with vision overrides
+            # Vision overrides
             if vision is not None:
                 # --vision flag overrides all agents
-                manager_vision_val = vision
-                executor_vision_val = vision
-                codeact_vision_val = vision
+                config.agent.manager.vision = vision
+                config.agent.executor.vision = vision
+                config.agent.codeact.vision = vision
                 logger.debug(f"CLI override: vision={vision} (all agents)")
-            else:
-                # Use individual overrides or config defaults
-                manager_vision_val = config.agent.manager.vision
-                executor_vision_val = config.agent.executor.vision
-                codeact_vision_val = config.agent.codeact.vision
 
-            manager_cfg = ManagerConfig(
-                vision=manager_vision_val,
-                system_prompt="rev1.jinja2"
-            )
+            # Agent overrides
+            if steps is not None:
+                config.agent.max_steps = steps
+            if reasoning is not None:
+                config.agent.reasoning = reasoning
 
-            executor_cfg = ExecutorConfig(
-                vision=executor_vision_val,
-                system_prompt="rev1.jinja2"
-            )
+            # Device overrides
+            if device is not None:
+                config.device.serial = device
+            if use_tcp is not None:
+                config.device.use_tcp = use_tcp
 
-            codeact_cfg = CodeActConfig(
-                vision=codeact_vision_val,
-                system_prompt=config.agent.codeact.system_prompt,
-                user_prompt=config.agent.codeact.user_prompt
-            )
+            # Tools overrides
+            if allow_drag is not None:
+                config.tools.allow_drag = allow_drag
 
-            agent_cfg = AgentConfig(
-                max_steps=steps if steps is not None else config.agent.max_steps,
-                reasoning=reasoning if reasoning is not None else config.agent.reasoning,
-                after_sleep_action=config.agent.after_sleep_action,
-                wait_for_stable_ui=config.agent.wait_for_stable_ui,
-                prompts_dir=config.agent.prompts_dir,
-                manager=manager_cfg,
-                executor=executor_cfg,
-                codeact=codeact_cfg,
-                scripter=config.agent.scripter,
-                app_cards=config.agent.app_cards,
-            )
+            # Logging overrides
+            if debug is not None:
+                config.logging.debug = debug
+            if save_trajectory is not None:
+                config.logging.save_trajectory = save_trajectory
 
-            device_cfg = DeviceConfig(
-                serial=device if device is not None else config.device.serial,
-                use_tcp=use_tcp if use_tcp is not None else config.device.use_tcp,
-            )
-
-            tools_cfg = ToolsConfig(
-                allow_drag=allow_drag if allow_drag is not None else config.tools.allow_drag,
-            )
-
-            logging_cfg = LoggingConfig(
-                debug=debug if debug is not None else config.logging.debug,
-                save_trajectory=save_trajectory if save_trajectory is not None else config.logging.save_trajectory,
-                rich_text=config.logging.rich_text,
-            )
-
-            tracing_cfg = TracingConfig(
-                enabled=tracing if tracing is not None else config.tracing.enabled,
-            )
+            # Tracing overrides
+            if tracing is not None:
+                config.tracing.enabled = tracing
 
             # ================================================================
-            # STEP 3: Setup device and tools
+            # STEP 2: Setup device and tools
             # ================================================================
 
             log_handler.update_step("Setting up tools...")
 
-            device_serial = device_cfg.serial
+            device_serial = config.device.serial
             if device_serial is None and not ios:
                 logger.info("🔍 Finding connected device...")
                 devices = adb.list()
                 if not devices:
                     raise ValueError("No connected devices found.")
                 device_serial = devices[0].serial
-                device_cfg = DeviceConfig(serial=device_serial, use_tcp=device_cfg.use_tcp)
+                config.device.serial = device_serial
                 logger.info(f"📱 Using device: {device_serial}")
             elif device_serial is None and ios:
                 raise ValueError("iOS device not specified. Please specify device base url via --device")
@@ -835,26 +788,26 @@ async def test(
             tools = (
                 AdbTools(
                     serial=device_serial,
-                    use_tcp=device_cfg.use_tcp,
+                    use_tcp=config.device.use_tcp,
                 )
                 if not ios
                 else IOSTools(url=device_serial)
             )
 
-            excluded_tools = [] if tools_cfg.allow_drag else ["drag"]
+            excluded_tools = [] if config.tools.allow_drag else ["drag"]
 
             # ================================================================
-            # STEP 5: Initialize DroidAgent with all settings
+            # STEP 3: Initialize DroidAgent with config
             # ================================================================
 
             log_handler.update_step("Initializing DroidAgent...")
 
-            mode = "planning with reasoning" if agent_cfg.reasoning else "direct execution"
+            mode = "planning with reasoning" if config.agent.reasoning else "direct execution"
             logger.info(f"🤖 Agent mode: {mode}")
-            logger.info(f"👁️  Vision settings: Manager={agent_cfg.manager.vision}, "
-                       f"Executor={agent_cfg.executor.vision}, CodeAct={agent_cfg.codeact.vision}")
+            logger.info(f"👁️  Vision settings: Manager={config.agent.manager.vision}, "
+                       f"Executor={config.agent.executor.vision}, CodeAct={config.agent.codeact.vision}")
 
-            if tracing_cfg.enabled:
+            if config.tracing.enabled:
                 logger.info("🔍 Tracing enabled")
 
             # Build DroidAgent kwargs for LLM loading
@@ -865,12 +818,7 @@ async def test(
             droid_agent = DroidAgent(
                 goal=command,
                 tools=tools,
-                config=config.config,
-                agent_config=agent_cfg,
-                device_config=device_cfg,
-                tools_config=tools_cfg,
-                logging_config=logging_cfg,
-                tracing_config=tracing_cfg,
+                config=config,
                 excluded_tools=excluded_tools,
                 timeout=1000,
                 **droid_agent_kwargs
@@ -902,7 +850,7 @@ async def test(
                 log_handler.is_success = False
                 log_handler.current_step = f"Error: {e}"
                 logger.error(f"💥 Error: {e}")
-                if logging_cfg.debug:
+                if config.logging.debug:
                     import traceback
                     logger.debug(traceback.format_exc())
 
