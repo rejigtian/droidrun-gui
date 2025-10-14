@@ -67,7 +67,12 @@ class ExecutorAgent(Workflow):
         self.vision = agent_config.executor.vision
         self.tools_instance = tools_instance
         self.shared_state = shared_state
-        self.custom_tools = custom_tools or {}
+
+        # Merge custom_tools with atomic actions (same as CodeActAgent)
+        atomic_tools = ATOMIC_ACTION_SIGNATURES
+        merged_signatures = {**atomic_tools, **(custom_tools or {})}
+        self.all_actions = merged_signatures  # Store merged dict for prompt
+        self.custom_tools = custom_tools or {}  # Keep for execution lookup
 
         logger.info("✅ ExecutorAgent initialized successfully.")
 
@@ -120,7 +125,7 @@ class ExecutorAgent(Workflow):
                 "plan": self.shared_state.plan,
                 "subgoal": subgoal,
                 "progress_status": self.shared_state.progress_status,
-                "atomic_actions": ATOMIC_ACTION_SIGNATURES,
+                "atomic_actions": self.all_actions,  # Now includes custom tools!
                 "action_history": action_history
             }
         )
