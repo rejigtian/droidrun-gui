@@ -26,8 +26,8 @@ class PromptLoader:
         """Get or create cached Jinja2 environment."""
         if cls._env is None:
             cls._env = Environment(
-                trim_blocks=True,           # Remove first newline after block
-                lstrip_blocks=True,         # Strip leading whitespace before blocks
+                trim_blocks=True,  # Remove first newline after block
+                lstrip_blocks=True,  # Strip leading whitespace before blocks
                 keep_trailing_newline=False,
             )
 

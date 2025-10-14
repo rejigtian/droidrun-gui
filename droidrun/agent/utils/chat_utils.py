@@ -10,19 +10,19 @@ from droidrun.telemetry.phoenix import clean_span
 
 logger = logging.getLogger("droidrun")
 
-def message_copy(message: ChatMessage, deep = True) -> ChatMessage:
+
+def message_copy(message: ChatMessage, deep=True) -> ChatMessage:
     if deep:
         copied_message = message.model_copy()
-        copied_message.blocks = [block.model_copy () for block in message.blocks]
+        copied_message.blocks = [block.model_copy() for block in message.blocks]
 
         return copied_message
     copied_message = message.model_copy()
 
     # Create a new, independent list containing the same block references
-    copied_message.blocks = list(message.blocks) # or original_message.blocks[:]
+    copied_message.blocks = list(message.blocks)  # or original_message.blocks[:]
 
     return copied_message
-
 
 
 def _format_ui_elements(ui_data, level=0) -> str:
@@ -41,17 +41,16 @@ def _format_ui_elements(ui_data, level=0) -> str:
             continue
 
         # Extract element properties
-        index = element.get('index', '')
-        class_name = element.get('className', '')
-        resource_id = element.get('resourceId', '')
-        text = element.get('text', '')
-        bounds = element.get('bounds', '')
-        children = element.get('children', [])
-
+        index = element.get("index", "")
+        class_name = element.get("className", "")
+        resource_id = element.get("resourceId", "")
+        text = element.get("text", "")
+        bounds = element.get("bounds", "")
+        children = element.get("children", [])
 
         # Format the line: index. className: resourceId, text - bounds
         line_parts = []
-        if index != '':
+        if index != "":
             line_parts.append(f"{index}.")
         if class_name:
             line_parts.append(class_name + ":")
@@ -78,17 +77,26 @@ def _format_ui_elements(ui_data, level=0) -> str:
 
     return "\n".join(formatted_lines)
 
-async def add_ui_text_block(ui_state: str, chat_history: List[ChatMessage], copy = True) -> List[ChatMessage]:
+
+async def add_ui_text_block(
+    ui_state: str, chat_history: List[ChatMessage], copy=True
+) -> List[ChatMessage]:
     """Add UI elements to the chat history without modifying the original."""
     if ui_state:
         # Parse the JSON and format it in natural language
         try:
             ui_data = json.loads(ui_state) if isinstance(ui_state, str) else ui_state
             formatted_ui = _format_ui_elements(ui_data)
-            ui_block = TextBlock(text=f"\nCurrent Clickable UI elements from the device in the schema 'index. className: resourceId, text - bounds(x1,y1,x2,y2)':\n{formatted_ui}\n")
+            ui_block = TextBlock(
+                text=f"\nCurrent Clickable UI elements from the device in the schema 'index. className: resourceId, text - bounds(x1,y1,x2,y2)':\n{formatted_ui}\n"
+            )
         except (json.JSONDecodeError, TypeError):
             # Fallback to original format if parsing fails
-            ui_block = TextBlock(text="\nCurrent Clickable UI elements from the device using the custom TopViewService:\n```json\n" + json.dumps(ui_state) + "\n```\n")
+            ui_block = TextBlock(
+                text="\nCurrent Clickable UI elements from the device using the custom TopViewService:\n```json\n"
+                + json.dumps(ui_state)
+                + "\n```\n"
+            )
 
         if copy:
             chat_history = chat_history.copy()
@@ -96,30 +104,37 @@ async def add_ui_text_block(ui_state: str, chat_history: List[ChatMessage], copy
         chat_history[-1].blocks.append(ui_block)
     return chat_history
 
-async def add_screenshot_image_block(screenshot, chat_history: List[ChatMessage], copy = True) -> None:
+
+async def add_screenshot_image_block(
+    screenshot, chat_history: List[ChatMessage], copy=True
+) -> None:
     if screenshot:
         image_block = ImageBlock(image=screenshot)
         if copy:
-            chat_history = chat_history.copy()  # Create a copy of chat history to avoid modifying the original
+            chat_history = (
+                chat_history.copy()
+            )  # Create a copy of chat history to avoid modifying the original
             chat_history[-1] = message_copy(chat_history[-1])
         chat_history[-1].blocks.append(image_block)
     return chat_history
 
 
-async def add_phone_state_block(phone_state, chat_history: List[ChatMessage]) -> List[ChatMessage]:
+async def add_phone_state_block(
+    phone_state, chat_history: List[ChatMessage]
+) -> List[ChatMessage]:
 
     # Format the phone state data nicely
-    if isinstance(phone_state, dict) and 'error' not in phone_state:
-        current_app = phone_state.get('currentApp', '')
-        package_name = phone_state.get('packageName', 'Unknown')
-        keyboard_visible = phone_state.get('keyboardVisible', False)
-        focused_element = phone_state.get('focusedElement')
+    if isinstance(phone_state, dict) and "error" not in phone_state:
+        current_app = phone_state.get("currentApp", "")
+        package_name = phone_state.get("packageName", "Unknown")
+        keyboard_visible = phone_state.get("keyboardVisible", False)
+        focused_element = phone_state.get("focusedElement")
 
         # Format the focused element
         if focused_element:
-            element_text = focused_element.get('text', '')
-            element_class = focused_element.get('className', '')
-            element_resource_id = focused_element.get('resourceId', '')
+            element_text = focused_element.get("text", "")
+            element_class = focused_element.get("className", "")
+            element_resource_id = focused_element.get("resourceId", "")
 
             # Build focused element description
             focused_desc = f"'{element_text}' {element_class}"
@@ -136,7 +151,7 @@ async def add_phone_state_block(phone_state, chat_history: List[ChatMessage]) ->
         """
     else:
         # Handle error cases or malformed data
-        if isinstance(phone_state, dict) and 'error' in phone_state:
+        if isinstance(phone_state, dict) and "error" in phone_state:
             phone_state_text = f"\n📱 **Phone State Error:** {phone_state.get('message', 'Unknown error')}\n"
         else:
             phone_state_text = f"\n📱 **Phone State:** {phone_state}\n"
@@ -147,7 +162,10 @@ async def add_phone_state_block(phone_state, chat_history: List[ChatMessage]) ->
     chat_history[-1].blocks.append(ui_block)
     return chat_history
 
-async def add_packages_block(packages, chat_history: List[ChatMessage]) -> List[ChatMessage]:
+
+async def add_packages_block(
+    packages, chat_history: List[ChatMessage]
+) -> List[ChatMessage]:
 
     ui_block = TextBlock(text=f"\nInstalled packages: {packages}\n```\n")
     chat_history = chat_history.copy()
@@ -155,10 +173,9 @@ async def add_packages_block(packages, chat_history: List[ChatMessage]) -> List[
     chat_history[-1].blocks.append(ui_block)
     return chat_history
 
+
 async def add_device_state_block(
-    formatted_device_state: str,
-    chat_history: List[ChatMessage],
-    copy: bool = True
+    formatted_device_state: str, chat_history: List[ChatMessage], copy: bool = True
 ) -> List[ChatMessage]:
     """
     Add formatted device state to the LAST user message in chat history.
@@ -196,7 +213,9 @@ async def add_device_state_block(
     return chat_history
 
 
-async def add_memory_block(memory: List[str], chat_history: List[ChatMessage]) -> List[ChatMessage]:
+async def add_memory_block(
+    memory: List[str], chat_history: List[ChatMessage]
+) -> List[ChatMessage]:
     memory_block = "\n### Remembered Information:\n"
     for idx, item in enumerate(memory, 1):
         memory_block += f"{idx}. {item}\n"
@@ -213,7 +232,10 @@ async def add_memory_block(memory: List[str], chat_history: List[ChatMessage]) -
             break
     return chat_history
 
-async def add_task_history_block(all_tasks: list[dict], chat_history: List[ChatMessage]) -> List[ChatMessage]:
+
+async def add_task_history_block(
+    all_tasks: list[dict], chat_history: List[ChatMessage]
+) -> List[ChatMessage]:
     """Experimental task history with all previous tasks."""
     if not all_tasks:
         return chat_history
@@ -244,6 +266,7 @@ async def add_task_history_block(all_tasks: list[dict], chat_history: List[ChatM
     chat_history[-1].blocks.append(task_block)
     return chat_history
 
+
 def parse_tool_descriptions(tool_list) -> str:
     """Parses the available tools and their descriptions for the system prompt."""
     logger.info("🛠️  Parsing tool descriptions...")
@@ -254,7 +277,9 @@ def parse_tool_descriptions(tool_list) -> str:
         tool_name = tool.__name__
         tool_signature = inspect.signature(tool)
         tool_docstring = tool.__doc__ or "No description available."
-        formatted_signature = f"def {tool_name}{tool_signature}:\n    \"\"\"{tool_docstring}\"\"\"\n..."
+        formatted_signature = (
+            f'def {tool_name}{tool_signature}:\n    """{tool_docstring}"""\n...'
+        )
         tool_descriptions.append(formatted_signature)
         logger.debug(f"  - Parsed tool: {tool_name}")
     descriptions = "\n".join(tool_descriptions)
@@ -273,7 +298,11 @@ def parse_persona_description(personas) -> str:
     persona_descriptions = []
     for persona in personas:
         # Format each persona with name, description, and expertise areas
-        expertise_list = ", ".join(persona.expertise_areas) if persona.expertise_areas else "General tasks"
+        expertise_list = (
+            ", ".join(persona.expertise_areas)
+            if persona.expertise_areas
+            else "General tasks"
+        )
         formatted_persona = f"- **{persona.name}**: {persona.description}\n  Expertise: {expertise_list}"
         persona_descriptions.append(formatted_persona)
         logger.debug(f"  - Parsed persona: {persona.name}")
@@ -294,7 +323,9 @@ def extract_code_and_thought(response_text: str) -> Tuple[Optional[str], str]:
     """
     logger.debug("✂️ Extracting code and thought from response...")
     code_pattern = r"^\s*```python\s*\n(.*?)\n^\s*```\s*?$"
-    code_matches = list(re.finditer(code_pattern, response_text, re.DOTALL | re.MULTILINE))
+    code_matches = list(
+        re.finditer(code_pattern, response_text, re.DOTALL | re.MULTILINE)
+    )
 
     if not code_matches:
         logger.debug("  - No code block found. Entire response is thought.")
@@ -302,11 +333,10 @@ def extract_code_and_thought(response_text: str) -> Tuple[Optional[str], str]:
 
     extracted_code_parts = []
     for match in code_matches:
-            code_content = match.group(1)
-            extracted_code_parts.append(code_content)
+        code_content = match.group(1)
+        extracted_code_parts.append(code_content)
 
     extracted_code = "\n\n".join(extracted_code_parts)
-
 
     thought_parts = []
     last_end = 0
@@ -317,23 +347,26 @@ def extract_code_and_thought(response_text: str) -> Tuple[Optional[str], str]:
     thought_parts.append(response_text[last_end:])
 
     thought_text = "".join(thought_parts).strip()
-    thought_preview = (thought_text[:100] + '...') if len(thought_text) > 100 else thought_text
+    thought_preview = (
+        (thought_text[:100] + "...") if len(thought_text) > 100 else thought_text
+    )
     logger.debug(f"  - Extracted thought: {thought_preview}")
 
     return extracted_code, thought_text
 
 
 def has_non_empty_content(msg):
-    content = msg.get('content', [])
+    content = msg.get("content", [])
     if not content:  # Empty list or None
         return False
     # Check if any content item has non-empty text
     for item in content:
-        if isinstance(item, dict) and item.get('text', '').strip():
+        if isinstance(item, dict) and item.get("text", "").strip():
             return True
         elif isinstance(item, str) and item.strip():
             return True
     return False
+
 
 def remove_empty_messages(messages):
     """Remove empty messages and duplicates, with span decoration."""
@@ -349,13 +382,15 @@ def remove_empty_messages(messages):
         seen_contents = set()
         unique_messages = []
         for msg in cleaned:
-            content = msg.get('content', [])
+            content = msg.get("content", [])
             content_str = str(content)  # Simple string representation for deduplication
             if content_str not in seen_contents:
                 seen_contents.add(content_str)
                 unique_messages.append(msg)
 
-        logger.debug(f"Removed empty messages and duplicates: {len(messages)} -> {len(unique_messages)}")
+        logger.debug(
+            f"Removed empty messages and duplicates: {len(messages)} -> {len(unique_messages)}"
+        )
         return unique_messages
 
     return process_messages()

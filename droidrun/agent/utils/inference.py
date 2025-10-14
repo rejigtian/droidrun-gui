@@ -1,4 +1,3 @@
-
 import asyncio
 import contextvars
 import threading
@@ -17,7 +16,9 @@ def call_with_retries(llm, messages, retries=3, timeout=500, delay=1.0):
 
         def _target():
             try:
-                result_holder["response"] = ctx.run(llm.chat, messages=messages)  # noqa: B023
+                result_holder["response"] = ctx.run(
+                    llm.chat, messages=messages
+                )  # noqa: B023
             except Exception as e:
                 error_holder["error"] = e  # noqa: B023
 
@@ -34,7 +35,9 @@ def call_with_retries(llm, messages, retries=3, timeout=500, delay=1.0):
                 err = error_holder["error"]
                 # Normalize FuturesTimeoutError if raised inside llm.chat
                 if isinstance(err, FuturesTimeoutError):
-                    print(f"Attempt {attempt} timed out inside LLM after {timeout} seconds")
+                    print(
+                        f"Attempt {attempt} timed out inside LLM after {timeout} seconds"
+                    )
                     last_exception = TimeoutError("Timed out")
                 else:
                     print(f"Attempt {attempt} failed with error: {err!r}")
@@ -60,11 +63,7 @@ def call_with_retries(llm, messages, retries=3, timeout=500, delay=1.0):
 
 
 async def acall_with_retries(
-    llm,
-    messages: list,
-    retries: int = 3,
-    timeout: float = 500,
-    delay: float = 1.0
+    llm, messages: list, retries: int = 3, timeout: float = 500, delay: float = 1.0
 ) -> Any:
     """
     Call LLM with retries and timeout handling.
@@ -85,7 +84,7 @@ async def acall_with_retries(
         try:
             response = await asyncio.wait_for(
                 llm.achat(messages=messages),  # Use achat() instead of chat()
-                timeout=timeout
+                timeout=timeout,
             )
 
             # Validate response

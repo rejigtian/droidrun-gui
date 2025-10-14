@@ -27,6 +27,7 @@ class UsageResult(BaseModel):
     total_tokens: int
     requests: int
 
+
 def get_usage_from_response(provider: str, chat_rsp: ChatResponse) -> UsageResult:
     rsp = chat_rsp.raw
     if not rsp:
@@ -84,6 +85,7 @@ def get_usage_from_response(provider: str, chat_rsp: ChatResponse) -> UsageResul
         )
 
     raise ValueError(f"Unsupported provider: {provider}")
+
 
 class TokenCountingHandler(BaseCallbackHandler):
     """Token counting handler for LLamaIndex LLM calls."""
@@ -162,6 +164,7 @@ class TokenCountingHandler(BaseCallbackHandler):
         """Run when an overall trace is exited."""
         pass
 
+
 @contextlib.contextmanager
 def llm_callback(llm: LLM, *args: List[BaseCallbackHandler]):
     for arg in args:
@@ -169,6 +172,7 @@ def llm_callback(llm: LLM, *args: List[BaseCallbackHandler]):
     yield
     for arg in args:
         llm.callback_manager.remove_handler(arg)
+
 
 def create_tracker(llm: LLM) -> TokenCountingHandler:
     provider = llm.__class__.__name__

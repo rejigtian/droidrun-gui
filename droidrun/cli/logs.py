@@ -32,7 +32,9 @@ from droidrun.agent.manager.events import (
 
 
 class LogHandler(logging.Handler):
-    def __init__(self, goal: str, current_step: str = "Initializing...", rich_text: bool = True):
+    def __init__(
+        self, goal: str, current_step: str = "Initializing...", rich_text: bool = True
+    ):
         super().__init__()
 
         self.goal = goal
@@ -72,6 +74,7 @@ class LogHandler(logging.Handler):
         else:
             # Return a no-op context manager for non-rich mode
             from contextlib import nullcontext
+
             return nullcontext()
 
     def rerender(self):
@@ -269,7 +272,9 @@ class LogHandler(logging.Handler):
                     logger.info(f"✅ {event.summary}")
                 else:
                     self.current_step = "Action failed"
-                    error_msg = event.error if hasattr(event, "error") else "Unknown error"
+                    error_msg = (
+                        event.error if hasattr(event, "error") else "Unknown error"
+                    )
                     logger.info(f"❌ {event.summary} ({error_msg})")
 
         # CodeAct events (direct mode)

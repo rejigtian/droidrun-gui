@@ -33,7 +33,7 @@ class PathResolver:
     def resolve(
         path: Union[str, Path],
         create_if_missing: bool = False,
-        must_exist: bool = False
+        must_exist: bool = False,
     ) -> Path:
         """
         Universal path resolver for all file operations.

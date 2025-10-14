@@ -159,6 +159,7 @@ def set_overlay_offset(device: AdbDevice, offset: int):
     except Exception as e:
         raise Exception("Error setting overlay offset") from e
 
+
 def toggle_overlay(device: AdbDevice, visible: bool):
     """toggle the overlay visibility.
 
@@ -176,6 +177,7 @@ def toggle_overlay(device: AdbDevice, visible: bool):
     except Exception as e:
         raise Exception("Failed to toggle overlay") from e
 
+
 def setup_keyboard(device: AdbDevice):
     """
     Set up the DroidRun keyboard as the default input method.
@@ -190,7 +192,10 @@ def setup_keyboard(device: AdbDevice):
     except Exception as e:
         raise Exception("Error setting up keyboard") from e
 
-def disable_keyboard(device: AdbDevice, target_ime: str = "com.droidrun.portal/.DroidrunKeyboardIME"):
+
+def disable_keyboard(
+    device: AdbDevice, target_ime: str = "com.droidrun.portal/.DroidrunKeyboardIME"
+):
     """
     Disable a specific IME (keyboard) and optionally switch to another.
     By default, disables the DroidRun keyboard.
@@ -206,6 +211,7 @@ def disable_keyboard(device: AdbDevice, target_ime: str = "com.droidrun.portal/.
         return True
     except Exception as e:
         raise Exception("Error disabling keyboard") from e
+
 
 def test():
     device = adb.device()

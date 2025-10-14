@@ -69,11 +69,17 @@ class PortalClient:
 
             # Step 2: If no forward exists, create one
             if local_port is None:
-                logger.debug(f"No existing forward found, creating new forward for port {PORTAL_REMOTE_PORT}")
+                logger.debug(
+                    f"No existing forward found, creating new forward for port {PORTAL_REMOTE_PORT}"
+                )
                 local_port = self.device.forward_port(PORTAL_REMOTE_PORT)
-                logger.debug(f"Created forward: localhost:{local_port} -> device:{PORTAL_REMOTE_PORT}")
+                logger.debug(
+                    f"Created forward: localhost:{local_port} -> device:{PORTAL_REMOTE_PORT}"
+                )
             else:
-                logger.debug(f"Reusing existing forward: localhost:{local_port} -> device:{PORTAL_REMOTE_PORT}")
+                logger.debug(
+                    f"Reusing existing forward: localhost:{local_port} -> device:{PORTAL_REMOTE_PORT}"
+                )
 
             # Store local port
             self.local_tcp_port = local_port
@@ -84,11 +90,15 @@ class PortalClient:
                 self.tcp_available = True
                 logger.info(f"✓ TCP mode enabled: {self.tcp_base_url}")
             else:
-                logger.warning("TCP connection test failed, falling back to content provider")
+                logger.warning(
+                    "TCP connection test failed, falling back to content provider"
+                )
                 self.tcp_available = False
 
         except Exception as e:
-            logger.warning(f"Failed to setup TCP forwarding: {e}. Using content provider fallback.")
+            logger.warning(
+                f"Failed to setup TCP forwarding: {e}. Using content provider fallback."
+            )
             self.tcp_available = False
 
     def _find_existing_forward(self) -> Optional[int]:
@@ -102,12 +112,19 @@ class PortalClient:
             forwards = self.device.forward_list()
             # Format: ['serial tcp:local_port tcp:remote_port', ...]
             for forward in forwards:
-                if self.device.serial in forward and f"tcp:{PORTAL_REMOTE_PORT}" in forward:
+                if (
+                    self.device.serial in forward
+                    and f"tcp:{PORTAL_REMOTE_PORT}" in forward
+                ):
                     # Extract local port: "serial tcp:12345 tcp:8080"
-                    match = re.search(r'tcp:(\d+)\s+tcp:' + str(PORTAL_REMOTE_PORT), forward)
+                    match = re.search(
+                        r"tcp:(\d+)\s+tcp:" + str(PORTAL_REMOTE_PORT), forward
+                    )
                     if match:
                         local_port = int(match.group(1))
-                        logger.debug(f"Found existing forward: localhost:{local_port} -> {PORTAL_REMOTE_PORT}")
+                        logger.debug(
+                            f"Found existing forward: localhost:{local_port} -> {PORTAL_REMOTE_PORT}"
+                        )
                         return local_port
         except Exception as e:
             logger.debug(f"Failed to check existing forwards: {e}")
@@ -123,7 +140,9 @@ class PortalClient:
             logger.debug(f"TCP connection test failed: {e}")
             return False
 
-    def _parse_content_provider_output(self, raw_output: str) -> Optional[Dict[str, Any]]:
+    def _parse_content_provider_output(
+        self, raw_output: str
+    ) -> Optional[Dict[str, Any]]:
         """
         Parse the raw ADB content provider output and extract JSON data.
 
@@ -166,7 +185,6 @@ class PortalClient:
         except json.JSONDecodeError:
             return None
 
-
     def get_state(self) -> Dict[str, Any]:
         """
         Get device state (accessibility tree + phone state).
@@ -192,7 +210,9 @@ class PortalClient:
                         return json.loads(data["data"])
                 return data
             else:
-                logger.warning(f"TCP get_state failed ({response.status_code}), falling back")
+                logger.warning(
+                    f"TCP get_state failed ({response.status_code}), falling back"
+                )
                 return self._get_state_content_provider()
         except Exception as e:
             logger.warning(f"TCP get_state error: {e}, falling back")
@@ -201,13 +221,15 @@ class PortalClient:
     def _get_state_content_provider(self) -> Dict[str, Any]:
         """Get state via content provider (fallback)."""
         try:
-            output = self.device.shell("content query --uri content://com.droidrun.portal/state")
+            output = self.device.shell(
+                "content query --uri content://com.droidrun.portal/state"
+            )
             state_data = self._parse_content_provider_output(output)
 
             if state_data is None:
                 return {
                     "error": "Parse Error",
-                    "message": "Failed to parse state data from ContentProvider"
+                    "message": "Failed to parse state data from ContentProvider",
                 }
 
             # Handle nested "data" field if present
@@ -218,17 +240,13 @@ class PortalClient:
                     except json.JSONDecodeError:
                         return {
                             "error": "Parse Error",
-                            "message": "Failed to parse nested JSON data"
+                            "message": "Failed to parse nested JSON data",
                         }
 
             return state_data
 
         except Exception as e:
-            return {
-                "error": "ContentProvider Error",
-                "message": str(e)
-            }
-
+            return {"error": "ContentProvider Error", "message": str(e)}
 
     def input_text(self, text: str, clear: bool = False) -> bool:
         """
@@ -255,13 +273,15 @@ class PortalClient:
                 f"{self.tcp_base_url}/keyboard/input",
                 json=payload,
                 headers={"Content-Type": "application/json"},
-                timeout=10
+                timeout=10,
             )
             if response.status_code == 200:
                 logger.debug(f"TCP input_text successful")
                 return True
             else:
-                logger.warning(f"TCP input_text failed ({response.status_code}), falling back")
+                logger.warning(
+                    f"TCP input_text failed ({response.status_code}), falling back"
+                )
                 return self._input_text_content_provider(text, clear)
         except Exception as e:
             logger.warning(f"TCP input_text error: {e}, falling back")
@@ -275,7 +295,7 @@ class PortalClient:
             cmd = (
                 f'content insert --uri "content://com.droidrun.portal/keyboard/input" '
                 f'--bind base64_text:s:"{encoded}" '
-                f'--bind clear:b:{clear_str}'
+                f"--bind clear:b:{clear_str}"
             )
             self.device.shell(cmd)
             logger.debug("Content provider input_text successful")
@@ -283,7 +303,6 @@ class PortalClient:
         except Exception as e:
             logger.error(f"Content provider input_text error: {e}")
             return False
-
 
     def take_screenshot(self, hide_overlay: bool = True) -> bytes:
         """
@@ -314,10 +333,14 @@ class PortalClient:
                     logger.debug("Screenshot taken via TCP")
                     return base64.b64decode(data["data"])
                 else:
-                    logger.warning("TCP screenshot failed (invalid response), falling back")
+                    logger.warning(
+                        "TCP screenshot failed (invalid response), falling back"
+                    )
                     return self._take_screenshot_adb()
             else:
-                logger.warning(f"TCP screenshot failed ({response.status_code}), falling back")
+                logger.warning(
+                    f"TCP screenshot failed ({response.status_code}), falling back"
+                )
                 return self._take_screenshot_adb()
         except Exception as e:
             logger.warning(f"TCP screenshot error: {e}, falling back")
@@ -347,7 +370,9 @@ class PortalClient:
             logger.debug("Getting apps via content provider")
 
             # Query content provider
-            output = self.device.shell("content query --uri content://com.droidrun.portal/packages")
+            output = self.device.shell(
+                "content query --uri content://com.droidrun.portal/packages"
+            )
             packages_data = self._parse_content_provider_output(output)
 
             if not packages_data or "packages" not in packages_data:
@@ -360,10 +385,12 @@ class PortalClient:
                 if not include_system and package_info.get("isSystemApp", False):
                     continue
 
-                apps.append({
-                    "package": package_info.get("packageName", ""),
-                    "label": package_info.get("label", "")
-                })
+                apps.append(
+                    {
+                        "package": package_info.get("packageName", ""),
+                        "label": package_info.get("label", ""),
+                    }
+                )
 
             logger.debug(f"Found {len(apps)} apps")
             return apps
@@ -371,7 +398,6 @@ class PortalClient:
         except Exception as e:
             logger.error(f"Error getting apps: {e}")
             raise ValueError(f"Error getting apps: {e}") from e
-
 
     def ping(self) -> Dict[str, Any]:
         """
@@ -390,45 +416,40 @@ class PortalClient:
                             "status": "success",
                             "method": "tcp",
                             "url": self.tcp_base_url,
-                            "response": tcp_response
+                            "response": tcp_response,
                         }
                     except json.JSONDecodeError:
                         return {
                             "status": "success",
                             "method": "tcp",
                             "url": self.tcp_base_url,
-                            "response": response.text
+                            "response": response.text,
                         }
                 else:
                     return {
                         "status": "error",
                         "method": "tcp",
-                        "message": f"HTTP {response.status_code}: {response.text}"
+                        "message": f"HTTP {response.status_code}: {response.text}",
                     }
             except Exception as e:
-                return {
-                    "status": "error",
-                    "method": "tcp",
-                    "message": str(e)
-                }
+                return {"status": "error", "method": "tcp", "message": str(e)}
         else:
             # Test content provider
             try:
-                output = self.device.shell("content query --uri content://com.droidrun.portal/state")
+                output = self.device.shell(
+                    "content query --uri content://com.droidrun.portal/state"
+                )
                 if "Row: 0 result=" in output:
-                    return {
-                        "status": "success",
-                        "method": "content_provider"
-                    }
+                    return {"status": "success", "method": "content_provider"}
                 else:
                     return {
                         "status": "error",
                         "method": "content_provider",
-                        "message": "Invalid response"
+                        "message": "Invalid response",
                     }
             except Exception as e:
                 return {
                     "status": "error",
                     "method": "content_provider",
-                    "message": str(e)
+                    "message": str(e),
                 }

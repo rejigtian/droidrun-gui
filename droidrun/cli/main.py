@@ -46,10 +46,13 @@ except FileNotFoundError:
         config_path = PathResolver.resolve("config.yaml", create_if_missing=True)
 
         import shutil
+
         shutil.copy2(example_path, config_path)
         console.print(f"[blue]Created config.yaml from example at: {config_path}[/]")
     except FileNotFoundError:
-        console.print("[yellow]Warning: config_example.yaml not found, config.yaml not created[/]")
+        console.print(
+            "[yellow]Warning: config_example.yaml not found, config.yaml not created[/]"
+        )
 
 
 def configure_logging(goal: str, debug: bool, rich_text: bool = True):
@@ -183,37 +186,41 @@ async def run_command(
 
             excluded_tools = [] if config.tools.allow_drag else ["drag"]
 
-            mode = "planning with reasoning" if config.agent.reasoning else "direct execution"
+            mode = (
+                "planning with reasoning"
+                if config.agent.reasoning
+                else "direct execution"
+            )
             logger.info(f"🤖 Agent mode: {mode}")
-            logger.info(f"👁️  Vision settings: Manager={config.agent.manager.vision}, "
-                       f"Executor={config.agent.executor.vision}, CodeAct={config.agent.codeact.vision}")
+            logger.info(
+                f"👁️  Vision settings: Manager={config.agent.manager.vision}, "
+                f"Executor={config.agent.executor.vision}, CodeAct={config.agent.codeact.vision}"
+            )
 
             if config.tracing.enabled:
                 logger.info("🔍 Tracing enabled")
 
             # Build DroidAgent kwargs for LLM loading
-            droid_agent_kwargs = {
-                'runtype': 'cli'
-            }
+            droid_agent_kwargs = {"runtype": "cli"}
 
             # Add custom LLM parameters if provided
             if provider is not None:
-                droid_agent_kwargs['custom_provider'] = provider
+                droid_agent_kwargs["custom_provider"] = provider
             if model is not None:
-                droid_agent_kwargs['custom_model'] = model
+                droid_agent_kwargs["custom_model"] = model
             if temperature is not None:
-                droid_agent_kwargs['temperature'] = temperature
+                droid_agent_kwargs["temperature"] = temperature
             if base_url is not None:
-                droid_agent_kwargs['base_url'] = base_url
+                droid_agent_kwargs["base_url"] = base_url
             if api_base is not None:
-                droid_agent_kwargs['api_base'] = api_base
+                droid_agent_kwargs["api_base"] = api_base
 
             droid_agent = DroidAgent(
                 goal=command,
                 config=config,
                 excluded_tools=excluded_tools,
                 timeout=1000,
-                **droid_agent_kwargs
+                **droid_agent_kwargs,
             )
 
             # ================================================================
@@ -244,6 +251,7 @@ async def run_command(
                 logger.error(f"💥 Error: {e}")
                 if config.logging.debug:
                     import traceback
+
                     logger.debug(traceback.format_exc())
 
         except Exception as e:
@@ -252,13 +260,16 @@ async def run_command(
             debug_mode = debug if debug is not None else config.logging.debug
             if debug_mode:
                 import traceback
+
                 logger.debug(traceback.format_exc())
 
 
 class DroidRunCLI(click.Group):
     def parse_args(self, ctx, args):
         # If the first arg is not an option and not a known command, treat as 'run'
-        if args and """not args[0].startswith("-")""" and args[0] not in self.commands: # TODO: the string always evaluates to True
+        if (
+            args and """not args[0].startswith("-")""" and args[0] not in self.commands
+        ):  # TODO: the string always evaluates to True
             args.insert(0, "run")
 
         return super().parse_args(ctx, args)
@@ -299,7 +310,6 @@ class DroidRunCLI(click.Group):
 @click.option(
     "--reasoning", is_flag=True, help="Enable planning with reasoning", default=False
 )
-
 @click.option(
     "--tracing", is_flag=True, help="Enable Arize Phoenix tracing", default=False
 )
@@ -392,22 +402,13 @@ def cli(
     help="Enable vision for CodeAct agent only",
 )
 @click.option(
-    "--reasoning",
-    is_flag=True,
-    default=None,
-    help="Enable planning with reasoning"
+    "--reasoning", is_flag=True, default=None, help="Enable planning with reasoning"
 )
 @click.option(
-    "--tracing",
-    is_flag=True,
-    default=None,
-    help="Enable Arize Phoenix tracing"
+    "--tracing", is_flag=True, default=None, help="Enable Arize Phoenix tracing"
 )
 @click.option(
-    "--debug",
-    is_flag=True,
-    default=None,
-    help="Enable verbose debug logging"
+    "--debug", is_flag=True, default=None, help="Enable verbose debug logging"
 )
 @click.option(
     "--use-tcp",
@@ -483,7 +484,9 @@ def run(
             if not (ios if ios is not None else False):
                 device_obj = adb.device(device)
                 if device_obj:
-                    device_obj.shell("ime disable com.droidrun.portal/.DroidrunKeyboardIME")
+                    device_obj.shell(
+                        "ime disable com.droidrun.portal/.DroidrunKeyboardIME"
+                    )
         except Exception:
             click.echo("Failed to disable DroidRun keyboard")
 
@@ -749,10 +752,16 @@ async def test(
 
             excluded_tools = [] if config.tools.allow_drag else ["drag"]
 
-            mode = "planning with reasoning" if config.agent.reasoning else "direct execution"
+            mode = (
+                "planning with reasoning"
+                if config.agent.reasoning
+                else "direct execution"
+            )
             logger.info(f"🤖 Agent mode: {mode}")
-            logger.info(f"👁️  Vision settings: Manager={config.agent.manager.vision}, "
-                       f"Executor={config.agent.executor.vision}, CodeAct={config.agent.codeact.vision}")
+            logger.info(
+                f"👁️  Vision settings: Manager={config.agent.manager.vision}, "
+                f"Executor={config.agent.executor.vision}, CodeAct={config.agent.codeact.vision}"
+            )
 
             if config.tracing.enabled:
                 logger.info("🔍 Tracing enabled")
@@ -760,14 +769,14 @@ async def test(
             # Build DroidAgent kwargs for LLM loading
             droid_agent_kwargs = {}
             if temperature is not None:
-                droid_agent_kwargs['temperature'] = temperature
+                droid_agent_kwargs["temperature"] = temperature
 
             droid_agent = DroidAgent(
                 goal=command,
                 config=config,
                 excluded_tools=excluded_tools,
                 timeout=1000,
-                **droid_agent_kwargs
+                **droid_agent_kwargs,
             )
 
             # ================================================================
@@ -798,6 +807,7 @@ async def test(
                 logger.error(f"💥 Error: {e}")
                 if config.logging.debug:
                     import traceback
+
                     logger.debug(traceback.format_exc())
 
         except Exception as e:
@@ -806,8 +816,8 @@ async def test(
             debug_mode = debug if debug is not None else config.logging.debug
             if debug_mode:
                 import traceback
-                logger.debug(traceback.format_exc())
 
+                logger.debug(traceback.format_exc())
 
 
 if __name__ == "__main__":
@@ -829,6 +839,4 @@ if __name__ == "__main__":
     ios = False
     save_trajectory = "none"
     allow_drag = False
-    asyncio.run(
-        test(command, reasoning=False)
-    )
+    asyncio.run(test(command, reasoning=False))

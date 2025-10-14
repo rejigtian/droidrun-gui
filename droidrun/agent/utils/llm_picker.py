@@ -110,7 +110,7 @@ def load_llm(provider_name: str, **kwargs: Any) -> LLM:
 def load_llms_from_profiles(
     profiles: dict[str, "LLMProfile"],
     profile_names: list[str] | None = None,
-    **override_kwargs_per_profile
+    **override_kwargs_per_profile,
 ) -> dict[str, LLM]:
     """
     Load multiple LLMs from LLMProfile objects.
@@ -156,12 +156,16 @@ def load_llms_from_profiles(
 
         # Apply profile-specific overrides if provided
         if profile_name in override_kwargs_per_profile:
-            logger.debug(f"Applying overrides for {profile_name}: {override_kwargs_per_profile[profile_name]}")
+            logger.debug(
+                f"Applying overrides for {profile_name}: {override_kwargs_per_profile[profile_name]}"
+            )
             kwargs.update(override_kwargs_per_profile[profile_name])
 
         # Load the LLM
         llms[profile_name] = load_llm(provider_name=profile.provider, **kwargs)
-        logger.debug(f"Successfully loaded {profile_name} LLM: {profile.provider}/{profile.model}")
+        logger.debug(
+            f"Successfully loaded {profile_name} LLM: {profile.provider}/{profile.model}"
+        )
 
     return llms
 

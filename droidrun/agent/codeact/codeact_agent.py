@@ -93,7 +93,11 @@ class CodeActAgent(Workflow):
         for action_name, signature in merged_signatures.items():
             func = signature["function"]
 
-            self.tool_list[action_name] = lambda *args, f=func, ti=tools_instance, **kwargs: f(ti, *args, **kwargs)
+            self.tool_list[action_name] = (
+                lambda *args, f=func, ti=tools_instance, **kwargs: f(
+                    ti, *args, **kwargs
+                )
+            )
 
         self.tool_list["remember"] = tools_instance.remember
         self.tool_list["complete"] = tools_instance.complete
@@ -103,13 +107,17 @@ class CodeActAgent(Workflow):
         custom_descriptions = build_custom_tool_descriptions(custom_tools or {})
         if custom_descriptions:
             self.tool_descriptions += "\n" + custom_descriptions
-        self.tool_descriptions += "\n- remember(information: str): Remember information for later use"
-        self.tool_descriptions += "\n- complete(success: bool, reason: str): Mark task as complete"
+        self.tool_descriptions += (
+            "\n- remember(information: str): Remember information for later use"
+        )
+        self.tool_descriptions += (
+            "\n- complete(success: bool, reason: str): Mark task as complete"
+        )
 
         # Load prompts from config
         system_prompt_text = PromptLoader.load_prompt(
             agent_config.get_codeact_system_prompt_path(),
-            {"tool_descriptions": self.tool_descriptions}
+            {"tool_descriptions": self.tool_descriptions},
         )
         self.system_prompt = ChatMessage(role="system", content=system_prompt_text)
 
@@ -123,10 +131,22 @@ class CodeActAgent(Workflow):
             tools=self.tool_list,
             globals={"__builtins__": __builtins__},
             safe_mode=safe_mode,
-            allowed_modules=safe_config.get_allowed_modules() if safe_config and safe_mode else None,
-            blocked_modules=safe_config.get_blocked_modules() if safe_config and safe_mode else None,
-            allowed_builtins=safe_config.get_allowed_builtins() if safe_config and safe_mode else None,
-            blocked_builtins=safe_config.get_blocked_builtins() if safe_config and safe_mode else None,
+            allowed_modules=(
+                safe_config.get_allowed_modules() if safe_config and safe_mode else None
+            ),
+            blocked_modules=(
+                safe_config.get_blocked_modules() if safe_config and safe_mode else None
+            ),
+            allowed_builtins=(
+                safe_config.get_allowed_builtins()
+                if safe_config and safe_mode
+                else None
+            ),
+            blocked_builtins=(
+                safe_config.get_blocked_builtins()
+                if safe_config and safe_mode
+                else None
+            ),
         )
 
         logger.info("✅ CodeActAgent initialized successfully.")
@@ -135,7 +155,6 @@ class CodeActAgent(Workflow):
     async def prepare_chat(self, ctx: Context, ev: StartEvent) -> TaskInputEvent:
         """Prepare chat history from user input."""
         logger.info("💬 Preparing chat for task execution...")
-
 
         self.chat_memory: Memory = await ctx.store.get(
             "chat_memory", default=Memory.from_defaults()
@@ -152,8 +171,7 @@ class CodeActAgent(Workflow):
 
         # Format user prompt with goal
         user_prompt_text = PromptLoader.load_prompt(
-            self.agent_config.get_codeact_user_prompt_path(),
-            {"goal": goal}
+            self.agent_config.get_codeact_user_prompt_path(), {"goal": goal}
         )
         self.user_message = ChatMessage(role="user", content=user_prompt_text)
 
@@ -164,7 +182,6 @@ The code you provided will be executed below.
 
 Now, describe the next step you will take to address the original goal: {goal}"""
         self.no_thoughts_prompt = ChatMessage(role="user", content=no_thoughts_text)
-
 
         await self.chat_memory.aput(self.user_message)
 
@@ -195,7 +212,9 @@ Now, describe the next step you will take to address the original goal: {goal}""
 
         if "remember" in self.tool_list and self.remembered_info:
             await ctx.store.set("remembered_info", self.remembered_info)
-            chat_history = await chat_utils.add_memory_block(self.remembered_info, chat_history)
+            chat_history = await chat_utils.add_memory_block(
+                self.remembered_info, chat_history
+            )
 
         # Always capture screenshot for trajectory
         screenshot = (self.tools.take_screenshot())[1]
@@ -204,7 +223,9 @@ Now, describe the next step you will take to address the original goal: {goal}""
 
         # Add screenshot to chat only if vision enabled
         if self.vision and model != "DeepSeek":
-            chat_history = await chat_utils.add_screenshot_image_block(screenshot, chat_history)
+            chat_history = await chat_utils.add_screenshot_image_block(
+                screenshot, chat_history
+            )
 
         # Get and format device state using unified formatter
         try:
@@ -213,7 +234,9 @@ Now, describe the next step you will take to address the original goal: {goal}""
             raw_state = self.tools.get_state()
 
             # Format using unified function (returns 4 values)
-            formatted_text, focused_text, a11y_tree, phone_state = format_device_state(raw_state)
+            formatted_text, focused_text, a11y_tree, phone_state = format_device_state(
+                raw_state
+            )
 
             # Update shared_state if available
             assert self.shared_state is not None, "Shared state is not set"
@@ -224,8 +247,8 @@ Now, describe the next step you will take to address the original goal: {goal}""
 
             # Extract and store package/app name (using unified update method)
             self.shared_state.update_current_app(
-                package_name=phone_state.get('packageName', 'Unknown'),
-                activity_name=phone_state.get('currentApp', 'Unknown')
+                package_name=phone_state.get("packageName", "Unknown"),
+                activity_name=phone_state.get("currentApp", "Unknown"),
             )
 
             # Stream formatted state for trajectory
@@ -233,7 +256,9 @@ Now, describe the next step you will take to address the original goal: {goal}""
 
             # Add device state to chat using new chat_utils function
             # This injects into LAST user message, doesn't create new message
-            chat_history = await chat_utils.add_device_state_block(formatted_text, chat_history)
+            chat_history = await chat_utils.add_device_state_block(
+                formatted_text, chat_history
+            )
 
         except Exception as e:
             logger.warning(f"⚠️ Error retrieving state from the connected device: {e}")
@@ -300,7 +325,9 @@ Now, describe the next step you will take to address the original goal: {goal}""
 
         try:
             self.code_exec_counter += 1
-            result = await self.executor.execute(ExecuterState(ui_state=ctx.store.get("ui_state", None)), code)
+            result = await self.executor.execute(
+                ExecuterState(ui_state=ctx.store.get("ui_state", None)), code
+            )
             logger.info(f"💡 Code execution successful. Result: {result}")
             await asyncio.sleep(self.agent_config.after_sleep_action)
 
@@ -309,8 +336,14 @@ Now, describe the next step you will take to address the original goal: {goal}""
                 logger.info("✅ Task marked as complete via complete() function")
 
                 # Validate completion state
-                success = self.tools.success if self.tools.success is not None else False
-                reason = self.tools.reason if self.tools.reason else "Task completed without reason"
+                success = (
+                    self.tools.success if self.tools.success is not None else False
+                )
+                reason = (
+                    self.tools.reason
+                    if self.tools.reason
+                    else "Task completed without reason"
+                )
 
                 # Reset finished flag for next execution
                 self.tools.finished = False
@@ -425,9 +458,8 @@ Now, describe the next step you will take to address the original goal: {goal}""
                 chat_history=chat_history_str,
                 response=response_str,
                 timestamp=time.time(),
-                screenshot=(await ctx.store.get("screenshot", None))
+                screenshot=(await ctx.store.get("screenshot", None)),
             )
-
 
             self.episodic_memory.steps.append(step)
 
@@ -450,16 +482,17 @@ Now, describe the next step you will take to address the original goal: {goal}""
                     time.sleep(40)
                 logger.debug("🔍 Retrying call to LLM...")
                 response = await self.llm.achat(messages=messages_to_send)
-            elif (
-                self.llm.class_name() == "Anthropic_LLM"
-                and "overloaded_error" in str(e)
+            elif self.llm.class_name() == "Anthropic_LLM" and "overloaded_error" in str(
+                e
             ):
                 # Use exponential backoff for Anthropic errors
-                if not hasattr(self, '_anthropic_retry_count'):
+                if not hasattr(self, "_anthropic_retry_count"):
                     self._anthropic_retry_count = 0
                 self._anthropic_retry_count += 1
-                seconds = min(2 ** self._anthropic_retry_count, 60)  # Cap at 60 seconds
-                logger.error(f"Anthropic overload error. Retrying in {seconds} seconds... (attempt {self._anthropic_retry_count})")
+                seconds = min(2**self._anthropic_retry_count, 60)  # Cap at 60 seconds
+                logger.error(
+                    f"Anthropic overload error. Retrying in {seconds} seconds... (attempt {self._anthropic_retry_count})"
+                )
                 time.sleep(seconds)
                 logger.debug("🔍 Retrying call to LLM...")
                 response = await self.llm.achat(messages=messages_to_send)
@@ -470,9 +503,7 @@ Now, describe the next step you will take to address the original goal: {goal}""
         logger.debug("  - Received response from LLM.")
         return response
 
-    def _limit_history(
-        self, chat_history: List[ChatMessage]
-    ) -> List[ChatMessage]:
+    def _limit_history(self, chat_history: List[ChatMessage]) -> List[ChatMessage]:
         if LLM_HISTORY_LIMIT <= 0:
             return chat_history
 
@@ -510,10 +541,15 @@ Now, describe the next step you will take to address the original goal: {goal}""
                 raise Exception(f"Failed to capture final UI state: {e}") from e
 
             # Create final observation chat history and response
-            final_chat_history = [{"role": "system", "content": "Final state observation after task completion"}]
+            final_chat_history = [
+                {
+                    "role": "system",
+                    "content": "Final state observation after task completion",
+                }
+            ]
             final_response = {
                 "role": "user",
-                "content": f"Final State Observation:\nUI State: {a11y_tree}\nScreenshot: {'Available' if screenshot else 'Not available'}"
+                "content": f"Final State Observation:\nUI State: {a11y_tree}\nScreenshot: {'Available' if screenshot else 'Not available'}",
             }
 
             # Create final episodic memory step
@@ -521,7 +557,7 @@ Now, describe the next step you will take to address the original goal: {goal}""
                 chat_history=json.dumps(final_chat_history),
                 response=json.dumps(final_response),
                 timestamp=time.time(),
-                screenshot=screenshot
+                screenshot=screenshot,
             )
 
             self.episodic_memory.steps.append(final_step)

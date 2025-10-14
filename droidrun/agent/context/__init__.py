@@ -9,9 +9,4 @@ This module contains:
 from droidrun.agent.context.episodic_memory import EpisodicMemory, EpisodicMemoryStep
 from droidrun.agent.context.task_manager import Task, TaskManager
 
-__all__ = [
-    "EpisodicMemory",
-    "EpisodicMemoryStep",
-    "TaskManager",
-    "Task"
-]
+__all__ = ["EpisodicMemory", "EpisodicMemoryStep", "TaskManager", "Task"]

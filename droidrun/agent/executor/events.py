@@ -22,6 +22,7 @@ class ExecutorInternalActionEvent(Event):
 
     For workflow coordination, see ExecutorInputEvent in droid/events.py
     """
+
     action_json: str  # Raw JSON string of the action
     thought: str  # Debugging metadata: LLM's reasoning process
     description: str  # Human-readable action description
@@ -36,6 +37,7 @@ class ExecutorInternalResultEvent(Event):
 
     For workflow coordination, see ExecutorResultEvent in droid/events.py
     """
+
     action: Dict
     outcome: bool
     error: str

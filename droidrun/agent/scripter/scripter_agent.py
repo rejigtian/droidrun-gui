@@ -50,7 +50,7 @@ class ScripterAgent(Workflow):
         shared_state: "DroidAgentState",
         task: str,
         safe_execution_config=None,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(**kwargs)
 
@@ -70,12 +70,14 @@ class ScripterAgent(Workflow):
         # Add standard library imports
         try:
             import requests
+
             self.tool_list["requests"] = requests
         except ImportError:
             logger.warning("requests library not available")
 
         try:
             import json
+
             self.tool_list["json"] = json
         except ImportError:
             pass
@@ -92,10 +94,22 @@ class ScripterAgent(Workflow):
             globals={"__builtins__": __builtins__},
             use_same_scope=True,  # Preserve variables across calls
             safe_mode=safe_mode,
-            allowed_modules=safe_config.get_allowed_modules() if safe_config and safe_mode else None,
-            blocked_modules=safe_config.get_blocked_modules() if safe_config and safe_mode else None,
-            allowed_builtins=safe_config.get_allowed_builtins() if safe_config and safe_mode else None,
-            blocked_builtins=safe_config.get_blocked_builtins() if safe_config and safe_mode else None,
+            allowed_modules=(
+                safe_config.get_allowed_modules() if safe_config and safe_mode else None
+            ),
+            blocked_modules=(
+                safe_config.get_blocked_modules() if safe_config and safe_mode else None
+            ),
+            allowed_builtins=(
+                safe_config.get_allowed_builtins()
+                if safe_config and safe_mode
+                else None
+            ),
+            blocked_builtins=(
+                safe_config.get_blocked_builtins()
+                if safe_config and safe_mode
+                else None
+            ),
         )
 
         logger.info("✅ ScripterAgent initialized successfully.")
@@ -124,14 +138,21 @@ class ScripterAgent(Workflow):
             {
                 "task": self.task,
                 "max_steps": self.max_steps,
-                "available_libraries": self._get_library_descriptions()
-            }
+                "available_libraries": self._get_library_descriptions(),
+            },
         )
 
         # Build initial message history (JSON format like ManagerAgent)
         self.message_history = [
             {"role": "system", "content": [{"text": system_prompt_text}]},
-            {"role": "user", "content": [{"text": f"Task: {self.task}\n\nProvide your thought process and code to complete this task."}]}
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "text": f"Task: {self.task}\n\nProvide your thought process and code to complete this task."
+                    }
+                ],
+            },
         ]
 
         return ScripterInputEvent(input=self.message_history)
@@ -148,7 +169,7 @@ class ScripterAgent(Workflow):
             return ScripterEndEvent(
                 message=f"Max steps ({self.max_steps}) reached without completion",
                 success=False,
-                code_executions=self.step_counter
+                code_executions=self.step_counter,
             )
 
         self.step_counter += 1
@@ -166,21 +187,21 @@ class ScripterAgent(Workflow):
             return ScripterEndEvent(
                 message=f"LLM call failed: {e}",
                 success=False,
-                code_executions=self.step_counter
+                code_executions=self.step_counter,
             )
-
 
         # Add assistant response to history
         full_response = response.message.content
-        self.message_history.append({
-            "role": "assistant",
-            "content": [{"text": full_response}]
-        })
+        self.message_history.append(
+            {"role": "assistant", "content": [{"text": full_response}]}
+        )
 
         # Extract code and thoughts
         code, thoughts = chat_utils.extract_code_and_thought(full_response)
 
-        event = ScripterThinkingEvent(thoughts=thoughts, code=code, full_response=full_response)
+        event = ScripterThinkingEvent(
+            thoughts=thoughts, code=code, full_response=full_response
+        )
         ctx.write_event_to_stream(event)
         return event
 
@@ -202,16 +223,20 @@ class ScripterAgent(Workflow):
             logger.info("📝 No code provided, treating response as final answer")
 
             # Use thoughts if available, otherwise use full response
-            response_message = ev.thoughts.strip() if ev.thoughts.strip() else ev.full_response.strip()
+            response_message = (
+                ev.thoughts.strip() if ev.thoughts.strip() else ev.full_response.strip()
+            )
 
             if not response_message:
                 response_message = "No response provided by LLM"
 
-            logger.info(f"✅ Script completed with response: {response_message[:100]}...")
+            logger.info(
+                f"✅ Script completed with response: {response_message[:100]}..."
+            )
             return ScripterEndEvent(
                 message=response_message,
                 success=True,
-                code_executions=self.step_counter
+                code_executions=self.step_counter,
             )
 
     @step
@@ -229,7 +254,7 @@ class ScripterAgent(Workflow):
             result = await self.executor.execute(
                 ExecuterState(ui_state=None),
                 code,
-                timeout=self.config.execution_timeout
+                timeout=self.config.execution_timeout,
             )
 
             logger.info(f"💡 Execution result: {result}")
@@ -254,13 +279,19 @@ class ScripterAgent(Workflow):
 
         output = ev.output or "Code executed with no output."
 
-        logger.debug(f"📊 Execution output: {output[:100]}..." if len(output) > 100 else f"📊 Execution output: {output}")
+        logger.debug(
+            f"📊 Execution output: {output[:100]}..."
+            if len(output) > 100
+            else f"📊 Execution output: {output}"
+        )
 
         # Add observation to chat history
-        self.message_history.append({
-            "role": "user",
-            "content": [{"text": f"Execution Result:\n```\n{output}\n```"}]
-        })
+        self.message_history.append(
+            {
+                "role": "user",
+                "content": [{"text": f"Execution Result:\n```\n{output}\n```"}],
+            }
+        )
 
         return ScripterInputEvent(input=self.message_history)
 
@@ -275,7 +306,7 @@ class ScripterAgent(Workflow):
             "message": ev.message,
             "success": ev.success,
             "code_executions": ev.code_executions,
-            "task": self.task
+            "task": self.task,
         }
 
         return StopEvent(result)

@@ -49,10 +49,9 @@ class AppStarter(Workflow):
         apps = self.tools.get_apps(include_system=True)
 
         # Format apps list for LLM
-        apps_list = "\n".join([
-            f"- {app['label']} (package: {app['package']})"
-            for app in apps
-        ])
+        apps_list = "\n".join(
+            [f"- {app['label']} (package: {app['package']})" for app in apps]
+        )
 
         # Construct prompt for LLM
         prompt = f"""Given the following list of installed apps and a user's description, determine which app package name to open.
@@ -81,7 +80,9 @@ Choose the most appropriate app based on the description. Return the package nam
             result_json = json.loads(json_str)
             package_name = result_json["package"]
         except (json.JSONDecodeError, KeyError, ValueError) as e:
-            return StopEvent(result=f"Error parsing LLM response: {e}. Response: {response_text}")
+            return StopEvent(
+                result=f"Error parsing LLM response: {e}. Response: {response_text}"
+            )
 
         # Open the selected app using the package name
         result = self.tools.start_app(package_name)
@@ -115,4 +116,5 @@ async def main():
 
 if __name__ == "__main__":
     import asyncio
+
     asyncio.run(main())

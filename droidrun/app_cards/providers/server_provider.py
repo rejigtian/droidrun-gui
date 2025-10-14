@@ -17,12 +17,7 @@ logger = logging.getLogger("droidrun")
 class ServerAppCardProvider(AppCardProvider):
     """Load app cards from remote server with in-memory caching."""
 
-    def __init__(
-        self,
-        server_url: str,
-        timeout: float = 2.0,
-        max_retries: int = 2
-    ):
+    def __init__(self, server_url: str, timeout: float = 2.0, max_retries: int = 2):
         """
         Initialize server provider.
 
@@ -57,10 +52,7 @@ class ServerAppCardProvider(AppCardProvider):
 
         # Make HTTP request with retries
         endpoint = f"{self.server_url}/app-cards"
-        payload = {
-            "package_name": package_name,
-            "instruction": instruction
-        }
+        payload = {"package_name": package_name, "instruction": instruction}
 
         for attempt in range(1, self.max_retries + 1):
             try:
@@ -105,7 +97,9 @@ class ServerAppCardProvider(AppCardProvider):
                 )
 
         # All retries failed, cache empty result
-        logger.warning(f"Failed to load app card from server after {self.max_retries} attempts")
+        logger.warning(
+            f"Failed to load app card from server after {self.max_retries} attempts"
+        )
         self._content_cache[cache_key] = ""
         return ""
 

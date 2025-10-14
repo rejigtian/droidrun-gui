@@ -97,7 +97,9 @@ def capture(event: TelemetryEvent, user_id: str | None = None):
             **event_data,
         }
 
-        posthog.capture(event_name, distinct_id=user_id or get_user_id(), properties=properties)
+        posthog.capture(
+            event_name, distinct_id=user_id or get_user_id(), properties=properties
+        )
         logger.debug(f"Captured event: {event_name} with properties: {event}")
     except Exception as e:
         logger.error(f"Error capturing event: {e}")

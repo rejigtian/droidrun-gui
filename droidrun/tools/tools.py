@@ -16,27 +16,32 @@ class Tools(ABC):
 
     @staticmethod
     def ui_action(func):
-        """"
+        """ "
         Decorator to capture screenshots and UI states for actions that modify the UI.
         """
+
         @wraps(func)
         def wrapper(*args, **kwargs):
             self = args[0]
             result = func(*args, **kwargs)
 
             # Check if save_trajectories attribute exists and is set to "action"
-            if hasattr(self, 'save_trajectories') and self.save_trajectories == "action":
+            if (
+                hasattr(self, "save_trajectories")
+                and self.save_trajectories == "action"
+            ):
                 frame = sys._getframe(1)
                 caller_globals = frame.f_globals
 
-                step_screenshots = caller_globals.get('step_screenshots')
-                step_ui_states = caller_globals.get('step_ui_states')
+                step_screenshots = caller_globals.get("step_screenshots")
+                step_ui_states = caller_globals.get("step_ui_states")
 
                 if step_screenshots is not None:
                     step_screenshots.append(self.take_screenshot()[1])
                 if step_ui_states is not None:
                     step_ui_states.append(self.get_state())
             return result
+
         return wrapper
 
     @abstractmethod
@@ -45,6 +50,7 @@ class Tools(ABC):
         Get the current state of the tool.
         """
         pass
+
     @abstractmethod
     def get_date(self) -> str:
         """
@@ -59,8 +65,8 @@ class Tools(ABC):
         """
         pass
 
-    #@abstractmethod
-    #async def tap_by_coordinates(self, x: int, y: int) -> bool:
+    # @abstractmethod
+    # async def tap_by_coordinates(self, x: int, y: int) -> bool:
     #    pass
 
     @abstractmethod
@@ -74,7 +80,12 @@ class Tools(ABC):
 
     @abstractmethod
     def drag(
-        self, start_x: int, start_y: int, end_x: int, end_y: int, duration_ms: int = 3000
+        self,
+        start_x: int,
+        start_y: int,
+        end_x: int,
+        end_y: int,
+        duration_ms: int = 3000,
     ) -> bool:
         """
         Drag from the given start coordinates to the given end coordinates.
@@ -122,6 +133,7 @@ class Tools(ABC):
         List all packages on the device.
         """
         pass
+
     @abstractmethod
     def get_apps(self, include_system_apps: bool = True) -> List[Dict[str, Any]]:
         """
@@ -149,6 +161,7 @@ class Tools(ABC):
         Complete the tool. This is used to indicate that the tool has completed its task.
         """
         pass
+
     @abstractmethod
     def _extract_element_coordinates_by_index(self, index: int) -> Tuple[int, int]:
         """
@@ -157,7 +170,9 @@ class Tools(ABC):
         pass
 
 
-def describe_tools(tools: Tools, exclude_tools: Optional[List[str]] = None) -> Dict[str, Callable[..., Any]]:
+def describe_tools(
+    tools: Tools, exclude_tools: Optional[List[str]] = None
+) -> Dict[str, Callable[..., Any]]:
     """
     Describe the tools available for the given Tools instance.
 

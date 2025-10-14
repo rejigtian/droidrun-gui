@@ -21,6 +21,7 @@ from droidrun.agent.common.events import (
 from droidrun.tools.tools import Tools
 
 from droidrun.tools.portal_client import PortalClient
+
 logger = logging.getLogger("droidrun-tools")
 PORTAL_DEFAULT_TCP_PORT = 8080
 
@@ -33,8 +34,8 @@ class AdbTools(Tools):
         serial: str | None = None,
         use_tcp: bool = False,
         remote_tcp_port: int = PORTAL_DEFAULT_TCP_PORT,
-        app_opener_llm = None,
-        text_manipulator_llm = None,
+        app_opener_llm=None,
+        text_manipulator_llm=None,
     ) -> None:
         """Initialize the AdbTools instance.
 
@@ -69,8 +70,8 @@ class AdbTools(Tools):
 
         # Set up keyboard
         from droidrun.portal import setup_keyboard
-        setup_keyboard(self.device)
 
+        setup_keyboard(self.device)
 
     def get_date(self) -> str:
         """
@@ -95,6 +96,7 @@ class AdbTools(Tools):
         Raises:
             ValueError: If element not found, bounds format is invalid, or missing bounds
         """
+
         def collect_all_indices(elements):
             """Recursively collect all indices from elements and their children."""
             indices = []
@@ -131,7 +133,9 @@ class AdbTools(Tools):
             indices_str = ", ".join(str(idx) for idx in indices[:20])
             if len(indices) > 20:
                 indices_str += f"... and {len(indices) - 20} more"
-            raise ValueError(f"No element found with index {index}. Available indices: {indices_str}")
+            raise ValueError(
+                f"No element found with index {index}. Available indices: {indices_str}"
+            )
 
         # Get the bounds of the element
         bounds_str = element.get("bounds")
@@ -139,13 +143,17 @@ class AdbTools(Tools):
             element_text = element.get("text", "No text")
             element_type = element.get("type", "unknown")
             element_class = element.get("className", "Unknown class")
-            raise ValueError(f"Element with index {index} ('{element_text}', {element_class}, type: {element_type}) has no bounds and cannot be tapped")
+            raise ValueError(
+                f"Element with index {index} ('{element_text}', {element_class}, type: {element_type}) has no bounds and cannot be tapped"
+            )
 
         # Parse the bounds (format: "left,top,right,bottom")
         try:
             left, top, right, bottom = map(int, bounds_str.split(","))
         except ValueError as e:
-            raise ValueError(f"Invalid bounds format for element with index {index}: {bounds_str}") from e
+            raise ValueError(
+                f"Invalid bounds format for element with index {index}: {bounds_str}"
+            ) from e
 
         # Calculate the center of the element
         x = (left + right) // 2
@@ -191,7 +199,11 @@ class AdbTools(Tools):
 
                 element = find_element_by_index(self.clickable_elements_cache, index)
                 element_text = element.get("text", "No text") if element else "No text"
-                element_class = element.get("className", "Unknown class") if element else "Unknown class"
+                element_class = (
+                    element.get("className", "Unknown class")
+                    if element
+                    else "Unknown class"
+                )
                 bounds_str = element.get("bounds", "") if element else ""
 
                 tap_event = TapActionEvent(
@@ -204,8 +216,6 @@ class AdbTools(Tools):
                     element_bounds=bounds_str,
                 )
                 self._ctx.write_event_to_stream(tap_event)
-
-
 
             # Create a descriptive response
             def find_element_by_index(elements, target_index):
@@ -223,9 +233,15 @@ class AdbTools(Tools):
             element = find_element_by_index(self.clickable_elements_cache, index)
             response_parts = []
             response_parts.append(f"Tapped element with index {index}")
-            response_parts.append(f"Text: '{element.get('text', 'No text') if element else 'No text'}'")
-            response_parts.append(f"Class: {element.get('className', 'Unknown class') if element else 'Unknown class'}")
-            response_parts.append(f"Type: {element.get('type', 'unknown') if element else 'unknown'}")
+            response_parts.append(
+                f"Text: '{element.get('text', 'No text') if element else 'No text'}'"
+            )
+            response_parts.append(
+                f"Class: {element.get('className', 'Unknown class') if element else 'Unknown class'}"
+            )
+            response_parts.append(
+                f"Type: {element.get('type', 'unknown') if element else 'unknown'}"
+            )
 
             # Add information about children if present
             if element:
@@ -235,7 +251,9 @@ class AdbTools(Tools):
                         child.get("text") for child in children if child.get("text")
                     ]
                     if child_texts:
-                        response_parts.append(f"Contains text: {' | '.join(child_texts)}")
+                        response_parts.append(
+                            f"Contains text: {' | '.join(child_texts)}"
+                        )
 
             response_parts.append(f"Coordinates: ({x}, {y})")
 
@@ -397,7 +415,9 @@ class AdbTools(Tools):
                 self._ctx.write_event_to_stream(input_event)
 
             if success:
-                print(f"Text input completed (clear={clear}): {text[:50]}{'...' if len(text) > 50 else ''}")
+                print(
+                    f"Text input completed (clear={clear}): {text[:50]}{'...' if len(text) > 50 else ''}"
+                )
                 return f"Text input completed (clear={clear}): {text[:50]}{'...' if len(text) > 50 else ''}"
             else:
                 return "Error: Text input failed"
@@ -557,7 +577,6 @@ class AdbTools(Tools):
 
         except Exception as e:
             raise ValueError(f"Error taking screenshot: {str(e)}") from e
-
 
     def list_packages(self, include_system_apps: bool = False) -> List[str]:
         """

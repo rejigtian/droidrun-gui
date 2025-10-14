@@ -11,14 +11,14 @@ def format_phone_state(phone_state: Dict[str, Any]) -> str:
     Returns:
         Formatted phone state text
     """
-    if isinstance(phone_state, dict) and 'error' not in phone_state:
-        current_app = phone_state.get('currentApp', '')
-        package_name = phone_state.get('packageName', 'Unknown')
-        focused_element = phone_state.get('focusedElement')
-        is_editable = phone_state.get('isEditable', False)
+    if isinstance(phone_state, dict) and "error" not in phone_state:
+        current_app = phone_state.get("currentApp", "")
+        package_name = phone_state.get("packageName", "Unknown")
+        focused_element = phone_state.get("focusedElement")
+        is_editable = phone_state.get("isEditable", False)
 
         # Format the focused element - just show the text content
-        if focused_element and focused_element.get('text'):
+        if focused_element and focused_element.get("text"):
             focused_desc = f"'{focused_element.get('text', '')}'"
         else:
             focused_desc = "''"
@@ -29,7 +29,7 @@ def format_phone_state(phone_state: Dict[str, Any]) -> str:
 • **Focused Element:** {focused_desc}"""
     else:
         # Handle error cases or malformed data
-        if isinstance(phone_state, dict) and 'error' in phone_state:
+        if isinstance(phone_state, dict) and "error" in phone_state:
             phone_state_text = f"📱 **Phone State Error:** {phone_state.get('message', 'Unknown error')}"
         else:
             phone_state_text = f"📱 **Phone State:** {phone_state}"
@@ -62,16 +62,16 @@ def format_ui_elements(ui_data: List[Dict[str, Any]], level: int = 0) -> str:
             continue
 
         # Extract element properties
-        index = element.get('index', '')
-        class_name = element.get('className', '')
-        resource_id = element.get('resourceId', '')
-        text = element.get('text', '')
-        bounds = element.get('bounds', '')
-        children = element.get('children', [])
+        index = element.get("index", "")
+        class_name = element.get("className", "")
+        resource_id = element.get("resourceId", "")
+        text = element.get("text", "")
+        bounds = element.get("bounds", "")
+        children = element.get("children", [])
 
         # Format the line: index. className: "resourceId", "text" - (bounds)
         line_parts = []
-        if index != '':
+        if index != "":
             line_parts.append(f"{index}.")
         if class_name:
             line_parts.append(class_name + ":")
@@ -119,7 +119,9 @@ def format_device_state(state: Dict[str, Any]) -> Tuple[str, str, List[Dict], Di
     """
     try:
         if "error" in state:
-            error_msg = f"Error getting device state: {state.get('message', 'Unknown error')}"
+            error_msg = (
+                f"Error getting device state: {state.get('message', 'Unknown error')}"
+            )
             return (error_msg, "", [], {})
 
         # Extract raw components
@@ -127,10 +129,10 @@ def format_device_state(state: Dict[str, Any]) -> Tuple[str, str, List[Dict], Di
         a11y_tree = state.get("a11y_tree", [])
 
         # Extract focused element text
-        focused_element = phone_state.get('focusedElement')
+        focused_element = phone_state.get("focusedElement")
         focused_text = ""
         if focused_element:
-            focused_text = focused_element.get('text', '')
+            focused_text = focused_element.get("text", "")
 
         # Format phone state section
         phone_state_text = format_phone_state(phone_state)
@@ -179,7 +181,7 @@ def main():
             "currentApp": "Settings",
             "packageName": "com.android.settings",
             "isEditable": False,
-            "focusedElement": {"text": "Search settings"}
+            "focusedElement": {"text": "Search settings"},
         },
         "a11y_tree": [
             {
@@ -187,13 +189,15 @@ def main():
                 "className": "android.widget.TextView",
                 "resourceId": "com.android.settings:id/title",
                 "text": "Wi‑Fi",
-                "bounds": "100,200,300,250"
+                "bounds": "100,200,300,250",
             }
-        ]
+        ],
     }
 
     # Test new format_device_state function
-    formatted_text, focused_text, a11y_tree, phone_state = format_device_state(example_state)
+    formatted_text, focused_text, a11y_tree, phone_state = format_device_state(
+        example_state
+    )
     print("Formatted Text:")
     print(formatted_text)
     print(f"\nFocused Text: '{focused_text}'")

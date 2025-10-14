@@ -15,24 +15,25 @@ from droidrun.config_manager.config_manager import DroidRunConfig
 
 logger = logging.getLogger("droidrun")
 
+
 def _get_required_profiles(config: DroidRunConfig) -> List[str]:
     """
     Determine which LLM profiles are required based on agent configuration.
-    
+
     Args:
         config: DroidRun configuration containing agent settings
-        
+
     Returns:
         List of required profile names
     """
     if config.agent.reasoning:
-        profiles = ['manager', 'executor', 'text_manipulator', 'app_opener']
+        profiles = ["manager", "executor", "text_manipulator", "app_opener"]
         if config.agent.scripter.enabled:
-            profiles.append('scripter')
+            profiles.append("scripter")
     else:
         # Direct execution mode only needs CodeAct and helper agents
-        profiles = ['codeact', 'app_opener']
-    
+        profiles = ["codeact", "app_opener"]
+
     return profiles
 
 
@@ -52,7 +53,7 @@ def validate_llm_dict(config: DroidRunConfig, llms: dict[str, LLM]) -> List[str]
     """
     required_profiles = _get_required_profiles(config)
     missing_profiles = [name for name in required_profiles if name not in llms]
-    
+
     if missing_profiles:
         available_profiles = list(llms.keys())
         raise ValueError(
@@ -78,7 +79,9 @@ def validate_llm_profiles(config: DroidRunConfig) -> List[str]:
         ValueError: If any required profiles are missing from config
     """
     required_profiles = _get_required_profiles(config)
-    missing_profiles = [name for name in required_profiles if name not in config.llm_profiles]
+    missing_profiles = [
+        name for name in required_profiles if name not in config.llm_profiles
+    ]
 
     if missing_profiles:
         available_profiles = list(config.llm_profiles.keys())
@@ -129,28 +132,26 @@ def load_agent_llms(
         # Build kwargs
         llm_kwargs = {}
         if temperature is not None:
-            llm_kwargs['temperature'] = temperature
+            llm_kwargs["temperature"] = temperature
         else:
-            llm_kwargs['temperature'] = kwargs.get('temperature', 0.3)
+            llm_kwargs["temperature"] = kwargs.get("temperature", 0.3)
 
         # Add any additional kwargs (base_url, api_base, etc.)
         llm_kwargs.update(kwargs)
 
         # Load single LLM for all agents
         custom_llm = load_llm(
-            provider_name=custom_provider,
-            model=custom_model,
-            **llm_kwargs
+            provider_name=custom_provider, model=custom_model, **llm_kwargs
         )
 
         # Use same LLM for all agents
         llms = {
-            'manager': custom_llm,
-            'executor': custom_llm,
-            'codeact': custom_llm,
-            'text_manipulator': custom_llm,
-            'app_opener': custom_llm,
-            'scripter': custom_llm,
+            "manager": custom_llm,
+            "executor": custom_llm,
+            "codeact": custom_llm,
+            "text_manipulator": custom_llm,
+            "app_opener": custom_llm,
+            "scripter": custom_llm,
         }
         logger.info(f"🧠 Custom LLM ready: {custom_provider}/{custom_model}")
         return llms
@@ -164,7 +165,7 @@ def load_agent_llms(
     # Apply temperature override to all profiles if specified
     overrides = {}
     if temperature is not None:
-        overrides = {name: {'temperature': temperature} for name in profile_names}
+        overrides = {name: {"temperature": temperature} for name in profile_names}
 
     # Add any additional kwargs to overrides
     if kwargs:
@@ -174,7 +175,9 @@ def load_agent_llms(
             overrides[name].update(kwargs)
 
     # Load LLMs from profiles
-    llms = load_llms_from_profiles(config.llm_profiles, profile_names=profile_names, **overrides)
+    llms = load_llms_from_profiles(
+        config.llm_profiles, profile_names=profile_names, **overrides
+    )
     logger.info(f"🧠 Loaded {len(llms)} agent-specific LLMs from profiles")
 
     return llms

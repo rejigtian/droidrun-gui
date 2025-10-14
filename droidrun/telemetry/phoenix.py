@@ -12,6 +12,7 @@ from openinference.instrumentation import TraceConfig
 
 dispatcher = get_dispatcher()
 
+
 def arize_phoenix_callback_handler(**kwargs: Any) -> BaseCallbackHandler:
     # newer versions of arize, v2.x
     from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
@@ -23,7 +24,10 @@ def arize_phoenix_callback_handler(**kwargs: Any) -> BaseCallbackHandler:
     from opentelemetry.sdk.resources import Resource
     from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
-    endpoint = kwargs.get("endpoint", os.getenv("phoenix_url", "http://127.0.0.1:6006")) + "/v1/traces"
+    endpoint = (
+        kwargs.get("endpoint", os.getenv("phoenix_url", "http://127.0.0.1:6006"))
+        + "/v1/traces"
+    )
 
     resource_attributes = {}
     phoenix_project_name = os.getenv("phoenix_project_name", "")
@@ -32,19 +36,15 @@ def arize_phoenix_callback_handler(**kwargs: Any) -> BaseCallbackHandler:
     resource = Resource(attributes=resource_attributes)
 
     tracer_provider = trace_sdk.TracerProvider(resource=resource)
-    tracer_provider.add_span_processor(
-        SimpleSpanProcessor(OTLPSpanExporter(endpoint))
-    )
-    config = TraceConfig(
-        base64_image_max_length=64000000
-    )
+    tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
+    config = TraceConfig(base64_image_max_length=64000000)
 
     return LlamaIndexInstrumentor().instrument(
         tracer_provider=kwargs.get("tracer_provider", tracer_provider),
         separate_trace_from_runtime_context=kwargs.get(
             "separate_trace_from_runtime_context"
         ),
-        config=config
+        config=config,
     )
 
 
@@ -64,15 +64,18 @@ def clean_span(span_name: str):
     Returns:
         A decorator function
     """
+
     def decorator(func: Callable) -> Callable:
         # Support both sync and async callables
         if inspect.iscoroutinefunction(func):
+
             @functools.wraps(func)
             async def async_wrapper(*args, **kwargs):
                 # Import here to avoid circular imports
-                from llama_index_instrumentation.dispatcher import active_instrument_tags
+                from llama_index_instrumentation.dispatcher import (
+                    active_instrument_tags,
+                )
                 from llama_index_instrumentation.span import active_span_id
-
 
                 span_id = f"{span_name}-{uuid.uuid4()}"
                 bound_args = inspect.signature(func).bind(*args, **kwargs)
@@ -82,7 +85,9 @@ def clean_span(span_name: str):
 
                 tags = active_instrument_tags.get()
                 token = active_span_id.set(span_id)
-                parent_id = None if token.old_value is Token.MISSING else token.old_value
+                parent_id = (
+                    None if token.old_value is Token.MISSING else token.old_value
+                )
 
                 dispatcher.span_enter(
                     id_=span_id,
@@ -94,22 +99,31 @@ def clean_span(span_name: str):
                 try:
                     result = await func(*args, **kwargs)
                 except Exception as e:
-                    dispatcher.span_drop(id_=span_id, bound_args=bound_args, instance=instance, err=e)
+                    dispatcher.span_drop(
+                        id_=span_id, bound_args=bound_args, instance=instance, err=e
+                    )
                     raise
                 else:
-                    dispatcher.span_exit(id_=span_id, bound_args=bound_args, instance=instance, result=result)
+                    dispatcher.span_exit(
+                        id_=span_id,
+                        bound_args=bound_args,
+                        instance=instance,
+                        result=result,
+                    )
                     return result
                 finally:
                     active_span_id.reset(token)
 
             return async_wrapper
         else:
+
             @functools.wraps(func)
             def wrapper(*args, **kwargs):
                 # Import here to avoid circular imports
-                from llama_index_instrumentation.dispatcher import active_instrument_tags
+                from llama_index_instrumentation.dispatcher import (
+                    active_instrument_tags,
+                )
                 from llama_index_instrumentation.span import active_span_id
-
 
                 span_id = f"{span_name}-{uuid.uuid4()}"
                 bound_args = inspect.signature(func).bind(*args, **kwargs)
@@ -120,7 +134,9 @@ def clean_span(span_name: str):
                 tags = active_instrument_tags.get()
                 context = copy_context()
                 token = active_span_id.set(span_id)
-                parent_id = None if token.old_value is Token.MISSING else token.old_value
+                parent_id = (
+                    None if token.old_value is Token.MISSING else token.old_value
+                )
 
                 dispatcher.span_enter(
                     id_=span_id,
@@ -160,14 +176,22 @@ def clean_span(span_name: str):
                         new_future.add_done_callback(_on_done)
                         return new_future
                 except Exception as e:
-                    dispatcher.span_drop(id_=span_id, bound_args=bound_args, instance=instance, err=e)
+                    dispatcher.span_drop(
+                        id_=span_id, bound_args=bound_args, instance=instance, err=e
+                    )
                     raise
                 else:
-                    dispatcher.span_exit(id_=span_id, bound_args=bound_args, instance=instance, result=result)
+                    dispatcher.span_exit(
+                        id_=span_id,
+                        bound_args=bound_args,
+                        instance=instance,
+                        result=result,
+                    )
                     return result
                 finally:
                     if not isinstance(locals().get("result"), asyncio.Future):
                         active_span_id.reset(token)
 
             return wrapper
+
     return decorator

@@ -22,6 +22,7 @@ from droidrun.agent.context import Task
 class CodeActExecuteEvent(Event):
     task: Task
 
+
 class CodeActResultEvent(Event):
     success: bool
     reason: str
@@ -32,6 +33,7 @@ class FinalizeEvent(Event):
     success: bool
     reason: str
 
+
 class TaskRunnerEvent(Event):
     pass
 
@@ -40,6 +42,7 @@ class DroidAgentState(BaseModel):
     """
     State model for DroidAgent workflow - shared across parent and child workflows.
     """
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
     # Task context
     instruction: str = ""
@@ -137,6 +140,7 @@ class DroidAgentState(BaseModel):
         # Capture telemetry event for any change
         # This ensures we track when apps close or transitions to empty state occur
         from droidrun.telemetry import PackageVisitEvent, capture
+
         capture(
             PackageVisitEvent(
                 package_name=package_name or "Unknown",
@@ -150,8 +154,10 @@ class DroidAgentState(BaseModel):
 # Manager/Executor coordination events
 # ============================================================================
 
+
 class ManagerInputEvent(Event):
     """Trigger Manager workflow for planning"""
+
     pass
 
 
@@ -162,6 +168,7 @@ class ManagerPlanEvent(Event):
     Used for workflow step routing only (NOT streamed to frontend).
     For internal events with memory_update metadata, see ManagerInternalPlanEvent.
     """
+
     plan: str
     current_subgoal: str
     thought: str
@@ -170,6 +177,7 @@ class ManagerPlanEvent(Event):
 
 class ExecutorInputEvent(Event):
     """Trigger Executor workflow for action execution"""
+
     current_subgoal: str
 
 
@@ -180,6 +188,7 @@ class ExecutorResultEvent(Event):
     Used for workflow step routing only (NOT streamed to frontend).
     For internal events with thought/action_json metadata, see ExecutorInternalResultEvent.
     """
+
     action: Dict
     outcome: bool
     error: str
@@ -190,8 +199,10 @@ class ExecutorResultEvent(Event):
 # Script executor coordination events
 # ============================================================================
 
+
 class ScripterExecutorInputEvent(Event):
     """Trigger ScripterAgent workflow for off-device operations"""
+
     task: str
 
 
@@ -201,6 +212,7 @@ class ScripterExecutorResultEvent(Event):
 
     Used for workflow step routing only (NOT streamed to frontend).
     """
+
     task: str
     message: str  # Response from response() function
     success: bool

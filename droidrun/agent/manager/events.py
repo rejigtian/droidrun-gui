@@ -13,6 +13,7 @@ from llama_index.core.workflow.events import Event
 
 class ManagerThinkingEvent(Event):
     """Manager is thinking about the plan"""
+
     pass
 
 
@@ -25,6 +26,7 @@ class ManagerInternalPlanEvent(Event):
 
     For workflow coordination, see ManagerPlanEvent in droid/events.py
     """
+
     plan: str
     current_subgoal: str
     thought: str

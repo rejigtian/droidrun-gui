@@ -42,9 +42,7 @@ def create_tools_from_config(device_config: "DeviceConfig") -> "Tools":
     else:
         # iOS: require explicit device URL
         if device_serial is None:
-            raise ValueError(
-                "iOS device URL required in config.device.serial"
-            )
+            raise ValueError("iOS device URL required in config.device.serial")
         return IOSTools(url=device_serial)
 
 
@@ -112,13 +110,17 @@ def system_button(tool_instance: "Tools", button: str) -> str:
 
     button_lower = button.lower()
     if button_lower not in button_map:
-        return f"Error: Unknown system button '{button}'. Valid options: back, home, enter"
+        return (
+            f"Error: Unknown system button '{button}'. Valid options: back, home, enter"
+        )
 
     keycode = button_map[button_lower]
     return tool_instance.press_key(keycode)
 
 
-def swipe(tool_instance: "Tools", coordinate: List[int], coordinate2: List[int]) -> bool:
+def swipe(
+    tool_instance: "Tools", coordinate: List[int], coordinate2: List[int]
+) -> bool:
     """
     Swipe from one coordinate to another.
 
@@ -133,7 +135,9 @@ def swipe(tool_instance: "Tools", coordinate: List[int], coordinate2: List[int])
     if not isinstance(coordinate, list) or len(coordinate) != 2:
         raise ValueError(f"coordinate must be a list of 2 integers, got: {coordinate}")
     if not isinstance(coordinate2, list) or len(coordinate2) != 2:
-        raise ValueError(f"coordinate2 must be a list of 2 integers, got: {coordinate2}")
+        raise ValueError(
+            f"coordinate2 must be a list of 2 integers, got: {coordinate2}"
+        )
 
     start_x, start_y = coordinate
     end_x, end_y = coordinate2
@@ -160,7 +164,9 @@ async def open_app(tool_instance: "Tools", text: str) -> str:
         )
 
     # Create workflow instance
-    workflow = AppStarter(tools=tool_instance, llm=tool_instance.app_opener_llm, timeout=60, verbose=True)
+    workflow = AppStarter(
+        tools=tool_instance, llm=tool_instance.app_opener_llm, timeout=60, verbose=True
+    )
 
     # Run workflow to open an app
     result = await workflow.run(app_description=text)
@@ -204,27 +210,27 @@ def complete(tool_instance: "Tools", success: bool, reason: str = "") -> None:
 ATOMIC_ACTION_SIGNATURES = {
     "click": {
         "arguments": ["index"],
-        "description": "Click the point on the screen with specified index. Usage Example: {\"action\": \"click\", \"index\": element_index}",
+        "description": 'Click the point on the screen with specified index. Usage Example: {"action": "click", "index": element_index}',
         "function": click,
     },
     "long_press": {
         "arguments": ["index"],
-        "description": "Long press on the position with specified index. Usage Example: {\"action\": \"long_press\", \"index\": element_index}",
+        "description": 'Long press on the position with specified index. Usage Example: {"action": "long_press", "index": element_index}',
         "function": long_press,
     },
     "type": {
         "arguments": ["text", "index"],
-        "description": "Type text into an input box or text field. Specify the element with index to focus the input field before typing. Usage Example: {\"action\": \"type\", \"text\": \"the text you want to type\", \"index\": element_index}",
+        "description": 'Type text into an input box or text field. Specify the element with index to focus the input field before typing. Usage Example: {"action": "type", "text": "the text you want to type", "index": element_index}',
         "function": type,
     },
     "system_button": {
         "arguments": ["button"],
-        "description": "Press a system button, including back, home, and enter. Usage example: {\"action\": \"system_button\", \"button\": \"Home\"}",
+        "description": 'Press a system button, including back, home, and enter. Usage example: {"action": "system_button", "button": "Home"}',
         "function": system_button,
     },
     "swipe": {
         "arguments": ["coordinate", "coordinate2"],
-        "description": "Scroll from the position with coordinate to the position with coordinate2. Please make sure the start and end points of your swipe are within the swipeable area and away from the keyboard (y1 < 1400). Usage Example: {\"action\": \"swipe\", \"coordinate\": [x1, y1], \"coordinate2\": [x2, y2]}",
+        "description": 'Scroll from the position with coordinate to the position with coordinate2. Please make sure the start and end points of your swipe are within the swipeable area and away from the keyboard (y1 < 1400). Usage Example: {"action": "swipe", "coordinate": [x1, y1], "coordinate2": [x2, y2]}',
         "function": swipe,
     },
     # "copy": {
@@ -287,9 +293,9 @@ def build_custom_tool_descriptions(custom_tools: dict) -> str:
     return "\n".join(descriptions)
 
 
-
 async def test_open_app(mock_tools, text: str) -> str:
     return await open_app(mock_tools, text)
+
 
 if __name__ == "__main__":
     """
@@ -302,6 +308,7 @@ if __name__ == "__main__":
     from llama_index.llms.google_genai import GoogleGenAI
 
     from droidrun.tools.adb import AdbTools
+
     llm = GoogleGenAI(model="gemini-2.5-pro", temperature=0.0)
     # Create mock tools instance
     mock_tools = AdbTools(app_opener_llm=llm, text_manipulator_llm=llm)
@@ -322,7 +329,6 @@ if __name__ == "__main__":
     print(f"Result: {result}")
     input("Press Enter to continue...")
 
-
     print("\n=== Testing swipe ===")
     result = swipe(mock_tools, [500, 0], [500, 1000])
     print(f"Result: {result}")
@@ -339,4 +345,3 @@ if __name__ == "__main__":
         input("Press Enter to continue...")
 
     print("\n=== All tests completed ===")
-

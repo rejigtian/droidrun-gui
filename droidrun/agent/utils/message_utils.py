@@ -72,14 +72,14 @@ def convert_messages_to_chatmessages(messages: list[dict]) -> list[ChatMessage]:
     for message in messages:
         blocks = []
 
-        for item in message['content']:
-            if 'text' in item:
-                blocks.append(TextBlock(text=item['text']))
-            elif 'image' in item:
+        for item in message["content"]:
+            if "text" in item:
+                blocks.append(TextBlock(text=item["text"]))
+            elif "image" in item:
                 # Convert image to bytes
-                image_bytes = image_to_image_bytes(item['image'])
+                image_bytes = image_to_image_bytes(item["image"])
                 blocks.append(ImageBlock(image=image_bytes))
 
-        chat_messages.append(ChatMessage(role=message['role'], blocks=blocks))
+        chat_messages.append(ChatMessage(role=message["role"], blocks=blocks))
 
     return chat_messages

@@ -30,6 +30,7 @@ def parse_manager_response(response: str) -> dict:
             - current_subgoal: str (first line of plan, cleaned, or script content)
             - request_accomplished: str (from request_accomplished tag)
     """
+
     def extract(tag: str) -> str:
         """Extract content between XML-style tags."""
         if f"<{tag}>" in response and f"</{tag}>" in response:
@@ -45,23 +46,29 @@ def parse_manager_response(response: str) -> dict:
     current_goal_text = plan
 
     # Check if first item is a <script> tag
-    script_match = re.search(r'^\s*<script>(.*?)</script>', current_goal_text, re.DOTALL)
+    script_match = re.search(
+        r"^\s*<script>(.*?)</script>", current_goal_text, re.DOTALL
+    )
 
     if script_match:
         # Script is first task - extract script content with tag
         current_subgoal = f"<script>{script_match.group(1).strip()}</script>"
     else:
         # Regular subgoal - use existing logic
-        plan_lines = [line.strip() for line in current_goal_text.splitlines() if line.strip()]
+        plan_lines = [
+            line.strip() for line in current_goal_text.splitlines() if line.strip()
+        ]
         if plan_lines:
             first_line = plan_lines[0]
         else:
             first_line = current_goal_text.strip()
 
         # Remove common list markers like "1.", "-", "*", or bullet characters
-        first_line = re.sub(r"^\s*\d+\.\s*", "", first_line)  # Remove "1. ", "2. ", etc.
-        first_line = re.sub(r"^\s*[-*]\s*", "", first_line)    # Remove "- " or "* "
-        first_line = re.sub(r"^\s*•\s*", "", first_line)      # Remove bullet "• "
+        first_line = re.sub(
+            r"^\s*\d+\.\s*", "", first_line
+        )  # Remove "1. ", "2. ", etc.
+        first_line = re.sub(r"^\s*[-*]\s*", "", first_line)  # Remove "- " or "* "
+        first_line = re.sub(r"^\s*•\s*", "", first_line)  # Remove bullet "• "
 
         current_subgoal = first_line.strip()
 

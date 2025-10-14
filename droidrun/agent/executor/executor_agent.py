@@ -18,7 +18,10 @@ from llama_index.core.llms import ChatMessage, ImageBlock, TextBlock
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
 
-from droidrun.agent.executor.events import ExecutorInternalActionEvent, ExecutorInternalResultEvent
+from droidrun.agent.executor.events import (
+    ExecutorInternalActionEvent,
+    ExecutorInternalResultEvent,
+)
 from droidrun.agent.executor.prompts import parse_executor_response
 from droidrun.agent.utils.inference import acall_with_retries
 from droidrun.agent.utils.tools import (
@@ -58,7 +61,7 @@ class ExecutorAgent(Workflow):
         shared_state: "DroidAgentState",
         agent_config: AgentConfig,
         custom_tools: dict = None,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(**kwargs)
         self.llm = llm
@@ -76,13 +79,8 @@ class ExecutorAgent(Workflow):
 
         logger.info("✅ ExecutorAgent initialized successfully.")
 
-
     @step
-    async def think(
-        self,
-        ctx: Context,
-        ev: StartEvent
-    ) -> ExecutorInternalActionEvent:
+    async def think(self, ctx: Context, ev: StartEvent) -> ExecutorInternalActionEvent:
         """
         Executor decides which action to take.
 
@@ -100,18 +98,13 @@ class ExecutorAgent(Workflow):
         if self.shared_state.action_history:
             n = min(5, len(self.shared_state.action_history))
             action_history = [
-                {
-                    "action": act,
-                    "summary": summ,
-                    "outcome": outcome,
-                    "error": err_des
-                }
+                {"action": act, "summary": summ, "outcome": outcome, "error": err_des}
                 for act, summ, outcome, err_des in zip(
                     self.shared_state.action_history[-n:],
                     self.shared_state.summary_history[-n:],
                     self.shared_state.action_outcomes[-n:],
                     self.shared_state.error_descriptions[-n:],
-                    strict=True
+                    strict=True,
                 )
             ]
 
@@ -126,8 +119,8 @@ class ExecutorAgent(Workflow):
                 "subgoal": subgoal,
                 "progress_status": self.shared_state.progress_status,
                 "atomic_actions": self.all_actions,  # Now includes custom tools!
-                "action_history": action_history
-            }
+                "action_history": action_history,
+            },
         )
 
         blocks = [TextBlock(text=system_prompt)]
@@ -154,7 +147,7 @@ class ExecutorAgent(Workflow):
             return ExecutorInternalActionEvent(
                 action_json=json.dumps({"action": "invalid"}),
                 thought=f"Failed to parse response: {str(e)}",
-                description="Invalid response format from LLM"
+                description="Invalid response format from LLM",
             )
 
         logger.info(f"💡 Thought: {parsed['thought']}")
@@ -164,7 +157,7 @@ class ExecutorAgent(Workflow):
         event = ExecutorInternalActionEvent(
             action_json=parsed["action"],
             thought=parsed["thought"],
-            description=parsed["description"]
+            description=parsed["description"],
         )
 
         # Write event to stream for web interface
@@ -174,9 +167,7 @@ class ExecutorAgent(Workflow):
 
     @step
     async def execute(
-        self,
-        ctx: Context,
-        ev: ExecutorInternalActionEvent
+        self, ctx: Context, ev: ExecutorInternalActionEvent
     ) -> ExecutorInternalResultEvent:
         """
         Execute the selected action using the tools instance.
@@ -196,10 +187,12 @@ class ExecutorAgent(Workflow):
                 error=f"Invalid action JSON: {str(e)}",
                 summary="Failed to parse action",
                 thought=ev.thought,
-                action_json=ev.action_json
+                action_json=ev.action_json,
             )
 
-        outcome, error, summary = await self._execute_action(action_dict, ev.description)
+        outcome, error, summary = await self._execute_action(
+            action_dict, ev.description
+        )
 
         await asyncio.sleep(self.agent_config.after_sleep_action)
 
@@ -211,7 +204,7 @@ class ExecutorAgent(Workflow):
             error=error,
             summary=summary,
             thought=ev.thought,
-            action_json=ev.action_json
+            action_json=ev.action_json,
         )
 
         # Write event to stream for web interface
@@ -219,7 +212,9 @@ class ExecutorAgent(Workflow):
 
         return result_event
 
-    async def _execute_action(self, action_dict: dict, description: str) -> tuple[bool, str, str]:
+    async def _execute_action(
+        self, action_dict: dict, description: str
+    ) -> tuple[bool, str, str]:
         """
         Execute a single action based on the action dictionary.
 
@@ -241,7 +236,11 @@ class ExecutorAgent(Workflow):
             if action_type == "click":
                 index = action_dict.get("index")
                 if index is None:
-                    return False, "Missing 'index' parameter", "Failed: click requires index"
+                    return (
+                        False,
+                        "Missing 'index' parameter",
+                        "Failed: click requires index",
+                    )
 
                 result = click(self.tools_instance, index)
                 return True, "None", f"Clicked element at index {index}"
@@ -249,20 +248,32 @@ class ExecutorAgent(Workflow):
             elif action_type == "long_press":
                 index = action_dict.get("index")
                 if index is None:
-                    return False, "Missing 'index' parameter", "Failed: long_press requires index"
+                    return (
+                        False,
+                        "Missing 'index' parameter",
+                        "Failed: long_press requires index",
+                    )
 
                 success = long_press(self.tools_instance, index)
                 if success:
                     return True, "None", f"Long pressed element at index {index}"
                 else:
-                    return False, "Long press failed", f"Failed to long press at index {index}"
+                    return (
+                        False,
+                        "Long press failed",
+                        f"Failed to long press at index {index}",
+                    )
 
             elif action_type == "type":
                 text = action_dict.get("text")
                 index = action_dict.get("index", -1)
 
                 if text is None:
-                    return False, "Missing 'text' parameter", "Failed: type requires text"
+                    return (
+                        False,
+                        "Missing 'text' parameter",
+                        "Failed: type requires text",
+                    )
 
                 result = type(self.tools_instance, text, index)
                 return True, "None", f"Typed '{text}' into element at index {index}"
@@ -270,7 +281,11 @@ class ExecutorAgent(Workflow):
             elif action_type == "system_button":
                 button = action_dict.get("button")
                 if button is None:
-                    return False, "Missing 'button' parameter", "Failed: system_button requires button"
+                    return (
+                        False,
+                        "Missing 'button' parameter",
+                        "Failed: system_button requires button",
+                    )
 
                 result = system_button(self.tools_instance, button)
                 if "Error" in result:
@@ -282,36 +297,66 @@ class ExecutorAgent(Workflow):
                 coordinate2 = action_dict.get("coordinate2")
 
                 if coordinate is None or coordinate2 is None:
-                    return False, "Missing coordinate parameters", "Failed: swipe requires coordinate and coordinate2"
+                    return (
+                        False,
+                        "Missing coordinate parameters",
+                        "Failed: swipe requires coordinate and coordinate2",
+                    )
 
                 # Validate coordinate format before calling swipe
                 if not isinstance(coordinate, list) or len(coordinate) != 2:
-                    return False, f"Invalid coordinate format: {coordinate}", "Failed: coordinate must be [x, y]"
+                    return (
+                        False,
+                        f"Invalid coordinate format: {coordinate}",
+                        "Failed: coordinate must be [x, y]",
+                    )
                 if not isinstance(coordinate2, list) or len(coordinate2) != 2:
-                    return False, f"Invalid coordinate2 format: {coordinate2}", "Failed: coordinate2 must be [x, y]"
+                    return (
+                        False,
+                        f"Invalid coordinate2 format: {coordinate2}",
+                        "Failed: coordinate2 must be [x, y]",
+                    )
 
                 success = swipe(self.tools_instance, coordinate, coordinate2)
                 if success:
                     return True, "None", f"Swiped from {coordinate} to {coordinate2}"
                 else:
-                    return False, "Swipe failed", f"Failed to swipe from {coordinate} to {coordinate2}"
+                    return (
+                        False,
+                        "Swipe failed",
+                        f"Failed to swipe from {coordinate} to {coordinate2}",
+                    )
 
             elif action_type == "open_app":
                 text = action_dict.get("text")
                 if text is None:
-                    return False, "Missing 'text' parameter", "Failed: open_app requires text"
+                    return (
+                        False,
+                        "Missing 'text' parameter",
+                        "Failed: open_app requires text",
+                    )
 
                 result = await open_app(self.tools_instance, text)
                 return True, "None", f"Opened app: {text}"
 
             else:
-                return False, f"Unknown action type: {action_type}", f"Failed: unknown action '{action_type}'"
+                return (
+                    False,
+                    f"Unknown action type: {action_type}",
+                    f"Failed: unknown action '{action_type}'",
+                )
 
         except Exception as e:
             logger.error(f"❌ Exception during action execution: {e}", exc_info=True)
-            return False, f"Exception: {str(e)}", f"Failed to execute {action_type}: {str(e)}"
+            return (
+                False,
+                f"Exception: {str(e)}",
+                f"Failed to execute {action_type}: {str(e)}",
+            )
 
-    async def _execute_custom_tool(self, action_type: str, action_dict: dict) -> tuple[bool, str, str]:
+    async def _execute_custom_tool(
+        self, action_type: str, action_dict: dict
+    ) -> tuple[bool, str, str]:
         """
         Execute a custom tool based on the action dictionary.
 
@@ -357,18 +402,18 @@ class ExecutorAgent(Workflow):
 
     @step
     async def finalize(
-        self,
-        ctx: Context,
-        ev: ExecutorInternalResultEvent
+        self, ctx: Context, ev: ExecutorInternalResultEvent
     ) -> StopEvent:
         """Return executor results to parent workflow."""
         logger.debug("✅ Executor execution complete")
 
-        return StopEvent(result={
-            "action": ev.action,
-            "outcome": ev.outcome,
-            "error": ev.error,
-            "summary": ev.summary,
-            "thought": ev.thought,
-            "action_json": ev.action_json
-        })
+        return StopEvent(
+            result={
+                "action": ev.action,
+                "outcome": ev.outcome,
+                "error": ev.error,
+                "summary": ev.summary,
+                "thought": ev.thought,
+                "action_json": ev.action_json,
+            }
+        )

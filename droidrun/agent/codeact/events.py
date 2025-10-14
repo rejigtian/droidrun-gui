@@ -11,23 +11,26 @@ class TaskInputEvent(Event):
     input: list[ChatMessage]
 
 
-
 class TaskThinkingEvent(Event):
     thoughts: Optional[str] = None
     code: Optional[str] = None
     usage: Optional[UsageResult] = None
+
 
 class TaskExecutionEvent(Event):
     code: str
     globals: dict[str, str] = {}
     locals: dict[str, str] = {}
 
+
 class TaskExecutionResultEvent(Event):
     output: str
+
 
 class TaskEndEvent(Event):
     success: bool
     reason: str
+
 
 class EpisodicMemoryEvent(Event):
     episodic_memory: EpisodicMemory

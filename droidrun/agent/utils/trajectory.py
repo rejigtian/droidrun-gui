@@ -61,6 +61,7 @@ def make_serializable(obj):
             # If not serializable, convert to string
             return str(obj)
 
+
 class Trajectory:
 
     def __init__(self, goal: str = None):
@@ -193,7 +194,6 @@ class Trajectory:
 
             serializable_events.append(event_dict)
 
-
         trajectory_json_path = trajectory_folder / "trajectory.json"
         with open(trajectory_json_path, "w") as f:
             json.dump(serializable_events, f, indent=2)
@@ -232,9 +232,7 @@ class Trajectory:
         screenshots_folder = trajectory_folder / "screenshots"
         screenshots_folder.mkdir(parents=True, exist_ok=True)
 
-        gif_path = self.create_screenshot_gif(
-            str(screenshots_folder)
-        )
+        gif_path = self.create_screenshot_gif(str(screenshots_folder))
         if gif_path:
             logger.info(f"🎬 Saved screenshot GIF to {gif_path}")
 

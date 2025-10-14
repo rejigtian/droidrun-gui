@@ -224,6 +224,7 @@ tools:
   allow_drag: false
 """
 
+
 # Removed: _default_project_config_path() - now using PathResolver
 
 
@@ -231,6 +232,7 @@ tools:
 @dataclass
 class LLMProfile:
     """LLM profile configuration."""
+
     provider: str = "GoogleGenAI"
     model: str = "models/gemini-2.0-flash-exp"
     temperature: float = 0.2
@@ -257,6 +259,7 @@ class LLMProfile:
 @dataclass
 class CodeActConfig:
     """CodeAct agent configuration."""
+
     vision: bool = False
     system_prompt: str = "system.jinja2"
     user_prompt: str = "user.jinja2"
@@ -266,6 +269,7 @@ class CodeActConfig:
 @dataclass
 class ManagerConfig:
     """Manager agent configuration."""
+
     vision: bool = False
     system_prompt: str = "system.jinja2"
 
@@ -273,6 +277,7 @@ class ManagerConfig:
 @dataclass
 class ExecutorConfig:
     """Executor agent configuration."""
+
     vision: bool = False
     system_prompt: str = "system.jinja2"
 
@@ -280,6 +285,7 @@ class ExecutorConfig:
 @dataclass
 class ScripterConfig:
     """Scripter agent configuration."""
+
     enabled: bool = True
     max_steps: int = 10
     execution_timeout: float = 30.0
@@ -290,6 +296,7 @@ class ScripterConfig:
 @dataclass
 class AppCardConfig:
     """App card configuration."""
+
     enabled: bool = True
     mode: str = "local"  # local | server | composite
     app_cards_dir: str = "config/app_cards"
@@ -301,6 +308,7 @@ class AppCardConfig:
 @dataclass
 class AgentConfig:
     """Agent-related configuration."""
+
     max_steps: int = 15
     reasoning: bool = False
     after_sleep_action: float = 1.0
@@ -342,6 +350,7 @@ class AgentConfig:
 @dataclass
 class DeviceConfig:
     """Device-related configuration."""
+
     serial: Optional[str] = None
     use_tcp: bool = False
     platform: str = "android"  # "android" or "ios"
@@ -350,31 +359,37 @@ class DeviceConfig:
 @dataclass
 class TelemetryConfig:
     """Telemetry configuration."""
+
     enabled: bool = False
 
 
 @dataclass
 class TracingConfig:
     """Tracing configuration."""
+
     enabled: bool = False
 
 
 @dataclass
 class LoggingConfig:
     """Logging configuration."""
+
     debug: bool = False
     save_trajectory: str = "none"
     rich_text: bool = False
 
+
 @dataclass
 class ToolsConfig:
     """Tools configuration."""
+
     allow_drag: bool = False
 
 
 @dataclass
 class DroidRunConfig:
     """Complete DroidRun configuration schema."""
+
     agent: AgentConfig = field(default_factory=AgentConfig)
     llm_profiles: Dict[str, LLMProfile] = field(default_factory=dict)
     device: DeviceConfig = field(default_factory=DeviceConfig)
@@ -397,37 +412,37 @@ class DroidRunConfig:
                 provider="GoogleGenAI",
                 model="models/gemini-2.5-pro",
                 temperature=0.2,
-                kwargs={}
+                kwargs={},
             ),
             "executor": LLMProfile(
                 provider="GoogleGenAI",
                 model="models/gemini-2.5-pro",
                 temperature=0.1,
-                kwargs={}
+                kwargs={},
             ),
             "codeact": LLMProfile(
                 provider="GoogleGenAI",
                 model="models/gemini-2.5-pro",
                 temperature=0.2,
-                kwargs={"max_tokens": 8192 }
+                kwargs={"max_tokens": 8192},
             ),
             "text_manipulator": LLMProfile(
                 provider="GoogleGenAI",
                 model="models/gemini-2.5-pro",
                 temperature=0.3,
-                kwargs={}
+                kwargs={},
             ),
             "app_opener": LLMProfile(
                 provider="GoogleGenAI",
                 model="models/gemini-2.5-pro",
                 temperature=0.0,
-                kwargs={}
+                kwargs={},
             ),
             "scripter": LLMProfile(
                 provider="GoogleGenAI",
                 model="models/gemini-2.5-flash",
                 temperature=0.1,
-                kwargs={"max_tokens": 4096}
+                kwargs={"max_tokens": 4096},
             ),
         }
 
@@ -453,19 +468,29 @@ class DroidRunConfig:
         agent_data = data.get("agent", {})
 
         codeact_data = agent_data.get("codeact", {})
-        codeact_config = CodeActConfig(**codeact_data) if codeact_data else CodeActConfig()
+        codeact_config = (
+            CodeActConfig(**codeact_data) if codeact_data else CodeActConfig()
+        )
 
         manager_data = agent_data.get("manager", {})
-        manager_config = ManagerConfig(**manager_data) if manager_data else ManagerConfig()
+        manager_config = (
+            ManagerConfig(**manager_data) if manager_data else ManagerConfig()
+        )
 
         executor_data = agent_data.get("executor", {})
-        executor_config = ExecutorConfig(**executor_data) if executor_data else ExecutorConfig()
+        executor_config = (
+            ExecutorConfig(**executor_data) if executor_data else ExecutorConfig()
+        )
 
         script_data = agent_data.get("scripter", {})
-        scripter_config = ScripterConfig(**script_data) if script_data else ScripterConfig()
+        scripter_config = (
+            ScripterConfig(**script_data) if script_data else ScripterConfig()
+        )
 
         app_cards_data = agent_data.get("app_cards", {})
-        app_cards_config = AppCardConfig(**app_cards_data) if app_cards_data else AppCardConfig()
+        app_cards_config = (
+            AppCardConfig(**app_cards_data) if app_cards_data else AppCardConfig()
+        )
 
         agent_config = AgentConfig(
             max_steps=agent_data.get("max_steps", 15),
@@ -482,7 +507,11 @@ class DroidRunConfig:
 
         # Parse safe_execution config
         safe_exec_data = data.get("safe_execution", {})
-        safe_execution_config = SafeExecutionConfig(**safe_exec_data) if safe_exec_data else SafeExecutionConfig()
+        safe_execution_config = (
+            SafeExecutionConfig(**safe_exec_data)
+            if safe_exec_data
+            else SafeExecutionConfig()
+        )
 
         return cls(
             agent=agent_config,
@@ -527,6 +556,7 @@ class ConfigManager:
         # Modify and save
         config.save()
     """
+
     _instance: Optional["ConfigManager"] = None
     _instance_lock = threading.Lock()
 
@@ -664,6 +694,7 @@ class ConfigManager:
                     except Exception as e:
                         # If parsing fails, use defaults and log warning
                         import logging
+
                         logger = logging.getLogger("droidrun")
                         logger.warning(f"Failed to parse config, using defaults: {e}")
                         self._config = DroidRunConfig()
@@ -675,7 +706,9 @@ class ConfigManager:
         """Persist current in-memory config to YAML file."""
         with self._lock:
             with open(self.path, "w", encoding="utf-8") as f:
-                yaml.dump(self._config.to_dict(), f, sort_keys=False, default_flow_style=False)
+                yaml.dump(
+                    self._config.to_dict(), f, sort_keys=False, default_flow_style=False
+                )
 
     def reload(self) -> None:
         """Reload config from disk (useful when edited externally or via UI)."""
@@ -703,6 +736,7 @@ class ConfigManager:
         """Return a deep copy of the config dict to avoid accidental mutation."""
         with self._lock:
             import copy
+
             return copy.deepcopy(self._config.to_dict())
 
     # Implemented for for config webiu so we can have dropdown prompt selection. but canceled webui plan.
@@ -722,7 +756,9 @@ class ConfigManager:
         """
         agent_type = agent_type.lower()
         if agent_type not in ["codeact", "manager", "executor"]:
-            raise ValueError(f"Invalid agent_type: {agent_type}. Must be one of: codeact, manager, executor")
+            raise ValueError(
+                f"Invalid agent_type: {agent_type}. Must be one of: codeact, manager, executor"
+            )
 
         # Resolve prompts directory
         prompts_path = f"{self.agent.prompts_dir}/{agent_type}"
@@ -742,5 +778,3 @@ class ConfigManager:
 
     def __repr__(self) -> str:
         return f"<ConfigManager path={self.path!s}>"
-
-

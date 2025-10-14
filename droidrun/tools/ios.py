@@ -376,7 +376,12 @@ class IOSTools(Tools):
             return False
 
     def drag(
-        self, start_x: int, start_y: int, end_x: int, end_y: int, duration_ms: int = 3000
+        self,
+        start_x: int,
+        start_y: int,
+        end_x: int,
+        end_y: int,
+        duration_ms: int = 3000,
     ) -> bool:
         """
         Drag from the given start coordinates to the given end coordinates.

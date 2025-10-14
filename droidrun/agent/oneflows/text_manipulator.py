@@ -24,7 +24,6 @@ The agent returns the final text that should be entered into the text box and th
 raw code produced by the model (potentially after corrections).
 '''
 
-
 import traceback
 
 from llama_index.core.llms import ChatMessage
@@ -35,7 +34,15 @@ from droidrun.telemetry.phoenix import clean_span
 
 
 @clean_span("text_manipulator")
-def run_text_manipulation_agent(instruction: str, current_subgoal: str, current_text: str, overall_plan, hitorical_plan, llm: LLM, max_retries: int = 4) -> tuple[str, str]:
+def run_text_manipulation_agent(
+    instruction: str,
+    current_subgoal: str,
+    current_text: str,
+    overall_plan,
+    hitorical_plan,
+    llm: LLM,
+    max_retries: int = 4,
+) -> tuple[str, str]:
     """Convenience function to run CodeAct text manipulation with error correction.
 
     Args:
@@ -57,7 +64,7 @@ def run_text_manipulation_agent(instruction: str, current_subgoal: str, current_
         "- Defines NO new functions, classes, or imports.\n"
         "- Uses ONLY the provided function input_text(text: str).\n"
         "- Builds the final content in a triple-quoted big string assigned to a variable of your choice, e.g.:\n"
-        "    new_text = \"\"\"...\"\"\"\n"
+        '    new_text = """..."""\n'
         "- Includes ORIGINAL in the new_text if needed to fulfill the TASK.\n"
         "- Calls input_text(new_text) exactly once to clear the field and input the new content.\n\n"
         "STRICT FORMAT RULES:\n"
@@ -104,9 +111,21 @@ def run_text_manipulation_agent(instruction: str, current_subgoal: str, current_
     ).format(
         task_instruction=current_subgoal.strip(),
         current_text=current_text,
-        )
+    )
 
-    messages = [ChatMessage(role="system", content=system_prompt.format(overall_plan=overall_plan, hitorical_plan=hitorical_plan, current_subgoal=current_subgoal, instruction=instruction, current_text=current_text)), ChatMessage(role="user", content=user_prompt)]
+    messages = [
+        ChatMessage(
+            role="system",
+            content=system_prompt.format(
+                overall_plan=overall_plan,
+                hitorical_plan=hitorical_plan,
+                current_subgoal=current_subgoal,
+                instruction=instruction,
+                current_text=current_text,
+            ),
+        ),
+        ChatMessage(role="user", content=user_prompt),
+    ]
 
     for attempt in range(max_retries + 1):  # +1 for initial attempt
         # Call the LLM with current messages
@@ -192,7 +211,7 @@ def _execute_sandbox(code: str, original_text: str) -> tuple[str, str]:
     sandbox_globals = {
         "__builtins__": {},  # Empty builtins for security
         "input_text": input_text,
-        "ORIGINAL": original_text
+        "ORIGINAL": original_text,
     }
     sandbox_locals = {}
 

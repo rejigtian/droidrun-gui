@@ -8,12 +8,17 @@ from typing import Any, Dict, Optional, Set
 
 from pydantic import BaseModel
 
-from droidrun.config_manager.safe_execution import create_safe_builtins, create_safe_import
+from droidrun.config_manager.safe_execution import (
+    create_safe_builtins,
+    create_safe_import,
+)
 
 logger = logging.getLogger("droidrun")
 
+
 class ExecuterState(BaseModel):
     """State object for the code executor."""
+
     ui_state: Optional[Any] = None
 
     class Config:
@@ -80,19 +85,25 @@ class SimpleCodeExecutor:
             logger.debug(f"   Blocked builtins: {blocked_builtins or 'none'}")
 
             # Create restricted builtins
-            safe_builtins_dict = create_safe_builtins(allowed_builtins, blocked_builtins)
+            safe_builtins_dict = create_safe_builtins(
+                allowed_builtins, blocked_builtins
+            )
 
             # Add safe import function
-            safe_builtins_dict['__import__'] = create_safe_import(allowed_modules, blocked_modules)
+            safe_builtins_dict["__import__"] = create_safe_import(
+                allowed_modules, blocked_modules
+            )
 
-            globals['__builtins__'] = safe_builtins_dict
+            globals["__builtins__"] = safe_builtins_dict
         else:
             # No restrictions - current behavior
-            globals['__builtins__'] = __builtins__
+            globals["__builtins__"] = __builtins__
 
         # Add tools to globals (always allowed, even in safe mode)
         if isinstance(tools, dict):
-            logger.debug(f"🔧 Initializing SimpleCodeExecutor with tools: {list(tools.keys())}")
+            logger.debug(
+                f"🔧 Initializing SimpleCodeExecutor with tools: {list(tools.keys())}"
+            )
             globals.update(tools)
         elif isinstance(tools, list):
             logger.debug(f"🔧 Initializing SimpleCodeExecutor with {len(tools)} tools")
@@ -100,8 +111,6 @@ class SimpleCodeExecutor:
                 globals[tool.__name__] = tool
         else:
             raise ValueError("Tools must be a dictionary or a list of functions.")
-
-
 
         self.globals = globals
         self.locals = locals
@@ -121,7 +130,7 @@ class SimpleCodeExecutor:
         All async tools will be called synchronously here.
         """
         # Update UI state
-        self.globals['ui_state'] = ui_state
+        self.globals["ui_state"] = ui_state
 
         # Capture stdout and stderr
         stdout = io.StringIO()
@@ -145,7 +154,9 @@ class SimpleCodeExecutor:
 
         return output
 
-    async def execute(self, state: ExecuterState, code: str, timeout: float = 10.0) -> str:
+    async def execute(
+        self, state: ExecuterState, code: str, timeout: float = 10.0
+    ) -> str:
         """
         Execute Python code and capture output and return values.
 
@@ -165,12 +176,9 @@ class SimpleCodeExecutor:
         try:
             output = await asyncio.wait_for(
                 self.loop.run_in_executor(
-                    None,
-                    self._execute_in_thread,
-                    code,
-                    ui_state
+                    None, self._execute_in_thread, code, ui_state
                 ),
-                timeout=timeout
+                timeout=timeout,
             )
             return output
         except asyncio.TimeoutError:

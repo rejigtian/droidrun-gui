@@ -10,6 +10,7 @@ class Task:
     """
     Represents a single task with its properties.
     """
+
     description: str
     status: str
     agent_type: str
@@ -22,15 +23,13 @@ class TaskManager:
     """
     Manages a list of tasks for an agent, each with a status and assigned specialized agent.
     """
+
     STATUS_PENDING = "pending"
     STATUS_COMPLETED = "completed"
     STATUS_FAILED = "failed"
 
-    VALID_STATUSES = {
-        STATUS_PENDING,
-        STATUS_COMPLETED,
-        STATUS_FAILED
-    }
+    VALID_STATUSES = {STATUS_PENDING, STATUS_COMPLETED, STATUS_FAILED}
+
     def __init__(self):
         """Initializes an empty task list."""
         self.tasks: List[Task] = []
@@ -38,7 +37,9 @@ class TaskManager:
         self.message = None
         self.task_history = []
         # Save to working directory for user visibility
-        self.file_path = PathResolver.resolve("droidrun_tasks.txt", create_if_missing=True)
+        self.file_path = PathResolver.resolve(
+            "droidrun_tasks.txt", create_if_missing=True
+        )
 
     def get_all_tasks(self) -> List[Task]:
         return self.tasks
@@ -66,11 +67,12 @@ class TaskManager:
         self.task_history.append(task)
 
     def get_completed_tasks(self) -> list[dict]:
-        return [task for task in self.task_history if task.status == self.STATUS_COMPLETED]
+        return [
+            task for task in self.task_history if task.status == self.STATUS_COMPLETED
+        ]
 
     def get_failed_tasks(self) -> list[dict]:
         return [task for task in self.task_history if task.status == self.STATUS_FAILED]
-
 
     def save_to_file(self):
         """Saves the current task list to a text file."""
@@ -78,7 +80,7 @@ class TaskManager:
             # Ensure parent directory exists
             self.file_path.parent.mkdir(parents=True, exist_ok=True)
 
-            with open(self.file_path, 'w', encoding='utf-8') as f:
+            with open(self.file_path, "w", encoding="utf-8") as f:
                 for i, task in enumerate(self.tasks, 1):
                     f.write(f"Task {i}: {task.description}\n")
                     f.write(f"Status: {task.status}\n")
@@ -86,8 +88,6 @@ class TaskManager:
                     f.write("-" * 40 + "\n")
         except Exception as e:
             print(f"Error saving tasks to file: {e}")
-
-
 
     def set_tasks_with_agents(self, task_assignments: List[Dict[str, str]]):
         """
@@ -107,19 +107,26 @@ class TaskManager:
         try:
             self.tasks = []
             for i, assignment in enumerate(task_assignments):
-                if not isinstance(assignment, dict) or 'task' not in assignment:
-                    raise ValueError(f"Each task assignment must be a dictionary with 'task' key at index {i}.")
+                if not isinstance(assignment, dict) or "task" not in assignment:
+                    raise ValueError(
+                        f"Each task assignment must be a dictionary with 'task' key at index {i}."
+                    )
 
-                task_description = assignment['task']
-                if not isinstance(task_description, str) or not task_description.strip():
-                    raise ValueError(f"Task description must be a non-empty string at index {i}.")
+                task_description = assignment["task"]
+                if (
+                    not isinstance(task_description, str)
+                    or not task_description.strip()
+                ):
+                    raise ValueError(
+                        f"Task description must be a non-empty string at index {i}."
+                    )
 
-                agent_type = assignment.get('agent', 'Default')
+                agent_type = assignment.get("agent", "Default")
 
                 task_obj = Task(
                     description=task_description.strip(),
                     status=self.STATUS_PENDING,
-                    agent_type=agent_type
+                    agent_type=agent_type,
                 )
 
                 self.tasks.append(task_obj)

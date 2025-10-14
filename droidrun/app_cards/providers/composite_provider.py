@@ -29,7 +29,7 @@ class CompositeAppCardProvider(AppCardProvider):
         server_url: str,
         app_cards_dir: str = "config/app_cards",
         server_timeout: float = 2.0,
-        server_max_retries: int = 2
+        server_max_retries: int = 2,
     ):
         """
         Initialize composite provider.
@@ -43,7 +43,7 @@ class CompositeAppCardProvider(AppCardProvider):
         self.server_provider = ServerAppCardProvider(
             server_url=server_url,
             timeout=server_timeout,
-            max_retries=server_max_retries
+            max_retries=server_max_retries,
         )
         self.local_provider = LocalAppCardProvider(app_cards_dir=app_cards_dir)
 
@@ -62,14 +62,18 @@ class CompositeAppCardProvider(AppCardProvider):
             return ""
 
         # Try server first
-        server_result = await self.server_provider.load_app_card(package_name, instruction)
+        server_result = await self.server_provider.load_app_card(
+            package_name, instruction
+        )
 
         if server_result:
             return server_result
 
         # Server failed or returned empty, try local
         logger.debug(f"Composite provider: falling back to local for {package_name}")
-        local_result = await self.local_provider.load_app_card(package_name, instruction)
+        local_result = await self.local_provider.load_app_card(
+            package_name, instruction
+        )
 
         if local_result:
             logger.info(f"Composite provider: using local fallback for {package_name}")

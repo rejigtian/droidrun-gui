@@ -12,38 +12,86 @@ from typing import Any, Dict, List, Optional, Set
 # Default safe builtins (used when allow_all_builtins=False and allowed_builtins is empty)
 DEFAULT_SAFE_BUILTINS = {
     # Type constructors
-    'int', 'float', 'str', 'bool', 'list', 'dict', 'tuple', 'set', 'frozenset',
-    'complex', 'bytes', 'bytearray',
-
+    "int",
+    "float",
+    "str",
+    "bool",
+    "list",
+    "dict",
+    "tuple",
+    "set",
+    "frozenset",
+    "complex",
+    "bytes",
+    "bytearray",
     # Iteration and inspection
-    'range', 'enumerate', 'zip', 'map', 'filter', 'sorted', 'reversed',
-    'len', 'sum', 'min', 'max', 'any', 'all',
-
+    "range",
+    "enumerate",
+    "zip",
+    "map",
+    "filter",
+    "sorted",
+    "reversed",
+    "len",
+    "sum",
+    "min",
+    "max",
+    "any",
+    "all",
     # Type checking
-    'type', 'isinstance', 'issubclass', 'callable',
-
+    "type",
+    "isinstance",
+    "issubclass",
+    "callable",
     # Attribute access
-    'getattr', 'setattr', 'hasattr', 'delattr', 'dir',
-
+    "getattr",
+    "setattr",
+    "hasattr",
+    "delattr",
+    "dir",
     # Math
-    'abs', 'round', 'pow', 'divmod',
-
+    "abs",
+    "round",
+    "pow",
+    "divmod",
     # Output
-    'print', 'repr', 'chr', 'ord', 'hex', 'oct', 'bin', 'format',
-
+    "print",
+    "repr",
+    "chr",
+    "ord",
+    "hex",
+    "oct",
+    "bin",
+    "format",
     # Exceptions
-    'Exception', 'ValueError', 'TypeError', 'KeyError', 'IndexError',
-    'AttributeError', 'RuntimeError', 'StopIteration', 'ZeroDivisionError',
-    'NameError', 'ImportError',
-
+    "Exception",
+    "ValueError",
+    "TypeError",
+    "KeyError",
+    "IndexError",
+    "AttributeError",
+    "RuntimeError",
+    "StopIteration",
+    "ZeroDivisionError",
+    "NameError",
+    "ImportError",
     # Special
-    'True', 'False', 'None', 'NotImplemented', 'Ellipsis',
-
+    "True",
+    "False",
+    "None",
+    "NotImplemented",
+    "Ellipsis",
     # Object operations
-    'object', 'super', 'property', 'staticmethod', 'classmethod',
-
+    "object",
+    "super",
+    "property",
+    "staticmethod",
+    "classmethod",
     # Utility
-    'slice', 'hash', 'id', 'vars',
+    "slice",
+    "hash",
+    "id",
+    "vars",
 }
 
 
@@ -142,7 +190,7 @@ class SafeExecutionConfig:
 
 def create_safe_builtins(
     allowed_builtins: Optional[Set[str]] = None,
-    blocked_builtins: Optional[Set[str]] = None
+    blocked_builtins: Optional[Set[str]] = None,
 ) -> Dict[str, Any]:
     """
     Create restricted builtins dictionary.
@@ -157,7 +205,9 @@ def create_safe_builtins(
     blocked = blocked_builtins or set()
 
     # Get original builtins
-    original_builtins = __builtins__ if isinstance(__builtins__, dict) else __builtins__.__dict__
+    original_builtins = (
+        __builtins__ if isinstance(__builtins__, dict) else __builtins__.__dict__
+    )
 
     # If None, allow all except blocked
     if allowed_builtins is None:
@@ -178,7 +228,7 @@ def create_safe_builtins(
 
 def create_safe_import(
     allowed_modules: Optional[Set[str]] = None,
-    blocked_modules: Optional[Set[str]] = None
+    blocked_modules: Optional[Set[str]] = None,
 ):
     """
     Create a restricted __import__ function.
@@ -190,12 +240,14 @@ def create_safe_import(
     Returns:
         Restricted import function
     """
-    original_import = __builtins__.__import__ if hasattr(__builtins__, '__import__') else __import__
+    original_import = (
+        __builtins__.__import__ if hasattr(__builtins__, "__import__") else __import__
+    )
     blocked = blocked_modules or set()
 
     def safe_import(name, globals=None, locals=None, fromlist=(), level=0):
         # Get base module name (e.g., 'os' from 'os.path')
-        base_module = name.split('.')[0]
+        base_module = name.split(".")[0]
 
         # Check blocked list first (always enforced)
         if base_module in blocked:
