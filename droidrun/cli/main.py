@@ -518,23 +518,6 @@ def disconnect(serial: str):
 )
 def setup(path: str | None, device: str | None, debug: bool):
     """Install and enable the DroidRun Portal on a device."""
-    from droidrun.config_manager.path_resolver import PathResolver
-
-    # Ensure config.yaml exists (check working dir, then package dir)
-    try:
-        config_path = PathResolver.resolve("config.yaml")
-        console.print(f"[blue]Using existing config: {config_path}[/]")
-    except FileNotFoundError:
-        # Config not found, try to create from example
-        try:
-            example_path = PathResolver.resolve("config_example.yaml")
-            config_path = PathResolver.resolve("config.yaml", create_if_missing=True)
-
-            import shutil
-            shutil.copy2(example_path, config_path)
-            console.print(f"[blue]Created config.yaml from example at: {config_path}[/]")
-        except FileNotFoundError:
-            console.print("[yellow]Warning: config_example.yaml not found, config.yaml not created[/]")
     try:
         if not device:
             devices = adb.list()
