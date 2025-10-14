@@ -22,6 +22,8 @@ agent:
     system_prompt: system.jinja2
     # User prompt filename (located in prompts_dir/codeact/)
     user_prompt: user.jinja2
+    # Enable safe code execution (restricts imports and builtins)
+    safe_execution: false
 
   # Manager Agent Configuration
   manager:
@@ -41,12 +43,14 @@ agent:
   scripter:
     # Enable scripter execution for off-device operations
     enabled: true
-    # Maximum steps per scripter task
+    # Maximum steps per scripter agent task
     max_steps: 10
     # Execution timeout per code block (seconds)
     execution_timeout: 30.0
     # System prompt filename (located in prompts_dir/scripter/)
     system_prompt_path: system.jinja2
+    # Enable safe code execution (restricts imports and builtins)
+    safe_execution: false
 
   # App Cards Configuration
   app_cards:
@@ -139,6 +143,60 @@ logging:
   save_trajectory: none
 
   rich_text: false
+
+# === Safe Execution Settings ===
+# Applied when agent.codeact.safe_execution or agent.scripter.safe_execution is true
+safe_execution:
+  # Allow all imports (ignores allowed_modules, respects blocked_modules)
+  allow_all_imports: true
+
+  # Allowed modules (empty + allow_all_imports=false = no imports allowed)
+  # Example: ['json', 'requests', 're', 'datetime', 'math', 'collections']
+  allowed_modules: []
+
+  # Blocked modules (takes precedence over allowed_modules and allow_all_imports)
+  # Prevents dangerous file operations, subprocess execution, and code manipulation
+  blocked_modules:
+    - os
+    - sys
+    - subprocess
+    - shutil
+    - pathlib
+    - pty
+    - fcntl
+    - resource
+    - pickle
+    - shelve
+    - marshal
+    - imp
+    - importlib
+    - ctypes
+    - code
+    - codeop
+    - tempfile
+    - glob
+    - socket
+    - socketserver
+    - asyncio
+
+  # Allow all builtins (ignores allowed_builtins, respects blocked_builtins)
+  allow_all_builtins: true
+
+  # Allowed builtins (empty + allow_all_builtins=false = use safe defaults)
+  # Safe defaults include: int, str, list, dict, print, len, range, etc.
+  allowed_builtins: []
+
+  # Blocked builtins (takes precedence over allowed_builtins and allow_all_builtins)
+  blocked_builtins:
+    - open
+    - compile
+    - exec
+    - eval
+    - __import__
+    - breakpoint
+    - exit
+    - quit
+    - input
 
 # === Tool Settings ===
 tools:

@@ -8,6 +8,7 @@ from typing import Any, Callable, Dict, List, Optional
 import yaml
 
 from droidrun.config_manager.path_resolver import PathResolver
+from droidrun.config_manager.safe_execution import SafeExecutionConfig
 
 
 # ---------- Helpers / defaults ----------
@@ -37,6 +38,8 @@ agent:
     system_prompt: system.jinja2
     # User prompt filename (located in prompts_dir/codeact/)
     user_prompt: user.jinja2
+    # Enable safe code execution (restricts imports and builtins)
+    safe_execution: false
 
   # Manager Agent Configuration
   manager:
@@ -62,6 +65,8 @@ agent:
     execution_timeout: 30.0
     # System prompt filename (located in prompts_dir/scripter/)
     system_prompt_path: system.jinja2
+    # Enable safe code execution (restricts imports and builtins)
+    safe_execution: false
 
   # App Cards Configuration
   app_cards:
@@ -156,6 +161,61 @@ logging:
   # Trajectory saving level (none, step, action)
   save_trajectory: none
   rich_text: false
+
+# === Safe Execution Settings ===
+# Applied when agent.codeact.safe_execution or agent.scripter.safe_execution is true
+safe_execution:
+  # Allow all imports (ignores allowed_modules, respects blocked_modules)
+  allow_all_imports: false
+
+  # Allowed modules (empty + allow_all_imports=false = no imports allowed)
+  # Example: ['json', 'requests', 're', 'datetime', 'math', 'collections']
+  allowed_modules: []
+
+  # Blocked modules (takes precedence over allowed_modules and allow_all_imports)
+  # Prevents dangerous file operations, subprocess execution, and code manipulation
+  blocked_modules:
+    - os
+    - sys
+    - subprocess
+    - shutil
+    - pathlib
+    - pty
+    - fcntl
+    - resource
+    - pickle
+    - shelve
+    - marshal
+    - imp
+    - importlib
+    - ctypes
+    - code
+    - codeop
+    - tempfile
+    - glob
+    - socket
+    - socketserver
+    - asyncio
+
+  # Allow all builtins (ignores allowed_builtins, respects blocked_builtins)
+  allow_all_builtins: false
+
+  # Allowed builtins (empty + allow_all_builtins=false = use safe defaults)
+  # Safe defaults include: int, str, list, dict, print, len, range, etc.
+  allowed_builtins: []
+
+  # Blocked builtins (takes precedence over allowed_builtins and allow_all_builtins)
+  blocked_builtins:
+    - open
+    - compile
+    - exec
+    - eval
+    - __import__
+    - breakpoint
+    - exit
+    - quit
+    - input
+
 # === Tool Settings ===
 tools:
   # Enable drag tool
@@ -198,6 +258,7 @@ class CodeActConfig:
     vision: bool = False
     system_prompt: str = "system.jinja2"
     user_prompt: str = "user.jinja2"
+    safe_execution: bool = False
 
 
 @dataclass
@@ -221,6 +282,7 @@ class ScripterConfig:
     max_steps: int = 10
     execution_timeout: float = 30.0
     system_prompt_path: str = "system.jinja2"
+    safe_execution: bool = False
 
 
 @dataclass
@@ -317,6 +379,7 @@ class DroidRunConfig:
     tracing: TracingConfig = field(default_factory=TracingConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     tools: ToolsConfig = field(default_factory=ToolsConfig)
+    safe_execution: SafeExecutionConfig = field(default_factory=SafeExecutionConfig)
 
     def __post_init__(self):
         """Ensure default profiles exist."""
@@ -372,6 +435,7 @@ class DroidRunConfig:
         result["llm_profiles"] = {
             name: asdict(profile) for name, profile in self.llm_profiles.items()
         }
+        # safe_execution is already converted by asdict
         return result
 
     @classmethod
@@ -413,6 +477,10 @@ class DroidRunConfig:
             app_cards=app_cards_config,
         )
 
+        # Parse safe_execution config
+        safe_exec_data = data.get("safe_execution", {})
+        safe_execution_config = SafeExecutionConfig(**safe_exec_data) if safe_exec_data else SafeExecutionConfig()
+
         return cls(
             agent=agent_config,
             llm_profiles=llm_profiles,
@@ -421,6 +489,7 @@ class DroidRunConfig:
             tracing=TracingConfig(**data.get("tracing", {})),
             logging=LoggingConfig(**data.get("logging", {})),
             tools=ToolsConfig(**data.get("tools", {})),
+            safe_execution=safe_execution_config,
         )
 
 

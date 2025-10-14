@@ -49,6 +49,7 @@ class ScripterAgent(Workflow):
         agent_config: AgentConfig,
         shared_state: "DroidAgentState",
         task: str,
+        safe_execution_config=None,
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -79,13 +80,22 @@ class ScripterAgent(Workflow):
         except ImportError:
             pass
 
+        # Get safety settings
+        safe_mode = self.config.safe_execution
+        safe_config = safe_execution_config
+
         # Initialize SimpleCodeExecutor with state preservation
         self.executor = SimpleCodeExecutor(
             loop=asyncio.get_event_loop(),
             locals={},
             tools=self.tool_list,
             globals={"__builtins__": __builtins__},
-            use_same_scope=True  # Preserve variables across calls
+            use_same_scope=True,  # Preserve variables across calls
+            safe_mode=safe_mode,
+            allowed_modules=safe_config.get_allowed_modules() if safe_config and safe_mode else None,
+            blocked_modules=safe_config.get_blocked_modules() if safe_config and safe_mode else None,
+            allowed_builtins=safe_config.get_allowed_builtins() if safe_config and safe_mode else None,
+            blocked_builtins=safe_config.get_blocked_builtins() if safe_config and safe_mode else None,
         )
 
         logger.info("✅ ScripterAgent initialized successfully.")

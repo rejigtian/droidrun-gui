@@ -316,6 +316,7 @@ class DroidAgent(Workflow):
                 atomic_tools=self.atomic_tools,
                 debug=self.config.logging.debug,
                 shared_state=self.shared_state,
+                safe_execution_config=self.config.safe_execution,
                 timeout=self.timeout,
             )
 
@@ -574,6 +575,7 @@ class DroidAgent(Workflow):
             agent_config=self.config.agent,
             shared_state=self.shared_state,
             task=ev.task,
+            safe_execution_config=self.config.safe_execution,
             timeout=self.timeout
         )
 

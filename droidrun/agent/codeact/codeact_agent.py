@@ -56,6 +56,7 @@ class CodeActAgent(Workflow):
         atomic_tools: dict = None,
         debug: bool = False,
         shared_state: Optional["DroidAgentState"] = None,
+        safe_execution_config=None,
         *args,
         **kwargs,
     ):
@@ -107,11 +108,20 @@ class CodeActAgent(Workflow):
         )
         self.system_prompt = ChatMessage(role="system", content=system_prompt_text)
 
+        # Get safety settings
+        safe_mode = self.config.safe_execution
+        safe_config = safe_execution_config
+
         self.executor = SimpleCodeExecutor(
             loop=asyncio.get_event_loop(),
             locals={},
             tools=self.tool_list,
             globals={"__builtins__": __builtins__},
+            safe_mode=safe_mode,
+            allowed_modules=safe_config.get_allowed_modules() if safe_config and safe_mode else None,
+            blocked_modules=safe_config.get_blocked_modules() if safe_config and safe_mode else None,
+            allowed_builtins=safe_config.get_allowed_builtins() if safe_config and safe_mode else None,
+            blocked_builtins=safe_config.get_blocked_builtins() if safe_config and safe_mode else None,
         )
 
         logger.info("✅ CodeActAgent initialized successfully.")

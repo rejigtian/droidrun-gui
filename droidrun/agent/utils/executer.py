@@ -4,9 +4,11 @@ import io
 import logging
 import traceback
 from asyncio import AbstractEventLoop
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Set
 
 from pydantic import BaseModel
+
+from droidrun.config_manager.safe_execution import create_safe_builtins, create_safe_import
 
 logger = logging.getLogger("droidrun")
 
@@ -35,6 +37,11 @@ class SimpleCodeExecutor:
         globals: Dict[str, Any] = None,
         tools=None,
         use_same_scope: bool = True,
+        safe_mode: bool = False,
+        allowed_modules: Optional[Set[str]] = None,
+        blocked_modules: Optional[Set[str]] = None,
+        allowed_builtins: Optional[Set[str]] = None,
+        blocked_builtins: Optional[Set[str]] = None,
     ):
         """
         Initialize the code executor.
@@ -45,6 +52,11 @@ class SimpleCodeExecutor:
             globals: Global variables to use in the execution context
             tools: Dict or list of tools available for execution
             use_same_scope: Whether to use the same scope for globals and locals
+            safe_mode: Enable restricted execution (limited builtins/imports)
+            allowed_modules: Set of allowed modules (None = allow all, empty = allow none)
+            blocked_modules: Set of blocked modules (takes precedence)
+            allowed_builtins: Set of allowed builtins (None = allow all, empty = use defaults)
+            blocked_builtins: Set of blocked builtins (takes precedence)
         """
         if locals is None:
             locals = {}
@@ -53,7 +65,32 @@ class SimpleCodeExecutor:
         if tools is None:
             tools = {}
 
-        # Add tools to globals
+        self.safe_mode = safe_mode
+
+        # Setup builtins based on safe mode
+        if safe_mode:
+            logger.info("🔒 Safe execution mode enabled")
+            if allowed_modules is not None and not allowed_modules:
+                logger.debug("   No imports allowed (allowed_modules is empty)")
+            elif allowed_modules is not None:
+                logger.debug(f"   Allowed modules: {allowed_modules}")
+            else:
+                logger.debug("   All imports allowed (except blocked)")
+            logger.debug(f"   Blocked modules: {blocked_modules or 'none'}")
+            logger.debug(f"   Blocked builtins: {blocked_builtins or 'none'}")
+
+            # Create restricted builtins
+            safe_builtins_dict = create_safe_builtins(allowed_builtins, blocked_builtins)
+
+            # Add safe import function
+            safe_builtins_dict['__import__'] = create_safe_import(allowed_modules, blocked_modules)
+
+            globals['__builtins__'] = safe_builtins_dict
+        else:
+            # No restrictions - current behavior
+            globals['__builtins__'] = __builtins__
+
+        # Add tools to globals (always allowed, even in safe mode)
         if isinstance(tools, dict):
             logger.debug(f"🔧 Initializing SimpleCodeExecutor with tools: {list(tools.keys())}")
             globals.update(tools)
@@ -64,9 +101,7 @@ class SimpleCodeExecutor:
         else:
             raise ValueError("Tools must be a dictionary or a list of functions.")
 
-        # Add common imports
-        import time
-        globals["time"] = time
+
 
         self.globals = globals
         self.locals = locals
