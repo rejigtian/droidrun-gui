@@ -365,12 +365,10 @@ class DroidAgent(Workflow):
         logger.info(f"🚀 Running DroidAgent to achieve goal: {self.shared_state.instruction}")
         ctx.write_event_to_stream(ev)
 
-        if not hasattr(self, '_tools_wrapped'):
-            loop = asyncio.get_running_loop()
-            self.tools_instance.event_loop = loop
+        if not hasattr(self, '_tools_wrapped') and not self.config.agent.reasoning:
 
-            self.atomic_tools = wrap_async_tools(self.atomic_tools, loop)
-            self.custom_tools = wrap_async_tools(self.custom_tools, loop)
+            self.atomic_tools = wrap_async_tools(self.atomic_tools)
+            self.custom_tools = wrap_async_tools(self.custom_tools)
 
             self._tools_wrapped = True
             logger.debug("✅ Async tools wrapped for synchronous execution contexts")
