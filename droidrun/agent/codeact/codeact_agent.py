@@ -3,9 +3,14 @@ import json
 import logging
 import re
 import time
+import warnings
 from typing import TYPE_CHECKING, List, Optional, Union
 
-from llama_index.core.base.llms.types import ChatMessage, ChatResponse
+# Suppress all warnings for llama-index import (version compatibility)
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    from llama_index.core.base.llms.types import ChatMessage, ChatResponse
+
 from llama_index.core.llms.llm import LLM
 from llama_index.core.memory import Memory
 from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
