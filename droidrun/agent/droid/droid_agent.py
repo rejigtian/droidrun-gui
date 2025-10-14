@@ -383,6 +383,8 @@ class DroidAgent(Workflow):
         logger.info(f"🚀 Running DroidAgent to achieve goal: {self.shared_state.instruction}")
         ctx.write_event_to_stream(ev)
 
+        self.tools_instance._set_context(ctx)
+
         if not hasattr(self, '_tools_wrapped') and not self.config.agent.reasoning:
 
             self.atomic_tools = wrap_async_tools(self.atomic_tools)
@@ -657,6 +659,8 @@ class DroidAgent(Workflow):
 
         if self.trajectory and self.config.logging.save_trajectory != "none":
             self.trajectory.save_trajectory()
+
+        self.tools_instance._set_context(None)
 
         return StopEvent(result)
 
