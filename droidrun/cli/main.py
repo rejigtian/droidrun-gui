@@ -16,16 +16,6 @@ from rich.console import Console
 from droidrun.agent.droid import DroidAgent
 from droidrun.cli.logs import LogHandler
 from droidrun.config_manager import ConfigManager
-from droidrun.config_manager.config_manager import (
-    AgentConfig,
-    CodeActConfig,
-    DeviceConfig,
-    ExecutorConfig,
-    LoggingConfig,
-    ManagerConfig,
-    ToolsConfig,
-    TracingConfig,
-)
 from droidrun.macro.cli import macro_cli
 from droidrun.portal import (
     PORTAL_PACKAGE_NAME,
@@ -36,7 +26,6 @@ from droidrun.portal import (
     ping_portal_tcp,
 )
 from droidrun.telemetry import print_telemetry_message
-from droidrun.tools import AdbTools, IOSTools
 
 # Suppress all warnings
 warnings.filterwarnings("ignore")
