@@ -15,8 +15,8 @@ class ScripterInputEvent(Event):
 class ScripterThinkingEvent(Event):
     """LLM generated thought + code."""
     thoughts: str
-    code: str
-    usage: Optional[dict] = None
+    code: Optional[str] = None
+    full_response: str = ""  # Full LLM response (for fallback when no code)
 
 
 class ScripterExecutionEvent(Event):

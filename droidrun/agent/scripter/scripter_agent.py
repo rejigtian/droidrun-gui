@@ -3,7 +3,7 @@ ScripterAgent - ReAct agent for executing Python scripts (off-device operations)
 
 Works like CodeAct but:
 - No device tools (no click, type, swipe, etc.)
-- Uses response(message) instead of complete(success, reason)
+- When done, returns message without code (not a function call)
 - Variables persist across iterations (Jupyter notebook style)
 """
 
@@ -21,7 +21,6 @@ from droidrun.agent.scripter.events import (
     ScripterInputEvent,
     ScripterThinkingEvent,
 )
-from droidrun.agent.usage import get_usage_from_response
 from droidrun.agent.utils import chat_utils, convert_messages_to_chatmessages
 from droidrun.agent.utils.executer import ExecuterState, SimpleCodeExecutor
 from droidrun.agent.utils.inference import acall_with_retries
@@ -41,7 +40,7 @@ class ScripterAgent(Workflow):
     Like CodeAct but for off-device operations:
     - No device tools
     - Variables persist across code executions (Jupyter style)
-    - Uses response(message) to signal completion
+    - Signals completion by returning message without code block
     """
 
     def __init__(
@@ -63,12 +62,9 @@ class ScripterAgent(Workflow):
 
         self.message_history = []
         self.step_counter = 0
-        self.response_message = None
 
-        # Build tool list (Python libraries + response function)
-        self.tool_list = {
-            "response": self._response_function,
-        }
+        # Build tool list (Python libraries only)
+        self.tool_list = {}
 
         # Add standard library imports
         try:
@@ -93,14 +89,6 @@ class ScripterAgent(Workflow):
         )
 
         logger.info("✅ ScripterAgent initialized successfully.")
-
-    def _response_function(self, message: str):
-        """
-        Function that ScripterAgent calls to signal completion.
-        Similar to complete() in CodeAct.
-        """
-        self.response_message = message
-        logger.info(f"📤 response() called: {message[:100]}...")
 
     def _get_library_descriptions(self) -> str:
         """Build description of available libraries."""
@@ -146,9 +134,9 @@ class ScripterAgent(Workflow):
 
         # Check max steps
         if self.step_counter >= self.max_steps:
-            logger.warning(f"⚠️ Max steps ({self.max_steps}) reached without calling response()")
+            logger.warning(f"⚠️ Max steps ({self.max_steps}) reached without completion")
             return ScripterEndEvent(
-                message=f"Max steps ({self.max_steps}) reached without calling response()",
+                message=f"Max steps ({self.max_steps}) reached without completion",
                 success=False,
                 code_executions=self.step_counter
             )
@@ -171,30 +159,26 @@ class ScripterAgent(Workflow):
                 code_executions=self.step_counter
             )
 
-        # Extract usage
-        try:
-            usage = get_usage_from_response(self.llm.class_name(), response)
-        except Exception:
-            usage = None
 
         # Add assistant response to history
+        full_response = response.message.content
         self.message_history.append({
             "role": "assistant",
-            "content": [{"text": response.message.content}]
+            "content": [{"text": full_response}]
         })
 
         # Extract code and thoughts
-        code, thoughts = chat_utils.extract_code_and_thought(response.message.content)
+        code, thoughts = chat_utils.extract_code_and_thought(full_response)
 
-        event = ScripterThinkingEvent(thoughts=thoughts, code=code, usage=usage)
+        event = ScripterThinkingEvent(thoughts=thoughts, code=code, full_response=full_response)
         ctx.write_event_to_stream(event)
         return event
 
     @step
     async def handle_llm_output(
         self, ctx: Context, ev: ScripterThinkingEvent
-    ) -> ScripterExecutionEvent | ScripterInputEvent:
-        """Route to execution or loop back if no code."""
+    ) -> ScripterExecutionEvent | ScripterEndEvent:
+        """Route to execution or treat as final response if no code."""
 
         if not ev.thoughts:
             logger.warning("🤔 LLM provided code without thoughts")
@@ -204,13 +188,21 @@ class ScripterAgent(Workflow):
         if ev.code:
             return ScripterExecutionEvent(code=ev.code)
         else:
-            # No code provided, ask LLM to provide code
-            logger.warning("⚠️ No code provided by LLM")
-            self.message_history.append({
-                "role": "user",
-                "content": [{"text": "No code was provided. Please provide Python code in a ```python``` block. When you're done, call response(message) to return your result to the Manager."}]
-            })
-            return ScripterInputEvent(input=self.message_history)
+            # No code provided - treat entire response as final answer
+            logger.info("📝 No code provided, treating response as final answer")
+
+            # Use thoughts if available, otherwise use full response
+            response_message = ev.thoughts.strip() if ev.thoughts.strip() else ev.full_response.strip()
+
+            if not response_message:
+                response_message = "No response provided by LLM"
+
+            logger.info(f"✅ Script completed with response: {response_message[:100]}...")
+            return ScripterEndEvent(
+                message=response_message,
+                success=True,
+                code_executions=self.step_counter
+            )
 
     @step
     async def execute_code(
@@ -232,16 +224,7 @@ class ScripterAgent(Workflow):
 
             logger.info(f"💡 Execution result: {result}")
 
-            # Check if response() was called
-            if self.response_message is not None:
-                logger.info("✅ Script called response() - task complete")
-                return ScripterEndEvent(
-                    message=self.response_message,
-                    success=True,
-                    code_executions=self.step_counter
-                )
-
-            # Continue loop
+            # Continue loop (completion detected in handle_llm_output)
             event = ScripterExecutionResultEvent(output=str(result))
             ctx.write_event_to_stream(event)
             return event

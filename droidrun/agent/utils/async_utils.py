@@ -1,18 +1,36 @@
 import asyncio
+import logging
+
+logger = logging.getLogger("droidrun")
 
 
-def async_to_sync(func):
+def wrap_async_tools(tools_dict: dict, loop) -> dict:
     """
-    Convert an async function to a sync function.
+    Wrap async tool functions with sync wrappers for exec() contexts.
 
-    Args:
-        func: Async function to convert
-
-    Returns:
-        Callable: Synchronous version of the async function
+    ExecutorAgent handles async natively via iscoroutinefunction checks.
+    CodeActAgent needs sync wrappers since it runs code in threads via exec().
     """
+    wrapped = {}
+    for tool_name, tool_spec in tools_dict.items():
+        func = tool_spec["function"]
 
-    def wrapper(*args, **kwargs):
-        return asyncio.run(func(*args, **kwargs))
+        if asyncio.iscoroutinefunction(func):
+            logger.debug("Wrapping async tool: %s", tool_name)
 
-    return wrapper
+            def sync_wrapper(tool_instance, *args, _func=func, _loop=loop, **kwargs):
+                future = asyncio.run_coroutine_threadsafe(
+                    _func(tool_instance, *args, **kwargs),
+                    _loop
+                )
+                return future.result(timeout=None)
+
+            wrapped[tool_name] = {
+                **tool_spec,
+                "function": sync_wrapper,
+                "original_function": func,
+            }
+        else:
+            wrapped[tool_name] = tool_spec
+
+    return wrapped

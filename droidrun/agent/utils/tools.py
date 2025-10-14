@@ -100,7 +100,7 @@ def swipe(tool_instance: "Tools", coordinate: List[int], coordinate2: List[int])
     return tool_instance.swipe(start_x, start_y, end_x, end_y, duration_ms=300)
 
 
-def open_app(tool_instance: "Tools", text: str) -> str:
+async def open_app(tool_instance: "Tools", text: str) -> str:
     """
     Open an app by its name.
 
@@ -122,7 +122,7 @@ def open_app(tool_instance: "Tools", text: str) -> str:
     workflow = AppStarter(tools=tool_instance, llm=tool_instance.app_opener_llm, timeout=60, verbose=True)
 
     # Run workflow to open an app
-    result = workflow.run(app_description=text)
+    result = await workflow.run(app_description=text)
     time.sleep(1)
     return result
 

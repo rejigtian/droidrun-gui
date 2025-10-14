@@ -7,8 +7,8 @@ Architecture:
 - When reasoning=True: Uses Manager (planning) + Executor (action) workflows
 """
 
+import asyncio
 import logging
-import re
 from typing import List
 
 import llama_index.core
@@ -36,6 +36,7 @@ from droidrun.agent.droid.events import (
 from droidrun.agent.executor import ExecutorAgent
 from droidrun.agent.manager import ManagerAgent
 from droidrun.agent.scripter import ScripterAgent
+from droidrun.agent.utils.async_utils import wrap_async_tools
 from droidrun.agent.utils.tools import ATOMIC_ACTION_SIGNATURES, open_app
 from droidrun.agent.utils.trajectory import Trajectory
 from droidrun.config_manager.config_manager import (
@@ -194,12 +195,13 @@ class DroidAgent(Workflow):
         self.task_iter = None
         self.current_episodic_memory = None
 
+        self.atomic_tools = ATOMIC_ACTION_SIGNATURES.copy()
+
         open_app_tool = {
             "arguments": ["text"],
             "description": "Open an app by name. Usage example: {\"action\": \"open_app\", \"text\": \"the name of app\"}",
             "function": open_app,
         }
-        # Merge with user-provided custom tools
         self.custom_tools = {**self.custom_tools, "open_app": open_app_tool}
 
         logger.info("🤖 Initializing DroidAgent...")
@@ -295,6 +297,7 @@ class DroidAgent(Workflow):
                 agent_config=self.config.agent,
                 tools_instance=self.tools_instance,
                 custom_tools=self.custom_tools,
+                atomic_tools=self.atomic_tools,
                 debug=self.config.logging.debug,
                 shared_state=self.shared_state,
                 timeout=self.timeout,
@@ -362,6 +365,15 @@ class DroidAgent(Workflow):
         logger.info(f"🚀 Running DroidAgent to achieve goal: {self.shared_state.instruction}")
         ctx.write_event_to_stream(ev)
 
+        if not hasattr(self, '_tools_wrapped'):
+            loop = asyncio.get_running_loop()
+            self.tools_instance.event_loop = loop
+
+            self.atomic_tools = wrap_async_tools(self.atomic_tools, loop)
+            self.custom_tools = wrap_async_tools(self.custom_tools, loop)
+
+            self._tools_wrapped = True
+            logger.debug("✅ Async tools wrapped for synchronous execution contexts")
 
         if not self.config.agent.reasoning:
             logger.info(f"🔄 Direct execution mode - executing goal: {self.shared_state.instruction}")
@@ -438,13 +450,20 @@ class DroidAgent(Workflow):
                 reason=ev.manager_answer
             )
 
-        # Check for <script> tag in current_subgoal
-        script_match = re.search(r'<script>(.*?)</script>', ev.current_subgoal, re.DOTALL)
+        # Check for <script> tag in current_subgoal, then extract from full plan
+        if '<script>' in ev.current_subgoal:
+            # Found script tag in subgoal - now search the entire plan
+            start_idx = ev.plan.find('<script>')
+            end_idx = ev.plan.find('</script>')
 
-        if script_match:
-            task = script_match.group(1).strip()
-            logger.info(f"🐍 Routing to ScripterAgent: {task[:80]}...")
-            return ScripterExecutorInputEvent(task=task)
+            if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                # Extract content between first <script> and first </script> in plan
+                task = ev.plan[start_idx + len('<script>'):end_idx].strip()
+                logger.info(f"🐍 Routing to ScripterAgent: {task[:80]}...")
+                return ScripterExecutorInputEvent(task=task)
+            else:
+                # <script> found in subgoal but not properly closed in plan - log warning
+                logger.warning("⚠️ Found <script> in subgoal but not properly closed in plan, treating as regular subgoal")
 
         # Continue to Executor with current subgoal
         logger.info(f"▶️  Proceeding to Executor with subgoal: {ev.current_subgoal}")

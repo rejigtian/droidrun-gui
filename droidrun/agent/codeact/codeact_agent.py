@@ -53,6 +53,7 @@ class CodeActAgent(Workflow):
         agent_config: AgentConfig,
         tools_instance: "Tools",
         custom_tools: dict = None,
+        atomic_tools: dict = None,
         debug: bool = False,
         shared_state: Optional["DroidAgentState"] = None,
         *args,
@@ -77,8 +78,10 @@ class CodeActAgent(Workflow):
         self.goal = None
         self.code_exec_counter = 0
 
-        # Build tool list
-        merged_signatures = {**ATOMIC_ACTION_SIGNATURES, **(custom_tools or {})}
+        if atomic_tools is None:
+            atomic_tools = ATOMIC_ACTION_SIGNATURES
+
+        merged_signatures = {**atomic_tools, **(custom_tools or {})}
 
         self.tool_list = {}
         for action_name, signature in merged_signatures.items():

@@ -296,7 +296,7 @@ class ExecutorAgent(Workflow):
                 if text is None:
                     return False, "Missing 'text' parameter", "Failed: open_app requires text"
 
-                result = open_app(self.tools_instance, text)
+                result = await open_app(self.tools_instance, text)
                 return True, "None", f"Opened app: {text}"
 
             else:
