@@ -139,8 +139,10 @@ llm_profiles:
 
 # === Device Settings ===
 device:
-  # Default device serial (null = auto-detect)
+  # Default device serial (null = auto-detect for Android)
   serial: null
+  # Platform: android or ios
+  platform: android
   # Use TCP communication instead of content provider
   use_tcp: false
 
@@ -342,6 +344,7 @@ class DeviceConfig:
     """Device-related configuration."""
     serial: Optional[str] = None
     use_tcp: bool = False
+    platform: str = "android"  # "android" or "ios"
 
 
 @dataclass

@@ -165,42 +165,17 @@ async def run_command(
             if tracing is not None:
                 config.tracing.enabled = tracing
 
-            # ================================================================
-            # STEP 2: Setup device and tools
-            # ================================================================
-
-            log_handler.update_step("Setting up tools...")
-
-            device_serial = config.device.serial
-            if device_serial is None and not ios:
-                logger.info("🔍 Finding connected device...")
-                devices = adb.list()
-                if not devices:
-                    raise ValueError("No connected devices found.")
-                device_serial = devices[0].serial
-                config.device.serial = device_serial
-                logger.info(f"📱 Using device: {device_serial}")
-            elif device_serial is None and ios:
-                raise ValueError("iOS device not specified. Please specify device base url via --device")
-            else:
-                logger.info(f"📱 Using device: {device_serial}")
-
-            tools = (
-                AdbTools(
-                    serial=device_serial,
-                    use_tcp=config.device.use_tcp,
-                )
-                if not ios
-                else IOSTools(url=device_serial)
-            )
-
-            excluded_tools = [] if config.tools.allow_drag else ["drag"]
+            # Platform overrides
+            if ios:
+                config.device.platform = "ios"
 
             # ================================================================
-            # STEP 3: Initialize DroidAgent with config
+            # STEP 2: Initialize DroidAgent with config
             # ================================================================
 
             log_handler.update_step("Initializing DroidAgent...")
+
+            excluded_tools = [] if config.tools.allow_drag else ["drag"]
 
             mode = "planning with reasoning" if config.agent.reasoning else "direct execution"
             logger.info(f"🤖 Agent mode: {mode}")
@@ -229,7 +204,6 @@ async def run_command(
 
             droid_agent = DroidAgent(
                 goal=command,
-                tools=tools,
                 config=config,
                 excluded_tools=excluded_tools,
                 timeout=1000,
@@ -237,7 +211,7 @@ async def run_command(
             )
 
             # ================================================================
-            # STEP 4: Run agent
+            # STEP 3: Run agent
             # ================================================================
 
             logger.info("▶️  Starting agent execution...")
@@ -765,42 +739,17 @@ async def test(
             if tracing is not None:
                 config.tracing.enabled = tracing
 
-            # ================================================================
-            # STEP 2: Setup device and tools
-            # ================================================================
-
-            log_handler.update_step("Setting up tools...")
-
-            device_serial = config.device.serial
-            if device_serial is None and not ios:
-                logger.info("🔍 Finding connected device...")
-                devices = adb.list()
-                if not devices:
-                    raise ValueError("No connected devices found.")
-                device_serial = devices[0].serial
-                config.device.serial = device_serial
-                logger.info(f"📱 Using device: {device_serial}")
-            elif device_serial is None and ios:
-                raise ValueError("iOS device not specified. Please specify device base url via --device")
-            else:
-                logger.info(f"📱 Using device: {device_serial}")
-
-            tools = (
-                AdbTools(
-                    serial=device_serial,
-                    use_tcp=config.device.use_tcp,
-                )
-                if not ios
-                else IOSTools(url=device_serial)
-            )
-
-            excluded_tools = [] if config.tools.allow_drag else ["drag"]
+            # Platform overrides
+            if ios:
+                config.device.platform = "ios"
 
             # ================================================================
-            # STEP 3: Initialize DroidAgent with config
+            # STEP 2: Initialize DroidAgent with config
             # ================================================================
 
             log_handler.update_step("Initializing DroidAgent...")
+
+            excluded_tools = [] if config.tools.allow_drag else ["drag"]
 
             mode = "planning with reasoning" if config.agent.reasoning else "direct execution"
             logger.info(f"🤖 Agent mode: {mode}")
@@ -817,7 +766,6 @@ async def test(
 
             droid_agent = DroidAgent(
                 goal=command,
-                tools=tools,
                 config=config,
                 excluded_tools=excluded_tools,
                 timeout=1000,
@@ -825,7 +773,7 @@ async def test(
             )
 
             # ================================================================
-            # STEP 4: Run agent
+            # STEP 3: Run agent
             # ================================================================
 
             logger.info("▶️  Starting agent execution...")

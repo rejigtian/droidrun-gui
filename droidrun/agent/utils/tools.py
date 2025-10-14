@@ -3,8 +3,49 @@ from typing import TYPE_CHECKING, List
 
 if TYPE_CHECKING:
     from droidrun.tools import Tools
+    from droidrun.config_manager.config_manager import DeviceConfig
 
 from droidrun.agent.oneflows.app_starter_workflow import AppStarter
+
+
+def create_tools_from_config(device_config: "DeviceConfig") -> "Tools":
+    """
+    Create Tools instance from DeviceConfig.
+
+    Args:
+        device_config: Device configuration
+
+    Returns:
+        AdbTools or IOSTools based on config.platform
+
+    Raises:
+        ValueError: If no device found or invalid platform
+    """
+    from adbutils import adb
+    from droidrun.tools import AdbTools, IOSTools
+
+    is_ios = device_config.platform.lower() == "ios"
+    device_serial = device_config.serial
+
+    if not is_ios:
+        # Android: auto-detect if not specified
+        if device_serial is None:
+            devices = adb.list()
+            if not devices:
+                raise ValueError("No connected Android devices found.")
+            device_serial = devices[0].serial
+
+        return AdbTools(
+            serial=device_serial,
+            use_tcp=device_config.use_tcp,
+        )
+    else:
+        # iOS: require explicit device URL
+        if device_serial is None:
+            raise ValueError(
+                "iOS device URL required in config.device.serial"
+            )
+        return IOSTools(url=device_serial)
 
 
 def click(tool_instance: "Tools", index: int) -> str:

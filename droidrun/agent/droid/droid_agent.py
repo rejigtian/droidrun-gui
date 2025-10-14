@@ -10,7 +10,7 @@ Architecture:
 import asyncio
 import logging
 from typing import List
-
+from droidrun.agent.utils.tools import create_tools_from_config
 import llama_index.core
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
@@ -95,7 +95,6 @@ class DroidAgent(Workflow):
     def __init__(
         self,
         goal: str,
-        tools: Tools,
         config: DroidRunConfig | None = None,
         llms: dict[str, LLM] | LLM | None = None,
         agent_config: AgentConfig | None = None,
@@ -115,7 +114,6 @@ class DroidAgent(Workflow):
 
         Args:
             goal: User's goal or command
-            tools: Tools instance (AdbTools or IOSTools)
             config: Full config (required if llms not provided)
             llms: Optional dict of agent-specific LLMs or single LLM for all.
                   If not provided, LLMs will be loaded from config profiles.
@@ -147,6 +145,9 @@ class DroidAgent(Workflow):
             telemetry=telemetry_config or base_config.telemetry,
             llm_profiles=base_config.llm_profiles,
         )
+
+        # Create tools from config
+        tools = create_tools_from_config(self.config.device)
 
         super().__init__(*args, timeout=timeout, **kwargs)
 
