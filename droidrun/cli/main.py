@@ -369,40 +369,49 @@ def cli(
 )
 @click.option(
     "--vision",
-    type=bool,
+    is_flag=True,
     default=None,
     help="Enable vision capabilites by using screenshots for all agents.",
 )
 @click.option(
     "--manager-vision",
-    type=bool,
+    is_flag=True,
     default=None,
     help="Enable vision for Manager agent only",
 )
 @click.option(
     "--executor-vision",
-    type=bool,
+    is_flag=True,
     default=None,
     help="Enable vision for Executor agent only",
 )
 @click.option(
     "--codeact-vision",
-    type=bool,
+    is_flag=True,
     default=None,
     help="Enable vision for CodeAct agent only",
 )
 @click.option(
-    "--reasoning", type=bool, default=None, help="Enable planning with reasoning"
+    "--reasoning",
+    is_flag=True,
+    default=None,
+    help="Enable planning with reasoning"
 )
 @click.option(
-    "--tracing", type=bool, default=None, help="Enable Arize Phoenix tracing"
+    "--tracing",
+    is_flag=True,
+    default=None,
+    help="Enable Arize Phoenix tracing"
 )
 @click.option(
-    "--debug", type=bool, default=None, help="Enable verbose debug logging"
+    "--debug",
+    is_flag=True,
+    default=None,
+    help="Enable verbose debug logging"
 )
 @click.option(
     "--use-tcp",
-    type=bool,
+    is_flag=True,
     default=None,
     help="Use TCP communication for device control",
 )
@@ -415,7 +424,7 @@ def cli(
 @click.option(
     "--drag",
     "allow_drag",
-    type=bool,
+    is_flag=True,
     default=None,
     help="Enable drag tool",
 )
