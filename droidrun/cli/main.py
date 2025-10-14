@@ -14,7 +14,6 @@ from adbutils import adb
 from rich.console import Console
 
 from droidrun.agent.droid import DroidAgent
-from droidrun.agent.utils.llm_picker import load_llm, load_llms_from_profiles
 from droidrun.cli.logs import LogHandler
 from droidrun.config_manager import ConfigManager
 from droidrun.config_manager.config_manager import (
@@ -105,10 +104,10 @@ async def run_command(
 ):
     """Run a command on your Android device using natural language."""
     # Load custom config if provided
-    config = ConfigManager(config_path)
+    config_manager = ConfigManager(config_path)
     # Initialize logging first (use config default if debug not specified)
-    debug_mode = debug if debug is not None else config.logging.debug
-    log_handler = configure_logging(command, debug_mode, config.logging.rich_text)
+    debug_mode = debug if debug is not None else config_manager.logging.debug
+    log_handler = configure_logging(command, debug_mode, config_manager.logging.rich_text)
     logger = logging.getLogger("droidrun")
 
     log_handler.update_step("Initializing...")
@@ -131,120 +130,60 @@ async def run_command(
                 logger.debug(f"CLI override: vision={vision} (all agents)")
             else:
                 # Use individual overrides or config defaults
-                manager_vision_val = manager_vision if manager_vision is not None else config.agent.manager.vision
-                executor_vision_val = executor_vision if executor_vision is not None else config.agent.executor.vision
-                codeact_vision_val = codeact_vision if codeact_vision is not None else config.agent.codeact.vision
+                manager_vision_val = manager_vision if manager_vision is not None else config_manager.agent.manager.vision
+                executor_vision_val = executor_vision if executor_vision is not None else config_manager.agent.executor.vision
+                codeact_vision_val = codeact_vision if codeact_vision is not None else config_manager.agent.codeact.vision
 
             manager_cfg = ManagerConfig(
                 vision=manager_vision_val,
-                system_prompt=config.agent.manager.system_prompt
+                system_prompt=config_manager.agent.manager.system_prompt
             )
 
             executor_cfg = ExecutorConfig(
                 vision=executor_vision_val,
-                system_prompt=config.agent.executor.system_prompt
+                system_prompt=config_manager.agent.executor.system_prompt
             )
 
             codeact_cfg = CodeActConfig(
                 vision=codeact_vision_val,
-                system_prompt=config.agent.codeact.system_prompt,
-                user_prompt=config.agent.codeact.user_prompt
+                system_prompt=config_manager.agent.codeact.system_prompt,
+                user_prompt=config_manager.agent.codeact.user_prompt
             )
 
             agent_cfg = AgentConfig(
-                max_steps=steps if steps is not None else config.agent.max_steps,
-                reasoning=reasoning if reasoning is not None else config.agent.reasoning,
-                after_sleep_action=config.agent.after_sleep_action,
-                wait_for_stable_ui=config.agent.wait_for_stable_ui,
-                prompts_dir=config.agent.prompts_dir,
+                max_steps=steps if steps is not None else config_manager.agent.max_steps,
+                reasoning=reasoning if reasoning is not None else config_manager.agent.reasoning,
+                after_sleep_action=config_manager.agent.after_sleep_action,
+                wait_for_stable_ui=config_manager.agent.wait_for_stable_ui,
+                prompts_dir=config_manager.agent.prompts_dir,
                 manager=manager_cfg,
                 executor=executor_cfg,
                 codeact=codeact_cfg,
-                scripter=config.agent.scripter,
-                app_cards=config.agent.app_cards,
+                scripter=config_manager.agent.scripter,
+                app_cards=config_manager.agent.app_cards,
             )
 
             device_cfg = DeviceConfig(
-                serial=device if device is not None else config.device.serial,
-                use_tcp=use_tcp if use_tcp is not None else config.device.use_tcp,
+                serial=device if device is not None else config_manager.device.serial,
+                use_tcp=use_tcp if use_tcp is not None else config_manager.device.use_tcp,
             )
 
             tools_cfg = ToolsConfig(
-                allow_drag=allow_drag if allow_drag is not None else config.tools.allow_drag,
+                allow_drag=allow_drag if allow_drag is not None else config_manager.tools.allow_drag,
             )
 
             logging_cfg = LoggingConfig(
-                debug=debug if debug is not None else config.logging.debug,
-                save_trajectory=save_trajectory if save_trajectory is not None else config.logging.save_trajectory,
-                rich_text=config.logging.rich_text,
+                debug=debug if debug is not None else config_manager.logging.debug,
+                save_trajectory=save_trajectory if save_trajectory is not None else config_manager.logging.save_trajectory,
+                rich_text=config_manager.logging.rich_text,
             )
 
             tracing_cfg = TracingConfig(
-                enabled=tracing if tracing is not None else config.tracing.enabled,
+                enabled=tracing if tracing is not None else config_manager.tracing.enabled,
             )
 
             # ================================================================
-            # STEP 3: Load LLMs
-            # ================================================================
-
-            log_handler.update_step("Loading LLMs...")
-
-            # Check if user wants custom LLM for all agents
-            if provider is not None or model is not None:
-                # User specified custom provider/model - use for all agents
-                logger.info("🔧 Using custom LLM for all agents")
-
-                # Use provided values or fall back to first profile's defaults
-                if provider is None:
-                    provider = list(config.llm_profiles.values())[0].provider
-                if model is None:
-                    model = list(config.llm_profiles.values())[0].model
-
-                # Build kwargs
-                llm_kwargs = {}
-                if temperature is not None:
-                    llm_kwargs['temperature'] = temperature
-                else:
-                    llm_kwargs['temperature'] = kwargs.get('temperature', 0.3)
-                if base_url is not None:
-                    llm_kwargs['base_url'] = base_url
-                if api_base is not None:
-                    llm_kwargs['api_base'] = api_base
-                llm_kwargs.update(kwargs)
-
-                # Load single LLM for all agents
-                custom_llm = load_llm(
-                    provider_name=provider,
-                    model=model,
-                    **llm_kwargs
-                )
-
-                # Use same LLM for all agents
-                llms = {
-                    'manager': custom_llm,
-                    'executor': custom_llm,
-                    'codeact': custom_llm,
-                    'text_manipulator': custom_llm,
-                    'app_opener': custom_llm,
-                    'scripter': custom_llm,
-                }
-                logger.info(f"🧠 Custom LLM ready: {provider}/{model}")
-            else:
-                # No custom provider/model - use profiles from config
-                logger.info("📋 Loading LLMs from config profiles...")
-
-                profile_names = ['manager', 'executor', 'codeact', 'text_manipulator', 'app_opener', 'scripter']
-
-                # Apply temperature override to all profiles if specified
-                overrides = {}
-                if temperature is not None:
-                    overrides = {name: {'temperature': temperature} for name in profile_names}
-
-                llms = load_llms_from_profiles(config.llm_profiles, profile_names=profile_names, **overrides)
-                logger.info(f"🧠 Loaded {len(llms)} agent-specific LLMs from profiles")
-
-            # ================================================================
-            # STEP 4: Setup device and tools
+            # STEP 3: Setup device and tools
             # ================================================================
 
             log_handler.update_step("Setting up tools...")
@@ -267,8 +206,6 @@ async def run_command(
                 AdbTools(
                     serial=device_serial,
                     use_tcp=device_cfg.use_tcp,
-                    app_opener_llm=llms.get('app_opener'),
-                    text_manipulator_llm=llms.get('text_manipulator')
                 )
                 if not ios
                 else IOSTools(url=device_serial)
@@ -290,11 +227,27 @@ async def run_command(
             if tracing_cfg.enabled:
                 logger.info("🔍 Tracing enabled")
 
+            # Build DroidAgent kwargs for LLM loading
+            droid_agent_kwargs = {
+                'runtype': 'cli'
+            }
+
+            # Add custom LLM parameters if provided
+            if provider is not None:
+                droid_agent_kwargs['custom_provider'] = provider
+            if model is not None:
+                droid_agent_kwargs['custom_model'] = model
+            if temperature is not None:
+                droid_agent_kwargs['temperature'] = temperature
+            if base_url is not None:
+                droid_agent_kwargs['base_url'] = base_url
+            if api_base is not None:
+                droid_agent_kwargs['api_base'] = api_base
+
             droid_agent = DroidAgent(
                 goal=command,
-                llms=llms,
                 tools=tools,
-                config=config,
+                config=config_manager.config,
                 agent_config=agent_cfg,
                 device_config=device_cfg,
                 tools_config=tools_cfg,
@@ -302,11 +255,11 @@ async def run_command(
                 tracing_config=tracing_cfg,
                 excluded_tools=excluded_tools,
                 timeout=1000,
-                runtype="cli"
+                **droid_agent_kwargs
             )
 
             # ================================================================
-            # STEP 6: Run agent
+            # STEP 5: Run agent
             # ================================================================
 
             logger.info("▶️  Starting agent execution...")
@@ -338,7 +291,7 @@ async def run_command(
         except Exception as e:
             log_handler.current_step = f"Error: {e}"
             logger.error(f"💥 Setup error: {e}")
-            debug_mode = debug if debug is not None else config.logging.debug
+            debug_mode = debug if debug is not None else config_manager.logging.debug
             if debug_mode:
                 import traceback
                 logger.debug(traceback.format_exc())
@@ -860,26 +813,7 @@ async def test(
             )
 
             # ================================================================
-            # STEP 3: Load LLMs
-            # ================================================================
-
-            log_handler.update_step("Loading LLMs...")
-
-            # No custom provider/model - use profiles from config
-            logger.info("📋 Loading LLMs from config profiles...")
-
-            profile_names = ['manager', 'executor', 'codeact', 'text_manipulator', 'app_opener', 'scripter']
-
-            # Apply temperature override to all profiles if specified
-            overrides = {}
-            if temperature is not None:
-                overrides = {name: {'temperature': temperature} for name in profile_names}
-
-            llms = load_llms_from_profiles(config.llm_profiles, profile_names=profile_names, **overrides)
-            logger.info(f"🧠 Loaded {len(llms)} agent-specific LLMs from profiles")
-
-            # ================================================================
-            # STEP 4: Setup device and tools
+            # STEP 3: Setup device and tools
             # ================================================================
 
             log_handler.update_step("Setting up tools...")
@@ -902,8 +836,6 @@ async def test(
                 AdbTools(
                     serial=device_serial,
                     use_tcp=device_cfg.use_tcp,
-                    app_opener_llm=llms.get('app_opener'),
-                    text_manipulator_llm=llms.get('text_manipulator')
                 )
                 if not ios
                 else IOSTools(url=device_serial)
@@ -925,11 +857,15 @@ async def test(
             if tracing_cfg.enabled:
                 logger.info("🔍 Tracing enabled")
 
+            # Build DroidAgent kwargs for LLM loading
+            droid_agent_kwargs = {}
+            if temperature is not None:
+                droid_agent_kwargs['temperature'] = temperature
+
             droid_agent = DroidAgent(
                 goal=command,
-                llms=llms,
                 tools=tools,
-                config=config,
+                config=config.config,
                 agent_config=agent_cfg,
                 device_config=device_cfg,
                 tools_config=tools_cfg,
@@ -937,10 +873,11 @@ async def test(
                 tracing_config=tracing_cfg,
                 excluded_tools=excluded_tools,
                 timeout=1000,
+                **droid_agent_kwargs
             )
 
             # ================================================================
-            # STEP 6: Run agent
+            # STEP 4: Run agent
             # ================================================================
 
             logger.info("▶️  Starting agent execution...")
@@ -999,5 +936,5 @@ if __name__ == "__main__":
     save_trajectory = "none"
     allow_drag = False
     asyncio.run(
-        test(command)
+        test(command, reasoning=False)
     )

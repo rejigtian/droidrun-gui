@@ -497,6 +497,12 @@ class ConfigManager:
 
     # ---------------- Typed property access ----------------
     @property
+    def config(self) -> DroidRunConfig:
+        """Access the internal DroidRunConfig object."""
+        with self._lock:
+            return self._config
+
+    @property
     def agent(self) -> AgentConfig:
         """Access agent configuration."""
         with self._lock:

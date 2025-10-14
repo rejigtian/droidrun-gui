@@ -56,6 +56,7 @@ from droidrun.telemetry import (
 )
 from droidrun.telemetry.phoenix import arize_phoenix_callback_handler
 from droidrun.tools import Tools
+from droidrun.agent.utils.llm_loader import load_agent_llms, validate_llm_dict
 
 logger = logging.getLogger("droidrun")
 
@@ -94,9 +95,9 @@ class DroidAgent(Workflow):
     def __init__(
         self,
         goal: str,
-        llms: dict[str, LLM] | LLM,
         tools: Tools,
         config: DroidRunConfig | None = None,
+        llms: dict[str, LLM] | LLM | None = None,
         agent_config: AgentConfig | None = None,
         device_config: DeviceConfig | None = None,
         tools_config: ToolsConfig | None = None,
@@ -114,9 +115,10 @@ class DroidAgent(Workflow):
 
         Args:
             goal: User's goal or command
-            llms: Dict of agent-specific LLMs or single LLM for all
             tools: Tools instance (AdbTools or IOSTools)
-            config: Full config override (optional)
+            config: Full config (required if llms not provided)
+            llms: Optional dict of agent-specific LLMs or single LLM for all.
+                  If not provided, LLMs will be loaded from config profiles.
             agent_config: Agent config override (optional)
             device_config: Device config override (optional)
             tools_config: Tools config override (optional)
@@ -150,6 +152,24 @@ class DroidAgent(Workflow):
 
         self._configure_default_logging(debug=self.config.logging.debug)
 
+        # Load LLMs if not provided
+        if llms is None:
+            if config is None:
+                raise ValueError(
+                    "Either 'llms' or 'config' must be provided. "
+                    "If llms is not provided, config is required to load LLMs from profiles."
+                )
+
+
+            logger.info("🔄 Loading LLMs from config (llms not provided)...")
+
+
+            llms = load_agent_llms(
+                config=self.config,
+                **kwargs
+            )
+        validate_llm_dict(self.config, llms)
+
         if self.config.tracing.enabled:
             try:
                 handler = arize_phoenix_callback_handler()
@@ -173,11 +193,6 @@ class DroidAgent(Workflow):
             self.text_manipulator_llm = llms.get('text_manipulator')
             self.app_opener_llm = llms.get('app_opener')
             self.scripter_llm = llms.get('scripter', self.codeact_llm)
-
-            if self.config.agent.reasoning and (not self.manager_llm or not self.executor_llm):
-                raise ValueError("When reasoning=True, 'manager' and 'executor' LLMs must be provided in llms dict")
-            if not self.codeact_llm:
-                raise ValueError("'codeact' LLM must be provided in llms dict")
 
             logger.info("📚 Using agent-specific LLMs from dictionary")
         else:
@@ -209,8 +224,9 @@ class DroidAgent(Workflow):
 
         self.tools_instance = tools
         self.tools_instance.save_trajectories = self.config.logging.save_trajectory
-        # Set app_opener_llm on tools instance for open_app custom tool
+        # Set LLMs on tools instance for helper tools
         self.tools_instance.app_opener_llm = self.app_opener_llm
+        self.tools_instance.text_manipulator_llm = self.text_manipulator_llm
 
 
         if self.config.agent.reasoning:
