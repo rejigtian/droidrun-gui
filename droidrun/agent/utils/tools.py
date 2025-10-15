@@ -16,7 +16,7 @@ def create_tools_from_config(device_config: "DeviceConfig") -> "Tools":
         device_config: Device configuration
 
     Returns:
-        AdbTools or IOSTools based on config.platform
+        AdbTools, CloudAdbTools, or IOSTools based on config
 
     Raises:
         ValueError: If no device found or invalid platform
@@ -28,6 +28,12 @@ def create_tools_from_config(device_config: "DeviceConfig") -> "Tools":
     device_serial = device_config.serial
 
     if not is_ios:
+        # Check if using cloud devices
+        if device_config.use_cloud:
+            from droidrun.tools.cloud_adb import CloudAdbTools
+
+            return CloudAdbTools(device_config=device_config)
+
         # Android: auto-detect if not specified
         if device_serial is None:
             devices = adb.list()
