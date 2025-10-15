@@ -8,7 +8,7 @@
 [![Discord](https://img.shields.io/discord/1360219330318696488?color=7289DA&label=Discord&logo=discord&logoColor=white)](https://discord.gg/ZZbKEZZkwK)
 [![Documentation](https://img.shields.io/badge/Documentation-📕-blue)](https://docs.droidrun.ai)
 [![Benchmark](https://img.shields.io/badge/Benchmark-🏅-teal)](https://droidrun.ai/benchmark)
-[![DroidrunCloud](https://img.shields.io/badge/DroidrunCloud-☁️-blue)](https://droidrun.ai/benchmark)
+[![DroidrunCloud](https://img.shields.io/badge/DroidrunCloud-☁️-blue)](http://cloud.droidrun.ai)
 [![Twitter Follow](https://img.shields.io/twitter/follow/droid_run?style=social)](https://x.com/droid_run)
 
 <picture>
