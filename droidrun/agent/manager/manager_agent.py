@@ -12,10 +12,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Type
 
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
+from pydantic import BaseModel
 
 from droidrun.agent.manager.events import ManagerInternalPlanEvent, ManagerThinkingEvent
 from droidrun.agent.manager.prompts import parse_manager_response
@@ -59,6 +60,7 @@ class ManagerAgent(Workflow):
         shared_state: "DroidAgentState",
         agent_config: "AgentConfig",
         custom_tools: dict = None,
+        output_model: Type[BaseModel] | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -68,6 +70,7 @@ class ManagerAgent(Workflow):
         self.tools_instance = tools_instance
         self.shared_state = shared_state
         self.custom_tools = custom_tools or {}
+        self.output_model = output_model
         self.agent_config = agent_config
         self.app_card_config = self.agent_config.app_cards
 
@@ -171,6 +174,11 @@ class ManagerAgent(Workflow):
         ):
             available_secrets = self.tools_instance.credential_manager.list_available_secrets()
 
+        # Prepare output structure schema if provided
+        output_schema = None
+        if self.output_model is not None:
+            output_schema = self.output_model.model_json_schema()
+
         # Let Jinja2 handle all formatting and conditionals
         return PromptLoader.load_prompt(
             self.agent_config.get_manager_system_prompt_path(),
@@ -188,6 +196,7 @@ class ManagerAgent(Workflow):
                 "scripter_max_steps": self.agent_config.scripter.max_steps,
                 "available_secrets": available_secrets,
                 "variables": self.shared_state.custom_variables,
+                "output_schema": output_schema,
             },
         )
 

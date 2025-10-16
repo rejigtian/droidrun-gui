@@ -280,6 +280,7 @@ class DroidAgent(Workflow):
                 shared_state=self.shared_state,
                 agent_config=self.config.agent,
                 custom_tools=self.custom_tools,
+                output_model=self.output_model,
                 timeout=timeout,
             )
             self.executor_agent = ExecutorAgent(
@@ -375,6 +376,7 @@ class DroidAgent(Workflow):
                 debug=self.config.logging.debug,
                 shared_state=self.shared_state,
                 safe_execution_config=self.config.safe_execution,
+                output_model=self.output_model,
                 timeout=self.timeout,
             )
 
