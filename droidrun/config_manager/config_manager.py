@@ -555,6 +555,44 @@ class DroidRunConfig:
             safe_execution=safe_execution_config,
         )
 
+    @classmethod
+    def from_yaml(cls, path: str) -> "DroidRunConfig":
+        """
+        Create config from YAML file.
+
+        Args:
+            path: Path to YAML config file (can be relative or absolute)
+
+        Returns:
+            DroidRunConfig instance
+
+        Raises:
+            FileNotFoundError: If the YAML file doesn't exist
+            yaml.YAMLError: If the YAML is malformed
+
+        Example:
+            >>> config = DroidRunConfig.from_yaml("config.yaml")
+            >>> config = DroidRunConfig.from_yaml("/absolute/path/config.yaml")
+        """
+        import logging
+
+        logger = logging.getLogger("droidrun")
+
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Config file not found: {path}")
+
+        with open(path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+            if data:
+                try:
+                    return cls.from_dict(data)
+                except Exception as e:
+                    logger.warning(f"Failed to parse config from {path}, using defaults: {e}")
+                    return cls()
+            else:
+                logger.warning(f"Empty config file at {path}, using defaults")
+                return cls()
+
 
 # ---------- ConfigManager ----------
 class ConfigManager:
@@ -744,20 +782,7 @@ class ConfigManager:
                 self._config = DroidRunConfig()
                 return
 
-            with open(self.path, "r", encoding="utf-8") as f:
-                data = yaml.safe_load(f)
-                if data:
-                    try:
-                        self._config = DroidRunConfig.from_dict(data)
-                    except Exception as e:
-                        # If parsing fails, use defaults and log warning
-                        import logging
-
-                        logger = logging.getLogger("droidrun")
-                        logger.warning(f"Failed to parse config, using defaults: {e}")
-                        self._config = DroidRunConfig()
-                else:
-                    self._config = DroidRunConfig()
+            self._config = DroidRunConfig.from_yaml(str(self.path))
             self._run_validation()
 
     def save(self) -> None:

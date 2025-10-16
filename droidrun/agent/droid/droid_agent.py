@@ -14,7 +14,6 @@ import llama_index.core
 from pydantic import BaseModel
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
-from llama_index.core.workflow.handler import WorkflowHandler
 from workflows.events import Event
 
 from droidrun.agent.codeact import CodeActAgent
@@ -30,6 +29,7 @@ from droidrun.agent.droid.events import (
     FinalizeEvent,
     ManagerInputEvent,
     ManagerPlanEvent,
+    ResultEvent,
     ScripterExecutorInputEvent,
     ScripterExecutorResultEvent,
 )
@@ -148,7 +148,7 @@ class DroidAgent(Workflow):
 
         self.user_id = kwargs.pop("user_id", None)
         self.runtype = kwargs.pop("runtype", "developer")
-        self.shared_state = DroidAgentState(instruction=goal, err_to_manager_thresh=2)
+        self.shared_state = DroidAgentState(instruction=goal, err_to_manager_thresh=2, user_id=self.user_id, runtype=self.runtype)
         self.output_model = output_model
         base_config = config
 
@@ -345,11 +345,22 @@ class DroidAgent(Workflow):
 
         logger.info("✅ DroidAgent initialized successfully.")
 
-    def run(self, *args, **kwargs) -> WorkflowHandler:
+    async def run(self, *args, **kwargs) -> ResultEvent:
         """
         Run the DroidAgent workflow.
+
+        Returns:
+            ResultEvent object with attributes:
+            - success: Whether the task completed successfully
+            - reason: Explanation of the result or error message
+            - steps: Number of steps taken
+            - structured_output: Extracted structured data (if output_model was provided)
+
+        Example:
+            result = await agent.run()
+            print(result.success, result.reason)
         """
-        return super().run(*args, **kwargs)
+        return await super().run(*args, **kwargs)  # type: ignore[return-value]
 
     @step
     async def execute_task(
@@ -698,7 +709,7 @@ class DroidAgent(Workflow):
     # ========================================================================
 
     @step
-    async def finalize(self, ctx: Context, ev: FinalizeEvent) -> StopEvent:
+    async def finalize(self, ctx: Context, ev: FinalizeEvent) -> ResultEvent:
         ctx.write_event_to_stream(ev)
         capture(
             DroidAgentFinalizeEvent(
@@ -760,7 +771,7 @@ class DroidAgent(Workflow):
 
         self.tools_instance._set_context(None)
 
-        return StopEvent(result)
+        return ResultEvent(success=result["success"], reason=result["reason"], steps=result["steps"], structured_output=result["structured_output"])
 
     def handle_stream_event(self, ev: Event, ctx: Context):
         if isinstance(ev, EpisodicMemoryEvent):

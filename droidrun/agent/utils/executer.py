@@ -155,7 +155,7 @@ class SimpleCodeExecutor:
         return output
 
     async def execute(
-        self, state: ExecuterState, code: str, timeout: float = 10.0
+        self, state: ExecuterState, code: str, timeout: float = 50.0
     ) -> str:
         """
         Execute Python code and capture output and return values.

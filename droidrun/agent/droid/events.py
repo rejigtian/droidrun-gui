@@ -13,7 +13,7 @@ For internal events with full debugging metadata, see:
 import asyncio
 from typing import Dict, List
 
-from llama_index.core.workflow import Event
+from llama_index.core.workflow import Event, StopEvent
 from pydantic import BaseModel, ConfigDict, Field
 
 from droidrun.agent.context import Task
@@ -33,6 +33,21 @@ class FinalizeEvent(Event):
     success: bool
     reason: str
 
+
+class ResultEvent(StopEvent):
+    """
+    DroidAgent final result event.
+
+    Returned by DroidAgent.run() with attributes:
+    - success: Whether the task completed successfully
+    - reason: Explanation of the result or error message
+    - steps: Number of steps taken
+    - structured_output: Extracted structured data (if output_model was provided)
+    """
+    success: bool
+    reason: str
+    steps: int
+    structured_output: BaseModel | None
 
 class TaskRunnerEvent(Event):
     pass
@@ -105,7 +120,7 @@ class DroidAgentState(BaseModel):
     # Error handling
     error_flag_plan: bool = False
     err_to_manager_thresh: int = 2
-
+    user_id: str | None = None
     # Script execution tracking
     scripter_history: List[Dict] = Field(default_factory=list)
     last_scripter_message: str = ""
@@ -149,7 +164,8 @@ class DroidAgentState(BaseModel):
                 package_name=package_name or "Unknown",
                 activity_name=activity_name or "Unknown",
                 step_number=self.step_number,
-            )
+            ),
+            user_id=self.user_id,
         )
 
 
