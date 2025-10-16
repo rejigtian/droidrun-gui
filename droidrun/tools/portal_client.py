@@ -28,13 +28,16 @@ class PortalClient:
     - If no forward exists, creates new one
     - Tests connection and sets tcp_available flag
     - All methods auto-select TCP or content provider based on availability
-    - No cleanup needed - forwards persist until device disconnect
+    - Port forwards persist until device disconnect (no explicit cleanup needed)
 
     Key features:
     - Reuses existing port forwards (no cleanup needed)
     - Automatic fallback to content provider if TCP fails
     - Zero explicit resource management
     - Graceful degradation
+
+    Note: TCP mode is significantly faster but requires ADB port forwarding.
+    Content provider mode works without port forwarding but has higher latency.
     """
 
     def __init__(self, device: AdbDevice, prefer_tcp: bool = False):

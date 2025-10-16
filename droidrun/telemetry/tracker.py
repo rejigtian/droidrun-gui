@@ -1,3 +1,10 @@
+"""
+Anonymous telemetry tracking using PostHog.
+
+This module handles opt-in telemetry collection to help improve DroidRun.
+All data is anonymized and can be disabled by setting DROIDRUN_TELEMETRY_ENABLED=false.
+"""
+
 import logging
 import os
 from pathlib import Path
@@ -26,6 +33,13 @@ posthog = Posthog(
 
 
 def is_telemetry_enabled():
+    """
+    Check if telemetry is enabled via environment variable.
+
+    Returns:
+        True if DROIDRUN_TELEMETRY_ENABLED is set to true/1/yes/y (case-insensitive),
+        or if the environment variable is not set (default is enabled).
+    """
     telemetry_enabled = os.environ.get("DROIDRUN_TELEMETRY_ENABLED", "true")
     enabled = telemetry_enabled.lower() in ["true", "1", "yes", "y"]
     logger.debug(f"Telemetry enabled: {enabled}")
@@ -33,6 +47,11 @@ def is_telemetry_enabled():
 
 
 def print_telemetry_message():
+    """
+    Print telemetry status message to the logger.
+
+    Displays enabled or disabled message based on DROIDRUN_TELEMETRY_ENABLED setting.
+    """
     if is_telemetry_enabled():
         droidrun_logger.info(TELEMETRY_ENABLED_MESSAGE)
 
@@ -54,7 +73,11 @@ def _is_valid_uuid(value: str) -> bool:
 
 
 def get_user_id() -> str:
-    """Get or create persistent anonymous user ID.
+    """
+    Get or create persistent anonymous user ID.
+
+    The user ID is stored in ~/.droidrun/user_id and persists across sessions.
+    If the file doesn't exist or contains an invalid UUID, a new one is generated.
 
     Returns:
         User UUID string, or "unknown" if an error occurs.
@@ -86,6 +109,16 @@ def get_user_id() -> str:
 
 
 def capture(event: TelemetryEvent, user_id: str | None = None):
+    """
+    Capture and send a telemetry event to PostHog.
+
+    Args:
+        event: Telemetry event to capture (must be a TelemetryEvent subclass)
+        user_id: Optional user ID to use instead of the default persistent ID
+
+    Note:
+        This function is a no-op if telemetry is disabled.
+    """
     try:
         if not is_telemetry_enabled():
             logger.debug(f"Telemetry disabled, skipping capture of {event}")
@@ -106,6 +139,12 @@ def capture(event: TelemetryEvent, user_id: str | None = None):
 
 
 def flush():
+    """
+    Flush pending telemetry events to PostHog.
+
+    Should be called before application exit to ensure all events are sent.
+    This function is a no-op if telemetry is disabled.
+    """
     try:
         if not is_telemetry_enabled():
             logger.debug("Telemetry disabled, skipping flush")

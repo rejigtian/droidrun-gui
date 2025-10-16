@@ -153,8 +153,10 @@ class SafeExecutionConfig:
         """
         Get final set of blocked modules.
 
+        These modules are always blocked regardless of allow_all_imports or allowed_modules.
+
         Returns:
-            Set of blocked module names
+            Set of blocked module names (takes precedence over all other settings)
         """
         return set(self.blocked_modules)
 
@@ -182,8 +184,10 @@ class SafeExecutionConfig:
         """
         Get final set of blocked builtins.
 
+        These builtins are always blocked regardless of allow_all_builtins or allowed_builtins.
+
         Returns:
-            Set of blocked builtin names
+            Set of blocked builtin names (takes precedence over all other settings)
         """
         return set(self.blocked_builtins)
 

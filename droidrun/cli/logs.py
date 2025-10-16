@@ -1,3 +1,10 @@
+"""
+Rich text logging and event handling for the DroidRun CLI.
+
+This module provides a custom logging handler that renders a rich terminal UI
+with live updates for agent execution progress, event streaming, and status display.
+"""
+
 import logging
 from typing import List
 
@@ -32,6 +39,19 @@ from droidrun.agent.manager.events import (
 
 
 class LogHandler(logging.Handler):
+    """
+    Custom logging handler with rich terminal UI rendering.
+
+    Displays agent execution progress with live-updating panels showing:
+    - Activity logs (scrolling log output)
+    - Current goal
+    - Current step/status with spinner
+
+    Args:
+        goal: User's goal/command being executed
+        current_step: Initial step message (default: "Initializing...")
+        rich_text: Enable rich terminal UI (default: True). If False, uses simple console output.
+    """
     def __init__(
         self, goal: str, current_step: str = "Initializing...", rich_text: bool = True
     ):

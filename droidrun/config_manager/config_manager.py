@@ -631,13 +631,24 @@ class ConfigManager:
     # ---------------- Typed property access ----------------
     @property
     def config(self) -> DroidRunConfig:
-        """Access the internal DroidRunConfig object."""
+        """
+        Access the internal DroidRunConfig object.
+
+        WARNING: Returns a mutable object. Direct modifications bypass thread safety.
+        For thread-safe access, use specific property accessors (agent, device, etc.)
+        or use as_dict() to get an immutable copy.
+        """
         with self._lock:
             return self._config
 
     @property
     def agent(self) -> AgentConfig:
-        """Access agent configuration."""
+        """
+        Access agent configuration.
+
+        WARNING: Returns a mutable object. Modifications should be followed by save()
+        to persist changes. Thread safety is not guaranteed after the lock is released.
+        """
         with self._lock:
             return self._config.agent
 
@@ -679,7 +690,12 @@ class ConfigManager:
 
     @property
     def llm_profiles(self) -> Dict[str, LLMProfile]:
-        """Access LLM profiles."""
+        """
+        Access LLM profiles.
+
+        WARNING: Returns a mutable dictionary. Modifications affect the live config.
+        Use get_llm_profile() for read-only access or as_dict() for immutable copy.
+        """
         with self._lock:
             return self._config.llm_profiles
 
@@ -715,7 +731,12 @@ class ConfigManager:
                 f.write(_default_config_text())
 
     def load_config(self) -> None:
-        """Load YAML from file into memory. Runs validator if registered."""
+        """
+        Load YAML from file into memory. Runs validator if registered.
+
+        On parse failure, falls back to default config with a warning.
+        This may mask configuration errors - check logs for warnings.
+        """
         with self._lock:
             if not self.path.exists():
                 # create starter file and set default config
@@ -792,9 +813,9 @@ class ConfigManager:
             ['system.jinja2', 'experimental.jinja2', 'minimal.jinja2']
         """
         agent_type = agent_type.lower()
-        if agent_type not in ["codeact", "manager", "executor"]:
+        if agent_type not in ["codeact", "manager", "executor", "scripter"]:
             raise ValueError(
-                f"Invalid agent_type: {agent_type}. Must be one of: codeact, manager, executor"
+                f"Invalid agent_type: {agent_type}. Must be one of: codeact, manager, executor, scripter"
             )
 
         # Resolve prompts directory

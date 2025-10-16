@@ -53,7 +53,7 @@ class StructuredOutputAgent(Workflow):
             )
 
             # Use structured_predict to extract data
-            structured_output = self.llm.structured_predict(
+            structured_output = await self.llm.astructured_predict(
                 self.pydantic_model,
                 prompt,
                 text=self.answer_text

@@ -155,8 +155,7 @@ class CredentialManager:
         Raises:
             CredentialNotFoundError: If secret ID not found
         """
-        # ALWAYS log access (without value)
-        logger.info(f"🔑 Accessing secret: '{secret_id}'")
+        logger.debug(f"🔑 Accessing secret: '{secret_id}'")
 
         if secret_id not in self.secrets:
             available = list(self.secrets.keys())

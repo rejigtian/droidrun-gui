@@ -43,7 +43,7 @@ class AdbTools(Tools):
         Args:
             serial: Device serial number
             use_tcp: Whether to use TCP communication (default: False)
-            tcp_port: TCP port for communication (default: 8080)
+            remote_tcp_port: TCP port for communication on device (default: 8080)
             app_opener_llm: LLM instance for app opening workflow (optional)
             text_manipulator_llm: LLM instance for text manipulation (optional)
             credential_manager: CredentialManager instance for secret handling (optional)
@@ -320,7 +320,7 @@ class AdbTools(Tools):
             start_y: Starting Y coordinate
             end_x: Ending X coordinate
             end_y: Ending Y coordinate
-            duration: Duration of swipe in seconds
+            duration_ms: Duration of swipe in milliseconds
         Returns:
             Bool indicating success or failure
         """
@@ -559,11 +559,14 @@ class AdbTools(Tools):
     def take_screenshot(self, hide_overlay: bool = True) -> Tuple[str, bytes]:
         """
         Take a screenshot of the device.
-        This function captures the current screen and adds the screenshot to context in the next message.
+        This function captures the current screen and returns the screenshot data.
         Also stores the screenshot in the screenshots list with timestamp for later GIF creation.
 
         Args:
-            hide_overlay: Whether to hide the overlay elements during screenshot (default: True)
+            hide_overlay: Whether to hide the Portal overlay elements during screenshot (default: True)
+
+        Returns:
+            Tuple of (format, image_bytes) where format is "PNG" and image_bytes is the screenshot data
         """
         try:
             logger.debug("Taking screenshot")

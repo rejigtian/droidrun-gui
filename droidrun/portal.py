@@ -1,3 +1,11 @@
+"""
+Portal APK management and device communication utilities.
+
+This module handles downloading, installing, and managing the DroidRun Portal app
+on Android devices. It also provides utilities for checking accessibility service
+status and managing device communication modes (TCP and content provider).
+"""
+
 import contextlib
 import os
 import tempfile
@@ -19,6 +27,18 @@ A11Y_SERVICE_NAME = (
 
 
 def get_latest_release_assets(debug: bool = False):
+    """
+    Fetch the latest Portal APK release assets from GitHub.
+
+    Args:
+        debug: Enable debug logging
+
+    Returns:
+        List of asset dictionaries from the latest GitHub release
+
+    Raises:
+        requests.HTTPError: If the GitHub API request fails
+    """
     for host in GITHUB_API_HOSTS:
         url = f"{host}/repos/{REPO}/releases/latest"
         response = requests.get(url)
@@ -40,6 +60,22 @@ def get_latest_release_assets(debug: bool = False):
 
 @contextlib.contextmanager
 def download_portal_apk(debug: bool = False):
+    """
+    Download the latest Portal APK from GitHub releases.
+
+    This context manager downloads the APK to a temporary file and yields
+    the file path. The file is automatically deleted when the context exits.
+
+    Args:
+        debug: Enable debug logging
+
+    Yields:
+        str: Path to the downloaded APK file
+
+    Raises:
+        Exception: If the Portal APK asset is not found in the release
+        requests.HTTPError: If the download fails
+    """
     console = Console()
     assets = get_latest_release_assets(debug)
 
@@ -90,6 +126,17 @@ def download_portal_apk(debug: bool = False):
 def enable_portal_accessibility(
     device: AdbDevice, service_name: str = A11Y_SERVICE_NAME
 ):
+    """
+    Enable the Portal accessibility service on the device.
+
+    Args:
+        device: ADB device connection
+        service_name: Full accessibility service name (default: Portal service)
+
+    Note:
+        This may fail on some devices due to security restrictions.
+        Manual enablement may be required.
+    """
     device.shell(f"settings put secure enabled_accessibility_services {service_name}")
     device.shell("settings put secure accessibility_enabled 1")
 
@@ -97,6 +144,17 @@ def enable_portal_accessibility(
 def check_portal_accessibility(
     device: AdbDevice, service_name: str = A11Y_SERVICE_NAME, debug: bool = False
 ) -> bool:
+    """
+    Check if the Portal accessibility service is enabled.
+
+    Args:
+        device: ADB device connection
+        service_name: Full accessibility service name to check
+        debug: Enable debug logging
+
+    Returns:
+        True if the accessibility service is enabled, False otherwise
+    """
     a11y_services = device.shell("settings get secure enabled_accessibility_services")
     if service_name not in a11y_services:
         if debug:
@@ -134,6 +192,16 @@ def ping_portal(device: AdbDevice, debug: bool = False):
 
 
 def ping_portal_content(device: AdbDevice, debug: bool = False):
+    """
+    Test Portal accessibility via content provider.
+
+    Args:
+        device: ADB device connection
+        debug: Enable debug logging
+
+    Raises:
+        Exception: If Portal is not reachable via content provider
+    """
     try:
         state = device.shell("content query --uri content://com.droidrun.portal/state")
         if "Row: 0 result=" not in state:
@@ -143,6 +211,16 @@ def ping_portal_content(device: AdbDevice, debug: bool = False):
 
 
 def ping_portal_tcp(device: AdbDevice, debug: bool = False):
+    """
+    Test Portal accessibility via TCP mode.
+
+    Args:
+        device: ADB device connection
+        debug: Enable debug logging
+
+    Raises:
+        Exception: If Portal is not reachable via TCP or port forwarding fails
+    """
     try:
         AdbTools(serial=device.serial, use_tcp=True)
     except Exception as e:

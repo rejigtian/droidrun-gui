@@ -20,19 +20,23 @@ def load_credential_manager(
     Load credential manager from either CredentialsConfig or direct dict.
 
     Args:
-        credentials: Either CredentialsConfig object, dict of credentials, or None
+        credentials: Either CredentialsConfig object (from config),
+                    dict of credentials (in-memory mode), or None (disabled)
 
     Returns:
-        CredentialManager instance or None if no credentials provided
+        CredentialManager instance or None if credentials are disabled/unavailable
+
+    Raises:
+        No exceptions raised - errors are logged and None is returned for graceful degradation
 
     Examples:
         # Option 1: CredentialsConfig (from config file)
         credential_manager = load_credential_manager(config.credentials)
 
-        # Option 2: Direct dict
+        # Option 2: Direct dict (programmatic usage)
         credential_manager = load_credential_manager({"MY_PASSWORD": "secret123"})
 
-        # Option 3: None (no credentials)
+        # Option 3: None (credentials disabled)
         credential_manager = load_credential_manager(None)
     """
     from droidrun.credential_manager.credential_manager import CredentialManager

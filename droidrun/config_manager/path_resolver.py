@@ -46,15 +46,23 @@ class PathResolver:
         3. If must_exist and not found → raise FileNotFoundError
 
         Args:
-            path: Path to resolve (str or Path object)
-            create_if_missing: If True, prefer working dir for relative paths (output mode)
-            must_exist: If True, raise FileNotFoundError if path doesn't exist
+            path: Path to resolve (str or Path object). Use absolute paths to avoid
+                 ambiguity, or relative paths for portable configs.
+            create_if_missing: If True, prefer working dir for relative paths (output mode).
+                              Does not create the file/directory, just determines the location.
+            must_exist: If True, raise FileNotFoundError if path doesn't exist after resolution.
+                       Use for required config files and prompts.
 
         Returns:
-            Resolved Path object
+            Resolved absolute Path object
 
         Raises:
-            FileNotFoundError: If must_exist=True and path not found in any location
+            FileNotFoundError: If must_exist=True and path not found in any location.
+                              Error message includes both checked locations.
+
+        Security Note:
+            Expands tilde (~) to user home directory. Does not follow symlinks during
+            resolution, but the returned path may point to a symlink target.
 
         Examples:
             # Reading config (checks CWD first, then package dir)

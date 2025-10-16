@@ -1,3 +1,10 @@
+"""
+Arize Phoenix tracing integration for DroidRun.
+
+This module provides Phoenix instrumentation for tracing LLM calls and agent execution.
+It includes utilities for creating custom spans with clean names and context management.
+"""
+
 import asyncio
 import functools
 import inspect
@@ -14,6 +21,25 @@ dispatcher = get_dispatcher()
 
 
 def arize_phoenix_callback_handler(**kwargs: Any) -> BaseCallbackHandler:
+    """
+    Create and configure an Arize Phoenix callback handler for LlamaIndex.
+
+    This function sets up OpenTelemetry tracing with Phoenix backend for monitoring
+    LLM calls and agent execution.
+
+    Args:
+        **kwargs: Optional configuration overrides
+            - endpoint: Phoenix server URL (default: http://127.0.0.1:6006 or PHOENIX_URL env var)
+            - tracer_provider: Custom tracer provider
+            - separate_trace_from_runtime_context: Separate traces from runtime context
+
+    Returns:
+        Configured LlamaIndex instrumentor instance
+
+    Environment Variables:
+        - PHOENIX_URL: Phoenix server URL
+        - PHOENIX_PROJECT_NAME: Project name for organizing traces
+    """
     # newer versions of arize, v2.x
     from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
     from openinference.semconv.resource import ResourceAttributes
