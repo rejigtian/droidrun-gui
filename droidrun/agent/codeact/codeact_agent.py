@@ -349,7 +349,7 @@ Now, describe the next step you will take to address the original goal: {goal}""
         try:
             self.code_exec_counter += 1
             result = await self.executor.execute(
-                ExecuterState(ui_state=ctx.store.get("ui_state", None)), code
+                ExecuterState(ui_state=await ctx.store.get("ui_state", None)), code
             )
             logger.info(f"💡 Code execution successful. Result: {result}")
             await asyncio.sleep(self.agent_config.after_sleep_action)
