@@ -109,8 +109,6 @@ async def run_command(
     ios: bool = False,
     allow_drag: bool | None = None,
     temperature: float | None = None,
-    cloud: bool | None = None,
-    cloud_apps: tuple | None = None,
     **kwargs,
 ):
     """Run a command on your Android device using natural language."""
@@ -161,10 +159,6 @@ async def run_command(
                 config.device.serial = device
             if use_tcp is not None:
                 config.device.use_tcp = use_tcp
-            if cloud is not None:
-                config.device.use_cloud = cloud
-            if cloud_apps is not None and cloud_apps:
-                config.device.cloud_apps = list(cloud_apps)
 
             # Tools overrides
             if allow_drag is not None:
@@ -391,17 +385,6 @@ def cli(
     default=None,
 )
 @click.option("--ios", type=bool, default=None, help="Run on iOS device")
-@click.option(
-    "--cloud/--no-cloud",
-    default=None,
-    help="Use cloud devices",
-)
-@click.option(
-    "--cloud-apps",
-    multiple=True,
-    default=None,
-    help="Apps to pre-install on cloud device (can be used multiple times)",
-)
 def run(
     command: str,
     config: str | None,
@@ -419,8 +402,6 @@ def run(
     tcp: bool | None,
     save_trajectory: str | None,
     ios: bool | None,
-    cloud: bool | None,
-    cloud_apps: tuple | None,
 ):
     """Run a command on your Android device using natural language."""
 
@@ -442,8 +423,6 @@ def run(
             temperature=temperature,
             save_trajectory=save_trajectory,
             ios=ios if ios is not None else False,
-            cloud=cloud,
-            cloud_apps=cloud_apps,
         )
     finally:
         # Disable DroidRun keyboard after execution
@@ -657,8 +636,6 @@ async def test(
     allow_drag: bool | None = None,
     temperature: float | None = None,
     ios: bool = False,
-    cloud: bool | None = None,
-    cloud_apps: tuple | None = None,
 ):
     config_manager = ConfigManager(path="config.yaml")
     config = config_manager.config
@@ -698,10 +675,6 @@ async def test(
                 config.device.serial = device
             if use_tcp is not None:
                 config.device.use_tcp = use_tcp
-            if cloud is not None:
-                config.device.use_cloud = cloud
-            if cloud_apps is not None and cloud_apps:
-                config.device.cloud_apps = list(cloud_apps)
 
             # Tools overrides
             if allow_drag is not None:

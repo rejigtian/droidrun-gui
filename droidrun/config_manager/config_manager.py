@@ -154,15 +154,6 @@ device:
   # Use TCP communication instead of content provider
   use_tcp: false
 
-  # Cloud device settings (Limbar cloud phones)
-  use_cloud: false
-  cloud_base_url: https://device-api.droidrun.ai
-  cloud_service_key: null  # Set this or use DROIDRUN_API_KEY environment variable
-  cloud_apps: []  # Apps to pre-install (package names or APK URLs)
-  cloud_files: []  # Files to pre-push (URLs pushed to /sdcard/)
-  cloud_country: US  # ISO country code for device location
-  cloud_provision_timeout: 600  # Max seconds to wait for provisioning
-
 # === Telemetry Settings ===
 telemetry:
   # Enable anonymous telemetry
@@ -378,15 +369,6 @@ class DeviceConfig:
     serial: Optional[str] = None
     use_tcp: bool = False
     platform: str = "android"  # "android" or "ios"
-
-    # Cloud device settings (Limbar infrastructure)
-    use_cloud: bool = False
-    cloud_base_url: str = "https://device-api.droidrun.ai"
-    cloud_service_key: Optional[str] = None
-    cloud_apps: List[str] = field(default_factory=list)
-    cloud_files: List[str] = field(default_factory=list)
-    cloud_country: str = "US"
-    cloud_provision_timeout: int = 600
 
 
 @dataclass
