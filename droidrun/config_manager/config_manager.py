@@ -137,6 +137,14 @@ llm_profiles:
     kwargs:
       max_tokens: 4096
 
+  # Structured Output: Extracts structured data from final answers
+  structured_output:
+    provider: GoogleGenAI
+    model: models/gemini-2.5-flash
+    temperature: 0.0
+    kwargs:
+      max_tokens: 2048
+
 # === Device Settings ===
 device:
   # Default device serial (null = auto-detect for Android)
@@ -477,6 +485,12 @@ class DroidRunConfig:
                 model="models/gemini-2.5-flash",
                 temperature=0.1,
                 kwargs={"max_tokens": 4096},
+            ),
+            "structured_output": LLMProfile(
+                provider="GoogleGenAI",
+                model="models/gemini-2.5-flash",
+                temperature=0.0,
+                kwargs={"max_tokens": 2048},
             ),
         }
 
