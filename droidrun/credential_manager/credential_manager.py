@@ -65,9 +65,7 @@ class CredentialManager:
             self.path: Optional[Path] = None
             self.mode = "in-memory"
             self.secrets = self._load_from_dict(credentials_dict)
-            logger.info(
-                f"✅ Loaded {len(self.secrets)} secrets from in-memory dict"
-            )
+            logger.info(f"✅ Loaded {len(self.secrets)} secrets from in-memory dict")
         elif credentials_path:
             # File-based mode (YAML)
             self.path = PathResolver.resolve(credentials_path, must_exist=True)
@@ -75,9 +73,7 @@ class CredentialManager:
             self.secrets = self._load_from_file()
             logger.info(f"✅ Loaded {len(self.secrets)} secrets from {self.path}")
         else:
-            raise ValueError(
-                "Must provide either credentials_path or credentials_dict"
-            )
+            raise ValueError("Must provide either credentials_path or credentials_dict")
 
     def _load_from_file(self) -> Dict[str, str]:
         """

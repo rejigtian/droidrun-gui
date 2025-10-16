@@ -209,7 +209,9 @@ class DroidAgent(Workflow):
 
             logger.info("🔄 Loading LLMs from config (llms not provided)...")
 
-            llms = load_agent_llms(config=self.config, output_model=output_model, **kwargs)
+            llms = load_agent_llms(
+                config=self.config, output_model=output_model, **kwargs
+            )
         if isinstance(llms, dict):
             validate_llm_dict(self.config, llms, output_model=output_model)
         elif isinstance(llms, LLM):

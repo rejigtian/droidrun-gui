@@ -51,7 +51,9 @@ def load_credential_manager(
             logger.debug("NO credentials provided")
             return None
 
-        logger.info(f"Loading credentials from in-memory dict ({len(credentials)} keys)")
+        logger.info(
+            f"Loading credentials from in-memory dict ({len(credentials)} keys)"
+        )
         try:
             return CredentialManager(credentials_dict=credentials)
         except Exception as e:
@@ -65,15 +67,11 @@ def load_credential_manager(
             logger.debug("Credentials disabled in config")
             return None
 
-        logger.info(
-            f"Loading credentials from config file: {credentials.file_path}"
-        )
+        logger.info(f"Loading credentials from config file: {credentials.file_path}")
         try:
             return CredentialManager(credentials_path=credentials.file_path)
         except FileNotFoundError:
-            logger.warning(
-                f"Credentials file not found: {credentials.file_path}"
-            )
+            logger.warning(f"Credentials file not found: {credentials.file_path}")
             return None
         except Exception as e:
             logger.error(f"Failed to load credentials from file: {e}")

@@ -264,17 +264,14 @@ async def run_command(
 class DroidRunCLI(click.Group):
     def parse_args(self, ctx, args):
         # If the first arg is not an option and not a known command, treat as 'run'
-        if (
-            args and not args[0].startswith("-") and args[0] not in self.commands
-        ):
+        if args and not args[0].startswith("-") and args[0] not in self.commands:
             args.insert(0, "run")
 
         return super().parse_args(ctx, args)
 
 
 @click.group(cls=DroidRunCLI)
-def cli(
-):
+def cli():
     """DroidRun - Control your Android device through LLM agents."""
     pass
 
@@ -319,9 +316,7 @@ def cli(
 @click.option(
     "--tracing/--no-tracing", default=None, help="Enable Arize Phoenix tracing"
 )
-@click.option(
-    "--debug/--no-debug", default=None, help="Enable verbose debug logging"
-)
+@click.option("--debug/--no-debug", default=None, help="Enable verbose debug logging")
 @click.option(
     "--tcp/--no-tcp",
     default=None,
@@ -535,15 +530,13 @@ def setup(path: str | None, device: str | None, debug: bool):
     default=None,
     help="Use TCP communication for device control",
 )
-@click.option(
-    "--debug/--no-debug", default=None, help="Enable verbose debug logging"
-)
+@click.option("--debug/--no-debug", default=None, help="Enable verbose debug logging")
 def ping(device: str | None, tcp: bool | None, debug: bool | None):
     """Ping a device to check if it is ready and accessible."""
     # Handle None defaults
     debug_mode = debug if debug is not None else False
     use_tcp_mode = tcp if tcp is not None else False
-    
+
     try:
         device_obj = adb.device(device)
         if not device_obj:

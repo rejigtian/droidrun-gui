@@ -52,6 +52,7 @@ class LogHandler(logging.Handler):
         current_step: Initial step message (default: "Initializing...")
         rich_text: Enable rich terminal UI (default: True). If False, uses simple console output.
     """
+
     def __init__(
         self, goal: str, current_step: str = "Initializing...", rich_text: bool = True
     ):

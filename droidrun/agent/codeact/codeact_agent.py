@@ -120,8 +120,13 @@ class CodeActAgent(Workflow):
 
         # Get available secrets from credential manager
         available_secrets = []
-        if hasattr(tools_instance, "credential_manager") and tools_instance.credential_manager:
-            available_secrets = tools_instance.credential_manager.list_available_secrets()
+        if (
+            hasattr(tools_instance, "credential_manager")
+            and tools_instance.credential_manager
+        ):
+            available_secrets = (
+                tools_instance.credential_manager.list_available_secrets()
+            )
 
         # Prepare output structure schema if provided
         output_schema = None
@@ -193,7 +198,9 @@ class CodeActAgent(Workflow):
             self.agent_config.get_codeact_user_prompt_path(),
             {
                 "goal": goal,
-                "variables": self.shared_state.custom_variables if self.shared_state else {},
+                "variables": (
+                    self.shared_state.custom_variables if self.shared_state else {}
+                ),
             },
         )
         self.user_message = ChatMessage(role="user", content=user_prompt_text)

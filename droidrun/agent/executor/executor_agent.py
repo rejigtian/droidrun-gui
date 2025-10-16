@@ -114,7 +114,9 @@ class ExecutorAgent(Workflow):
             hasattr(self.tools_instance, "credential_manager")
             and self.tools_instance.credential_manager
         ):
-            available_secrets = self.tools_instance.credential_manager.list_available_secrets()
+            available_secrets = (
+                self.tools_instance.credential_manager.list_available_secrets()
+            )
 
         # Let Jinja2 handle all formatting
         system_prompt = PromptLoader.load_prompt(

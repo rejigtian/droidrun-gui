@@ -12,11 +12,13 @@ from pydantic import BaseModel
 
 class TelemetryEvent(BaseModel):
     """Base class for all telemetry events."""
+
     pass
 
 
 class DroidAgentInitEvent(TelemetryEvent):
     """Event captured when DroidAgent is initialized."""
+
     goal: str
     llms: Dict[str, str]
     tools: str
@@ -32,6 +34,7 @@ class DroidAgentInitEvent(TelemetryEvent):
 
 class PackageVisitEvent(TelemetryEvent):
     """Event captured when agent visits a new app package."""
+
     package_name: str
     activity_name: str
     step_number: int
@@ -39,6 +42,7 @@ class PackageVisitEvent(TelemetryEvent):
 
 class DroidAgentFinalizeEvent(TelemetryEvent):
     """Event captured when DroidAgent execution completes."""
+
     success: bool
     reason: str
     steps: int
