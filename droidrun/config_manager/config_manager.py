@@ -231,6 +231,13 @@ safe_execution:
 tools:
   # Enable drag tool
   allow_drag: false
+
+# === Credential Settings ===
+credentials:
+  # Enable credential manager
+  enabled: false
+  # Path to credentials file (resolved via PathResolver)
+  file_path: credentials.yaml
 """
 
 
@@ -405,6 +412,14 @@ class ToolsConfig:
 
 
 @dataclass
+class CredentialsConfig:
+    """Credentials configuration."""
+
+    enabled: bool = False
+    file_path: str = "credentials.yaml"
+
+
+@dataclass
 class DroidRunConfig:
     """Complete DroidRun configuration schema."""
 
@@ -415,6 +430,7 @@ class DroidRunConfig:
     tracing: TracingConfig = field(default_factory=TracingConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     tools: ToolsConfig = field(default_factory=ToolsConfig)
+    credentials: CredentialsConfig = field(default_factory=CredentialsConfig)
     safe_execution: SafeExecutionConfig = field(default_factory=SafeExecutionConfig)
 
     def __post_init__(self):
@@ -539,6 +555,7 @@ class DroidRunConfig:
             tracing=TracingConfig(**data.get("tracing", {})),
             logging=LoggingConfig(**data.get("logging", {})),
             tools=ToolsConfig(**data.get("tools", {})),
+            credentials=CredentialsConfig(**data.get("credentials", {})),
             safe_execution=safe_execution_config,
         )
 
@@ -657,6 +674,12 @@ class ConfigManager:
         """Access tools configuration."""
         with self._lock:
             return self._config.tools
+
+    @property
+    def credentials(self) -> CredentialsConfig:
+        """Access credentials configuration."""
+        with self._lock:
+            return self._config.credentials
 
     @property
     def llm_profiles(self) -> Dict[str, LLMProfile]:

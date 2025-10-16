@@ -224,7 +224,6 @@ async def run_command(
             droid_agent = DroidAgent(
                 goal=command,
                 config=config,
-                excluded_tools=excluded_tools,
                 timeout=1000,
                 **droid_agent_kwargs,
             )

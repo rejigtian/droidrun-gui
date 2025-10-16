@@ -7,10 +7,8 @@ Architecture:
 - When reasoning=True: Uses Manager (planning) + Executor (action) workflows
 """
 
-import asyncio
 import logging
-from typing import List
-from droidrun.agent.utils.tools import create_tools_from_config
+
 import llama_index.core
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
@@ -37,10 +35,16 @@ from droidrun.agent.executor import ExecutorAgent
 from droidrun.agent.manager import ManagerAgent
 from droidrun.agent.scripter import ScripterAgent
 from droidrun.agent.utils.async_utils import wrap_async_tools
-from droidrun.agent.utils.tools import ATOMIC_ACTION_SIGNATURES, open_app
+from droidrun.agent.utils.llm_loader import load_agent_llms, validate_llm_dict
+from droidrun.agent.utils.tools import (
+    ATOMIC_ACTION_SIGNATURES,
+    build_custom_tools,
+    create_tools_from_config,
+)
 from droidrun.agent.utils.trajectory import Trajectory
 from droidrun.config_manager.config_manager import (
     AgentConfig,
+    CredentialsConfig,
     DeviceConfig,
     DroidRunConfig,
     LoggingConfig,
@@ -48,6 +52,7 @@ from droidrun.config_manager.config_manager import (
     ToolsConfig,
     TracingConfig,
 )
+from droidrun.credential_manager import load_credential_manager
 from droidrun.telemetry import (
     DroidAgentFinalizeEvent,
     DroidAgentInitEvent,
@@ -55,8 +60,6 @@ from droidrun.telemetry import (
     flush,
 )
 from droidrun.telemetry.phoenix import arize_phoenix_callback_handler
-from droidrun.tools import Tools
-from droidrun.agent.utils.llm_loader import load_agent_llms, validate_llm_dict
 
 logger = logging.getLogger("droidrun")
 
@@ -105,8 +108,8 @@ class DroidAgent(Workflow):
         logging_config: LoggingConfig | None = None,
         tracing_config: TracingConfig | None = None,
         telemetry_config: TelemetryConfig | None = None,
-        excluded_tools: List[str] = None,
         custom_tools: dict = None,
+        credentials: "CredentialsConfig | dict | None" = None,
         timeout: int = 1000,
         *args,
         **kwargs,
@@ -125,8 +128,9 @@ class DroidAgent(Workflow):
             logging_config: Logging config override (optional)
             tracing_config: Tracing config override (optional)
             telemetry_config: Telemetry config override (optional)
-            excluded_tools: Tools to exclude
             custom_tools: Custom tool definitions
+            credentials: Either CredentialsConfig (from config.credentials),
+                        dict of credentials {"SECRET_ID": "value"}, or None
             timeout: Workflow timeout in seconds
         """
 
@@ -143,10 +147,20 @@ class DroidAgent(Workflow):
             tracing=tracing_config or base_config.tracing,
             telemetry=telemetry_config or base_config.telemetry,
             llm_profiles=base_config.llm_profiles,
+            credentials=base_config.credentials if base_config else None,
         )
+
+        # Load credential manager (supports both config and direct dict)
+        # Priority: explicit credentials param > config.credentials
+        credentials_source = credentials if credentials is not None else self.config.credentials
+        credential_manager = load_credential_manager(credentials_source)
 
         # Create tools from config
         tools = create_tools_from_config(self.config.device)
+
+        # Attach credential manager to tools
+        if credential_manager:
+            tools.credential_manager = credential_manager
 
         super().__init__(*args, timeout=timeout, **kwargs)
 
@@ -179,7 +193,6 @@ class DroidAgent(Workflow):
                 )
 
         self.timeout = timeout
-        self.custom_tools = custom_tools or {}
 
         if isinstance(llms, dict):
             self.manager_llm = llms.get("manager")
@@ -206,12 +219,9 @@ class DroidAgent(Workflow):
 
         self.atomic_tools = ATOMIC_ACTION_SIGNATURES.copy()
 
-        open_app_tool = {
-            "arguments": ["text"],
-            "description": 'Open an app by name. Usage example: {"action": "open_app", "text": "the name of app"}',
-            "function": open_app,
-        }
-        self.custom_tools = {**self.custom_tools, "open_app": open_app_tool}
+        # Build custom tools (credentials + open_app + user custom tools)
+        auto_custom_tools = build_custom_tools(credential_manager)
+        self.custom_tools = {**auto_custom_tools, **(custom_tools or {})}
 
         logger.info("🤖 Initializing DroidAgent...")
         logger.info(f"💾 Trajectory saving: {self.config.logging.save_trajectory}")

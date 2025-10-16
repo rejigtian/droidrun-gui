@@ -114,10 +114,18 @@ class CodeActAgent(Workflow):
             "\n- complete(success: bool, reason: str): Mark task as complete"
         )
 
+        # Get available secrets from credential manager
+        available_secrets = []
+        if hasattr(tools_instance, "credential_manager") and tools_instance.credential_manager:
+            available_secrets = tools_instance.credential_manager.list_available_secrets()
+
         # Load prompts from config
         system_prompt_text = PromptLoader.load_prompt(
             agent_config.get_codeact_system_prompt_path(),
-            {"tool_descriptions": self.tool_descriptions},
+            {
+                "tool_descriptions": self.tool_descriptions,
+                "available_secrets": available_secrets,
+            },
         )
         self.system_prompt = ChatMessage(role="system", content=system_prompt_text)
 

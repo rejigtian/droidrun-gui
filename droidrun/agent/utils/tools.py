@@ -299,6 +299,126 @@ def build_custom_tool_descriptions(custom_tools: dict) -> str:
     return "\n".join(descriptions)
 
 
+# =============================================================================
+# CREDENTIAL TOOLS
+# =============================================================================
+
+
+def type_secret(tool_instance: "Tools", secret_id: str, index: int) -> str:
+    """
+    Type a secret credential into an input field without exposing the value.
+
+    Args:
+        tool_instance: Tools instance (must have credential_manager)
+        secret_id: Secret ID from credentials store
+        index: Input field element index
+
+    Returns:
+        Sanitized result message (NEVER includes actual secret value)
+    """
+    import logging
+
+    logger = logging.getLogger("droidrun")
+
+    if (
+        not hasattr(tool_instance, "credential_manager")
+        or tool_instance.credential_manager is None
+    ):
+        return "Error: Credential manager not initialized. Enable credentials in config.yaml"
+
+    try:
+        # Get secret value from credential manager
+        secret_value = tool_instance.credential_manager.get_credential(secret_id)
+
+        # Type using existing input_text method
+        tool_instance.input_text(secret_value, index)
+
+        # Return sanitized message (NEVER log/return actual secret)
+        return f"Successfully typed secret '{secret_id}' into element {index}"
+
+    except Exception as e:
+        # Log error without exposing secret
+        logger.error(f"Failed to type secret '{secret_id}': {e}")
+        available = (
+            tool_instance.credential_manager.list_available_secrets()
+            if tool_instance.credential_manager
+            else []
+        )
+        return f"Error: Secret '{secret_id}' not found. Available: {available}"
+
+
+def build_credential_tools(credential_manager) -> dict:
+    """
+    Build credential-related custom tools if credential manager is available.
+
+    Args:
+        credential_manager: CredentialManager instance or None
+
+    Returns:
+        Dictionary of credential tools (empty if no credentials available)
+    """
+    import logging
+
+    logger = logging.getLogger("droidrun")
+
+    if credential_manager is None:
+        return {}
+
+    # Check if there are any enabled secrets
+    available_secrets = credential_manager.list_available_secrets()
+    if not available_secrets:
+        logger.debug("No enabled secrets found, credential tools disabled")
+        return {}
+
+    logger.info(f"Building credential tools with {len(available_secrets)} secrets")
+
+    return {
+        "type_secret": {
+            "arguments": ["secret_id", "index"],
+            "description": 'Type a secret credential from the credential store into an input field. The agent never sees the actual secret value, only the secret_id. Usage: {"action": "type_secret", "secret_id": "MY_PASSWORD", "index": 5}',
+            "function": type_secret,
+        },
+    }
+
+
+def build_custom_tools(credential_manager=None) -> dict:
+    """
+    Build all custom tools (credentials + utility tools).
+
+    This is the master function that assembles all custom tools:
+    - Credential tools (type_secret) if credential manager available
+    - Utility tools (open_app) always included
+
+    Args:
+        credential_manager: CredentialManager instance or None
+
+    Returns:
+        Dictionary of all custom tools
+    """
+    import logging
+
+    logger = logging.getLogger("droidrun")
+
+    custom_tools = {}
+
+    # 1. Add credential tools (if available)
+    credential_tools = build_credential_tools(credential_manager)
+    custom_tools.update(credential_tools)
+
+    # 2. Add open_app as custom tool (always available)
+    custom_tools["open_app"] = {
+        "arguments": ["text"],
+        "description": 'Open an app by name or description. Usage: {"action": "open_app", "text": "Gmail"}',
+        "function": open_app,
+    }
+
+    # 3. Future: Add other custom tools here
+    # custom_tools["some_other_tool"] = {...}
+
+    logger.info(f"Built {len(custom_tools)} custom tools: {list(custom_tools.keys())}")
+    return custom_tools
+
+
 async def test_open_app(mock_tools, text: str) -> str:
     return await open_app(mock_tools, text)
 
