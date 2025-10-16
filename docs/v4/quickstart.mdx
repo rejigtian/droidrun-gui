@@ -1,0 +1,353 @@
+---
+title: 'Quickstart'
+description: 'Get up and running with DroidRun v4 quickly and effectively'
+---
+
+<iframe
+  className="w-full aspect-video rounded-xl"
+  src="https://www.youtube.com/embed/4WT7FXJah2I"
+  title="YouTube video player"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+This guide will help you get DroidRun v4 installed and running quickly, controlling your Android device through natural language in minutes. DroidRun v4 introduces a config-driven architecture, making it easier to customize agent behavior, LLM selection, and execution modes.
+
+### Prerequisites
+
+Before installing DroidRun, ensure you have:
+
+1. **Python 3.11+** installed on your system
+2. [Android Debug Bridge (adb)](https://developer.android.com/studio/releases/platform-tools) installed and configured
+3. **Android device** with:
+   - [Developer options enabled](https://developer.android.com/studio/debug/dev-options)
+   - USB debugging enabled
+   - Connected via USB or on the same network (for wireless debugging)
+
+### Installation
+
+DroidRun v4 can be installed using `uv` (recommended) or `pip`. Choose the method that works best for you.
+
+#### Method 1: Using uv (Recommended)
+
+[`uv`](https://docs.astral.sh/uv/) is a fast Python package installer and resolver. It's the recommended way to install DroidRun as it handles dependency resolution more efficiently.
+
+**Install uv (if not already installed):**
+
+```bash
+# macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows (PowerShell)
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+**Install DroidRun with all providers:**
+
+```bash
+uv tool install 'droidrun[google,anthropic,openai,deepseek,ollama]'
+```
+
+This installs DroidRun as a command-line tool with support for all major LLM providers.
+
+#### Method 2: Using pip
+
+If you prefer using `pip` or already have a Python environment set up:
+
+```bash
+pip install 'droidrun[google,anthropic,openai,deepseek,ollama]'
+```
+
+<Note>
+If you only need specific providers, you can install just those. For example, `pip install 'droidrun[google,openai]'` installs only Google Gemini and OpenAI support.
+</Note>
+
+### Setup the Portal APK
+
+DroidRun requires the Portal app to be installed on your Android device for device control. The Portal app provides accessibility services and UI state information.
+
+```bash
+droidrun setup
+```
+
+This command:
+1. Downloads the latest Portal APK
+2. Installs it on your connected device
+3. Prompts you to enable accessibility services
+
+**Enable accessibility services:**
+1. Open Settings on your device
+2. Go to Accessibility Settings → DroidRun Portal
+3. Toggle the service ON
+
+### Test Connection
+
+Verify that DroidRun can communicate with your device:
+
+```bash
+droidrun ping
+```
+
+If successful, you'll see:
+```
+✓ Portal is running
+✓ Accessibility service enabled
+✓ Device ready
+```
+
+### Configure Your LLM
+
+DroidRun v4 uses a configuration-driven approach. On first run, DroidRun creates a `config.yaml` file with default settings. You'll need to set your API key for your chosen LLM provider.
+
+**Set your API key:**
+
+```bash
+# For Google Gemini (default)
+export GOOGLE_API_KEY=your-api-key-here
+
+# For OpenAI
+export OPENAI_API_KEY=your-api-key-here
+
+# For Anthropic Claude
+export ANTHROPIC_API_KEY=your-api-key-here
+
+# For DeepSeek
+export DEEPSEEK_API_KEY=your-api-key-here
+```
+
+<Tip>
+Add these exports to your shell profile (`~/.bashrc`, `~/.zshrc`, etc.) to make them permanent.
+</Tip>
+
+### Run Your First Command via CLI
+
+Now you're ready to control your device with natural language:
+
+```bash
+# Using default configuration (Google Gemini)
+droidrun run "Open the settings app and tell me the Android version"
+
+# Override provider and model
+droidrun run "Check the battery level" --provider OpenAI --model gpt-4o
+
+# Enable vision mode (sends screenshots to LLM)
+droidrun run "What app is currently open?" --vision
+
+# Enable reasoning mode (uses Manager-Executor workflow for complex tasks)
+droidrun run "Find a contact named John and send him an email" --reasoning
+```
+
+**Common CLI flags:**
+- `--provider` - LLM provider (GoogleGenAI, OpenAI, Anthropic, etc.)
+- `--model` - Model name (models/gemini-2.5-pro, gpt-4o, etc.)
+- `--vision` - Enable screenshot processing
+- `--reasoning` - Enable multi-agent planning mode
+- `--steps N` - Maximum execution steps (default: 15)
+- `--debug` - Enable detailed logging
+
+### Create a Simple Agent via Script
+
+For complex automation or integration into your Python projects, create a script:
+
+```python
+import asyncio
+from droidrun import DroidAgent, DroidRunConfig
+from droidrun.tools.adb import AdbTools
+
+async def main():
+    # Load configuration (very customizable)
+    config = DroidRunConfig()
+
+    # Initialize tools
+    tools = AdbTools()
+
+    # Create agent
+    # LLMs are automatically loaded from default DroidRunConfig
+    agent = DroidAgent(
+        goal="Open Settings and check battery level",
+        tools=tools,
+        config=config,
+    )
+
+    # Run agent
+    result = await agent.run()
+
+    # Check results
+    print(f"Success: {result['success']}")
+    print(f"Reason: {result['reason']}")
+    print(f"Steps: {result['steps']}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+**Advanced example with custom LLMs:**
+
+```python
+#!/usr/bin/env python3
+import asyncio
+from droidrun import DroidAgent, DroidRunConfig
+from droidrun.tools.adb import AdbTools
+from llama_index.llms.openai import OpenAI
+
+async def main():
+    # Load configuration
+    config = DroidRunConfig()
+
+    # Initialize tools
+    tools = AdbTools()
+
+    # Override config settings programmatically
+    config.agent.max_steps = 25
+    config.agent.reasoning = True
+    config.agent.manager.vision = True
+
+    # Or provide custom LLM (overrides config)
+    custom_llm = OpenAI(model="gpt-4o", temperature=0.2)
+
+    agent = DroidAgent(
+        goal="Book a flight to New York next Friday",
+        tools=tools,
+        config=config,
+        llm=custom_llm,  # Custom LLM for all agents
+        max_steps=30,    # Override config
+        reasoning=True,
+    )
+
+    result = await agent.run()
+    print(result)
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### Understanding Config-Driven Architecture
+
+DroidRun v4 introduces a powerful configuration system. Your `config.yaml` file controls:
+
+- **Agent behavior**: Execution modes, max steps, timing
+- **LLM profiles**: Different models for different agent types
+- **Vision settings**: Per-agent screenshot processing
+- **Safe execution**: Restricted code execution for security
+- **Prompts**: Customizable Jinja2 templates
+
+**Example config.yaml:**
+
+```yaml
+agent:
+  max_steps: 15
+  reasoning: false  # Direct execution mode
+
+  # Per-agent configuration
+  manager:
+    vision: false
+  executor:
+    vision: false
+  codeact:
+    vision: false
+
+# LLM profiles (different models for different tasks)
+llm_profiles:
+  # Planning agent (used in reasoning mode)
+  manager:
+    provider: GoogleGenAI
+    model: models/gemini-2.5-pro
+    temperature: 0.2
+
+  # Action execution agent
+  executor:
+    provider: GoogleGenAI
+    model: models/gemini-2.5-pro
+    temperature: 0.1
+
+  # Direct execution agent
+  codeact:
+    provider: GoogleGenAI
+    model: models/gemini-2.5-pro
+    temperature: 0.2
+```
+
+<Tip>
+CLI flags override config settings. For example, `--vision` enables vision for all agents regardless of config.yaml settings.
+</Tip>
+
+### Structured Output Extraction
+
+DroidRun v4 supports structured output extraction using Pydantic models:
+
+```python
+from pydantic import BaseModel, Field
+
+class BatteryInfo(BaseModel):
+    """Battery information."""
+    level: int = Field(description="Battery percentage (0-100)")
+    is_charging: bool = Field(description="Whether device is charging")
+    temperature: float = Field(description="Battery temperature in Celsius")
+
+agent = DroidAgent(
+    goal="Check battery status",
+    tools=tools,
+    config=config,
+    output_model=BatteryInfo  # Request structured output
+)
+
+result = await agent.run()
+
+# Access structured data
+battery = result["structured_output"]
+print(f"Battery: {battery.level}%")
+print(f"Charging: {battery.is_charging}")
+print(f"Temperature: {battery.temperature}°C")
+```
+
+### Execution Modes
+
+DroidRun v4 supports two execution modes:
+
+**Direct Mode (Default):**
+- Fast execution for simple tasks
+- Uses CodeActAgent to generate and execute code
+- Best for: Simple commands, quick actions
+
+```bash
+droidrun run "Open YouTube" --no-reasoning
+```
+
+**Reasoning Mode:**
+- Strategic planning for complex tasks
+- Uses Manager-Executor multi-agent workflow
+- Best for: Multi-step workflows, complex navigation
+
+```bash
+droidrun run "Find contacts from California and export to CSV" --reasoning
+```
+
+## Next Steps
+
+Now that you've got DroidRun v4 running, explore these topics:
+
+### Core Concepts
+- [Architecture](/v4/concepts/architecture) - Multi-agent system architecture
+- [Workflow Architecture](/v4/concepts/workflow-architecture) - Event-driven coordination
+- [Event Streaming](/v4/concepts/event-streaming) - Real-time execution monitoring
+
+### Configuration
+- [Configuration System](/v4/guides/configuration) - Complete configuration guide
+- [Custom Tools & Credentials](/v4/guides/custom-tools-credentials) - Extend functionality
+- [Custom Variables](/v4/guides/custom-variables) - Pass custom data to agents
+- [Structured Output](/v4/guides/structured-output) - Extract structured data
+
+### Device Setup
+- [Device Setup](/v4/guides/device-setup) - Advanced device configuration
+- [App Cards](/v4/guides/app-cards) - App-specific instruction cards
+
+### Advanced Topics
+- [Vision Mode](/v4/concepts/architecture#vision-configuration) - Screenshot processing
+- [Safe Execution](/v4/guides/configuration#safe-execution) - Secure code execution
+- [Tracing & Telemetry](/v4/guides/configuration#tracing-settings) - Debugging and monitoring
+- [Custom Prompts](/v4/guides/configuration#prompt-customization) - Customize agent behavior
+
+---
+
+**Welcome to DroidRun v4!** The config-driven architecture gives you complete control over agent behavior, making it easier than ever to build powerful device automation workflows.

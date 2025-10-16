@@ -26,27 +26,25 @@
               {
                 "group": "Concepts",
                 "pages": [
-                  "v4/concepts/agent",
                   "v4/concepts/architecture",
-                  "v4/concepts/configuration",
-                  "v4/concepts/models",
-                  "v4/concepts/android-tools",
-                  "v4/concepts/ios-tools",
-                  "v4/concepts/portal-app"
+                  "v4/concepts/event-streaming"
                 ]
               },
               {
                 "group": "Guides",
                 "pages": [
+                  "v4/guides/overview",
                   "v4/guides/cli",
+                  "v4/guides/configuration",
+                  "v4/guides/device-setup",
+                  "v4/guides/llm-integration",
+                  "v4/guides/custom-tools-credentials",
+                  "v4/guides/custom-variables",
                   "v4/guides/app-cards",
-                  "v4/guides/device-management",
-                  "v4/guides/event-streaming",
-                  "v4/guides/macros",
-                  "v4/guides/trajectories",
-                  "v4/guides/prompt-customization",
-                  "v4/guides/advanced-configuration",
-                  "v4/guides/telemetry"
+                  "v4/guides/safe-execution",
+                  "v4/guides/structured-output",
+                  "v4/guides/telemetry-tracing",
+                  "v4/guides/trajectories-macros"
                 ]
               },
               {
@@ -54,7 +52,8 @@
                 "pages": [
                   "v4/sdk/droid-agent",
                   "v4/sdk/adb-tools",
-                  "v4/sdk/ios-tools"
+                  "v4/sdk/ios-tools",
+                  "v4/sdk/base-tools"
                 ]
               }
             ]

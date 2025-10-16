@@ -1,0 +1,471 @@
+---
+title: 'Overview'
+description: 'DroidRun is a powerful framework that enables you to control Android and iOS devices through intelligent LLM agents. Build sophisticated mobile automation workflows with natural language commands.'
+---
+
+## What is DroidRun?
+
+DroidRun empowers developers to automate mobile device interactions using AI-powered agents. Whether you're building testing frameworks, automating data collection, or creating intelligent mobile workflows, DroidRun provides the flexibility and power you need.
+
+Built on [LlamaIndex workflows](https://docs.llamaindex.ai/en/stable/understanding/workflows/), DroidRun features a sophisticated multi-agent architecture that can handle everything from simple atomic tasks to complex multi-step workflows requiring strategic planning and error recovery.
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/v4/quickstart">
+    Get up and running with DroidRun in minutes
+  </Card>
+  <Card title="Multi-Agent Architecture" icon="sitemap" href="/v4/concepts/architecture">
+    Understand the hierarchical agent system
+  </Card>
+  <Card title="Event Streaming" icon="stream" href="/v4/concepts/event-streaming">
+    Monitor and debug with real-time events
+  </Card>
+  <Card title="SDK Reference" icon="code" href="/v4/sdk">
+    Explore the complete API documentation
+  </Card>
+</CardGroup>
+
+---
+
+## Core Features
+
+### Multi-Agent Architecture
+
+DroidRun v4 introduces a hierarchical multi-agent system with specialized agents for different responsibilities:
+
+- **DroidAgent** - Main coordinator orchestrating execution flow
+- **ManagerAgent** - High-level planning and strategic decision making
+- **ExecutorAgent** - Action execution specialist for device interactions
+- **CodeActAgent** - Direct execution agent that generates and runs Python code
+- **ScripterAgent** - Off-device computation handler for data processing
+
+**Two execution modes:**
+- **Direct Mode** (`reasoning=False`) - Fast, single-agent execution for simple tasks
+- **Reasoning Mode** (`reasoning=True`) - Strategic planning with Manager/Executor workflow for complex tasks
+
+<Card title="Learn More" icon="book" href="/v4/concepts/architecture">
+  Deep dive into the agent architecture
+</Card>
+
+### Event Streaming System
+
+Monitor and debug agent execution in real-time with DroidRun's comprehensive event system:
+
+```python
+from droidrun import DroidAgent
+
+agent = DroidAgent(goal="Open Settings and enable WiFi", config=config)
+handler = agent.run()
+
+# Stream events in real-time
+async for event in handler.stream_events():
+    if isinstance(event, ManagerInternalPlanEvent):
+        print(f"Plan: {event.plan}")
+    elif isinstance(event, ExecutorInternalActionEvent):
+        print(f"Action: {event.description}")
+
+result = await handler
+```
+
+Events provide rich metadata for:
+- Building custom UIs and dashboards
+- Real-time monitoring and logging
+- Debugging and trajectory analysis
+- Integration with external systems
+
+<Card title="Event Streaming Guide" icon="chart-line" href="/v4/concepts/event-streaming">
+  Master the event system
+</Card>
+
+### LLM Agnostic with Per-Agent Configuration
+
+Configure different LLMs for each specialized agent to optimize for cost and performance:
+
+```yaml
+llm_profiles:
+  manager:
+    provider: OpenAI
+    model: gpt-4o              # Powerful model for planning
+    temperature: 0.3
+
+  executor:
+    provider: OpenAI
+    model: gpt-4o-mini         # Faster model for actions
+    temperature: 0.0
+
+  codeact:
+    provider: GoogleGenAI
+    model: models/gemini-2.0-flash
+    temperature: 0.3
+
+  scripter:
+    provider: Anthropic
+    model: claude-3-5-sonnet-20241022
+    temperature: 0.0
+```
+
+**Supported providers:**
+- OpenAI (GPT-4o, GPT-4o-mini)
+- Anthropic (Claude 3.5 Sonnet, Haiku)
+- Google (Gemini 2.0 Flash, Pro)
+- Ollama (local models)
+- DeepSeek
+
+<Card title="Configuration Guide" icon="sliders" href="/v4/guides/configuration">
+  Configure your agents
+</Card>
+
+### Structured Output Extraction
+
+Extract type-safe, validated data from device interactions using Pydantic models:
+
+```python
+from pydantic import BaseModel, Field
+
+class ContactInfo(BaseModel):
+    """Contact information extracted from device."""
+    name: str = Field(description="Full name")
+    phone: str = Field(description="Phone number")
+    email: str = Field(description="Email address")
+
+agent = DroidAgent(
+    goal="Find John Smith's contact and extract details",
+    config=config,
+    tools=tools,
+    output_model=ContactInfo  # Automatic structured extraction
+)
+
+result = await agent.run()
+contact: ContactInfo = result["structured_output"]
+print(f"Phone: {contact.phone}")
+```
+
+<Card title="Structured Output Guide" icon="table" href="/v4/guides/structured-output">
+  Learn structured data extraction
+</Card>
+
+### Custom Tools and Credentials
+
+Extend agent capabilities with custom tools and secure credential management:
+
+```python
+def get_api_key(tools, service: str) -> str:
+    """Retrieve API key from secure storage."""
+    return tools.credential_manager.get_secret(f"{service}_api_key")
+
+custom_tools = {
+    "get_api_key": {
+        "signature": "get_api_key(service: str) -> str",
+        "description": "Get API key for a service",
+        "function": get_api_key
+    }
+}
+
+agent = DroidAgent(
+    goal="Login with stored credentials",
+    config=config,
+    tools=tools,
+    custom_tools=custom_tools
+)
+```
+
+Credentials are encrypted using the `cryptography` library and automatically injected as tools.
+
+<Card title="Custom Tools & Credentials" icon="key" href="/v4/guides/custom-tools-credentials">
+  Add custom functionality
+</Card>
+
+### Safe Execution Sandbox
+
+Protect your system with configurable execution sandboxing for CodeAct and Scripter agents:
+
+```yaml
+safe_execution:
+  codeact:
+    safe_execution: true
+    allowed_modules:
+      - re
+      - json
+      - datetime
+    blocked_modules:
+      - os
+      - subprocess
+    allowed_builtins:
+      - len
+      - str
+      - int
+    blocked_builtins:
+      - eval
+      - exec
+      - __import__
+```
+
+When enabled:
+- Only whitelisted imports are allowed
+- Dangerous builtins are blocked
+- No file system or network access
+- Secure code execution environment
+
+### App Cards
+
+Provide app-specific guidance to agents for better task completion:
+
+```json
+{
+  "com.android.settings": {
+    "name": "Settings",
+    "description": "System settings app",
+    "guidance": "WiFi settings are under Network & Internet > WiFi"
+  }
+}
+```
+
+App cards can be:
+- **Local** - Loaded from JSON file
+- **Server** - Fetched from remote API
+- **Composite** - Combined local + server cards
+
+<Card title="App Cards Guide" icon="id-card" href="/v4/guides/app-cards">
+  Optimize with app-specific guidance
+</Card>
+
+### Custom Variables
+
+Inject dynamic data into agent prompts:
+
+```python
+agent = DroidAgent(
+    goal="Book a flight from {{ departure }} to {{ destination }} on {{ date }}",
+    config=config,
+    tools=tools,
+    variables={
+        "departure": "San Francisco",
+        "destination": "New York",
+        "date": "2024-03-15"
+    }
+)
+```
+
+Variables are accessible in:
+- System prompts (via Jinja2 templating)
+- Agent shared state
+- Custom tools
+
+<Card title="Custom Variables Guide" icon="brackets-curly" href="/v4/guides/custom-variables">
+  Use dynamic variables
+</Card>
+
+---
+
+## Two Deployment Options
+
+DroidRun offers flexible deployment to match your workflow:
+
+<CardGroup cols={2}>
+<Card icon="mobile" title="Physical Device" href="/v4/quickstart">
+  **Full Control**
+  - Connect via USB or WiFi (TCP/IP)
+  - Direct ADB access
+  - Complete device automation
+  - Local execution
+  - No usage limits
+
+  **Best for:**
+  - Development and testing
+  - Complex automation workflows
+  - Custom device configurations
+  - Full privacy and control
+</Card>
+
+<Card icon="cloud" title="Cloud Environment" href="https://cloud.droidrun.ai">
+  **Zero Setup**
+  - Instant device provisioning
+  - No hardware required
+  - Managed infrastructure
+  - Scalable on-demand
+  - API access
+
+  **Best for:**
+  - Production deployments
+  - Scaling automation
+  - CI/CD integration
+  - Quick prototyping
+</Card>
+</CardGroup>
+
+---
+
+## What's New in v4
+
+DroidRun v4 is a major architectural upgrade from v3, introducing powerful new capabilities:
+
+### New Agent System
+- **ScripterAgent** - Off-device Python code execution for computations, API calls, and data processing
+- **StructuredOutputAgent** - Automatic extraction of typed data using Pydantic models
+- **Helper Workflows** - AppStarter, TextManipulator for specialized tasks
+- **Multi-agent coordination** - Hierarchical workflow orchestration with shared state
+
+### Event Streaming
+- **Real-time event system** - Stream execution events for monitoring and debugging
+- **Two-tier architecture** - Coordination events + internal debugging events
+- **Custom handlers** - Build custom UIs, webhooks, and integrations
+- **Trajectory recording** - Capture screenshots, UI states, and action history
+
+### LLM Configuration
+- **Per-agent LLM profiles** - Different models for Manager, Executor, CodeAct, etc.
+- **Profile system** - Reusable LLM configurations in YAML
+- **Provider flexibility** - Mix and match providers (OpenAI, Anthropic, Google, etc.)
+- **Cost optimization** - Use powerful models for planning, fast models for actions
+
+### Enhanced Features
+- **Custom variables** - Dynamic prompt injection with Jinja2 templating
+- **Structured output** - Type-safe data extraction with Pydantic
+- **Safe execution** - Sandboxed code execution with import/builtin restrictions
+- **Enhanced credentials** - Encrypted storage with auto-injection as custom tools
+- **App cards** - App-specific guidance (local, server, or composite)
+- **Improved error handling** - Error escalation and automatic recovery
+
+### Developer Experience
+- **Better configuration** - Cleaner YAML structure with validation
+- **Improved logging** - Rich console output with progress tracking
+- **Tracing integration** - Arize Phoenix support for execution tracing
+- **SDK improvements** - Better type hints and documentation
+- **Event-driven architecture** - Easier integration and extensibility
+
+---
+
+## Quick Start
+
+### Installation
+
+```bash
+# Install with all providers
+pip install 'droidrun[google,anthropic,openai,deepseek,ollama]'
+
+# Or install with specific providers
+pip install 'droidrun[google,anthropic]'
+```
+
+### Basic Usage
+
+```python
+import asyncio
+from droidrun import DroidAgent
+from droidrun.tools import AdbTools
+from droidrun.config.config import DroidRunConfig
+
+async def main():
+    # Load configuration from YAML
+    config = DroidRunConfig.from_yaml("config.yaml")
+
+    # Or configure programmatically
+    # config = DroidRunConfig()
+    # config.agent.manager.max_steps = 20
+    # config.agent.manager.llm_profile = "manager"
+
+    agent = DroidAgent(
+        goal="Open Settings and enable WiFi",
+        config=config,
+        tools=AdbTools()
+    )
+
+    result = await agent.run()
+
+    if result["success"]:
+        print(f"Success: {result['reason']}")
+    else:
+        print(f"Failed: {result['reason']}")
+
+asyncio.run(main())
+```
+
+### CLI Usage
+
+```bash
+# Run a command
+droidrun run "Open Settings and enable WiFi"
+
+# With reasoning mode
+droidrun run "Set up a new alarm for 7 AM" --reasoning
+
+# With vision
+droidrun run "Take a screenshot and describe what's on screen" --vision
+
+# Device management
+droidrun devices                  # List devices
+droidrun setup                    # Install Portal APK
+droidrun ping                     # Test connection
+```
+
+<Card title="Complete Quickstart" icon="rocket" href="/v4/quickstart">
+  Follow the full quickstart guide
+</Card>
+
+---
+
+## Key Concepts
+
+<CardGroup cols={2}>
+  <Card title="Agent Architecture" icon="sitemap" href="/v4/concepts/architecture">
+    Multi-agent system with specialized roles
+  </Card>
+  <Card title="Workflow Events" icon="diagram-project" href="/v4/concepts/workflow-architecture">
+    LlamaIndex workflow integration
+  </Card>
+  <Card title="Event Streaming" icon="stream" href="/v4/concepts/event-streaming">
+    Real-time monitoring and debugging
+  </Card>
+  <Card title="Configuration" icon="gear" href="/v4/guides/configuration">
+    Agent, LLM, and system configuration
+  </Card>
+</CardGroup>
+
+---
+
+## Guides
+
+<CardGroup cols={2}>
+  <Card title="Device Setup" icon="mobile" href="/v4/guides/device-setup">
+    Connect and configure devices
+  </Card>
+  <Card title="Structured Output" icon="table" href="/v4/guides/structured-output">
+    Extract typed data with Pydantic
+  </Card>
+  <Card title="Custom Tools & Credentials" icon="wrench" href="/v4/guides/custom-tools-credentials">
+    Extend capabilities with custom tools
+  </Card>
+  <Card title="Custom Variables" icon="brackets-curly" href="/v4/guides/custom-variables">
+    Use dynamic variables in prompts
+  </Card>
+  <Card title="App Cards" icon="id-card" href="/v4/guides/app-cards">
+    Provide app-specific guidance
+  </Card>
+</CardGroup>
+
+---
+
+## Community and Support
+
+<CardGroup cols={3}>
+  <Card title="Documentation" icon="book" href="https://docs.droidrun.ai">
+    Complete documentation and guides
+  </Card>
+  <Card title="Discord Community" icon="discord" href="https://discord.gg/ZZbKEZZkwK">
+    Get help and share your projects
+  </Card>
+  <Card title="GitHub" icon="github" href="https://github.com/droidrun/droidrun">
+    View source code and report issues
+  </Card>
+  <Card title="Twitter/X" icon="twitter" href="https://x.com/droid_run">
+    Follow for updates and news
+  </Card>
+  <Card title="Benchmark" icon="chart-bar" href="https://droidrun.ai/benchmark">
+    See DroidRun's performance metrics
+  </Card>
+  <Card title="Cloud Platform" icon="cloud" href="https://cloud.droidrun.ai">
+    Try the managed cloud service
+  </Card>
+</CardGroup>
+
+---
+
+**Ready to automate your mobile workflows?** [Get started with the quickstart guide →](/v4/quickstart)

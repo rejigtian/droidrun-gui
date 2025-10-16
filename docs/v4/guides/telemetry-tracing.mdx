@@ -1,0 +1,175 @@
+---
+title: 'Telemetry & Tracing'
+description: 'Monitor agent execution with Arize Phoenix tracing and trajectory recording'
+---
+
+# Telemetry & Tracing
+
+DroidRun provides monitoring capabilities for debugging and analyzing agent execution through **Arize Phoenix tracing** and **trajectory recording**.
+
+<Note>
+DroidRun collects anonymous usage analytics to help improve the framework. See [Anonymous Telemetry](#anonymous-telemetry) below to opt-out.
+</Note>
+
+---
+
+## Arize Phoenix Tracing
+
+Phoenix provides real-time tracing of LLM calls, agent execution, and tool invocations.
+
+### Setup
+
+Install Phoenix:
+
+```sh
+uv pip install arize-phoenix
+```
+
+Start Phoenix server:
+
+```sh
+phoenix serve
+```
+
+Enable tracing in DroidRun:
+
+**Via CLI:**
+
+```sh
+droidrun run "Open settings" --tracing
+```
+
+**Via config.yaml:**
+
+```yaml
+tracing:
+  enabled: true
+```
+
+**Via code:**
+
+```python
+from droidrun import DroidAgent
+from droidrun.config import DroidRunConfig
+
+config = DroidRunConfig.from_yaml("config.yaml")
+config.tracing.enabled = True
+
+agent = DroidAgent(goal="Open settings", config=config)
+agent.run()
+```
+
+View traces at `http://localhost:6006`. For more details on using Phoenix, see the [Arize Phoenix documentation](https://docs.arize.com/phoenix).
+
+### Configuration
+
+Set environment variables to customize Phoenix:
+
+```sh
+# Custom Phoenix server URL
+export PHOENIX_URL=http://localhost:6006
+
+# Project name for organizing traces
+export PHOENIX_PROJECT_NAME=my_droidrun_project
+```
+
+---
+
+## Anonymous Telemetry
+
+DroidRun collects anonymous usage analytics via PostHog to help improve the framework. This is completely separate from Phoenix tracing and trajectory recording - it's used by the DroidRun team to understand framework usage patterns.
+
+### What's Collected
+
+DroidRun collects:
+- Agent initialization settings (LLM models used, max steps, vision/reasoning mode)
+- Task completion metrics (success/failure, steps taken, packages visited)
+- Anonymous user ID (stored in `~/.droidrun/user_id`)
+
+**What's NOT collected:**
+- No screenshots or screen content
+- No user input or sensitive data
+- No API keys or credentials
+- No personally identifiable information (PII)
+
+### Opt-Out
+
+Telemetry is enabled by default but can be disabled:
+
+```sh
+export DROIDRUN_TELEMETRY_ENABLED=false
+```
+
+Add to your shell config for persistence:
+
+```sh
+echo 'export DROIDRUN_TELEMETRY_ENABLED=false' >> ~/.bashrc
+source ~/.bashrc
+```
+
+Anonymous telemetry helps the DroidRun team prioritize features and improve reliability. Your privacy is respected - telemetry can be disabled at any time without affecting functionality.
+
+---
+
+## Trajectory Recording
+
+Trajectory recording saves screenshots and UI state at each step for debugging and performance analysis.
+
+### Recording Levels
+
+| Level | What's Saved | Use Case |
+|-------|--------------|----------|
+| `none` (default) | Nothing | Production use |
+| `step` | Screenshots + state per step | General debugging |
+| `action` | Screenshots + state per action | Detailed debugging |
+
+### Enable Recording
+
+**Via CLI:**
+
+```sh
+droidrun run "Open settings" --save-trajectory step
+```
+
+**Via config.yaml:**
+
+```yaml
+logging:
+  save_trajectory: step  # none | step | action
+```
+
+**Via code:**
+
+```python
+from droidrun import DroidAgent
+from droidrun.config import DroidRunConfig
+
+config = DroidRunConfig.from_yaml("config.yaml")
+config.logging.save_trajectory = "action"
+
+agent = DroidAgent(goal="Open settings", config=config)
+agent.run()
+```
+
+### Output
+
+Trajectories are saved to `trajectories/` with screenshots and JSON state files:
+
+```
+trajectories/
+└── 2025-10-17_14-30-45_open_settings/
+    ├── step_000_screenshot.png
+    ├── step_000_state.json
+    ├── step_001_screenshot.png
+    └── step_001_state.json
+```
+
+State files include UI accessibility tree, action details, and agent state for debugging and performance analysis.
+
+---
+
+## Related Documentation
+
+- [Configuration System](/docs/v4/guides/configuration) - Configure tracing and telemetry settings
+- [Event Streaming](/docs/v4/concepts/event-streaming) - Build custom monitoring integrations
+- [CLI Usage](/docs/v4/guides/cli) - Command-line flags for monitoring

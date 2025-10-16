@@ -523,12 +523,12 @@ asyncio.run(main())
 import asyncio
 from droidrun import DroidAgent
 from droidrun.tools import AdbTools
-from droidrun.config_manager import ConfigManager
+from droidrun.config_manager.config import DroidRunConfig
 from droidrun.llm_utils import load_llm
 
 async def main():
     # Load configuration with custom app cards
-    config = ConfigManager()
+    config = DroidRunConfig()
     config.agent.app_cards.enabled = True
     config.agent.app_cards.mode = "local"
     config.agent.app_cards.app_cards_dir = "my_custom_cards"

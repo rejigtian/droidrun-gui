@@ -1,0 +1,1220 @@
+---
+title: 'Structured Output Extraction'
+description: 'Extract structured data from device interactions using Pydantic models'
+---
+
+# Structured Output Extraction
+
+DroidRun's structured output system allows you to extract structured, typed data from device automation tasks. By defining a Pydantic model, you can guide the agent to collect specific information and receive it in a predictable format after task completion.
+
+## Overview
+
+Structured output extraction works in two phases:
+
+1. **Task Execution**: The agent performs device actions to complete your goal, collecting the required information along the way
+2. **Post-Completion Extraction**: After task completion, a specialized extraction agent analyzes the agent's final answer and extracts structured data based on your Pydantic model
+
+This approach ensures:
+- Type-safe data extraction with validation
+- Predictable output format for downstream processing
+- Separation of concerns between task execution and data extraction
+- No performance impact during device interaction
+
+---
+
+## Quick Start
+
+### Basic Example
+
+```python
+import asyncio
+from pydantic import BaseModel, Field
+from droidrun import DroidAgent
+from droidrun.tools import AdbTools
+from droidrun.config_manager import DroidRunConfig
+
+# 1. Define your output structure
+class ContactInfo(BaseModel):
+    """Contact information extracted from device."""
+    name: str = Field(description="Full name of the contact")
+    phone: str = Field(description="Phone number")
+    email: str = Field(description="Email address", default="Not provided")
+
+# 2. Create agent with output_model
+async def main():
+    config = DroidRunConfig()
+
+    agent = DroidAgent(
+        goal="Find John Smith's contact information and tell me his phone number and email",
+        config=config,
+        tools=AdbTools(),
+        output_model=ContactInfo,  # Specify the output structure
+    )
+
+    # 3. Run agent
+    result = await agent.run()
+
+    # 4. Access structured data
+    if result["success"] and result["structured_output"]:
+        contact: ContactInfo = result["structured_output"]
+        print(f"Name: {contact.name}")
+        print(f"Phone: {contact.phone}")
+        print(f"Email: {contact.email}")
+    else:
+        print(f"Task failed: {result['reason']}")
+
+asyncio.run(main())
+```
+
+**Output:**
+```
+Name: John Smith
+Phone: +1-555-0123
+Email: john.smith@example.com
+```
+
+---
+
+## How It Works
+
+### Architecture
+
+The structured output system uses a two-stage approach:
+
+```
+User Goal → DroidAgent → Task Completion → StructuredOutputAgent → Typed Result
+```
+
+**Stage 1: Task Execution**
+- DroidAgent performs device actions (Manager/Executor or CodeAct mode)
+- Agent collects information based on your goal
+- Agent's system prompt includes your Pydantic model schema as guidance
+- Agent completes with a natural language answer containing the data
+
+**Stage 2: Extraction (Post-Completion)**
+- StructuredOutputAgent receives the final answer text
+- Uses LLM's `structured_predict()` to extract data into your Pydantic model
+- Validates the extracted data against your schema
+- Returns typed Pydantic object or `None` if extraction fails
+
+### Workflow Integration
+
+Structured output extraction happens in the `finalize()` step of DroidAgent:
+
+```python
+@step
+async def finalize(self, ctx: Context, ev: FinalizeEvent) -> StopEvent:
+    result = {
+        "success": ev.success,
+        "reason": ev.reason,
+        "structured_output": None,
+    }
+
+    # Extract structured output if model was provided
+    if self.output_model is not None and ev.reason:
+        structured_agent = StructuredOutputAgent(
+            llm=self.structured_output_llm,
+            pydantic_model=self.output_model,
+            answer_text=ev.reason,
+        )
+
+        extraction_result = await structured_agent.run()
+
+        if extraction_result["success"]:
+            result["structured_output"] = extraction_result["structured_output"]
+
+    return StopEvent(result)
+```
+
+---
+
+## Defining Output Models
+
+### Basic Model Structure
+
+Use Pydantic `BaseModel` with descriptive field definitions:
+
+```python
+from pydantic import BaseModel, Field
+from typing import List, Optional
+
+class AppInfo(BaseModel):
+    """Information about an installed application."""
+    name: str = Field(description="Application name as shown in the app drawer")
+    package: str = Field(description="Android package identifier (e.g., com.example.app)")
+    version: str = Field(description="Version number (e.g., 1.2.3)")
+    size_mb: float = Field(description="Storage size in megabytes")
+    last_updated: str = Field(description="Last update date in YYYY-MM-DD format")
+```
+
+**Key Guidelines:**
+- Add detailed descriptions to every field
+- Use type hints (str, int, float, bool, List, Optional)
+- Provide default values for optional fields
+- Include a class docstring explaining the model's purpose
+
+### Nested Models
+
+For complex data structures, use nested Pydantic models:
+
+```python
+class Address(BaseModel):
+    """Physical address information."""
+    street: str = Field(description="Street address with number")
+    city: str = Field(description="City name")
+    state: str = Field(description="State or province")
+    zip_code: str = Field(description="Postal/ZIP code")
+
+class PersonProfile(BaseModel):
+    """Complete person profile with contact and address."""
+    full_name: str = Field(description="First and last name")
+    phone: str = Field(description="Primary phone number")
+    email: str = Field(description="Email address")
+    home_address: Address = Field(description="Home address details")
+    work_address: Optional[Address] = Field(
+        description="Work address details if available",
+        default=None
+    )
+```
+
+### Lists and Collections
+
+Extract multiple items using `List`:
+
+```python
+from typing import List
+
+class Message(BaseModel):
+    """A single message from conversation."""
+    sender: str = Field(description="Name of message sender")
+    content: str = Field(description="Message text content")
+    timestamp: str = Field(description="When message was sent (e.g., '2:30 PM')")
+
+class Conversation(BaseModel):
+    """Conversation thread with multiple messages."""
+    chat_name: str = Field(description="Name of the chat or contact")
+    message_count: int = Field(description="Total number of messages")
+    messages: List[Message] = Field(
+        description="List of messages in chronological order",
+        default=[]
+    )
+```
+
+### Optional Fields
+
+Use `Optional` and `default` for fields that may not be available:
+
+```python
+from typing import Optional
+
+class Product(BaseModel):
+    """Product information from shopping app."""
+    name: str = Field(description="Product name")
+    price: float = Field(description="Current price in dollars")
+    original_price: Optional[float] = Field(
+        description="Original price if item is on sale",
+        default=None
+    )
+    discount_percent: Optional[int] = Field(
+        description="Discount percentage if on sale",
+        default=None
+    )
+    in_stock: bool = Field(
+        description="Whether product is currently available",
+        default=True
+    )
+    rating: Optional[float] = Field(
+        description="Customer rating out of 5.0",
+        default=None
+    )
+```
+
+---
+
+## Real-World Examples
+
+### Example 1: Contact Extraction
+
+Extract contact details from phone's contact list:
+
+```python
+from pydantic import BaseModel, Field
+from typing import Optional
+
+class ContactDetails(BaseModel):
+    """Contact information from phone's contacts app."""
+    full_name: str = Field(description="Contact's full name")
+    phone_numbers: str = Field(
+        description="All phone numbers separated by commas"
+    )
+    email_addresses: str = Field(
+        description="All email addresses separated by commas",
+        default="None"
+    )
+    company: Optional[str] = Field(
+        description="Company or organization name",
+        default=None
+    )
+    job_title: Optional[str] = Field(
+        description="Job title or position",
+        default=None
+    )
+    notes: Optional[str] = Field(
+        description="Any notes or additional information",
+        default=None
+    )
+
+# Usage
+agent = DroidAgent(
+    goal="Open contacts app and find Sarah Johnson's contact information",
+    config=config,
+    tools=AdbTools(),
+    output_model=ContactDetails,
+)
+
+result = await agent.run()
+contact = result["structured_output"]
+# contact.full_name → "Sarah Johnson"
+# contact.phone_numbers → "+1-555-0199, +1-555-0200"
+# contact.email_addresses → "sarah.j@company.com"
+```
+
+### Example 2: Invoice Parsing
+
+Extract invoice details from a document or email:
+
+```python
+from pydantic import BaseModel, Field
+from typing import List
+
+class InvoiceLineItem(BaseModel):
+    """Single line item on an invoice."""
+    description: str = Field(description="Item or service description")
+    quantity: int = Field(description="Number of items")
+    unit_price: float = Field(description="Price per unit in dollars")
+    total: float = Field(description="Total for this line (quantity × unit_price)")
+
+class Invoice(BaseModel):
+    """Complete invoice information."""
+    invoice_number: str = Field(description="Unique invoice ID/number")
+    date: str = Field(description="Invoice date (YYYY-MM-DD format)")
+    due_date: str = Field(description="Payment due date (YYYY-MM-DD format)")
+    vendor_name: str = Field(description="Name of vendor/company issuing invoice")
+    customer_name: str = Field(description="Name of customer/recipient")
+    line_items: List[InvoiceLineItem] = Field(
+        description="List of items/services on invoice"
+    )
+    subtotal: float = Field(description="Subtotal before tax in dollars")
+    tax_amount: float = Field(description="Tax amount in dollars")
+    total_due: float = Field(description="Final amount due in dollars")
+
+# Usage
+agent = DroidAgent(
+    goal="Open the Gmail app and find the invoice from Acme Corp, extract all invoice details",
+    config=config,
+    tools=AdbTools(),
+    output_model=Invoice,
+)
+
+result = await agent.run()
+invoice = result["structured_output"]
+# invoice.invoice_number → "INV-2024-00123"
+# invoice.total_due → 1234.56
+# invoice.line_items[0].description → "Web Development Services"
+```
+
+### Example 3: App Settings Audit
+
+Extract current settings configuration from an app:
+
+```python
+from pydantic import BaseModel, Field
+
+class AppSettings(BaseModel):
+    """Current settings configuration for an application."""
+    notifications_enabled: bool = Field(
+        description="Whether notifications are turned on"
+    )
+    dark_mode: bool = Field(
+        description="Whether dark mode is enabled"
+    )
+    auto_sync: bool = Field(
+        description="Whether automatic sync is enabled"
+    )
+    sync_frequency: str = Field(
+        description="How often sync occurs (e.g., 'Every 15 minutes', 'Hourly', 'Daily')"
+    )
+    data_saver: bool = Field(
+        description="Whether data saver mode is active"
+    )
+    account_email: str = Field(
+        description="Email of logged-in account"
+    )
+    storage_used_mb: float = Field(
+        description="Storage used by app in megabytes"
+    )
+
+# Usage
+agent = DroidAgent(
+    goal="Open Spotify app, go to settings, and check all current settings",
+    config=config,
+    tools=AdbTools(),
+    output_model=AppSettings,
+)
+
+result = await agent.run()
+settings = result["structured_output"]
+# settings.notifications_enabled → True
+# settings.dark_mode → False
+# settings.sync_frequency → "Every 30 minutes"
+```
+
+### Example 4: Restaurant Review Summary
+
+Extract review details from a restaurant app:
+
+```python
+from pydantic import BaseModel, Field
+from typing import List, Optional
+
+class Review(BaseModel):
+    """Single customer review."""
+    reviewer_name: str = Field(description="Name of the person who wrote the review")
+    rating: float = Field(description="Star rating from 1.0 to 5.0")
+    date: str = Field(description="Review date (e.g., '3 days ago', '2024-01-15')")
+    review_text: str = Field(description="Full text of the review")
+    helpful_count: Optional[int] = Field(
+        description="Number of people who found this helpful",
+        default=None
+    )
+
+class RestaurantInfo(BaseModel):
+    """Restaurant details with reviews."""
+    name: str = Field(description="Restaurant name")
+    address: str = Field(description="Full address")
+    phone: str = Field(description="Phone number")
+    cuisine_type: str = Field(description="Type of cuisine (e.g., 'Italian', 'Thai')")
+    average_rating: float = Field(description="Overall average rating from 1.0 to 5.0")
+    price_range: str = Field(description="Price range (e.g., '$', '$$', '$$$')")
+    hours: str = Field(description="Operating hours (e.g., '11 AM - 10 PM')")
+    recent_reviews: List[Review] = Field(
+        description="List of 3-5 most recent customer reviews"
+    )
+
+# Usage
+agent = DroidAgent(
+    goal="Open Yelp app and find 'Blue Plate Restaurant', get all details and recent reviews",
+    config=config,
+    tools=AdbTools(),
+    output_model=RestaurantInfo,
+)
+
+result = await agent.run()
+restaurant = result["structured_output"]
+# restaurant.name → "Blue Plate Restaurant"
+# restaurant.average_rating → 4.5
+# len(restaurant.recent_reviews) → 5
+```
+
+### Example 5: Calendar Event Details
+
+Extract event information from calendar app:
+
+```python
+from pydantic import BaseModel, Field
+from typing import List, Optional
+
+class Attendee(BaseModel):
+    """Event attendee information."""
+    name: str = Field(description="Attendee name")
+    email: str = Field(description="Attendee email address")
+    status: str = Field(
+        description="Response status (e.g., 'Accepted', 'Declined', 'Maybe', 'No response')"
+    )
+
+class CalendarEvent(BaseModel):
+    """Calendar event details."""
+    title: str = Field(description="Event title/name")
+    date: str = Field(description="Event date (YYYY-MM-DD format)")
+    start_time: str = Field(description="Start time (e.g., '2:00 PM')")
+    end_time: str = Field(description="End time (e.g., '3:30 PM')")
+    location: Optional[str] = Field(
+        description="Event location or address",
+        default=None
+    )
+    description: Optional[str] = Field(
+        description="Event description or notes",
+        default=None
+    )
+    attendees: List[Attendee] = Field(
+        description="List of event attendees",
+        default=[]
+    )
+    is_recurring: bool = Field(
+        description="Whether event repeats",
+        default=False
+    )
+    recurrence_pattern: Optional[str] = Field(
+        description="How event repeats (e.g., 'Weekly', 'Every Monday')",
+        default=None
+    )
+    reminder_minutes: Optional[int] = Field(
+        description="Minutes before event to show reminder",
+        default=None
+    )
+
+# Usage
+agent = DroidAgent(
+    goal="Open Google Calendar and find details for tomorrow's 'Team Standup' meeting",
+    config=config,
+    tools=AdbTools(),
+    output_model=CalendarEvent,
+)
+
+result = await agent.run()
+event = result["structured_output"]
+# event.title → "Team Standup"
+# event.start_time → "9:00 AM"
+# len(event.attendees) → 5
+```
+
+### Example 6: Form Validation After Fill
+
+Verify a form was filled correctly:
+
+```python
+from pydantic import BaseModel, Field
+
+class FormData(BaseModel):
+    """Filled form data verification."""
+    first_name: str = Field(description="First name entered in form")
+    last_name: str = Field(description="Last name entered in form")
+    email: str = Field(description="Email address entered in form")
+    phone: str = Field(description="Phone number entered in form")
+    address: str = Field(description="Street address entered in form")
+    city: str = Field(description="City entered in form")
+    state: str = Field(description="State entered in form")
+    zip_code: str = Field(description="ZIP code entered in form")
+    form_submitted: bool = Field(
+        description="Whether form was successfully submitted"
+    )
+    confirmation_message: str = Field(
+        description="Confirmation message shown after submission"
+    )
+
+# Usage
+agent = DroidAgent(
+    goal="Fill out the registration form with my details and verify it was submitted correctly",
+    config=config,
+    tools=AdbTools(),
+    output_model=FormData,
+)
+
+result = await agent.run()
+form_data = result["structured_output"]
+
+# Verify form was filled correctly
+assert form_data.form_submitted, "Form was not submitted"
+assert "@" in form_data.email, "Invalid email format"
+print(f"Confirmation: {form_data.confirmation_message}")
+```
+
+---
+
+## Working with Results
+
+### Accessing Structured Data
+
+The result dictionary contains:
+- `success`: Boolean indicating task completion
+- `reason`: Natural language answer from agent
+- `structured_output`: Extracted Pydantic model instance (or `None`)
+- `steps`: Number of execution steps taken
+
+```python
+result = await agent.run()
+
+# Check if task succeeded
+if result["success"]:
+    print(f"Task completed: {result['reason']}")
+
+    # Access structured data
+    if result["structured_output"]:
+        data = result["structured_output"]
+        # Now you have a typed Pydantic object
+        print(f"Extracted data: {data}")
+    else:
+        print("Warning: Extraction failed, but task succeeded")
+else:
+    print(f"Task failed: {result['reason']}")
+```
+
+### Handling Extraction Failures
+
+Extraction can fail if:
+- The agent's answer doesn't contain the required information
+- The LLM can't parse the answer into the specified format
+- Network/API errors occur during extraction
+
+**Graceful Handling:**
+
+```python
+result = await agent.run()
+
+if not result["success"]:
+    # Task execution failed
+    print(f"Task failed: {result['reason']}")
+    return None
+
+if result["structured_output"] is None:
+    # Extraction failed, but we have the text answer
+    print("Extraction failed, falling back to text answer:")
+    print(result["reason"])
+
+    # Optionally parse manually or retry
+    return None
+
+# Success - use structured data
+data = result["structured_output"]
+return data
+```
+
+### Validation and Post-Processing
+
+Pydantic automatically validates data types. Add custom validation:
+
+```python
+from pydantic import BaseModel, Field, field_validator
+
+class PriceInfo(BaseModel):
+    """Product price information."""
+    product_name: str = Field(description="Name of the product")
+    current_price: float = Field(description="Current price in dollars")
+    original_price: float = Field(description="Original price in dollars")
+
+    @field_validator('current_price', 'original_price')
+    @classmethod
+    def validate_price(cls, v):
+        if v < 0:
+            raise ValueError("Price cannot be negative")
+        return round(v, 2)  # Round to 2 decimal places
+
+    @field_validator('current_price')
+    @classmethod
+    def validate_discount(cls, v, info):
+        # Ensure current price isn't higher than original
+        if 'original_price' in info.data:
+            if v > info.data['original_price']:
+                raise ValueError("Current price cannot exceed original price")
+        return v
+
+# Usage
+result = await agent.run()
+if result["structured_output"]:
+    # Validation happens automatically
+    price_info = result["structured_output"]
+
+    # Calculate discount
+    if price_info.original_price > price_info.current_price:
+        discount = ((price_info.original_price - price_info.current_price)
+                   / price_info.original_price * 100)
+        print(f"Discount: {discount:.1f}%")
+```
+
+### Exporting to JSON
+
+Convert structured output to JSON for storage or APIs:
+
+```python
+result = await agent.run()
+
+if result["structured_output"]:
+    data = result["structured_output"]
+
+    # Convert to dict
+    data_dict = data.model_dump()
+
+    # Convert to JSON string
+    import json
+    json_str = data.model_dump_json(indent=2)
+
+    # Save to file
+    with open("output.json", "w") as f:
+        f.write(json_str)
+
+    print("Data saved to output.json")
+```
+
+---
+
+## Configuration
+
+### Specifying the Extraction LLM
+
+By default, structured output extraction uses the `codeact` LLM. You can specify a dedicated `structured_output` LLM profile:
+
+**In config.yaml:**
+
+```yaml
+llm_profiles:
+  # Main execution LLMs
+  codeact:
+    provider: GoogleGenAI
+    model: models/gemini-2.0-flash
+    temperature: 0.3
+
+  # Dedicated extraction LLM
+  structured_output:
+    provider: OpenAI
+    model: gpt-4o-mini
+    temperature: 0.0  # Low temperature for consistent extraction
+```
+
+**Programmatically:**
+
+```python
+from droidrun.llm_utils import load_llm
+
+# Load LLMs
+llms = {
+    "codeact": load_llm("GoogleGenAI", "models/gemini-2.0-flash"),
+    "structured_output": load_llm("OpenAI", "gpt-4o-mini"),
+}
+
+agent = DroidAgent(
+    goal="Extract contact info for Alice",
+    llms=llms,
+    config=config,
+    tools=AdbTools(),
+    output_model=ContactInfo,
+)
+```
+
+### Reasoning Mode Considerations
+
+Structured output works with both reasoning modes:
+
+**Non-Reasoning Mode (Direct Execution):**
+```python
+config = DroidRunConfig()
+config.agent.reasoning = False
+
+agent = DroidAgent(
+    goal="Find the weather for San Francisco",
+    config=config,
+    tools=AdbTools(),
+    output_model=WeatherInfo,  # Schema guides CodeActAgent
+)
+```
+
+**Reasoning Mode (Manager/Executor):**
+```python
+config = DroidRunConfig()
+config.agent.reasoning = True
+
+agent = DroidAgent(
+    goal="Find the weather for San Francisco",
+    config=config,
+    tools=AdbTools(),
+    output_model=WeatherInfo,  # Schema guides ManagerAgent planning
+)
+```
+
+In both modes:
+- The output schema is injected into system prompts
+- Agents are instructed to collect the required data
+- Extraction happens post-completion regardless of mode
+
+---
+
+## Best Practices
+
+### 1. Write Clear Field Descriptions
+
+The LLM uses field descriptions to understand what to extract. Be specific:
+
+**Bad:**
+```python
+class Data(BaseModel):
+    name: str  # No description
+    value: float = Field(description="Value")  # Too vague
+```
+
+**Good:**
+```python
+class Data(BaseModel):
+    """Customer order information."""
+    customer_name: str = Field(
+        description="Full name of the customer who placed the order"
+    )
+    order_total: float = Field(
+        description="Total order amount in US dollars including tax and shipping"
+    )
+```
+
+### 2. Use Appropriate Types
+
+Choose types that match your data:
+
+```python
+class Event(BaseModel):
+    # String for dates if format varies
+    date: str = Field(description="Event date in YYYY-MM-DD format")
+
+    # Int for counts
+    attendee_count: int = Field(description="Number of attendees")
+
+    # Float for prices/measurements
+    ticket_price: float = Field(description="Ticket price in dollars")
+
+    # Bool for yes/no
+    is_virtual: bool = Field(description="Whether event is online/virtual")
+
+    # List for multiple items
+    speakers: List[str] = Field(description="Names of all speakers")
+```
+
+### 3. Provide Default Values
+
+Use defaults for optional fields to prevent extraction failures:
+
+```python
+class Product(BaseModel):
+    name: str = Field(description="Product name")
+
+    # Required field - no default
+    price: float = Field(description="Current price")
+
+    # Optional fields - with defaults
+    description: str = Field(
+        description="Product description",
+        default="No description available"
+    )
+    rating: Optional[float] = Field(
+        description="Customer rating out of 5.0",
+        default=None
+    )
+    in_stock: bool = Field(
+        description="Availability status",
+        default=True
+    )
+```
+
+### 4. Keep Models Focused
+
+Create targeted models for specific tasks instead of one large model:
+
+**Bad - Too broad:**
+```python
+class Everything(BaseModel):
+    """All possible data."""
+    contact_name: Optional[str] = None
+    contact_phone: Optional[str] = None
+    email_subject: Optional[str] = None
+    email_body: Optional[str] = None
+    calendar_event: Optional[str] = None
+    # ... too many optional fields
+```
+
+**Good - Focused:**
+```python
+class ContactInfo(BaseModel):
+    """Contact details only."""
+    name: str = Field(description="Contact name")
+    phone: str = Field(description="Phone number")
+
+class EmailSummary(BaseModel):
+    """Email summary only."""
+    subject: str = Field(description="Email subject")
+    sender: str = Field(description="Sender name/email")
+    summary: str = Field(description="Brief summary of email body")
+```
+
+### 5. Test Your Models
+
+Validate models before production use:
+
+```python
+# Test model validation
+def test_model():
+    # Test valid data
+    valid_data = ContactInfo(
+        name="John Doe",
+        phone="+1-555-0123",
+        email="john@example.com"
+    )
+    assert valid_data.name == "John Doe"
+
+    # Test validation (should raise error)
+    try:
+        invalid_data = ContactInfo(
+            name="",  # Empty name
+            phone="invalid",
+            email="not-an-email"
+        )
+    except ValidationError as e:
+        print(f"Validation caught errors: {e}")
+
+test_model()
+```
+
+### 6. Guide Collection in Goal
+
+Mention what data to collect in your goal:
+
+```python
+agent = DroidAgent(
+    goal="Open the Notes app and find the recipe for chocolate cake. "
+         "Extract the recipe name, ingredients list, cooking time, and instructions.",
+    output_model=Recipe,
+    # ... other params
+)
+```
+
+This helps the agent understand what to look for during execution.
+
+### 7. Handle Missing Data Gracefully
+
+Not all information may be available. Design for partial data:
+
+```python
+class ProductInfo(BaseModel):
+    """Product information (some fields may be unavailable)."""
+    name: str = Field(description="Product name")
+    price: float = Field(description="Current price in dollars")
+
+    # Optional fields with clear defaults
+    description: str = Field(
+        description="Product description",
+        default="Description not available"
+    )
+    reviews_count: int = Field(
+        description="Number of customer reviews",
+        default=0
+    )
+    availability: str = Field(
+        description="Stock availability status",
+        default="Unknown"
+    )
+
+# Use with fallbacks
+result = await agent.run()
+if result["structured_output"]:
+    product = result["structured_output"]
+
+    # Always available
+    print(f"{product.name}: ${product.price}")
+
+    # May be defaults
+    if product.reviews_count > 0:
+        print(f"Reviews: {product.reviews_count}")
+    if product.description != "Description not available":
+        print(f"Description: {product.description}")
+```
+
+---
+
+## Troubleshooting
+
+### Extraction Always Returns None
+
+**Problem:** `structured_output` is always `None` even when task succeeds.
+
+**Solutions:**
+
+1. **Check if task actually completed:**
+   ```python
+   result = await agent.run()
+   if not result["success"]:
+       print("Task failed - no extraction attempted")
+   else:
+       print(f"Task succeeded with answer: {result['reason']}")
+       # If reason is empty, extraction won't run
+   ```
+
+2. **Verify output_model is provided:**
+   ```python
+   # Wrong - no output_model
+   agent = DroidAgent(goal="...", config=config, tools=tools)
+
+   # Correct
+   agent = DroidAgent(
+       goal="...",
+       config=config,
+       tools=tools,
+       output_model=YourModel  # Must be provided
+   )
+   ```
+
+3. **Check extraction LLM logs:**
+   ```python
+   config = DroidRunConfig()
+   config.logging.debug = True  # Enable debug logging
+
+   # Look for extraction logs:
+   # "🔄 Running structured output extraction..."
+   # "✅ Successfully extracted structured output"
+   # OR
+   # "⚠️ Structured extraction failed: [error]"
+   ```
+
+### Partial or Incorrect Data
+
+**Problem:** Some fields are missing or have wrong values.
+
+**Solutions:**
+
+1. **Improve field descriptions:**
+   ```python
+   # Vague - LLM might guess wrong
+   phone: str = Field(description="Phone")
+
+   # Specific - LLM knows exactly what to extract
+   phone: str = Field(
+       description="Primary phone number in international format (e.g., +1-555-0123)"
+   )
+   ```
+
+2. **Mention required fields in goal:**
+   ```python
+   agent = DroidAgent(
+       goal="Find contact info and make sure to get the phone number, "
+            "email, and full name",
+       output_model=ContactInfo,
+       # ...
+   )
+   ```
+
+3. **Use required vs optional strategically:**
+   ```python
+   class Info(BaseModel):
+       # Critical fields - no default (will fail if missing)
+       name: str = Field(description="...")
+
+       # Nice-to-have - with default (won't fail if missing)
+       notes: Optional[str] = Field(description="...", default=None)
+   ```
+
+### Validation Errors
+
+**Problem:** Pydantic validation fails with type errors.
+
+**Solutions:**
+
+1. **Use string types for unpredictable formats:**
+   ```python
+   # Instead of strict types
+   date: datetime = Field(description="Event date")
+
+   # Use strings with format guidance
+   date: str = Field(
+       description="Event date in YYYY-MM-DD format (e.g., 2024-01-15)"
+   )
+   ```
+
+2. **Add custom validators:**
+   ```python
+   from pydantic import field_validator
+
+   class Data(BaseModel):
+       price: float = Field(description="Price in dollars")
+
+       @field_validator('price')
+       @classmethod
+       def parse_price(cls, v):
+           # Handle string prices like "$19.99"
+           if isinstance(v, str):
+               v = v.replace('$', '').replace(',', '')
+               return float(v)
+           return v
+   ```
+
+3. **Use `Optional` for uncertain fields:**
+   ```python
+   # If field might not exist or have varied types
+   rating: Optional[float] = Field(
+       description="Rating from 1.0 to 5.0",
+       default=None
+   )
+   ```
+
+### Slow Extraction
+
+**Problem:** Extraction takes too long after task completion.
+
+**Solutions:**
+
+1. **Use a faster LLM for extraction:**
+   ```yaml
+   llm_profiles:
+     structured_output:
+       provider: OpenAI
+       model: gpt-4o-mini  # Faster than gpt-4o
+       temperature: 0.0
+   ```
+
+2. **Simplify your model:**
+   ```python
+   # Complex model with many nested objects
+   class Complex(BaseModel):
+       # Many fields, nested models, long descriptions...
+
+   # Simplified model with essential fields only
+   class Simple(BaseModel):
+       name: str = Field(description="Name")
+       value: float = Field(description="Value")
+   ```
+
+3. **Pre-filter data in agent goal:**
+   ```python
+   # Instead of asking agent to extract everything
+   goal = "Get all information about the product"
+
+   # Ask for specific fields only
+   goal = "Get the product name and price only"
+   ```
+
+---
+
+## Advanced Usage
+
+### Streaming Support
+
+Note: Structured output extraction happens post-completion and doesn't support streaming. However, you can stream the main task execution:
+
+```python
+agent = DroidAgent(
+    goal="Extract contact for Jane Doe",
+    config=config,
+    tools=AdbTools(),
+    output_model=ContactInfo,
+)
+
+handler = agent.run()
+
+# Stream task execution events
+async for event in handler.stream_events():
+    if isinstance(event, TaskThinkingEvent):
+        print(f"Agent thinking: {event.thoughts}")
+    elif isinstance(event, ManagerPlanEvent):
+        print(f"Plan: {event.plan}")
+
+# Get final result with structured output
+result = await handler
+contact = result["structured_output"]
+```
+
+### Multiple Extractions
+
+For tasks requiring multiple structured outputs, run separate agents:
+
+```python
+# First extraction
+agent1 = DroidAgent(
+    goal="Find contact for John Smith",
+    config=config,
+    tools=tools,
+    output_model=ContactInfo,
+)
+result1 = await agent1.run()
+contact1 = result1["structured_output"]
+
+# Second extraction
+agent2 = DroidAgent(
+    goal="Find contact for Jane Doe",
+    config=config,
+    tools=tools,
+    output_model=ContactInfo,
+)
+result2 = await agent2.run()
+contact2 = result2["structured_output"]
+
+# Process together
+contacts = [contact1, contact2]
+```
+
+Alternatively, use a list model:
+
+```python
+class ContactList(BaseModel):
+    """Multiple contacts."""
+    contacts: List[ContactInfo] = Field(description="List of contacts found")
+
+agent = DroidAgent(
+    goal="Find contacts for John Smith and Jane Doe",
+    config=config,
+    tools=tools,
+    output_model=ContactList,
+)
+
+result = await agent.run()
+contacts = result["structured_output"].contacts
+```
+
+### Custom Extraction Prompts
+
+The default extraction prompt is simple:
+
+```
+Extract structured information from the following text:
+
+{answer_text}
+```
+
+For custom prompts, use `StructuredOutputAgent` directly:
+
+```python
+from droidrun.agent.oneflows.structured_output_agent import StructuredOutputAgent
+from llama_index.core.prompts import PromptTemplate
+
+# Custom prompt
+custom_prompt = PromptTemplate(
+    "Extract contact information from this text. "
+    "Focus on the primary contact details only. "
+    "Text:\n\n{text}"
+)
+
+# Run extraction with custom prompt
+extraction_agent = StructuredOutputAgent(
+    llm=llm,
+    pydantic_model=ContactInfo,
+    answer_text=agent_result["reason"],
+)
+
+# Modify prompt (requires accessing internal code)
+# extraction_agent.prompt = custom_prompt
+
+result = await extraction_agent.run()
+contact = result["structured_output"]
+```
+
+### Combining with Variables
+
+Use custom variables alongside structured output:
+
+```python
+agent = DroidAgent(
+    goal="Find recipe for {{ recipe_name }} and extract details",
+    config=config,
+    tools=tools,
+    variables={"recipe_name": "Chocolate Cake"},
+    output_model=Recipe,
+)
+
+result = await agent.run()
+recipe = result["structured_output"]
+```
+
+---
+
+## Related Documentation
+
+- [DroidAgent API](/docs/v4/sdk/droid-agent) - Main agent documentation
+- [Pydantic Documentation](https://docs.pydantic.dev/) - Learn more about Pydantic models
+- [LlamaIndex structured_predict()](https://docs.llamaindex.ai/) - Underlying extraction mechanism
+- [Configuration Guide](/docs/v4/concepts/configuration) - LLM profile configuration
+- [Custom Variables](/docs/v4/guides/variables) - Using variables with structured output
+
+---
+
+**Extract structured data from your automation tasks with type-safe, validated models!**

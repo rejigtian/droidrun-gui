@@ -1,0 +1,171 @@
+---
+title: Overview
+---
+
+Welcome to the DroidRun v4 Guides! Here you'll find comprehensive step-by-step instructions and best practices for using DroidRun's powerful features. Each guide is designed to help you master specific aspects of the framework, from basic setup to advanced automation patterns.
+
+---
+
+## Getting Started
+
+### [Device Setup & Communication](./device-setup)
+Learn how to set up Android and iOS devices, install the Portal app, and establish reliable communication. This guide covers:
+- Installing and configuring the DroidRun Portal app
+- Enabling accessibility services and permissions
+- TCP vs Content Provider communication modes
+- Wireless debugging setup (WiFi/network connections)
+- Multi-device management and troubleshooting
+- iOS device setup and limitations
+
+---
+
+### [Configuration System](./configuration)
+Master DroidRun's powerful YAML-based configuration system that controls every aspect of agent behavior. This guide covers:
+- Config file structure and path resolution
+- LLM profiles for different agent types (Manager, Executor, CodeAct, Scripter)
+- Mixing LLM providers (OpenAI, Anthropic, Google, Ollama, DeepSeek)
+- Agent modes (reasoning vs direct execution)
+- Safe execution restrictions for code generation
+- CLI overrides and configuration best practices
+- Prompt customization with Jinja2 templates
+
+---
+
+## Core Features
+
+### [Event Streaming](../concepts/event-streaming)
+Understand DroidRun's real-time event system for monitoring agent execution and building custom integrations. This guide covers:
+- Two-tier event architecture (coordination vs internal events)
+- Manager, Executor, and CodeAct event types
+- Building custom event handlers with Rich UI
+- Event streaming for WebSocket/FastAPI integrations
+- Real-time monitoring and debugging patterns
+- Event aggregation and replay for analysis
+
+---
+
+### [Multi-Agent Architecture](../concepts/workflow-architecture)
+Explore DroidRun's hierarchical agent system with Manager-Executor workflows. This guide covers:
+- Reasoning mode (Manager → Executor) vs Direct mode (CodeAct)
+- DroidAgent as the main orchestrator
+- ManagerAgent for high-level planning and task decomposition
+- ExecutorAgent for atomic action selection
+- CodeActAgent for immediate code generation
+- ScripterAgent for off-device Python execution
+- Shared state and coordination patterns
+
+---
+
+### [Structured Output](./structured-output)
+Extract structured, type-safe data from device interactions using Pydantic models. This guide covers:
+- Defining Pydantic output models with Field descriptions
+- Post-completion extraction workflow
+- Nested models, lists, and optional fields
+- Real-world examples (contacts, invoices, settings, reviews)
+- Validation, error handling, and troubleshooting
+- Combining structured output with custom variables
+
+---
+
+## Advanced Features
+
+### [Custom Tools & Credentials](./custom-tools-credentials)
+Extend agent capabilities with custom functions and secure credential storage. This guide covers:
+- Creating custom tool functions with proper signatures
+- Async tool support and error handling
+- Credential manager setup and configuration
+- Encrypted credential storage (passwords, API keys)
+- Using `type_secret` for secure input
+- Combining custom tools with credentials
+- Best practices for tool descriptions and validation
+
+---
+
+### [Custom Variables](./custom-variables)
+Pass dynamic data and configuration to agents for parameterized workflows. This guide covers:
+- Variable injection into agent prompts
+- Passing variables to Manager, Executor, and CodeAct agents
+- Accessing variables in custom tools
+- Use cases: parameterized emails, API endpoints, user preferences
+- Multi-step workflows with shared context
+- Variable validation with Pydantic
+- Security considerations for variables vs credentials
+
+---
+
+### [App Cards](./app-cards)
+Enhance agent performance with app-specific instruction cards for better UI understanding. This guide covers:
+- How app cards work (package detection and prompt injection)
+- Built-in app cards (Gmail, Chrome, etc.)
+- Creating custom app cards with markdown
+- App card format and best practices
+- Card providers: Local, Server, and Composite modes
+- Dynamic card loading and caching
+- Testing and maintaining app cards
+
+---
+
+## Operations
+
+### [Telemetry & Tracing](../guides/telemetry-tracing)
+Monitor and analyze agent execution with Arize Phoenix tracing and trajectory recording. This guide covers:
+- Arize Phoenix integration for real-time execution monitoring
+- LLM call inspection and performance analysis
+- Trajectory recording at "none", "step", or "action" level
+- Step-by-step debugging with screenshots and UI state
+- Token usage monitoring and optimization
+- Anonymous framework usage analytics (PostHog)
+
+---
+
+## Navigation Tips
+
+### Finding the Right Guide
+
+**New to DroidRun?** Start with:
+1. [Device Setup](./device-setup) - Get your device ready
+2. [Configuration System](./configuration) - Understand how to configure agents
+3. [Multi-Agent Architecture](../concepts/workflow-architecture) - Learn how DroidRun works
+
+**Building automations?** Check out:
+- [Custom Variables](./custom-variables) - Make workflows reusable
+- [Structured Output](./structured-output) - Extract data reliably
+- [App Cards](./app-cards) - Improve task success rates
+
+**Extending DroidRun?** Explore:
+- [Custom Tools & Credentials](./custom-tools-credentials) - Add new capabilities
+- [Event Streaming](../concepts/event-streaming) - Build custom UIs
+- [Configuration System](./configuration) - Advanced customization
+
+**Debugging issues?** See:
+- [Device Setup Troubleshooting](./device-setup#troubleshooting-guide) - Device connection problems
+- [Configuration Best Practices](./configuration#troubleshooting) - Config errors
+- [Event Streaming](../concepts/event-streaming) - Monitor execution in real-time
+
+---
+
+## Next Steps
+
+Ready to dive deeper? Here are some recommended paths:
+
+**For Developers:**
+1. Complete the [Quickstart](../quickstart) if you haven't already
+2. Read [Core Concepts](../concepts/architecture) to understand the architecture
+3. Explore [SDK Reference](../sdk/droid-agent) for programmatic usage
+4. Check out [Examples Repository](https://github.com/droidrun/droidrun/tree/main/examples)
+
+**For Automation Engineers:**
+1. Master [Device Setup](./device-setup) for reliable connections
+2. Learn [Configuration](./configuration) for optimal LLM selection
+3. Use [Custom Variables](./custom-variables) for parameterized workflows
+4. Implement [Structured Output](./structured-output) for data extraction
+
+**For Integration Builders:**
+1. Study [Event Streaming](../concepts/event-streaming) for real-time monitoring
+2. Create [Custom Tools](./custom-tools-credentials) for API integration
+3. Set up [App Cards](./app-cards) for specialized apps
+4. Configure [Telemetry & Tracing](./telemetry-tracing) for analytics
+
+---
+
+Need more help? Check out the [Quickstart](../quickstart), explore [Core Concepts](../concepts/architecture), or join our [Discord community](https://discord.gg/ZZbKEZZkwK) for support.
