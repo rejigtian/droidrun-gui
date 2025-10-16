@@ -187,6 +187,7 @@ class ManagerAgent(Workflow):
                 "scripter_execution_enabled": self.agent_config.scripter.enabled,
                 "scripter_max_steps": self.agent_config.scripter.max_steps,
                 "available_secrets": available_secrets,
+                "variables": self.shared_state.custom_variables,
             },
         )
 

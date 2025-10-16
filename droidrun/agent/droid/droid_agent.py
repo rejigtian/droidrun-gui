@@ -8,6 +8,7 @@ Architecture:
 """
 
 import logging
+from typing import TYPE_CHECKING
 
 import llama_index.core
 from llama_index.core.llms.llm import LLM
@@ -39,7 +40,7 @@ from droidrun.agent.utils.llm_loader import load_agent_llms, validate_llm_dict
 from droidrun.agent.utils.tools import (
     ATOMIC_ACTION_SIGNATURES,
     build_custom_tools,
-    create_tools_from_config,
+    resolve_tools_instance,
 )
 from droidrun.agent.utils.trajectory import Trajectory
 from droidrun.config_manager.config_manager import (
@@ -60,6 +61,9 @@ from droidrun.telemetry import (
     flush,
 )
 from droidrun.telemetry.phoenix import arize_phoenix_callback_handler
+
+if TYPE_CHECKING:
+    from droidrun.tools import Tools
 
 logger = logging.getLogger("droidrun")
 
@@ -104,12 +108,13 @@ class DroidAgent(Workflow):
         llms: dict[str, LLM] | LLM | None = None,
         agent_config: AgentConfig | None = None,
         device_config: DeviceConfig | None = None,
-        tools_config: ToolsConfig | None = None,
+        tools: "Tools | ToolsConfig | None" = None,
         logging_config: LoggingConfig | None = None,
         tracing_config: TracingConfig | None = None,
         telemetry_config: TelemetryConfig | None = None,
         custom_tools: dict = None,
         credentials: "CredentialsConfig | dict | None" = None,
+        variables: dict | None = None,
         timeout: int = 1000,
         *args,
         **kwargs,
@@ -124,13 +129,16 @@ class DroidAgent(Workflow):
                   If not provided, LLMs will be loaded from config profiles.
             agent_config: Agent config override (optional)
             device_config: Device config override (optional)
-            tools_config: Tools config override (optional)
+            tools: Either a Tools instance (for custom/pre-configured tools),
+                   ToolsConfig (for config-based creation), or None (use default).
+                   Renamed from tools_config to support both instances and config.
             logging_config: Logging config override (optional)
             tracing_config: Tracing config override (optional)
             telemetry_config: Telemetry config override (optional)
             custom_tools: Custom tool definitions
             credentials: Either CredentialsConfig (from config.credentials),
                         dict of credentials {"SECRET_ID": "value"}, or None
+            variables: Optional dict of custom variables accessible throughout execution
             timeout: Workflow timeout in seconds
         """
 
@@ -139,28 +147,48 @@ class DroidAgent(Workflow):
         self.shared_state = DroidAgentState(instruction=goal, err_to_manager_thresh=2)
         base_config = config
 
-        self.config = DroidRunConfig(
-            agent=agent_config or base_config.agent,
-            device=device_config or base_config.device,
-            tools=tools_config or base_config.tools,
-            logging=logging_config or base_config.logging,
-            tracing=tracing_config or base_config.tracing,
-            telemetry=telemetry_config or base_config.telemetry,
-            llm_profiles=base_config.llm_profiles,
-            credentials=base_config.credentials if base_config else None,
-        )
+        # Store custom variables in shared state
+        if variables:
+            self.shared_state.custom_variables = variables
 
         # Load credential manager (supports both config and direct dict)
-        # Priority: explicit credentials param > config.credentials
-        credentials_source = credentials if credentials is not None else self.config.credentials
+        # Priority: explicit credentials param > base_config.credentials
+        credentials_source = (
+            credentials
+            if credentials is not None
+            else (base_config.credentials if base_config else None)
+        )
         credential_manager = load_credential_manager(credentials_source)
 
-        # Create tools from config
-        tools = create_tools_from_config(self.config.device)
+        # Resolve tools instance (supports Tools instance, ToolsConfig, or None)
+        # Use tools param or fallback to base_config.tools
+        tools_fallback = (
+            tools if tools is not None else (base_config.tools if base_config else None)
+        )
+        resolved_device_config = device_config or (
+            base_config.device if base_config else DeviceConfig()
+        )
+        tools_instance, tools_config_resolved = resolve_tools_instance(
+            tools=tools_fallback,
+            device_config=resolved_device_config,
+            tools_config_fallback=base_config.tools if base_config else None,
+            credential_manager=credential_manager,
+        )
 
-        # Attach credential manager to tools
-        if credential_manager:
-            tools.credential_manager = credential_manager
+        # Build final config with resolved tools config
+        self.config = DroidRunConfig(
+            agent=agent_config or (base_config.agent if base_config else AgentConfig()),
+            device=resolved_device_config,
+            tools=tools_config_resolved,
+            logging=logging_config
+            or (base_config.logging if base_config else LoggingConfig()),
+            tracing=tracing_config
+            or (base_config.tracing if base_config else TracingConfig()),
+            telemetry=telemetry_config
+            or (base_config.telemetry if base_config else TelemetryConfig()),
+            llm_profiles=base_config.llm_profiles if base_config else {},
+            credentials=base_config.credentials if base_config else CredentialsConfig(),
+        )
 
         super().__init__(*args, timeout=timeout, **kwargs)
 
@@ -177,7 +205,12 @@ class DroidAgent(Workflow):
             logger.info("🔄 Loading LLMs from config (llms not provided)...")
 
             llms = load_agent_llms(config=self.config, **kwargs)
-        validate_llm_dict(self.config, llms)
+        if isinstance(llms, dict):
+            validate_llm_dict(self.config, llms)
+        elif isinstance(llms, LLM):
+            pass
+        else:
+            raise ValueError(f"Invalid LLM type: {type(llms)}")
 
         if self.config.tracing.enabled:
             try:
@@ -226,7 +259,7 @@ class DroidAgent(Workflow):
         logger.info("🤖 Initializing DroidAgent...")
         logger.info(f"💾 Trajectory saving: {self.config.logging.save_trajectory}")
 
-        self.tools_instance = tools
+        self.tools_instance = tools_instance
         self.tools_instance.save_trajectories = self.config.logging.save_trajectory
         # Set LLMs on tools instance for helper tools
         self.tools_instance.app_opener_llm = self.app_opener_llm
@@ -236,7 +269,7 @@ class DroidAgent(Workflow):
             logger.info("📝 Initializing Manager and Executor Agents...")
             self.manager_agent = ManagerAgent(
                 llm=self.manager_llm,
-                tools_instance=tools,
+                tools_instance=tools_instance,
                 shared_state=self.shared_state,
                 agent_config=self.config.agent,
                 custom_tools=self.custom_tools,
@@ -244,7 +277,7 @@ class DroidAgent(Workflow):
             )
             self.executor_agent = ExecutorAgent(
                 llm=self.executor_llm,
-                tools_instance=tools,
+                tools_instance=tools_instance,
                 shared_state=self.shared_state,
                 agent_config=self.config.agent,
                 custom_tools=self.custom_tools,

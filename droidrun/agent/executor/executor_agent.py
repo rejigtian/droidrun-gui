@@ -129,6 +129,7 @@ class ExecutorAgent(Workflow):
                 "atomic_actions": self.all_actions,  # Now includes custom tools!
                 "action_history": action_history,
                 "available_secrets": available_secrets,
+                "variables": self.shared_state.custom_variables,
             },
         )
 

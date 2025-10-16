@@ -190,8 +190,6 @@ async def run_command(
 
             log_handler.update_step("Initializing DroidAgent...")
 
-            excluded_tools = [] if config.tools.allow_drag else ["drag"]
-
             mode = (
                 "planning with reasoning"
                 if config.agent.reasoning
@@ -729,8 +727,6 @@ async def test(
 
             log_handler.update_step("Initializing DroidAgent...")
 
-            excluded_tools = [] if config.tools.allow_drag else ["drag"]
-
             mode = (
                 "planning with reasoning"
                 if config.agent.reasoning
@@ -753,7 +749,6 @@ async def test(
             droid_agent = DroidAgent(
                 goal=command,
                 config=config,
-                excluded_tools=excluded_tools,
                 timeout=1000,
                 **droid_agent_kwargs,
             )
