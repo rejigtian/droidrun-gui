@@ -26,6 +26,7 @@ class ExecutorInternalActionEvent(Event):
     action_json: str  # Raw JSON string of the action
     thought: str  # Debugging metadata: LLM's reasoning process
     description: str  # Human-readable action description
+    full_response: str = ""  # Full LLM response for development
 
 
 class ExecutorInternalResultEvent(Event):
@@ -44,3 +45,4 @@ class ExecutorInternalResultEvent(Event):
     summary: str
     thought: str = ""  # Debugging metadata: LLM's thought process
     action_json: str = ""  # Debugging metadata: Raw action JSON
+    full_response: str = ""  # Full LLM response for development

@@ -196,6 +196,7 @@ class ExecutorResultEvent(Event):
     outcome: bool
     error: str
     summary: str
+    full_response: str = ""
 
 
 # ============================================================================

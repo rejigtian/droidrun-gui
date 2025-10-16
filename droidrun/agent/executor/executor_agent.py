@@ -160,6 +160,7 @@ class ExecutorAgent(Workflow):
                 action_json=json.dumps({"action": "invalid"}),
                 thought=f"Failed to parse response: {str(e)}",
                 description="Invalid response format from LLM",
+                full_response=response_text,
             )
 
         logger.info(f"💡 Thought: {parsed['thought']}")
@@ -170,6 +171,7 @@ class ExecutorAgent(Workflow):
             action_json=parsed["action"],
             thought=parsed["thought"],
             description=parsed["description"],
+            full_response=response_text,
         )
 
         # Write event to stream for web interface
@@ -200,6 +202,7 @@ class ExecutorAgent(Workflow):
                 summary="Failed to parse action",
                 thought=ev.thought,
                 action_json=ev.action_json,
+                full_response=ev.full_response,
             )
 
         outcome, error, summary = await self._execute_action(
@@ -217,6 +220,7 @@ class ExecutorAgent(Workflow):
             summary=summary,
             thought=ev.thought,
             action_json=ev.action_json,
+            full_response=ev.full_response,
         )
 
         # Write event to stream for web interface
@@ -427,5 +431,6 @@ class ExecutorAgent(Workflow):
                 "summary": ev.summary,
                 "thought": ev.thought,
                 "action_json": ev.action_json,
+                "full_response": ev.full_response,
             }
         )

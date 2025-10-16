@@ -646,7 +646,7 @@ class DroidAgent(Workflow):
 
         # Stream nested events
         async for nested_ev in handler.stream_events():
-            ctx.write_event_to_stream(nested_ev)
+            self.handle_stream_event(nested_ev, ctx)
 
         result = await handler
 
@@ -736,7 +736,7 @@ class DroidAgent(Workflow):
 
                 # Stream nested events
                 async for nested_ev in handler.stream_events():
-                    ctx.write_event_to_stream(nested_ev)
+                    self.handle_stream_event(nested_ev, ctx)
 
                 extraction_result = await handler
 
