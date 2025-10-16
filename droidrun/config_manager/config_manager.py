@@ -157,7 +157,7 @@ device:
 # === Telemetry Settings ===
 telemetry:
   # Enable anonymous telemetry
-  enabled: false
+  enabled: true
 
 # === Tracing Settings ===
 tracing:
@@ -375,7 +375,7 @@ class DeviceConfig:
 class TelemetryConfig:
     """Telemetry configuration."""
 
-    enabled: bool = False
+    enabled: bool = True
 
 
 @dataclass

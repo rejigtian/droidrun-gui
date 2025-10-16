@@ -138,7 +138,7 @@ device:
 # === Telemetry Settings ===
 telemetry:
   # Enable anonymous telemetry
-  enabled: false
+  enabled: true
 
 # === Tracing Settings ===
 tracing:
