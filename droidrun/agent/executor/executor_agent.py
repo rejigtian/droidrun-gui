@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from llama_index.core.llms import ChatMessage, ImageBlock, TextBlock
 from llama_index.core.llms.llm import LLM
@@ -24,6 +24,7 @@ from droidrun.agent.executor.events import (
 )
 from droidrun.agent.executor.prompts import parse_executor_response
 from droidrun.agent.utils.inference import acall_with_retries
+from droidrun.agent.utils.prompt_resolver import PromptResolver
 from droidrun.agent.utils.tools import (
     ATOMIC_ACTION_SIGNATURES,
     click,
@@ -61,6 +62,7 @@ class ExecutorAgent(Workflow):
         shared_state: "DroidAgentState",
         agent_config: AgentConfig,
         custom_tools: dict = None,
+        prompt_resolver: Optional[PromptResolver] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -70,6 +72,7 @@ class ExecutorAgent(Workflow):
         self.vision = agent_config.executor.vision
         self.tools_instance = tools_instance
         self.shared_state = shared_state
+        self.prompt_resolver = prompt_resolver or PromptResolver()
 
         # Merge custom_tools with atomic actions (same as CodeActAgent)
         atomic_tools = ATOMIC_ACTION_SIGNATURES
@@ -119,21 +122,27 @@ class ExecutorAgent(Workflow):
             )
 
         # Let Jinja2 handle all formatting
-        system_prompt = PromptLoader.load_prompt(
-            self.agent_config.get_executor_system_prompt_path(),
-            {
-                "instruction": self.shared_state.instruction,
-                "app_card": "",  # TODO: optionally implement app card loader
-                "device_state": self.shared_state.formatted_device_state,
-                "plan": self.shared_state.plan,
-                "subgoal": subgoal,
-                "progress_status": self.shared_state.progress_status,
-                "atomic_actions": self.all_actions,  # Now includes custom tools!
-                "action_history": action_history,
-                "available_secrets": available_secrets,
-                "variables": self.shared_state.custom_variables,
-            },
-        )
+        variables = {
+            "instruction": self.shared_state.instruction,
+            "app_card": "",  # TODO: optionally implement app card loader
+            "device_state": self.shared_state.formatted_device_state,
+            "plan": self.shared_state.plan,
+            "subgoal": subgoal,
+            "progress_status": self.shared_state.progress_status,
+            "atomic_actions": self.all_actions,  # Now includes custom tools!
+            "action_history": action_history,
+            "available_secrets": available_secrets,
+            "variables": self.shared_state.custom_variables,
+        }
+
+        custom_executor_prompt = self.prompt_resolver.get_prompt("executor_system")
+        if custom_executor_prompt:
+            system_prompt = PromptLoader.render_template(custom_executor_prompt, variables)
+        else:
+            system_prompt = PromptLoader.load_prompt(
+                self.agent_config.get_executor_system_prompt_path(),
+                variables,
+            )
 
         blocks = [TextBlock(text=system_prompt)]
         if self.vision:

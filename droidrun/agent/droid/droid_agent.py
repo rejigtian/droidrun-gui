@@ -39,6 +39,7 @@ from droidrun.agent.scripter import ScripterAgent
 from droidrun.agent.oneflows.structured_output_agent import StructuredOutputAgent
 from droidrun.agent.utils.async_utils import wrap_async_tools
 from droidrun.agent.utils.llm_loader import load_agent_llms, validate_llm_dict
+from droidrun.agent.utils.prompt_resolver import PromptResolver
 from droidrun.agent.utils.tools import (
     ATOMIC_ACTION_SIGNATURES,
     build_custom_tools,
@@ -118,6 +119,7 @@ class DroidAgent(Workflow):
         credentials: "CredentialsConfig | dict | None" = None,
         variables: dict | None = None,
         output_model: Type[BaseModel] | None = None,
+        prompts: dict[str, str] | None = None,
         timeout: int = 1000,
         *args,
         **kwargs,
@@ -143,6 +145,9 @@ class DroidAgent(Workflow):
                         dict of credentials {"SECRET_ID": "value"}, or None
             variables: Optional dict of custom variables accessible throughout execution
             output_model: Optional Pydantic model for structured output extraction from final answer
+            prompts: Optional dict of custom Jinja2 prompt templates to override defaults.
+                    Keys: "codeact_system", "codeact_user", "manager_system", "executor_system", "scripter_system"
+                    Values: Jinja2 template strings (NOT file paths)
             timeout: Workflow timeout in seconds
         """
 
@@ -151,6 +156,9 @@ class DroidAgent(Workflow):
         self.shared_state = DroidAgentState(instruction=goal, err_to_manager_thresh=2, user_id=self.user_id, runtype=self.runtype)
         self.output_model = output_model
         base_config = config
+
+        # Initialize prompt resolver for custom prompts
+        self.prompt_resolver = PromptResolver(custom_prompts=prompts)
 
         # Store custom variables in shared state
         if variables:
@@ -283,6 +291,7 @@ class DroidAgent(Workflow):
                 agent_config=self.config.agent,
                 custom_tools=self.custom_tools,
                 output_model=self.output_model,
+                prompt_resolver=self.prompt_resolver,
                 timeout=timeout,
             )
             self.executor_agent = ExecutorAgent(
@@ -291,6 +300,7 @@ class DroidAgent(Workflow):
                 shared_state=self.shared_state,
                 agent_config=self.config.agent,
                 custom_tools=self.custom_tools,
+                prompt_resolver=self.prompt_resolver,
                 timeout=timeout,
             )
             self.planner_agent = None
@@ -390,6 +400,7 @@ class DroidAgent(Workflow):
                 shared_state=self.shared_state,
                 safe_execution_config=self.config.safe_execution,
                 output_model=self.output_model,
+                prompt_resolver=self.prompt_resolver,
                 timeout=self.timeout,
             )
 

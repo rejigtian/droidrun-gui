@@ -32,6 +32,7 @@ from droidrun.agent.usage import get_usage_from_response
 from droidrun.agent.utils import chat_utils
 from droidrun.agent.utils.device_state_formatter import format_device_state
 from droidrun.agent.utils.executer import ExecuterState, SimpleCodeExecutor
+from droidrun.agent.utils.prompt_resolver import PromptResolver
 from droidrun.agent.utils.tools import (
     ATOMIC_ACTION_SIGNATURES,
     build_custom_tool_descriptions,
@@ -65,6 +66,7 @@ class CodeActAgent(Workflow):
         shared_state: Optional["DroidAgentState"] = None,
         safe_execution_config=None,
         output_model: Type[BaseModel] | None = None,
+        prompt_resolver: Optional[PromptResolver] = None,
         *args,
         **kwargs,
     ):
@@ -80,6 +82,7 @@ class CodeActAgent(Workflow):
         self.tools = tools_instance
         self.shared_state = shared_state
         self.output_model = output_model
+        self.prompt_resolver = prompt_resolver or PromptResolver()
 
         self.chat_memory = None
         self.episodic_memory = EpisodicMemory()
@@ -133,16 +136,28 @@ class CodeActAgent(Workflow):
         if self.output_model is not None:
             output_schema = self.output_model.model_json_schema()
 
-        # Load prompts from config
-        system_prompt_text = PromptLoader.load_prompt(
-            agent_config.get_codeact_system_prompt_path(),
-            {
-                "tool_descriptions": self.tool_descriptions,
-                "available_secrets": available_secrets,
-                "variables": shared_state.custom_variables if shared_state else {},
-                "output_schema": output_schema,
-            },
-        )
+        # Load prompts from custom or config
+        custom_system_prompt = self.prompt_resolver.get_prompt("codeact_system")
+        if custom_system_prompt:
+            system_prompt_text = PromptLoader.render_template(
+                custom_system_prompt,
+                {
+                    "tool_descriptions": self.tool_descriptions,
+                    "available_secrets": available_secrets,
+                    "variables": shared_state.custom_variables if shared_state else {},
+                    "output_schema": output_schema,
+                },
+            )
+        else:
+            system_prompt_text = PromptLoader.load_prompt(
+                agent_config.get_codeact_system_prompt_path(),
+                {
+                    "tool_descriptions": self.tool_descriptions,
+                    "available_secrets": available_secrets,
+                    "variables": shared_state.custom_variables if shared_state else {},
+                    "output_schema": output_schema,
+                },
+            )
         self.system_prompt = ChatMessage(role="system", content=system_prompt_text)
 
         # Get safety settings
@@ -194,15 +209,27 @@ class CodeActAgent(Workflow):
         goal = user_input
 
         # Format user prompt with goal
-        user_prompt_text = PromptLoader.load_prompt(
-            self.agent_config.get_codeact_user_prompt_path(),
-            {
-                "goal": goal,
-                "variables": (
-                    self.shared_state.custom_variables if self.shared_state else {}
-                ),
-            },
-        )
+        custom_user_prompt = self.prompt_resolver.get_prompt("codeact_user")
+        if custom_user_prompt:
+            user_prompt_text = PromptLoader.render_template(
+                custom_user_prompt,
+                {
+                    "goal": goal,
+                    "variables": (
+                        self.shared_state.custom_variables if self.shared_state else {}
+                    ),
+                },
+            )
+        else:
+            user_prompt_text = PromptLoader.load_prompt(
+                self.agent_config.get_codeact_user_prompt_path(),
+                {
+                    "goal": goal,
+                    "variables": (
+                        self.shared_state.custom_variables if self.shared_state else {}
+                    ),
+                },
+            )
         self.user_message = ChatMessage(role="user", content=user_prompt_text)
 
         # No thoughts prompt

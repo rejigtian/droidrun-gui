@@ -62,9 +62,29 @@ class PromptLoader:
         # Read template content
         template_content = path.read_text(encoding="utf-8")
 
+        # Use render_template for actual rendering
+        return PromptLoader.render_template(template_content, variables)
+
+    @staticmethod
+    def render_template(template_string: str, variables: Dict[str, Any] = None) -> str:
+        """
+        Render Jinja2 template from string (NOT file path).
+
+        This is used for custom prompts passed at runtime.
+
+        Args:
+            template_string: Jinja2 template as string
+            variables: Dict of variables to pass to template
+                      - Missing variables: silently ignored (render as empty string)
+                      - Extra variables: silently ignored
+
+        Returns:
+            Rendered prompt string
+
+        """
         # Get cached environment and create template from string
         env = PromptLoader._get_environment()
-        template = env.from_string(template_content)
+        template = env.from_string(template_string)
 
         # Render with variables (empty dict if None)
         # Missing variables render as empty string (default Undefined behavior)

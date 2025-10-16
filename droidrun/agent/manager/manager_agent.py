@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Type
+from typing import TYPE_CHECKING, Optional, Type
 
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
@@ -24,6 +24,7 @@ from droidrun.agent.utils import convert_messages_to_chatmessages
 from droidrun.agent.utils.chat_utils import remove_empty_messages
 from droidrun.agent.utils.device_state_formatter import format_device_state
 from droidrun.agent.utils.inference import acall_with_retries
+from droidrun.agent.utils.prompt_resolver import PromptResolver
 from droidrun.agent.utils.tools import build_custom_tool_descriptions
 from droidrun.app_cards.app_card_provider import AppCardProvider
 from droidrun.app_cards.providers import (
@@ -61,6 +62,7 @@ class ManagerAgent(Workflow):
         agent_config: "AgentConfig",
         custom_tools: dict = None,
         output_model: Type[BaseModel] | None = None,
+        prompt_resolver: Optional[PromptResolver] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -73,6 +75,7 @@ class ManagerAgent(Workflow):
         self.output_model = output_model
         self.agent_config = agent_config
         self.app_card_config = self.agent_config.app_cards
+        self.prompt_resolver = prompt_resolver or PromptResolver()
 
         # Initialize app card provider based on mode
         self.app_card_provider: AppCardProvider = self._initialize_app_card_provider()
@@ -182,25 +185,31 @@ class ManagerAgent(Workflow):
             output_schema = self.output_model.model_json_schema()
 
         # Let Jinja2 handle all formatting and conditionals
-        return PromptLoader.load_prompt(
-            self.agent_config.get_manager_system_prompt_path(),
-            {
-                "instruction": self.shared_state.instruction,
-                "device_date": self.tools_instance.get_date(),
-                "app_card": self.shared_state.app_card,
-                "important_notes": "",  # TODO: implement
-                "error_history": error_history,
-                "text_manipulation_enabled": has_text_to_modify,
-                "custom_tools_descriptions": build_custom_tool_descriptions(
-                    self.custom_tools
-                ),
-                "scripter_execution_enabled": self.agent_config.scripter.enabled,
-                "scripter_max_steps": self.agent_config.scripter.max_steps,
-                "available_secrets": available_secrets,
-                "variables": self.shared_state.custom_variables,
-                "output_schema": output_schema,
-            },
-        )
+        variables = {
+            "instruction": self.shared_state.instruction,
+            "device_date": self.tools_instance.get_date(),
+            "app_card": self.shared_state.app_card,
+            "important_notes": "",  # TODO: implement
+            "error_history": error_history,
+            "text_manipulation_enabled": has_text_to_modify,
+            "custom_tools_descriptions": build_custom_tool_descriptions(
+                self.custom_tools
+            ),
+            "scripter_execution_enabled": self.agent_config.scripter.enabled,
+            "scripter_max_steps": self.agent_config.scripter.max_steps,
+            "available_secrets": available_secrets,
+            "variables": self.shared_state.custom_variables,
+            "output_schema": output_schema,
+        }
+
+        custom_manager_prompt = self.prompt_resolver.get_prompt("manager_system")
+        if custom_manager_prompt:
+            return PromptLoader.render_template(custom_manager_prompt, variables)
+        else:
+            return PromptLoader.load_prompt(
+                self.agent_config.get_manager_system_prompt_path(),
+                variables,
+            )
 
     def _build_messages_with_context(
         self, system_prompt: str, screenshot: str = None
