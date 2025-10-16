@@ -104,7 +104,7 @@ async def run_command(
     reasoning: bool | None = None,
     tracing: bool | None = None,
     debug: bool | None = None,
-    use_tcp: bool | None = None,
+    tcp: bool | None = None,
     save_trajectory: str | None = None,
     ios: bool = False,
     allow_drag: bool | None = None,
@@ -157,8 +157,8 @@ async def run_command(
             # Device overrides
             if device is not None:
                 config.device.serial = device
-            if use_tcp is not None:
-                config.device.use_tcp = use_tcp
+            if tcp is not None:
+                config.device.use_tcp = tcp
 
             # Tools overrides
             if allow_drag is not None:
@@ -265,64 +265,13 @@ class DroidRunCLI(click.Group):
     def parse_args(self, ctx, args):
         # If the first arg is not an option and not a known command, treat as 'run'
         if (
-            args and """not args[0].startswith("-")""" and args[0] not in self.commands
-        ):  # TODO: the string always evaluates to True
+            args and not args[0].startswith("-") and args[0] not in self.commands
+        ):
             args.insert(0, "run")
 
         return super().parse_args(ctx, args)
 
 
-@click.option("--device", "-d", help="Device serial number or IP address", default=None)
-@click.option(
-    "--provider",
-    "-p",
-    help="LLM provider (OpenAI, Ollama, Anthropic, GoogleGenAI, DeepSeek)",
-    default="GoogleGenAI",
-)
-@click.option(
-    "--model",
-    "-m",
-    help="LLM model name",
-    default="models/gemini-2.5-flash",
-)
-@click.option("--temperature", type=float, help="Temperature for LLM", default=0.2)
-@click.option("--steps", type=int, help="Maximum number of steps", default=15)
-@click.option(
-    "--base_url",
-    "-u",
-    help="Base URL for API (e.g., OpenRouter or Ollama)",
-    default=None,
-)
-@click.option(
-    "--api_base",
-    help="Base URL for API (e.g., OpenAI, OpenAI-Like)",
-    default=None,
-)
-@click.option(
-    "--vision/--no-vision",
-    default=None,
-    help="Enable vision capabilites by using screenshots",
-)
-@click.option(
-    "--reasoning/--no-reasoning", default=None, help="Enable planning with reasoning"
-)
-@click.option(
-    "--tracing/--no-tracing", default=None, help="Enable Arize Phoenix tracing"
-)
-@click.option(
-    "--debug/--no-debug", default=None, help="Enable verbose debug logging"
-)
-@click.option(
-    "--use-tcp/--no-use-tcp",
-    default=None,
-    help="Use TCP communication for device control",
-)
-@click.option(
-    "--save-trajectory",
-    type=click.Choice(["none", "step", "action"]),
-    help="Trajectory saving level: none (no saving), step (save per step), action (save per action)",
-    default="none",
-)
 @click.group(cls=DroidRunCLI)
 def cli(
 ):
@@ -407,19 +356,19 @@ def run(
 
     try:
         run_command(
-            command,
-            config,
-            device,
-            provider,
-            model,
-            steps,
-            base_url,
-            api_base,
-            vision,
-            reasoning,
-            tracing,
-            debug,
-            tcp,
+            command=command,
+            config_path=config,
+            device=device,
+            provider=provider,
+            model=model,
+            steps=steps,
+            base_url=base_url,
+            api_base=api_base,
+            vision=vision,
+            reasoning=reasoning,
+            tracing=tracing,
+            debug=debug,
+            tcp=tcp,
             temperature=temperature,
             save_trajectory=save_trajectory,
             ios=ios if ios is not None else False,
