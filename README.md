@@ -4,11 +4,12 @@
   <img src="./static/droidrun.png"  width="full">
 </picture>
 
+[![Docs](https://img.shields.io/badge/Docs-📕-blue?style=for-the-badge)](https://docs.droidrun.ai)
+[![Cloud](https://img.shields.io/badge/Cloud-☁️-blue?style=for-the-badge)](http://cloud.droidrun.ai)
+
 [![GitHub stars](https://img.shields.io/github/stars/droidrun/droidrun?style=social)](https://github.com/droidrun/droidrun/stargazers)
 [![Discord](https://img.shields.io/discord/1360219330318696488?color=7289DA&label=Discord&logo=discord&logoColor=white)](https://discord.gg/ZZbKEZZkwK)
-[![Documentation](https://img.shields.io/badge/Documentation-📕-blue)](https://docs.droidrun.ai)
 [![Benchmark](https://img.shields.io/badge/Benchmark-🏅-teal)](https://droidrun.ai/benchmark)
-[![DroidrunCloud](https://img.shields.io/badge/DroidrunCloud-☁️-blue)](http://cloud.droidrun.ai)
 [![Twitter Follow](https://img.shields.io/twitter/follow/droid_run?style=social)](https://x.com/droid_run)
 
 <picture>
