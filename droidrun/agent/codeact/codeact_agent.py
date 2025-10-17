@@ -100,9 +100,10 @@ class CodeActAgent(Workflow):
         for action_name, signature in merged_signatures.items():
             func = signature["function"]
 
+            # Pass tools and shared_state as keyword arguments for flexible signatures
             self.tool_list[action_name] = (
-                lambda *args, f=func, ti=tools_instance, **kwargs: f(
-                    ti, *args, **kwargs
+                lambda *args, f=func, ti=tools_instance, ss=shared_state, **kwargs: f(
+                    *args, tools=ti, shared_state=ss, **kwargs
                 )
             )
 

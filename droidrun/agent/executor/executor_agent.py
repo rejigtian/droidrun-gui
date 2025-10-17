@@ -400,11 +400,15 @@ class ExecutorAgent(Workflow):
             tool_args = {k: v for k, v in action_dict.items() if k != "action"}
 
             # Execute the custom tool function
-            # First argument is always tools_instance (bound in same pattern as atomic actions)
+            # Pass tools and shared_state as keyword arguments for flexible signatures
             if asyncio.iscoroutinefunction(tool_func):
-                result = await tool_func(self.tools_instance, **tool_args)
+                result = await tool_func(
+                    **tool_args, tools=self.tools_instance, shared_state=self.shared_state
+                )
             else:
-                result = tool_func(self.tools_instance, **tool_args)
+                result = tool_func(
+                    **tool_args, tools=self.tools_instance, shared_state=self.shared_state
+                )
 
             # Success case
             summary = f"Executed custom tool '{action_type}'"

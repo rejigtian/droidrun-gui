@@ -108,61 +108,70 @@ def resolve_tools_instance(
     return tools_instance, tools_cfg
 
 
-def click(tool_instance: "Tools", index: int) -> str:
+def click(index: int, *, tools: "Tools" = None, **kwargs) -> str:
     """
     Click the element with the given index.
 
     Args:
-        tool_instance: The Tools instance
         index: The index of the element to click
+        tools: The Tools instance (injected automatically)
 
     Returns:
         Result message from the tap operation
     """
-    return tool_instance.tap_by_index(index)
+    if tools is None:
+        raise ValueError("tools parameter is required")
+    return tools.tap_by_index(index)
 
 
-def long_press(tool_instance: "Tools", index: int) -> bool:
+def long_press(index: int, *, tools: "Tools" = None, **kwargs) -> bool:
     """
     Long press the element with the given index.
 
     Args:
-        tool_instance: The Tools instance
         index: The index of the element to long press
+        tools: The Tools instance (injected automatically)
 
     Returns:
         True if successful, False otherwise
     """
-    x, y = tool_instance._extract_element_coordinates_by_index(index)
-    return tool_instance.swipe(x, y, x, y, 1000)
+    if tools is None:
+        raise ValueError("tools parameter is required")
+    x, y = tools._extract_element_coordinates_by_index(index)
+    return tools.swipe(x, y, x, y, 1000)
 
 
-def type(tool_instance: "Tools", text: str, index: int) -> str:
+def type(text: str, index: int, *, tools: "Tools" = None, **kwargs) -> str:
     """
     Type the given text into the element with the given index.
 
     Args:
-        tool_instance: The Tools instance
         text: The text to type
         index: The index of the element to type into
+        tools: The Tools instance (injected automatically)
 
     Returns:
         Result message from the input operation
     """
-    return tool_instance.input_text(text, index)
+    if tools is None:
+        raise ValueError("tools parameter is required")
+    return tools.input_text(text, index)
 
 
-def system_button(tool_instance: "Tools", button: str) -> str:
+def system_button(button: str, *, tools: "Tools" = None, **kwargs) -> str:
     """
     Press a system button (back, home, or enter).
 
     Args:
-        tool_instance: The Tools instance
         button: The button name (case insensitive): "back", "home", or "enter"
+        tools: The Tools instance (injected automatically)
 
     Returns:
         Result message from the key press operation
     """
+    if tools is None:
+        raise ValueError("tools parameter is required")
+
     # Map button names to keycodes (case insensitive)
     button_map = {
         "back": 4,
@@ -177,23 +186,26 @@ def system_button(tool_instance: "Tools", button: str) -> str:
         )
 
     keycode = button_map[button_lower]
-    return tool_instance.press_key(keycode)
+    return tools.press_key(keycode)
 
 
 def swipe(
-    tool_instance: "Tools", coordinate: List[int], coordinate2: List[int]
+    coordinate: List[int], coordinate2: List[int], *, tools: "Tools" = None, **kwargs
 ) -> bool:
     """
     Swipe from one coordinate to another.
 
     Args:
-        tool_instance: The Tools instance
         coordinate: Starting coordinate as [x, y]
         coordinate2: Ending coordinate as [x, y]
+        tools: The Tools instance (injected automatically)
 
     Returns:
         True if successful, False otherwise
     """
+    if tools is None:
+        raise ValueError("tools parameter is required")
+
     if not isinstance(coordinate, list) or len(coordinate) != 2:
         raise ValueError(f"coordinate must be a list of 2 integers, got: {coordinate}")
     if not isinstance(coordinate2, list) or len(coordinate2) != 2:
@@ -204,22 +216,25 @@ def swipe(
     start_x, start_y = coordinate
     end_x, end_y = coordinate2
 
-    return tool_instance.swipe(start_x, start_y, end_x, end_y, duration_ms=300)
+    return tools.swipe(start_x, start_y, end_x, end_y, duration_ms=300)
 
 
-async def open_app(tool_instance: "Tools", text: str) -> str:
+async def open_app(text: str, *, tools: "Tools" = None, **kwargs) -> str:
     """
     Open an app by its name.
 
     Args:
-        tool_instance: The Tools instance
         text: The name of the app to open
+        tools: The Tools instance (injected automatically)
 
     Returns:
         Result message from opening the app
     """
+    if tools is None:
+        raise ValueError("tools parameter is required")
+
     # Get LLM from tools instance
-    if tool_instance.app_opener_llm is None:
+    if tools.app_opener_llm is None:
         raise RuntimeError(
             "app_opener_llm not configured. "
             "provide app_opener_llm when initializing Tools."
@@ -227,7 +242,7 @@ async def open_app(tool_instance: "Tools", text: str) -> str:
 
     # Create workflow instance
     workflow = AppStarter(
-        tools=tool_instance, llm=tool_instance.app_opener_llm, timeout=60, verbose=True
+        tools=tools, llm=tools.app_opener_llm, timeout=60, verbose=True
     )
 
     # Run workflow to open an app
@@ -236,33 +251,37 @@ async def open_app(tool_instance: "Tools", text: str) -> str:
     return result
 
 
-def remember(tool_instance: "Tools", information: str) -> str:
+def remember(information: str, *, tools: "Tools" = None, **kwargs) -> str:
     """
     Remember important information for later use.
 
     Args:
-        tool_instance: The Tools instance
         information: The information to remember
+        tools: The Tools instance (injected automatically)
 
     Returns:
         Confirmation message
     """
-    return tool_instance.remember(information)
+    if tools is None:
+        raise ValueError("tools parameter is required")
+    return tools.remember(information)
 
 
-def complete(tool_instance: "Tools", success: bool, reason: str = "") -> None:
+def complete(success: bool, reason: str = "", *, tools: "Tools" = None, **kwargs) -> None:
     """
     Mark the task as complete.
 
     Args:
-        tool_instance: The Tools instance
         success: Whether the task was completed successfully
         reason: Explanation for success or failure
+        tools: The Tools instance (injected automatically)
 
     Returns:
         None
     """
-    tool_instance.complete(success, reason)
+    if tools is None:
+        raise ValueError("tools parameter is required")
+    tools.complete(success, reason)
 
 
 # =============================================================================
@@ -360,14 +379,14 @@ def build_custom_tool_descriptions(custom_tools: dict) -> str:
 # =============================================================================
 
 
-def type_secret(tool_instance: "Tools", secret_id: str, index: int) -> str:
+def type_secret(secret_id: str, index: int, *, tools: "Tools" = None, **kwargs) -> str:
     """
     Type a secret credential into an input field without exposing the value.
 
     Args:
-        tool_instance: Tools instance (must have credential_manager)
         secret_id: Secret ID from credentials store
         index: Input field element index
+        tools: Tools instance (injected automatically, must have credential_manager)
 
     Returns:
         Sanitized result message (NEVER includes actual secret value)
@@ -376,18 +395,21 @@ def type_secret(tool_instance: "Tools", secret_id: str, index: int) -> str:
 
     logger = logging.getLogger("droidrun")
 
+    if tools is None:
+        raise ValueError("tools parameter is required")
+
     if (
-        not hasattr(tool_instance, "credential_manager")
-        or tool_instance.credential_manager is None
+        not hasattr(tools, "credential_manager")
+        or tools.credential_manager is None
     ):
         return "Error: Credential manager not initialized. Enable credentials in config.yaml"
 
     try:
         # Get secret value from credential manager
-        secret_value = tool_instance.credential_manager.get_credential(secret_id)
+        secret_value = tools.credential_manager.get_credential(secret_id)
 
         # Type using existing input_text method
-        tool_instance.input_text(secret_value, index)
+        tools.input_text(secret_value, index)
 
         # Return sanitized message (NEVER log/return actual secret)
         return f"Successfully typed secret '{secret_id}' into element {index}"
@@ -396,8 +418,8 @@ def type_secret(tool_instance: "Tools", secret_id: str, index: int) -> str:
         # Log error without exposing secret
         logger.error(f"Failed to type secret '{secret_id}': {e}")
         available = (
-            tool_instance.credential_manager.list_available_secrets()
-            if tool_instance.credential_manager
+            tools.credential_manager.list_available_secrets()
+            if tools.credential_manager
             else []
         )
         return f"Error: Secret '{secret_id}' not found. Available: {available}"

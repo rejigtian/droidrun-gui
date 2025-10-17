@@ -354,6 +354,7 @@ class DroidAgent(Workflow):
                 debug=self.config.logging.debug,
                 save_trajectories=self.config.logging.save_trajectory,
                 runtype=self.runtype,
+                custom_prompts=prompts,
             ),
             self.user_id,
         )
