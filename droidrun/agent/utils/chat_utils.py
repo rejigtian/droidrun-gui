@@ -122,7 +122,6 @@ async def add_screenshot_image_block(
 async def add_phone_state_block(
     phone_state, chat_history: List[ChatMessage]
 ) -> List[ChatMessage]:
-
     # Format the phone state data nicely
     if isinstance(phone_state, dict) and "error" not in phone_state:
         current_app = phone_state.get("currentApp", "")
@@ -166,7 +165,6 @@ async def add_phone_state_block(
 async def add_packages_block(
     packages, chat_history: List[ChatMessage]
 ) -> List[ChatMessage]:
-
     ui_block = TextBlock(text=f"\nInstalled packages: {packages}\n```\n")
     chat_history = chat_history.copy()
     chat_history[-1] = message_copy(chat_history[-1])

@@ -137,7 +137,9 @@ class ExecutorAgent(Workflow):
 
         custom_executor_prompt = self.prompt_resolver.get_prompt("executor_system")
         if custom_executor_prompt:
-            system_prompt = PromptLoader.render_template(custom_executor_prompt, variables)
+            system_prompt = PromptLoader.render_template(
+                custom_executor_prompt, variables
+            )
         else:
             system_prompt = PromptLoader.load_prompt(
                 self.agent_config.get_executor_system_prompt_path(),
@@ -403,11 +405,15 @@ class ExecutorAgent(Workflow):
             # Pass tools and shared_state as keyword arguments for flexible signatures
             if asyncio.iscoroutinefunction(tool_func):
                 result = await tool_func(
-                    **tool_args, tools=self.tools_instance, shared_state=self.shared_state
+                    **tool_args,
+                    tools=self.tools_instance,
+                    shared_state=self.shared_state,
                 )
             else:
                 result = tool_func(
-                    **tool_args, tools=self.tools_instance, shared_state=self.shared_state
+                    **tool_args,
+                    tools=self.tools_instance,
+                    shared_state=self.shared_state,
                 )
 
             # Success case

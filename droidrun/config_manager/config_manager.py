@@ -587,7 +587,9 @@ class DroidrunConfig:
                 try:
                     return cls.from_dict(data)
                 except Exception as e:
-                    logger.warning(f"Failed to parse config from {path}, using defaults: {e}")
+                    logger.warning(
+                        f"Failed to parse config from {path}, using defaults: {e}"
+                    )
                     return cls()
             else:
                 logger.warning(f"Empty config file at {path}, using defaults")

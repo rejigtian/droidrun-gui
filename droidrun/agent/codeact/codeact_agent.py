@@ -101,10 +101,10 @@ class CodeActAgent(Workflow):
             func = signature["function"]
 
             # Pass tools and shared_state as keyword arguments for flexible signatures
-            self.tool_list[action_name] = (
-                lambda *args, f=func, ti=tools_instance, ss=shared_state, **kwargs: f(
-                    *args, tools=ti, shared_state=ss, **kwargs
-                )
+            self.tool_list[
+                action_name
+            ] = lambda *args, f=func, ti=tools_instance, ss=shared_state, **kwargs: f(
+                *args, tools=ti, shared_state=ss, **kwargs
             )
 
         self.tool_list["remember"] = tools_instance.remember
@@ -287,7 +287,6 @@ Now, describe the next step you will take to address the original goal: {goal}""
 
         # Get and format device state using unified formatter
         try:
-
             # Get raw state from device
             raw_state = self.tools.get_state()
 

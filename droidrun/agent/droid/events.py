@@ -44,10 +44,12 @@ class ResultEvent(StopEvent):
     - steps: Number of steps taken
     - structured_output: Extracted structured data (if output_model was provided)
     """
+
     success: bool
     reason: str
     steps: int
     structured_output: BaseModel | None
+
 
 class TaskRunnerEvent(Event):
     pass

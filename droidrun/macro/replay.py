@@ -80,7 +80,6 @@ class MacroPlayer:
         action_type = action.get("action_type", action.get("type", "unknown"))
 
         try:
-
             if action_type == "start_app":
                 package = action.get("package")
                 activity = action.get("activity", None)

@@ -63,7 +63,6 @@ def make_serializable(obj):
 
 
 class Trajectory:
-
     def __init__(self, goal: str = None):
         """Initializes an empty trajectory class.
 

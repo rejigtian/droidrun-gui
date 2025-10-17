@@ -165,7 +165,9 @@ class ScripterAgent(Workflow):
 
         # Check max steps
         if self.step_counter >= self.max_steps:
-            logger.warning(f"⚠️ Max steps ({self.max_steps}) reached without completion")
+            logger.warning(
+                f"⚠️ Max steps ({self.max_steps}) reached without completion"
+            )
             return ScripterEndEvent(
                 message=f"Max steps ({self.max_steps}) reached without completion",
                 success=False,

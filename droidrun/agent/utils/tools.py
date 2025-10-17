@@ -267,7 +267,9 @@ def remember(information: str, *, tools: "Tools" = None, **kwargs) -> str:
     return tools.remember(information)
 
 
-def complete(success: bool, reason: str = "", *, tools: "Tools" = None, **kwargs) -> None:
+def complete(
+    success: bool, reason: str = "", *, tools: "Tools" = None, **kwargs
+) -> None:
     """
     Mark the task as complete.
 
@@ -398,10 +400,7 @@ def type_secret(secret_id: str, index: int, *, tools: "Tools" = None, **kwargs) 
     if tools is None:
         raise ValueError("tools parameter is required")
 
-    if (
-        not hasattr(tools, "credential_manager")
-        or tools.credential_manager is None
-    ):
+    if not hasattr(tools, "credential_manager") or tools.credential_manager is None:
         return "Error: Credential manager not initialized. Enable credentials in config.yaml"
 
     try:

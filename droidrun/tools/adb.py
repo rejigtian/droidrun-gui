@@ -325,7 +325,6 @@ class AdbTools(Tools):
             Bool indicating success or failure
         """
         try:
-
             if self._ctx:
                 swipe_event = SwipeActionEvent(
                     action_type="swipe",
@@ -501,7 +500,6 @@ class AdbTools(Tools):
             activity: Optional activity name
         """
         try:
-
             print(f"Starting app {package} with activity {activity}")
             if not activity:
                 dumpsys_output = self.device.shell(

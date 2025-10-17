@@ -31,7 +31,9 @@ class PromptResolver:
         """
         self.custom_prompts = custom_prompts or {}
 
-    def get_prompt(self, prompt_key: str, fallback_path: Optional[str] = None) -> Optional[str]:
+    def get_prompt(
+        self, prompt_key: str, fallback_path: Optional[str] = None
+    ) -> Optional[str]:
         """
         Get prompt by key, returning custom template or None if not found.
 

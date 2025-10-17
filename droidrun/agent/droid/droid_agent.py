@@ -154,7 +154,12 @@ class DroidAgent(Workflow):
 
         self.user_id = kwargs.pop("user_id", None)
         self.runtype = kwargs.pop("runtype", "developer")
-        self.shared_state = DroidAgentState(instruction=goal, err_to_manager_thresh=2, user_id=self.user_id, runtype=self.runtype)
+        self.shared_state = DroidAgentState(
+            instruction=goal,
+            err_to_manager_thresh=2,
+            user_id=self.user_id,
+            runtype=self.runtype,
+        )
         self.output_model = output_model
         base_config = config
 
@@ -465,7 +470,6 @@ class DroidAgent(Workflow):
         self.tools_instance._set_context(ctx)
 
         if not hasattr(self, "_tools_wrapped") and not self.config.agent.reasoning:
-
             self.atomic_tools = wrap_async_tools(self.atomic_tools)
             self.custom_tools = wrap_async_tools(self.custom_tools)
 
