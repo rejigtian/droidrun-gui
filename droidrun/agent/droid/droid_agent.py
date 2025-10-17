@@ -283,6 +283,10 @@ class DroidAgent(Workflow):
         self.tools_instance.app_opener_llm = self.app_opener_llm
         self.tools_instance.text_manipulator_llm = self.text_manipulator_llm
 
+        # TODO: Pass shared_state to tools_instance to allow custom tools to access
+        # custom_variables and other shared state. Currently tools only have access
+        # to context via _set_context(). Consider: self.tools_instance.shared_state = self.shared_state
+
         if self.config.agent.reasoning:
             logger.info("📝 Initializing Manager and Executor Agents...")
             self.manager_agent = ManagerAgent(
@@ -723,12 +727,12 @@ class DroidAgent(Workflow):
         flush()
 
         # Base result with answer
-        result = {
-            "success": ev.success,
-            "reason": ev.reason,
-            "steps": self.shared_state.step_number,
-            "structured_output": None,
-        }
+        result = ResultEvent(
+            success=ev.success,
+            reason=ev.reason,
+            steps=self.shared_state.step_number,
+            structured_output=None,
+        )
 
         # Extract structured output if model was provided
         if self.output_model is not None and ev.reason:
@@ -751,7 +755,7 @@ class DroidAgent(Workflow):
                 extraction_result = await handler
 
                 if extraction_result["success"]:
-                    result["structured_output"] = extraction_result["structured_output"]
+                    result.structured_output = extraction_result["structured_output"]
                     logger.info("✅ Structured output added to final result")
                 else:
                     logger.warning(
@@ -770,7 +774,7 @@ class DroidAgent(Workflow):
 
         self.tools_instance._set_context(None)
 
-        return ResultEvent(success=result["success"], reason=result["reason"], steps=result["steps"], structured_output=result["structured_output"])
+        return result
 
     def handle_stream_event(self, ev: Event, ctx: Context):
         if isinstance(ev, EpisodicMemoryEvent):
