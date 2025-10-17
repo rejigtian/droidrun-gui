@@ -51,32 +51,27 @@ DroidAgent is the entry point and orchestrator for all task execution. It coordi
 #### Initialization
 
 ```python
-from droidrun import DroidAgent, AdbTools, DroidRunConfig
+from droidrun import DroidAgent, AdbTools
+from droidrun.config_manager.config_manager import DroidRunConfig
 from llama_index.llms.openai import OpenAI
 
 tools = AdbTools()
 llm = OpenAI(model="gpt-4o")
 
-# Option 1: Use default configuration
+# Option 1: Use single LLM with default configuration
 agent = DroidAgent(
     goal="Find the weather forecast and create a calendar event",
-    llm=llm,                    # Single LLM for all agents
-    tools=tools,
-    reasoning=True,             # Enable Manager/Executor workflow
-    max_steps=20,
-    timeout=600
+    llm=llm,  # Single LLM for all agents
+    tools=tools
 )
 
-# Option 2: Load configuration from YAML file
+# Option 2: Load configuration from YAML
 config = DroidRunConfig.from_yaml("config.yaml")
 agent = DroidAgent(
     goal="Find the weather forecast and create a calendar event",
+    config=config,  # Full config (includes agent, device, logging, etc.)
     llm=llm,
-    tools=tools,
-    agent_config=config.agent,  # Agent-specific configuration
-    reasoning=True,
-    max_steps=20,
-    timeout=600
+    tools=tools
 )
 
 result = await agent.run()
@@ -86,18 +81,25 @@ result = await agent.run()
 
 DroidAgent operates in two distinct modes:
 
-**1. Direct Mode (reasoning=False)**
+**1. Direct Mode (default: reasoning=False)**
 - Uses **CodeActAgent** for immediate execution
-- Best for simple, atomic tasks (1-15 steps)
-- Generates and executes Python code using device actions
+- Best for simple tasks (1-15 steps)
+- Generates and executes Python code using atomic actions
 - No planning overhead - fastest execution
+- Set via `config.agent.reasoning = False` or leave default
 
 ```python
+from droidrun import DroidAgent
+from droidrun.config_manager.config_manager import DroidRunConfig
+
+config = DroidRunConfig.from_yaml("config.yaml")
+config.agent.reasoning = False  # Direct mode (default)
+
 agent = DroidAgent(
     goal="Open Settings and take a screenshot",
+    config=config,
     llm=llm,
-    tools=tools,
-    reasoning=False  # Direct execution
+    tools=tools
 )
 ```
 
@@ -106,13 +108,20 @@ agent = DroidAgent(
 - Best for complex, multi-step tasks requiring planning
 - Manager creates strategic plans, Executor executes atomic actions
 - Supports error escalation and plan adjustments
+- Set via `config.agent.reasoning = True`
 
 ```python
+from droidrun import DroidAgent
+from droidrun.config_manager.config_manager import DroidRunConfig
+
+config = DroidRunConfig.from_yaml("config.yaml")
+config.agent.reasoning = True  # Enable reasoning mode
+
 agent = DroidAgent(
     goal="Set up a new alarm for 7 AM with custom ringtone",
+    config=config,
     llm=llm,
-    tools=tools,
-    reasoning=True  # Manager → Executor workflow
+    tools=tools
 )
 ```
 
@@ -121,6 +130,8 @@ agent = DroidAgent(
 You can configure different LLMs for each agent:
 
 ```python
+from llama_index.llms.openai import OpenAI
+
 llms = {
     "manager": OpenAI(model="gpt-4o"),           # Planning agent
     "executor": OpenAI(model="gpt-4o-mini"),     # Action agent
@@ -133,9 +144,8 @@ llms = {
 
 agent = DroidAgent(
     goal="Complex multi-step task",
-    llms=llms,  # Per-agent LLM configuration
-    tools=tools,
-    reasoning=True
+    llms=llms,  # Dict of agent-specific LLMs
+    tools=tools
 )
 ```
 
@@ -779,7 +789,7 @@ agent = DroidAgent(
 )
 
 result = await agent.run()
-# result["structured_output"] = WeatherInfo(temperature=72, condition="sunny", location="San Francisco")
+# result.structured_output = WeatherInfo(temperature=72, condition="sunny", location="San Francisco")
 ```
 
 #### How It Works
@@ -797,9 +807,9 @@ sequenceDiagram
         SO->>LLM: structured_predict()<br/>(answer + Pydantic model)
         LLM-->>SO: Structured data
         SO-->>DA: Extracted object
-        DA->>DA: Add to result["structured_output"]
+        DA->>DA: Add to result.structured_output
     else output_model is None
-        DA->>DA: result["structured_output"] = None
+        DA->>DA: result.structured_output = None
     end
 
     DA-->>User: Final result with structured data
@@ -1049,22 +1059,24 @@ class DroidAgentState(BaseModel):
 ### Usage Pattern
 
 ```python
-# Initialize in DroidAgent
+# Initialized in DroidAgent.__init__()
 self.shared_state = DroidAgentState(
     instruction=goal,
-    err_to_manager_thresh=2
+    err_to_manager_thresh=2,
+    user_id=self.user_id,
+    runtype=self.runtype
 )
 
-# Pass to child agents
+# Passed to child agents during initialization
 self.manager_agent = ManagerAgent(
     llm=manager_llm,
     tools_instance=tools_instance,
-    shared_state=self.shared_state,  # Shared state
-    agent_config=self.config.agent,  # Access from DroidRunConfig instance
+    shared_state=self.shared_state,  # Same instance shared
+    agent_config=self.config.agent,
     custom_tools=custom_tools
 )
 
-# Child agents read and update
+# Child agents read and update state
 # In ManagerAgent.prepare_input():
 self.shared_state.formatted_device_state = formatted_text
 self.shared_state.focused_text = focused_text
@@ -1211,38 +1223,51 @@ async def think(self, ctx: Context, ev: ManagerThinkingEvent) -> ManagerInternal
 agent:
   max_steps: 20
   reasoning: true
-  after_sleep_action: 0.5  # Seconds to wait after actions
+  after_sleep_action: 1.0  # Seconds to wait after actions
+  wait_for_stable_ui: 0.3  # Wait for UI stabilization
+  prompts_dir: config/prompts
 
   manager:
     vision: true
-    system_prompt: "config/prompts/manager_system.j2"
+    system_prompt: system.jinja2  # Located in prompts_dir/manager/
 
   executor:
     vision: true
-    system_prompt: "config/prompts/executor_system.j2"
+    system_prompt: system.jinja2  # Located in prompts_dir/executor/
 
   codeact:
     vision: false
     safe_execution: true
-    system_prompt: "config/prompts/codeact_system.j2"
+    system_prompt: system.jinja2  # Located in prompts_dir/codeact/
+    user_prompt: user.jinja2
 
   scripter:
     enabled: true
     max_steps: 10
-    execution_timeout: 30
+    execution_timeout: 30.0
     safe_execution: true
-    system_prompt: "config/prompts/scripter_system.j2"
+    system_prompt_path: system.jinja2  # Located in prompts_dir/scripter/
+
+  app_cards:
+    enabled: true
+    mode: local  # local, server, or composite
+    app_cards_dir: config/app_cards
+    server_url: null
+    server_timeout: 2.0
+    server_max_retries: 2
 ```
 
 ### Custom Prompts
 
-Prompts are Jinja2 templates in `droidrun/config/prompts/`:
+Prompts are Jinja2 templates in `droidrun/config/prompts/`. You can provide custom prompts in two ways:
 
-```jinja2
-{# manager_system.j2 #}
-You are the Manager agent for device automation.
+**1. Via prompts parameter (direct Jinja2 strings):**
 
-Your goal is to achieve: {{ instruction }}
+```python
+custom_prompts = {
+    "manager_system": """You are the Manager agent for device automation.
+
+Your goal: {{ instruction }}
 
 Current device date: {{ device_date }}
 
@@ -1251,33 +1276,40 @@ Current device date: {{ device_date }}
 {{ app_card }}
 {% endif %}
 
-{% if error_history %}
-## Recent Errors
-{% for error in error_history %}
-- Action: {{ error.action }}
-  Summary: {{ error.summary }}
-  Error: {{ error.error }}
-{% endfor %}
-{% endif %}
-
-{% if custom_tools_descriptions %}
-## Custom Tools
-{{ custom_tools_descriptions }}
-{% endif %}
-
 Follow this format:
 <thought>Your reasoning</thought>
 <plan>
-1. [✓] Completed step
-2. [ ] Current step
-3. [ ] Future step
+1. [✓] Completed
+2. [ ] Current
+3. [ ] Future
 </plan>
-<current_subgoal>The specific next action</current_subgoal>
+<current_subgoal>Next action</current_subgoal>
+""",
+    "executor_system": "Custom executor prompt...",
+}
+
+agent = DroidAgent(
+    goal="Task",
+    llm=llm,
+    tools=tools,
+    prompts=custom_prompts
+)
+```
+
+**2. Via config.yaml (file paths):**
+
+```yaml
+agent:
+  prompts_dir: config/prompts
+  manager:
+    system_prompt: custom_manager.jinja2  # Reads from prompts_dir/manager/custom_manager.jinja2
+  executor:
+    system_prompt: custom_executor.jinja2
 ```
 
 ### Custom Variables
 
-Pass custom variables to agents:
+Pass custom variables accessible to all agents and in prompts:
 
 ```python
 agent = DroidAgent(
@@ -1292,8 +1324,9 @@ agent = DroidAgent(
     }
 )
 
-# Variables accessible in prompts via {{ variables.departure_city }}
-# And in shared_state.custom_variables
+# Variables accessible in:
+# - Prompts: {{ variables.departure_city }}
+# - Shared state: shared_state.custom_variables
 ```
 
 ---
@@ -1389,11 +1422,18 @@ agent:
 **Tune max_steps appropriately:**
 
 ```python
+from droidrun import DroidAgent
+from droidrun.config_manager.config_manager import DroidRunConfig
+
+config = DroidRunConfig()
+
 # Simple task
-agent = DroidAgent(goal="Open Settings", llm=llm, tools=tools, max_steps=5)
+config.agent.max_steps = 5
+agent = DroidAgent(goal="Open Settings", config=config, llm=llm, tools=tools)
 
 # Complex task
-agent = DroidAgent(goal="Multi-app workflow", llm=llm, tools=tools, max_steps=50)
+config.agent.max_steps = 50
+agent = DroidAgent(goal="Multi-app workflow", config=config, llm=llm, tools=tools)
 ```
 
 ---
@@ -1403,6 +1443,21 @@ agent = DroidAgent(goal="Multi-app workflow", llm=llm, tools=tools, max_steps=50
 ### Enable Tracing
 
 ```python
+from droidrun import DroidAgent
+from droidrun.config_manager.config_manager import DroidRunConfig
+from droidrun.config_manager import TracingConfig
+
+config = DroidRunConfig()
+config.tracing.enabled = True
+
+agent = DroidAgent(
+    goal="Task",
+    config=config,
+    llm=llm,
+    tools=tools
+)
+
+# Or pass tracing_config directly:
 agent = DroidAgent(
     goal="Task",
     llm=llm,
@@ -1433,16 +1488,35 @@ result = await handler
 
 ### Trajectory Saving
 
+Configure via config.yaml:
+
 ```yaml
 logging:
+  debug: false
   save_trajectory: "action"  # "none", "step", or "action"
+  rich_text: false
 ```
 
-- **none**: No trajectory saved
+Or programmatically:
+
+```python
+from droidrun import DroidAgent
+from droidrun.config_manager.config_manager import DroidRunConfig
+from droidrun.config_manager import LoggingConfig
+
+config = DroidRunConfig()
+config.logging.save_trajectory = "action"
+config.logging.debug = True
+
+agent = DroidAgent(goal="Task", config=config, llm=llm, tools=tools)
+```
+
+**Trajectory Levels:**
+- **none**: No trajectory saved (default)
 - **step**: Save UI state at each step
 - **action**: Save screenshots at each action (most detailed)
 
-Trajectories saved to `trajectory_{timestamp}/` directory.
+Trajectories are saved to `trajectory_{timestamp}/` directory.
 
 ---
 
@@ -1454,16 +1528,16 @@ Create custom workflows that compose existing agents:
 
 ```python
 from llama_index.core.workflow import Workflow, step, Context, StartEvent, StopEvent
-from droidrun import DroidRunConfig
+from droidrun.config_manager.config_manager import DroidRunConfig, AgentConfig
 
 class CustomWorkflow(Workflow):
-    def __init__(self, tools, manager_llm, codeact_llm, config=None, **kwargs):
+    def __init__(self, tools, manager_llm, codeact_llm, agent_config=None, **kwargs):
         super().__init__(**kwargs)
         self.tools = tools
         self.manager_llm = manager_llm
         self.codeact_llm = codeact_llm
         # Load config or use defaults
-        self.config = config or DroidRunConfig()
+        self.agent_config = agent_config or AgentConfig()
 
     @step
     async def plan_phase(self, ctx: Context, ev: StartEvent) -> ExecuteEvent:
@@ -1474,7 +1548,7 @@ class CustomWorkflow(Workflow):
             llm=self.manager_llm,
             tools_instance=self.tools,
             shared_state=shared_state,
-            agent_config=self.config.agent
+            agent_config=self.agent_config
         )
 
         handler = manager.run()
@@ -1492,7 +1566,7 @@ class CustomWorkflow(Workflow):
         for subgoal in ev.subgoals:
             codeact = CodeActAgent(
                 llm=self.codeact_llm,
-                agent_config=self.config.agent,
+                agent_config=self.agent_config,
                 tools_instance=self.tools,
                 shared_state=shared_state
             )
@@ -1503,6 +1577,8 @@ class CustomWorkflow(Workflow):
 
         return StopEvent(result={"subgoal_results": results})
 ```
+
+**Note:** This example simplifies workflow composition. In practice, you'd need to handle event streaming, state updates, and error handling like DroidAgent does.
 
 ### Custom Agent Implementation
 
@@ -1601,50 +1677,61 @@ agent = DroidAgent(
 
 **Issue: Agent loops indefinitely**
 
-Solution: Check max_steps and error escalation
+Solution: Increase max_steps via config
 ```python
-# Increase max_steps if task is complex
-agent = DroidAgent(goal="...", llm=llm, tools=tools, max_steps=50)
+from droidrun import DroidAgent
+from droidrun.config_manager.config_manager import DroidRunConfig
 
-# Check error logs for repeated failures
-# Adjust err_to_manager_thresh if needed
+config = DroidRunConfig()
+config.agent.max_steps = 50  # Increase for complex tasks
+
+agent = DroidAgent(goal="...", config=config, llm=llm, tools=tools)
 ```
 
-**Issue: Manager always escalates errors**
+**Issue: Manager escalates errors too early**
 
-Solution: Reduce error threshold or improve prompts
-```yaml
-agent:
-  manager:
-    system_prompt: "path/to/custom_prompt.j2"  # Improve error handling
+Solution: Adjust error threshold in shared state
+```python
+from droidrun import DroidAgent
+from droidrun.config_manager.config_manager import DroidRunConfig
+
+config = DroidRunConfig()
+agent = DroidAgent(goal="...", config=config, llm=llm, tools=tools)
+# Access shared state after initialization
+agent.shared_state.err_to_manager_thresh = 3  # Increase threshold
+result = await agent.run()
 ```
 
 **Issue: CodeActAgent generates invalid code**
 
-Solution: Enable safe execution and improve prompt
+Solution: Enable safe execution in config
 ```yaml
-safe_execution:
+agent:
   codeact:
     safe_execution: true
-    allowed_modules: [re, json, datetime]  # Restrict imports
+
+safe_execution:
+  allowed_modules: [re, json, datetime]
+  blocked_modules: [os, sys, subprocess]
 ```
 
 **Issue: ScripterAgent never completes**
 
-Solution: Check max_steps and completion signal
+Solution: Increase max_steps in config
 ```yaml
 agent:
   scripter:
     max_steps: 15  # Increase if needed
+    execution_timeout: 60.0  # Increase timeout
 ```
 
 **Issue: Text manipulation fails**
 
-Solution: Check current text extraction
+Solution: Verify focused element has text
 ```python
-# Verify focused element has text
 state = tools.get_state()
-focused = [node for node in state["a11y_tree"] if node.get("focused")]
+a11y_tree = state["a11y_tree"]
+focused = [node for node in a11y_tree if node.get("focused")]
 print(focused)  # Should have 'text' attribute
 ```
 
@@ -1653,6 +1740,22 @@ print(focused)  # Should have 'text' attribute
 Enable comprehensive logging:
 
 ```python
+from droidrun import DroidAgent
+from droidrun.config_manager.config_manager import DroidRunConfig
+from droidrun.config_manager import LoggingConfig
+
+config = DroidRunConfig()
+config.logging.debug = True
+config.logging.save_trajectory = "action"
+
+agent = DroidAgent(
+    goal="Task",
+    config=config,
+    llm=llm,
+    tools=tools
+)
+
+# Or pass logging_config directly:
 agent = DroidAgent(
     goal="Task",
     llm=llm,
@@ -1664,11 +1767,12 @@ agent = DroidAgent(
 )
 ```
 
-Logs will show:
+Debug logs include:
 - Full LLM prompts and responses
 - Device state at each step
 - Action execution details
 - Error stack traces
+- Step-by-step workflow progression
 
 ---
 

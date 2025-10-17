@@ -66,6 +66,11 @@ finalize() → StopEvent (result)
 
 **Example:**
 ```python
+from droidrun.config_manager.config_manager import DroidRunConfig
+from droidrun.agent.droid.droid_agent import DroidAgent
+
+config = DroidRunConfig()
+
 agent = DroidAgent(
     goal="Open Settings app",
     config=config,
@@ -127,6 +132,11 @@ FinalizeEvent → finalize() → StopEvent
 
 **Example:**
 ```python
+from droidrun.config_manager.config_manager import DroidRunConfig
+from droidrun.agent.droid.droid_agent import DroidAgent
+
+config = DroidRunConfig()
+
 agent = DroidAgent(
     goal="Find cheapest hotel in Manhattan, compare prices, share on Slack",
     config=config,
@@ -886,6 +896,9 @@ Custom tools are automatically available in all agents.
 
 **Define custom tool:**
 ```python
+from droidrun.config_manager.config_manager import DroidRunConfig
+from droidrun.agent.droid.droid_agent import DroidAgent
+
 def custom_action(tools_instance, param1: str, param2: int) -> str:
     """Custom action description."""
     # Implementation
@@ -898,6 +911,8 @@ custom_tools = {
         "function": custom_action
     }
 }
+
+config = DroidRunConfig()
 
 agent = DroidAgent(
     goal="Use custom action",
@@ -997,7 +1012,8 @@ def _limit_history(self, chat_history):
 ### Enable Debug Logging
 
 ```python
-from droidrun.config_manager import DroidRunConfig, LoggingConfig
+from droidrun.config_manager.config_manager import DroidRunConfig
+from droidrun.agent.droid.droid_agent import DroidAgent
 
 config = DroidRunConfig()
 config.logging.debug = True
@@ -1008,7 +1024,8 @@ agent = DroidAgent(goal="...", config=config, llms=llm)
 ### Enable Tracing (Arize Phoenix)
 
 ```python
-from droidrun.config_manager import DroidRunConfig, TracingConfig
+from droidrun.config_manager.config_manager import DroidRunConfig
+from droidrun.agent.droid.droid_agent import DroidAgent
 
 config = DroidRunConfig()
 config.tracing.enabled = True
@@ -1025,13 +1042,14 @@ handler = agent.run()
 async for event in handler.stream_events():
     print(f"{event.__class__.__name__}: {event}")
 
-result = await handler
+result: ResultEvent = await handler
 ```
 
 ### Save Trajectories
 
 ```python
-from droidrun.config_manager import DroidRunConfig
+from droidrun.config_manager.config_manager import DroidRunConfig
+from droidrun.agent.droid.droid_agent import DroidAgent
 
 config = DroidRunConfig()
 config.logging.save_trajectory = "action"  # "none", "step", or "action"
@@ -1050,11 +1068,15 @@ DroidAgent supports extracting structured data after task completion.
 
 ```python
 from pydantic import BaseModel
+from droidrun.config_manager.config_manager import DroidRunConfig
+from droidrun.agent.droid.droid_agent import DroidAgent
 
 class HotelInfo(BaseModel):
     name: str
     price: float
     rating: float
+
+config = DroidRunConfig()
 
 agent = DroidAgent(
     goal="Find cheapest hotel in Manhattan",
@@ -1064,10 +1086,10 @@ agent = DroidAgent(
 )
 
 handler = agent.run()
-result = await handler
+result: ResultEvent = await handler
 
-# result["structured_output"] contains HotelInfo instance
-hotel: HotelInfo = result["structured_output"]
+# result.structured_output contains HotelInfo instance
+hotel: HotelInfo = result.structured_output
 print(f"{hotel.name}: ${hotel.price}, {hotel.rating}★")
 ```
 
@@ -1084,11 +1106,16 @@ print(f"{hotel.name}: ${hotel.price}, {hotel.rating}★")
 Pass custom variables accessible to all agents.
 
 ```python
+from droidrun.config_manager.config_manager import DroidRunConfig
+from droidrun.agent.droid.droid_agent import DroidAgent
+
 variables = {
     "user_email": "user@example.com",
     "api_key": "secret123",
     "config_path": "/path/to/config"
 }
+
+config = DroidRunConfig()
 
 agent = DroidAgent(
     goal="Configure app with user settings",

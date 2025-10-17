@@ -5,889 +5,217 @@ description: 'Pass dynamic data and configuration to your DroidRun agents'
 
 # Custom Variables
 
-DroidRun's custom variables system allows you to pass dynamic data, configuration, and context to your agents at runtime. Variables are injected into agent prompts and become accessible throughout the entire workflow execution, enabling parameterized automation workflows.
+Pass dynamic data to your DroidRun agents using the `variables` parameter. Variables enable parameterized workflows and reusable automation.
 
-## Overview
+<Warning>
+**Important Limitation**: Custom variables are **only accessible via agent prompts**, not directly to custom tools. Tools don't have access to `shared_state.custom_variables`. See [workaround below](#accessing-variables-in-custom-tools).
+</Warning>
 
-Custom variables are user-defined key-value pairs that get passed to `DroidAgent` and injected into the prompts of all child agents (Manager, Executor, CodeAct). They provide a powerful way to:
+---
 
-- **Parameterize workflows**: Make automations reusable with different inputs
-- **Pass dynamic data**: Provide runtime information like user preferences, API endpoints, or configuration
-- **Store context**: Share context across agent steps without hardcoding
-- **Enable data-driven automation**: Run the same workflow with different datasets
+## Quick Start
 
-Variables are stored in `DroidAgentState.custom_variables` and automatically injected into agent prompts via Jinja2 templates.
+```python
+from droidrun.agent.droid import DroidAgent
+from droidrun.tools import AdbTools
+from droidrun.config_manager.config_manager import DroidRunConfig
+
+# Define custom prompts that render variables
+custom_prompts = {
+    "manager_system": """
+{{ instruction }}
+
+{% if variables %}
+Available variables:
+{% for key, value in variables.items() %}
+- {{ key }}: {{ value }}
+{% endfor %}
+{% endif %}
+    """
+}
+
+# Create agent with variables
+config = DroidRunConfig()
+
+agent = DroidAgent(
+    goal="Send email to recipient with subject",
+    config=config,
+    tools=AdbTools(),
+    variables={"recipient": "john@example.com", "subject": "Update"},
+    prompts=custom_prompts  # Required to see variables
+)
+
+result = await agent.run()
+```
+
+**Important:** Default prompts don't render variables. You must provide custom prompts via the `prompts` parameter.
+
+---
+
+## How Variables Work
+
+When you pass `variables` to `DroidAgent`:
+
+1. **Stored** in `DroidAgentState.custom_variables`
+2. **Passed** to prompt templates as `variables` dict
+3. **Rendered** in Jinja2 templates via `{% if variables %}` blocks
+4. **Available** to all child agents throughout the workflow
+
+**Access Summary:**
+- ✅ Agent prompts (via custom Jinja2 templates)
+- ✅ Agents can read and pass to tools as arguments
+- ❌ NOT directly accessible to custom tools
 
 ---
 
 ## Basic Usage
 
-### Passing Variables to DroidAgent
-
-Variables are passed as a dictionary to the `variables` parameter when creating a `DroidAgent`:
-
 ```python
-import asyncio
-from droidrun import DroidAgent
+from droidrun.agent.droid import DroidAgent
 from droidrun.tools import AdbTools
-from droidrun.config import DroidRunConfig
+from droidrun.config_manager.config_manager import DroidRunConfig
 
-async def main():
-    # Load configuration
-    config = DroidRunConfig()
+# Define variables
+variables = {
+    "recipient": "alice@example.com",
+    "message": "Hello from DroidRun!"
+}
 
-    # Define custom variables
-    variables = {
-        "recipient_email": "john@example.com",
-        "email_subject": "Meeting Tomorrow",
-        "meeting_time": "3:00 PM",
-        "location": "Conference Room A"
-    }
-
-    # Create agent with variables
-    agent = DroidAgent(
-        goal="Send an email to the recipient with the meeting details",
-        config=config,
-        tools=AdbTools(),
-        variables=variables  # Pass variables here
-    )
-
-    # Run agent (variables accessible in all agent prompts)
-    result = await agent.run()
-    print(result)
-
-asyncio.run(main())
-```
-
-### How Variables Are Used
-
-Once passed to `DroidAgent`, variables are:
-
-1. **Stored** in `DroidAgentState.custom_variables`
-2. **Injected** into agent prompts via `{{ variables }}` in Jinja2 templates
-3. **Accessible** to all child agents (Manager, Executor, CodeAct, Scripter)
-4. **Available** throughout the entire workflow execution
-
----
-
-## Variable Injection in Prompts
-
-Variables are automatically injected into agent system prompts. The agents can reference variables by name when making decisions or generating actions.
-
-### Manager Agent
-
-The Manager Agent sees variables in its system prompt and can use them for planning:
-
-**System Prompt Template** (`manager/system.jinja2`):
-```jinja2
-You are an agent who can operate an Android phone on behalf of a user.
-
-<user_request>
-{{ instruction }}
-</user_request>
+# Custom prompt to render variables
+custom_prompts = {
+    "codeact_system": """
+You are an agent that controls Android devices.
 
 {% if variables %}
-<custom_variables>
-The following variables are available for use in your plan:
-{% for key, value in variables.items() %}
-- {{ key }}: {{ value }}
-{% endfor %}
-</custom_variables>
-{% endif %}
-```
-
-**Example Prompt Rendered**:
-```
-<user_request>
-Send an email to the recipient with the meeting details
-</user_request>
-
-<custom_variables>
-The following variables are available for use in your plan:
-- recipient_email: john@example.com
-- email_subject: Meeting Tomorrow
-- meeting_time: 3:00 PM
-- location: Conference Room A
-</custom_variables>
-```
-
-The Manager can now reference these variables when creating plans like: "Open Gmail and compose email to john@example.com with subject 'Meeting Tomorrow'".
-
-### Executor Agent
-
-The Executor Agent sees the same variables and uses them when executing specific actions:
-
-**System Prompt Template** (`executor/system.jinja2`):
-```jinja2
-You are a LOW-LEVEL ACTION EXECUTOR for an Android phone.
-
-### User Request ###
-{{ instruction }}
-
-{% if variables %}
-### Available Variables ###
+Available variables:
 {% for key, value in variables.items() %}
 - {{ key }}: {{ value }}
 {% endfor %}
 {% endif %}
+
+Use these variables when executing tasks.
+    """
+}
+
+# Create agent
+config = DroidRunConfig()
+
+agent = DroidAgent(
+    goal="Send message to recipient",
+    config=config,
+    tools=AdbTools(),
+    variables=variables,
+    prompts=custom_prompts
+)
+
+result = await agent.run()
 ```
 
-### CodeAct Agent
+### Available Prompt Keys
 
-The CodeAct Agent (direct execution mode) also receives variables:
+Customize these prompts to render variables:
 
-**System Prompt Template** (`codeact/system.jinja2`):
-```jinja2
-You are a helpful AI assistant that can write and execute Python code to solve problems.
-
-{% if variables %}
-## Available Variables:
-The following variables are available for use in your code and planning:
-{% for key, value in variables.items() %}
-- **{{ key }}**: {{ value }}
-{% endfor %}
-{% endif %}
-```
-
-**User Prompt Template** (`codeact/user.jinja2`):
-```jinja2
-**Current Request:**
-{{ goal }}
-
-{% if variables %}
-**Available Variables:**
-{% for key, value in variables.items() %}
-- {{ key }}: {{ value }}
-{% endfor %}
-{% endif %}
-```
+- `manager_system` - Manager agent system prompt
+- `executor_system` - Executor agent system prompt
+- `codeact_system` - CodeAct agent system prompt
+- `codeact_user` - CodeAct agent user prompt
+- `scripter_system` - Scripter agent system prompt
 
 ---
 
 ## Accessing Variables in Custom Tools
 
-Variables are available in `DroidAgentState` and can be accessed by custom tools through the `tools_instance`:
+Custom tools **cannot** directly access `DroidAgentState.custom_variables` because they don't have access to the shared state.
 
-### Custom Tool Example
+### Workaround: Pass as Tool Arguments (Recommended)
+
+Design tools to accept parameters, then let the agent pass variable values:
 
 ```python
-def send_notification(tools_instance, title: str, use_variables: bool = True):
-    """
-    Custom tool that can access variables via tools_instance.
+from droidrun.agent.droid import DroidAgent
+from droidrun.tools import AdbTools
+from droidrun.config_manager.config_manager import DroidRunConfig
 
-    Args:
-        tools_instance: The Tools instance (has access to shared_state)
-        title: Notification title
-        use_variables: Whether to use variables for customization
-    """
-    # Access shared state through tools_instance context
-    ctx = tools_instance._context
-    if ctx is None:
-        return "No context available"
+def send_notification(tools_instance, title: str, channel: str):
+    """Send a notification to a specific channel."""
+    return f"Sent '{title}' to {channel}"
 
-    # Get variables from shared state
-    shared_state = ctx.get_global("shared_state")  # Depends on implementation
-    variables = shared_state.custom_variables if shared_state else {}
-
-    # Use variables
-    if use_variables and "notification_channel" in variables:
-        channel = variables["notification_channel"]
-        return f"Sent notification '{title}' to channel '{channel}'"
-
-    return f"Sent notification '{title}'"
-
-# Register custom tool
 custom_tools = {
     "send_notification": {
-        "arguments": ["title", "use_variables"],
-        "description": "Send a notification with optional variable customization",
+        "arguments": ["title", "channel"],
+        "description": "Send a notification with title and channel",
         "function": send_notification
     }
 }
 
-# Use in DroidAgent
+custom_prompts = {
+    "codeact_system": """
+{% if variables %}
+Variables: {% for k, v in variables.items() %}{{ k }}={{ v }} {% endfor %}
+{% endif %}
+    """
+}
+
+config = DroidRunConfig()
+
 agent = DroidAgent(
-    goal="Send a notification",
+    goal="Send notification to alerts channel",
     config=config,
     tools=AdbTools(),
     custom_tools=custom_tools,
-    variables={"notification_channel": "alerts"}
+    variables={"notification_channel": "alerts"},
+    prompts=custom_prompts
 )
 ```
 
-**Note**: Direct access to `DroidAgentState` in custom tools requires passing `shared_state` through the workflow context. For simpler cases, encode needed data directly in custom tool signatures or use credential tools pattern.
+The agent sees `notification_channel="alerts"` in the prompt and calls `send_notification(title="...", channel="alerts")`.
 
 ---
 
 ## Use Cases
 
-### 1. Parameterized Email Workflows
-
-Send emails with different recipients and content:
+### Parameterized Workflows
 
 ```python
-variables = {
-    "recipient": "jane@company.com",
-    "subject": "Project Update",
-    "body": "The Q4 project is on track for delivery next week.",
-    "attachment_path": "/sdcard/Download/report.pdf"
-}
-
-agent = DroidAgent(
-    goal="Compose and send an email with the provided details",
-    config=config,
-    tools=AdbTools(),
-    variables=variables
-)
-
-result = await agent.run()
-```
-
-### 2. Dynamic API Endpoints
-
-Configure API endpoints without hardcoding:
-
-```python
-variables = {
-    "api_base_url": "https://api.production.example.com",
-    "api_version": "v2",
-    "auth_token": "your-token-here",  # Or use credentials instead
-    "timeout_seconds": 30
-}
-
-agent = DroidAgent(
-    goal="Fetch user data from the API and display it",
-    config=config,
-    tools=AdbTools(),
-    variables=variables
-)
-
-result = await agent.run()
-```
-
-The Manager/CodeAct agents can use these variables when generating API calls in script blocks or custom tools.
-
-### 3. User Preferences
-
-Provide user-specific settings:
-
-```python
-variables = {
-    "language": "Spanish",
-    "timezone": "America/New_York",
-    "date_format": "MM/DD/YYYY",
-    "theme": "dark"
-}
-
-agent = DroidAgent(
-    goal="Update app settings according to user preferences",
-    config=config,
-    tools=AdbTools(),
-    variables=variables
-)
-
-result = await agent.run()
-```
-
-### 4. Test Data for Automation
-
-Run the same test with different datasets:
-
-```python
-test_cases = [
-    {
-        "test_name": "Valid Login",
-        "username": "testuser1",
-        "password": "password123",
-        "expected_result": "success"
-    },
-    {
-        "test_name": "Invalid Login",
-        "username": "baduser",
-        "password": "wrongpass",
-        "expected_result": "error"
-    }
-]
-
-for test_case in test_cases:
+# Define reusable workflow with different variables
+for user in ["alice@example.com", "bob@example.com"]:
     agent = DroidAgent(
-        goal=f"Test login with credentials and verify {test_case['expected_result']}",
+        goal="Send welcome email",
         config=config,
-        tools=AdbTools(),
-        variables=test_case
+        variables={"recipient": user},
+        prompts=custom_prompts
     )
-
-    result = await agent.run()
-    print(f"{test_case['test_name']}: {result}")
+    await agent.run()
 ```
 
-### 5. Multi-Step Workflows with State
-
-Share state across multiple agent runs:
+### Configuration Data
 
 ```python
-# Step 1: Extract data
-agent1 = DroidAgent(
-    goal="Extract the latest invoice number from the app",
-    config=config,
-    tools=AdbTools()
-)
-result1 = await agent1.run()
-
-# Extract invoice number from result
-invoice_number = extract_invoice_number(result1["reason"])
-
-# Step 2: Use extracted data
-agent2 = DroidAgent(
-    goal="Send the invoice number to the accounting system",
-    config=config,
-    tools=AdbTools(),
-    variables={"invoice_number": invoice_number}
-)
-result2 = await agent2.run()
-```
-
-### 6. Configuration Management
-
-Centralize configuration:
-
-```python
-import yaml
-
-# Load config from file
-with open("workflow_config.yaml") as f:
-    workflow_config = yaml.safe_load(f)
-
 variables = {
-    "retry_count": workflow_config["retry_count"],
-    "timeout_seconds": workflow_config["timeout"],
-    "fallback_action": workflow_config["fallback"],
-    "notification_enabled": workflow_config["notifications"]
+    "api_endpoint": "https://api.example.com/v2",
+    "timeout": 30
 }
 
 agent = DroidAgent(
-    goal="Execute the workflow with the loaded configuration",
+    goal="Call API endpoint",
     config=config,
-    tools=AdbTools(),
-    variables=variables
-)
-
-result = await agent.run()
-```
-
-### 7. Batch Operations
-
-Process multiple items with the same workflow:
-
-```python
-contacts = [
-    {"name": "Alice", "phone": "+1234567890", "group": "Friends"},
-    {"name": "Bob", "phone": "+0987654321", "group": "Work"},
-    {"name": "Charlie", "phone": "+1122334455", "group": "Family"}
-]
-
-for contact in contacts:
-    agent = DroidAgent(
-        goal="Add a new contact to the phone",
-        config=config,
-        tools=AdbTools(),
-        variables=contact
-    )
-
-    result = await agent.run()
-    print(f"Added {contact['name']}: {result['success']}")
-```
-
----
-
-## Advanced Usage
-
-### Combining Variables with Credentials
-
-Use variables alongside the credential manager for secure workflows:
-
-```python
-from droidrun.credential_manager import CredentialManager
-
-# Setup credentials
-creds = {
-    "API_KEY": "secret-api-key",
-    "DB_PASSWORD": "db-password"
-}
-
-variables = {
-    "api_endpoint": "https://api.example.com/v1",
-    "database_host": "db.example.com",
-    "database_name": "production",
-    "query": "SELECT * FROM users WHERE active = true"
-}
-
-agent = DroidAgent(
-    goal="Query the database and send results to the API",
-    config=config,
-    tools=AdbTools(),
-    credentials=creds,  # Credentials (secure)
-    variables=variables  # Variables (non-sensitive config)
-)
-
-result = await agent.run()
-```
-
-**Best Practice**: Use credentials for sensitive data (passwords, API keys) and variables for non-sensitive configuration (URLs, preferences, query parameters).
-
-### Dynamic Variable Generation
-
-Generate variables programmatically:
-
-```python
-import datetime
-
-def generate_report_variables():
-    now = datetime.datetime.now()
-    return {
-        "report_date": now.strftime("%Y-%m-%d"),
-        "report_month": now.strftime("%B %Y"),
-        "report_filename": f"report_{now.strftime('%Y%m%d')}.pdf",
-        "recipient_list": ["manager@company.com", "team@company.com"],
-        "include_charts": True,
-        "format": "PDF"
-    }
-
-variables = generate_report_variables()
-
-agent = DroidAgent(
-    goal="Generate and email the monthly report",
-    config=config,
-    tools=AdbTools(),
-    variables=variables
-)
-
-result = await agent.run()
-```
-
-### Nested Variables (Complex Data)
-
-Variables support complex data types:
-
-```python
-variables = {
-    "email_config": {
-        "smtp_server": "smtp.gmail.com",
-        "port": 587,
-        "use_tls": True
-    },
-    "recipients": ["user1@example.com", "user2@example.com"],
-    "attachments": [
-        {"filename": "report.pdf", "path": "/sdcard/Download/report.pdf"},
-        {"filename": "data.csv", "path": "/sdcard/Download/data.csv"}
-    ],
-    "metadata": {
-        "priority": "high",
-        "category": "reports",
-        "tags": ["quarterly", "financial"]
-    }
-}
-
-agent = DroidAgent(
-    goal="Send email with multiple attachments using SMTP config",
-    config=config,
-    tools=AdbTools(),
-    variables=variables
-)
-
-result = await agent.run()
-```
-
-The Jinja2 templates will render nested structures appropriately, and agents can reference them (e.g., "use SMTP server from email_config").
-
-### Variable Validation
-
-Validate variables before passing to agent:
-
-```python
-from pydantic import BaseModel, ValidationError, field_validator
-
-class WorkflowVariables(BaseModel):
-    """Schema for workflow variables."""
-    recipient_email: str
-    subject: str
-    body: str
-    send_time: str | None = None
-
-    @field_validator("recipient_email")
-    def validate_email(cls, v):
-        if "@" not in v:
-            raise ValueError("Invalid email address")
-        return v
-
-# Validate before creating agent
-try:
-    validated = WorkflowVariables(
-        recipient_email="john@example.com",
-        subject="Meeting",
-        body="See you tomorrow"
-    )
-
-    variables = validated.model_dump()
-
-    agent = DroidAgent(
-        goal="Send email",
-        config=config,
-        tools=AdbTools(),
-        variables=variables
-    )
-
-    result = await agent.run()
-
-except ValidationError as e:
-    print(f"Invalid variables: {e}")
-```
-
----
-
-## Best Practices
-
-### 1. Use Descriptive Variable Names
-
-**Good:**
-```python
-variables = {
-    "recipient_email": "john@example.com",
-    "email_subject": "Project Update",
-    "attachment_path": "/sdcard/Download/report.pdf"
-}
-```
-
-**Bad:**
-```python
-variables = {
-    "e": "john@example.com",
-    "s": "Project Update",
-    "p": "/sdcard/Download/report.pdf"
-}
-```
-
-Agents rely on variable names to understand their purpose. Clear names improve agent decision-making.
-
-### 2. Separate Sensitive and Non-Sensitive Data
-
-Use **credentials** for sensitive data and **variables** for configuration:
-
-```python
-# Credentials (encrypted, never logged)
-credentials = {
-    "GMAIL_PASSWORD": "secret123",
-    "API_KEY": "sk-abc123"
-}
-
-# Variables (safe to log, non-sensitive)
-variables = {
-    "gmail_username": "user@gmail.com",
-    "api_endpoint": "https://api.example.com",
-    "retry_count": 3
-}
-
-agent = DroidAgent(
-    goal="Send email via Gmail API",
-    config=config,
-    tools=AdbTools(),
-    credentials=credentials,  # Secure
-    variables=variables       # Non-sensitive
-)
-```
-
-### 3. Document Variable Schemas
-
-Create documentation or schemas for your workflows:
-
-```python
-"""
-Email Workflow Variables:
-- recipient_email (str, required): Email address of recipient
-- subject (str, required): Email subject line
-- body (str, required): Email body content
-- cc_emails (list[str], optional): CC recipients
-- bcc_emails (list[str], optional): BCC recipients
-- attachment_paths (list[str], optional): Paths to attachments
-- send_time (str, optional): Scheduled send time (ISO format)
-- priority (str, optional): Email priority (low/normal/high)
-"""
-
-variables = {
-    "recipient_email": "john@example.com",
-    "subject": "Meeting Tomorrow",
-    "body": "Let's meet at 3 PM",
-    "priority": "high"
-}
-```
-
-### 4. Keep Variables Focused
-
-Don't overload variables with too much data:
-
-**Good (focused):**
-```python
-variables = {
-    "search_query": "quarterly report",
-    "search_location": "Downloads folder",
-    "file_type": "PDF"
-}
-```
-
-**Bad (too much):**
-```python
-variables = {
-    "search_query": "quarterly report",
-    "search_location": "Downloads folder",
-    "file_type": "PDF",
-    "user_name": "John",
-    "user_department": "Finance",
-    "company_name": "Acme Corp",
-    "fiscal_year": 2024,
-    # ... 20 more variables
-}
-```
-
-Large variable sets can confuse agents. Use only what's needed for the specific workflow.
-
-### 5. Use Type Hints and Validation
-
-Validate variables to catch errors early:
-
-```python
-def validate_email_variables(variables: dict) -> dict:
-    """Validate email workflow variables."""
-    required = ["recipient_email", "subject", "body"]
-
-    for key in required:
-        if key not in variables:
-            raise ValueError(f"Missing required variable: {key}")
-
-    if "@" not in variables["recipient_email"]:
-        raise ValueError("Invalid email address")
-
-    return variables
-
-# Use with validation
-variables = {
-    "recipient_email": "john@example.com",
-    "subject": "Test",
-    "body": "Test email"
-}
-
-validated = validate_email_variables(variables)
-
-agent = DroidAgent(
-    goal="Send email",
-    config=config,
-    tools=AdbTools(),
-    variables=validated
-)
-```
-
-### 6. Avoid Hardcoded Strings
-
-Use variables instead of hardcoding values in goals:
-
-**Good:**
-```python
-variables = {"recipient": "john@example.com"}
-agent = DroidAgent(
-    goal="Send email to the recipient",
     variables=variables,
-    # ...
-)
-```
-
-**Bad:**
-```python
-agent = DroidAgent(
-    goal="Send email to john@example.com",  # Hardcoded
-    # ...
-)
-```
-
-Using variables makes workflows reusable across different contexts.
-
-### 7. Provide Defaults for Optional Variables
-
-Handle missing optional variables gracefully:
-
-```python
-DEFAULT_VARIABLES = {
-    "timeout_seconds": 30,
-    "retry_count": 3,
-    "notification_enabled": True,
-    "log_level": "INFO"
-}
-
-# Merge user variables with defaults
-user_variables = {"timeout_seconds": 60}
-variables = {**DEFAULT_VARIABLES, **user_variables}
-
-agent = DroidAgent(
-    goal="Execute task with configuration",
-    config=config,
-    tools=AdbTools(),
-    variables=variables
+    prompts=custom_prompts
 )
 ```
 
 ---
 
-## Security Considerations
+## Key Points
 
-### 1. Never Put Secrets in Variables
-
-Variables are injected into prompts (visible in logs/traces). Use **credentials** for sensitive data:
-
-**Bad (insecure):**
-```python
-variables = {
-    "password": "mySecretPassword123",  # NEVER DO THIS
-    "api_key": "sk-secret-key"          # NEVER DO THIS
-}
-```
-
-**Good (secure):**
-```python
-credentials = {
-    "PASSWORD": "mySecretPassword123",   # Encrypted
-    "API_KEY": "sk-secret-key"           # Encrypted
-}
-
-variables = {
-    "username": "john.doe",              # OK to log
-    "api_endpoint": "https://api.example.com"  # OK to log
-}
-
-agent = DroidAgent(
-    goal="Login and fetch data",
-    config=config,
-    credentials=credentials,  # Secure
-    variables=variables       # Non-sensitive
-)
-```
-
-### 2. Validate Input Variables
-
-Sanitize variables from untrusted sources:
-
-```python
-import re
-
-def sanitize_variables(variables: dict) -> dict:
-    """Sanitize variables from user input."""
-    sanitized = {}
-
-    for key, value in variables.items():
-        if isinstance(value, str):
-            # Remove potentially dangerous characters
-            value = re.sub(r'[;<>&|`$]', '', value)
-
-        sanitized[key] = value
-
-    return sanitized
-
-# Sanitize before use
-user_input = {"email": "user@example.com; rm -rf /"}
-safe_variables = sanitize_variables(user_input)
-
-agent = DroidAgent(
-    goal="Process user input",
-    config=config,
-    tools=AdbTools(),
-    variables=safe_variables
-)
-```
-
-### 3. Avoid PII in Variables
-
-Be cautious with personally identifiable information (PII):
-
-```python
-# If logging/tracing is enabled, PII in variables will be visible
-variables = {
-    "user_id": "12345",  # OK (anonymized)
-    "account_number": "ACC-789"  # OK (masked)
-}
-
-# Avoid if tracing/logging enabled:
-# "full_name": "John Smith"
-# "ssn": "123-45-6789"
-# "credit_card": "4111-1111-1111-1111"
-```
-
----
-
-## Troubleshooting
-
-### Variables Not Appearing in Prompts
-
-**Problem:** Agents don't seem to use variables.
-
-**Solution:**
-1. Verify variables are passed to `DroidAgent`:
-   ```python
-   agent = DroidAgent(..., variables=my_vars)
-   ```
-
-2. Check `DroidAgentState.custom_variables`:
-   ```python
-   print(agent.shared_state.custom_variables)
-   ```
-
-3. Enable debug logging to see rendered prompts:
-   ```python
-   config.logging.debug = True
-   ```
-
-### Variables Not Accessible in Custom Tools
-
-**Problem:** Custom tools can't access variables.
-
-**Solution:** Variables are in `DroidAgentState`, which is accessible through workflow context. For simpler access, consider encoding needed data in custom tool arguments:
-
-```python
-def my_tool(tools_instance, param1: str, param2: str):
-    # Accept parameters directly
-    return f"Processed {param1} and {param2}"
-
-# Pass variable values as arguments in agent prompt
-# The agent will see variables and pass them to custom tools
-```
-
-Alternatively, access via shared state (requires workflow context setup).
-
-### Type Errors with Complex Variables
-
-**Problem:** Nested dictionaries or lists cause issues.
-
-**Solution:** Ensure variables are JSON-serializable:
-
-```python
-import json
-
-# Test if variables are serializable
-try:
-    json.dumps(variables)
-    print("Variables are valid")
-except TypeError as e:
-    print(f"Invalid variables: {e}")
-```
-
-Avoid non-serializable types (functions, classes, file handles).
-
----
+1. **Custom prompts required** - Default prompts don't render variables
+2. **Access via prompts only** - Tools cannot access `shared_state.custom_variables` directly
+3. **Workaround** - Agents read variables from prompts → pass as tool arguments
+4. **Available to all agents** - Manager, Executor, CodeAct, Scripter all receive variables
+5. **Jinja2 templates** - Use `{% if variables %}` blocks in custom prompts
 
 ## Related Documentation
 
-- [DroidAgent SDK](/docs/v4/sdk/droid-agent) - DroidAgent API reference
+- [Custom Prompts](/docs/v4/guides/prompts) - How to customize agent prompts
 - [Custom Tools](/docs/v4/guides/custom-tools) - Creating custom tool functions
-- [Credentials](/docs/v4/guides/credentials) - Secure credential management
-- [Configuration](/docs/v4/concepts/configuration) - Config system overview
-- [Prompt Engineering](/docs/v4/guides/prompts) - Customizing agent prompts
-
----
-
-**Make your workflows dynamic and reusable with custom variables!**
+- [DroidAgent SDK](/docs/v4/sdk/droid-agent) - Complete API reference

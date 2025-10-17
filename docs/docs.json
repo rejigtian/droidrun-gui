@@ -27,6 +27,7 @@
                 "group": "Concepts",
                 "pages": [
                   "v4/concepts/architecture",
+                  "v4/concepts/workflow-architecture",
                   "v4/concepts/event-streaming"
                 ]
               },
@@ -37,14 +38,11 @@
                   "v4/guides/cli",
                   "v4/guides/configuration",
                   "v4/guides/device-setup",
-                  "v4/guides/llm-integration",
                   "v4/guides/custom-tools-credentials",
                   "v4/guides/custom-variables",
                   "v4/guides/app-cards",
-                  "v4/guides/safe-execution",
                   "v4/guides/structured-output",
-                  "v4/guides/telemetry-tracing",
-                  "v4/guides/trajectories-macros"
+                  "v4/guides/telemetry-tracing"
                 ]
               },
               {

@@ -1,15 +1,30 @@
 ---
 title: 'Configuration System'
-description: 'Complete guide to DroidRun configuration including LLM profiles, safe execution, and CLI overrides'
+description: 'Complete guide to DroidRun configuration including LLM profiles, safe execution, and SDK usage'
 ---
 
 # Configuration System
 
-DroidRun uses a powerful YAML-based configuration system that controls every aspect of agent behavior, LLM selection, device settings, and execution safety. This guide covers the complete configuration schema, best practices, and advanced patterns.
+DroidRun uses a YAML-based configuration system that controls agent behavior, LLM selection, device settings, and execution safety.
 
-<Note>
-**For Developers:** Use `DroidRunConfig` class for all configuration operations in your code. `ConfigManager` is for internal CLI use only and should not be used in developer applications.
-</Note>
+<Warning>
+**CRITICAL: SDK vs CLI Configuration**
+
+DroidRun has two configuration interfaces:
+
+1. **`DroidRunConfig`** - For SDK/Python developers (YOU SHOULD USE THIS)
+   - Load with `DroidRunConfig.from_yaml("config.yaml")`
+   - Create programmatically with `DroidRunConfig()`
+   - Pass to `DroidAgent(config=config)`
+   - Direct, simple, straightforward
+
+2. **`ConfigManager`** - For CLI internal use only (DO NOT USE IN YOUR CODE)
+   - Singleton pattern used by `droidrun` CLI command
+   - Handles CLI flag overrides automatically
+   - Not intended for SDK usage
+
+**TL;DR**: Always use `DroidRunConfig` in your Python code. Never use `ConfigManager`.
+</Warning>
 
 ---
 
@@ -17,53 +32,35 @@ DroidRun uses a powerful YAML-based configuration system that controls every asp
 
 The configuration system follows a **three-tier priority model**:
 
-1. **CLI flags** (highest priority) - Override everything
-2. **Code parameters** (medium priority) - Set when creating DroidAgent
-3. **Config file** (lowest priority) - Default values from `config.yaml`
+1. **CLI flags** (highest priority) - Override everything when using CLI
+2. **DroidAgent parameters** (medium priority) - Override config when creating agent
+3. **Config file** (lowest priority) - Base configuration from `config.yaml`
 
-### Configuration File Location
+### How Config Files Are Found
 
 DroidRun searches for `config.yaml` in this order:
 
-1. **Explicit path**: Via `--config` CLI flag or `DroidRunConfig.load(path="/path/to/config.yaml")`
+1. **Explicit path**: Via `--config` CLI flag or `DroidRunConfig.from_yaml(path)`
 2. **Environment variable**: `DROIDRUN_CONFIG` environment variable
 3. **Working directory**: `./config.yaml` in your current directory
 4. **Package directory**: Falls back to bundled `config.yaml` in DroidRun installation
 
-If no config file exists, DroidRun automatically creates a default `config.yaml` with sensible defaults.
+If no config file exists, DroidRun creates a default `config.yaml` automatically.
 
 ---
 
 ## Quick Start
 
-### Generate Default Config
+### For SDK Users (Recommended)
 
-DroidRun creates a default config automatically on first run:
-
-```sh
-# This creates config.yaml in your current directory
-droidrun devices
-```
-
-Or manually create it:
+**Load configuration from file:**
 
 ```python
-from droidrun.config import DroidRunConfig
+from droidrun import DroidAgent, ResultEvent
+from droidrun.config_manager.config_manager import DroidRunConfig
 
-# Creates config.yaml with defaults
-config = DroidRunConfig()
-config.save("config.yaml")
-```
-
-### Basic Usage
-
-**Access configuration:**
-
-```python
-from droidrun.config import DroidRunConfig
-
-# Load config from file
-config = DroidRunConfig.load("config.yaml")
+# Load config from YAML file
+config = DroidRunConfig.from_yaml("config.yaml")
 
 # Access settings
 print(config.agent.max_steps)  # 15
@@ -73,25 +70,195 @@ print(config.logging.debug)    # False
 # Access LLM profiles
 manager_profile = config.llm_profiles["manager"]
 print(f"{manager_profile.provider}/{manager_profile.model}")
+
+# Pass to DroidAgent
+agent = DroidAgent(goal="Open settings", config=config)
+handler = agent.run()
+result: ResultEvent = await handler
 ```
 
-**Modify and save:**
+**Create config programmatically (no YAML file):**
 
 ```python
-# Modify config
+from droidrun.config_manager.config_manager import DroidRunConfig, AgentConfig, DeviceConfig
+
+# Create config with defaults
+config = DroidRunConfig()
+
+# Or customize on creation
+config = DroidRunConfig(
+    agent=AgentConfig(max_steps=25, reasoning=True),
+    device=DeviceConfig(platform="android", use_tcp=True)
+)
+
+# Pass to DroidAgent
+agent = DroidAgent(goal="Open Chrome", config=config)
+```
+
+**Modify and save config:**
+
+```python
+# Load existing config
+config = DroidRunConfig.from_yaml("config.yaml")
+
+# Modify settings
 config.agent.max_steps = 25
 config.agent.reasoning = True
 config.tracing.enabled = True
 
-# Save changes
-config.save("config.yaml")
+# Save to YAML file
+import yaml
+with open("config.yaml", "w") as f:
+    yaml.dump(config.to_dict(), f)
 ```
 
-**Override via CLI:**
+### For CLI Users
+
+DroidRun creates a default config automatically on first run:
+
+```sh
+# This creates config.yaml in your current directory
+droidrun devices
+```
+
+Override config via CLI flags:
 
 ```sh
 # Override max steps and enable vision
 droidrun run "Open settings" --steps 30 --vision --reasoning
+```
+
+---
+
+## Common Patterns
+
+### Pattern 1: Load and Use (Simplest)
+
+```python
+from droidrun import DroidAgent, ResultEvent
+from droidrun.config_manager.config_manager import DroidRunConfig
+
+# Load from file
+config = DroidRunConfig.from_yaml("config.yaml")
+
+# Use directly
+agent = DroidAgent(goal="Open Chrome", config=config)
+handler = agent.run()
+result: ResultEvent = await handler
+```
+
+### Pattern 2: Load, Modify, Use
+
+```python
+from droidrun import DroidAgent, ResultEvent
+from droidrun.config_manager.config_manager import DroidRunConfig
+
+# Load from file
+config = DroidRunConfig.from_yaml("config.yaml")
+
+# Modify as needed
+config.agent.max_steps = 30
+config.agent.reasoning = True
+config.agent.manager.vision = True
+
+# Use modified config
+agent = DroidAgent(goal="Complex task", config=config)
+handler = agent.run()
+result: ResultEvent = await handler
+```
+
+### Pattern 3: Create from Scratch
+
+```python
+from droidrun import DroidAgent
+from droidrun.config_manager.config_manager import DroidRunConfig, AgentConfig, LLMProfile
+
+# Create config programmatically (no YAML file needed)
+config = DroidRunConfig()
+
+# Customize
+config.agent.max_steps = 25
+config.agent.reasoning = True
+
+# Set custom LLM profiles
+config.llm_profiles["manager"] = LLMProfile(
+    provider="Anthropic",
+    model="claude-sonnet-4-5",
+    temperature=0.2
+)
+
+# Use
+agent = DroidAgent(goal="Task", config=config)
+```
+
+### Pattern 4: Override via DroidAgent Parameters
+
+```python
+from droidrun import DroidAgent
+from droidrun.config_manager.config_manager import DroidRunConfig, AgentConfig, DeviceConfig
+
+# Load base config
+config = DroidRunConfig.from_yaml("config.yaml")
+
+# Override specific parts via DroidAgent parameters
+agent = DroidAgent(
+    goal="Task",
+    config=config,  # Base config
+    agent_config=AgentConfig(max_steps=30, reasoning=True),  # Override agent
+    device_config=DeviceConfig(serial="emulator-5554"),  # Override device
+)
+```
+
+---
+
+## DroidRunConfig API Reference
+
+### Key Methods
+
+```python
+# Load from YAML file
+config = DroidRunConfig.from_yaml("config.yaml")
+
+# Create from dictionary
+config_dict = {...}
+config = DroidRunConfig.from_dict(config_dict)
+
+# Create with defaults
+config = DroidRunConfig()
+
+# Convert to dictionary
+config_dict = config.to_dict()
+
+# Save to YAML (manually)
+import yaml
+with open("config.yaml", "w") as f:
+    yaml.dump(config.to_dict(), f)
+```
+
+### Main Configuration Objects
+
+```python
+# Access configuration sections
+config.agent           # AgentConfig - agent behavior settings
+config.device          # DeviceConfig - device connection settings
+config.logging         # LoggingConfig - logging and trajectory settings
+config.tracing         # TracingConfig - Arize Phoenix tracing
+config.telemetry       # TelemetryConfig - anonymous telemetry
+config.tools           # ToolsConfig - tool settings (e.g., allow_drag)
+config.credentials     # CredentialsConfig - credential management
+config.safe_execution  # SafeExecutionConfig - code execution restrictions
+config.llm_profiles    # Dict[str, LLMProfile] - LLM configurations per agent
+```
+
+### Agent Sub-Configs
+
+```python
+# Agent-specific settings
+config.agent.codeact   # CodeActConfig - direct execution mode
+config.agent.manager   # ManagerConfig - planning agent (reasoning mode)
+config.agent.executor  # ExecutorConfig - action agent (reasoning mode)
+config.agent.scripter  # ScripterConfig - off-device script execution
+config.agent.app_cards # AppCardConfig - app-specific instructions
 ```
 
 ---
@@ -562,47 +729,64 @@ llm_profiles:
 
 ## Loading LLMs from Profiles
 
-### Automatic Loading
+### Automatic Loading (Recommended)
 
-DroidAgent automatically loads LLMs from config:
+DroidAgent automatically loads LLMs from config.llm_profiles:
+
+```python
+from droidrun import DroidAgent, ResultEvent
+from droidrun.config_manager.config_manager import DroidRunConfig
+
+# Load config with LLM profiles
+config = DroidRunConfig.from_yaml("config.yaml")
+
+# DroidAgent automatically loads LLMs from config.llm_profiles
+agent = DroidAgent(
+    goal="Open settings",
+    config=config,  # LLMs loaded automatically
+)
+
+handler = agent.run()
+result: ResultEvent = await handler
+```
+
+### Manual LLM Loading
+
+For advanced use cases, load LLMs manually and pass to DroidAgent:
 
 ```python
 from droidrun import DroidAgent
-from droidrun.config import DroidRunConfig
-
-config = DroidRunConfig.load("config.yaml")
-
-# LLMs are loaded automatically based on config.llm_profiles
-agent = DroidAgent(
-    goal="Open settings",
-    config=config,  # Uses profiles from config
-)
-```
-
-### Manual Loading
-
-Load specific profiles programmatically:
-
-```python
-from droidrun.config import DroidRunConfig
+from droidrun.config_manager.config_manager import DroidRunConfig
 from droidrun.agent.utils.llm_picker import load_llms_from_profiles
 
-config = DroidRunConfig.load("config.yaml")
+config = DroidRunConfig.from_yaml("config.yaml")
 
-# Load all profiles
+# Load all LLM profiles manually
 llms = load_llms_from_profiles(config.llm_profiles)
 
+# Access individual LLMs
 manager_llm = llms["manager"]
 executor_llm = llms["executor"]
 codeact_llm = llms["codeact"]
 
-# Load specific profiles only
+# Pass manually loaded LLMs to DroidAgent
+agent = DroidAgent(
+    goal="Open settings",
+    config=config,
+    llms=llms  # Override auto-loading
+)
+```
+
+**Load specific profiles with overrides:**
+
+```python
+# Load only manager and executor
 llms = load_llms_from_profiles(
     config.llm_profiles,
     profile_names=["manager", "executor"]
 )
 
-# Load with overrides
+# Load with temperature override
 llms = load_llms_from_profiles(
     config.llm_profiles,
     profile_names=["manager"],
@@ -610,7 +794,7 @@ llms = load_llms_from_profiles(
 )
 ```
 
-### CLI Overrides
+### CLI LLM Overrides
 
 Override LLM settings via CLI:
 
@@ -625,7 +809,7 @@ droidrun run "Open settings" \
 ```
 
 <Warning>
-CLI LLM overrides (`--provider`, `--model`, `--temperature`) apply to ALL agent profiles. For fine-grained control, edit `config.yaml`.
+CLI LLM overrides (`--provider`, `--model`, `--temperature`) apply to ALL agent profiles. For fine-grained per-agent control, edit `config.yaml` or use the SDK with manual LLM loading.
 </Warning>
 
 ---
@@ -1079,50 +1263,68 @@ droidrun run "Open settings" \
   --api_base https://openrouter.ai/api/v1
 ```
 
-### Override Implementation
+### SDK Override Pattern (Recommended)
 
-**Note:** The CLI override pattern shown here uses `ConfigManager`, which is for **internal CLI use only**. Developers should use `DroidRunConfig` directly (see examples above).
-
-CLI overrides work via **direct mutation**:
+For SDK users, override configuration by modifying DroidRunConfig:
 
 ```python
-# This is for CLI/internal use only - developers use DroidRunConfig
+from droidrun import DroidAgent
+from droidrun.config_manager.config_manager import DroidRunConfig
+
+# Load config
+config = DroidRunConfig.from_yaml("config.yaml")
+
+# Override settings before passing to DroidAgent
+config.agent.manager.vision = True
+config.agent.executor.vision = True
+config.agent.codeact.vision = True
+config.agent.reasoning = True
+config.agent.max_steps = 30
+config.tracing.enabled = True
+
+# Pass modified config to DroidAgent
+agent = DroidAgent(goal="Complex task", config=config)
+handler = agent.run()
+result: ResultEvent = await handler
+```
+
+**Alternative: Override via DroidAgent parameters:**
+
+```python
+from droidrun import DroidAgent
+from droidrun.config_manager.config_manager import DroidRunConfig, AgentConfig
+
+config = DroidRunConfig.from_yaml("config.yaml")
+
+# Override specific configs via DroidAgent parameters
+agent = DroidAgent(
+    goal="Complex task",
+    config=config,  # Base config
+    agent_config=AgentConfig(max_steps=30, reasoning=True),  # Override
+)
+```
+
+### CLI Override Pattern (Internal Use Only)
+
+<Warning>
+**For DroidRun maintainers only**: CLI overrides use `ConfigManager` singleton internally. SDK users should NOT use ConfigManager - use DroidRunConfig as shown above.
+</Warning>
+
+CLI overrides work via direct mutation of ConfigManager:
+
+```python
+# INTERNAL CLI USE ONLY - DO NOT USE IN YOUR CODE
 from droidrun.config_manager import ConfigManager
 
-# Load config (singleton for CLI)
-config = ConfigManager()
+# ConfigManager is a singleton used by CLI
+config_manager = ConfigManager()
+config = config_manager.config  # Returns DroidRunConfig
 
-# CLI overrides mutate config directly
+# CLI mutates config directly (bypasses thread safety after lock release)
 if vision is not None:
     config.agent.manager.vision = vision
     config.agent.executor.vision = vision
     config.agent.codeact.vision = vision
-
-if reasoning is not None:
-    config.agent.reasoning = reasoning
-
-if steps is not None:
-    config.agent.max_steps = steps
-```
-
-This ensures CLI flags take precedence without modifying the config file.
-
-**For developers:** Use `DroidRunConfig` to load and modify configuration:
-
-```python
-from droidrun.config import DroidRunConfig
-
-# Load config
-config = DroidRunConfig.load("config.yaml")
-
-# Modify settings
-config.agent.manager.vision = True
-config.agent.reasoning = True
-config.agent.max_steps = 30
-
-# Pass to DroidAgent
-from droidrun import DroidAgent
-agent = DroidAgent(goal="Task", config=config)
 ```
 
 ---
@@ -1186,9 +1388,9 @@ These names are used throughout DroidRun and must match exactly.
 Validate config after changes:
 
 ```python
-from droidrun.config import DroidRunConfig
+from droidrun.config_manager.config_manager import DroidRunConfig
 
-config = DroidRunConfig.load("config.yaml")
+config = DroidRunConfig.from_yaml("config.yaml")
 
 # Check values
 print(f"Max steps: {config.agent.max_steps}")
@@ -1209,7 +1411,7 @@ print(f"Manager LLM loaded: {llms['manager']}")
 Validate configuration before using:
 
 ```python
-from droidrun.config import DroidRunConfig
+from droidrun.config_manager.config_manager import DroidRunConfig
 
 def validate_config(config):
     """Custom validation logic."""
@@ -1217,12 +1419,15 @@ def validate_config(config):
         raise ValueError("max_steps must be at least 5")
 
     if config.agent.reasoning and not config.agent.manager.vision:
-        raise ValueError("Reasoning mode works best with manager vision enabled")
+        print("Warning: Reasoning mode works best with manager vision enabled")
 
-config = DroidRunConfig.load("config.yaml")
+# Load and validate
+config = DroidRunConfig.from_yaml("config.yaml")
 validate_config(config)
 
 # Config is validated, safe to use
+from droidrun import DroidAgent
+agent = DroidAgent(goal="Task", config=config)
 ```
 
 ### 6. Separate Environments
@@ -1278,10 +1483,22 @@ llm_profiles:
 
 **Problem:** `FileNotFoundError: config.yaml not found`
 
-**Solution:**
+**Solution for SDK users:**
+```python
+from droidrun.config_manager.config_manager import DroidRunConfig
+import yaml
+
+# Create default config
+config = DroidRunConfig()
+
+# Save to file
+with open("config.yaml", "w") as f:
+    yaml.dump(config.to_dict(), f)
+```
+
+**Solution for CLI users:**
 1. Run `droidrun devices` to generate default config
-2. Or create manually: `DroidRunConfig().save("config.yaml")`
-3. Or specify path: `droidrun run --config /path/to/config.yaml`
+2. Or specify path: `droidrun run --config /path/to/config.yaml`
 
 ### CLI overrides not working
 

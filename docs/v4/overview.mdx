@@ -51,19 +51,24 @@ DroidRun v4 introduces a hierarchical multi-agent system with specialized agents
 Monitor and debug agent execution in real-time with DroidRun's comprehensive event system:
 
 ```python
-from droidrun import DroidAgent
+from droidrun import DroidAgent, ResultEvent
+from droidrun.agent.droid.events import ManagerPlanEvent, ExecutorResultEvent
+from droidrun.config_manager.config_manager import DroidRunConfig
+
+# Create config with defaults
+config = DroidRunConfig()
 
 agent = DroidAgent(goal="Open Settings and enable WiFi", config=config)
 handler = agent.run()
 
 # Stream events in real-time
 async for event in handler.stream_events():
-    if isinstance(event, ManagerInternalPlanEvent):
+    if isinstance(event, ManagerPlanEvent):
         print(f"Plan: {event.plan}")
-    elif isinstance(event, ExecutorInternalActionEvent):
-        print(f"Action: {event.description}")
+    elif isinstance(event, ExecutorResultEvent):
+        print(f"Action: {event.action}")
 
-result = await handler
+result: ResultEvent = await handler
 ```
 
 Events provide rich metadata for:
@@ -104,10 +109,11 @@ llm_profiles:
 ```
 
 **Supported providers:**
-- OpenAI (GPT-4o, GPT-4o-mini)
-- Anthropic (Claude 3.5 Sonnet, Haiku)
-- Google (Gemini 2.0 Flash, Pro)
-- Ollama (local models)
+- [All providers supported by llamaindex](https://developers.llamaindex.ai/python/framework/module_guides/models/llms/modules) including:
+- OpenAI
+- Anthropic
+- Google
+- Ollama
 - DeepSeek
 
 <Card title="Configuration Guide" icon="sliders" href="/v4/guides/configuration">
@@ -120,6 +126,8 @@ Extract type-safe, validated data from device interactions using Pydantic models
 
 ```python
 from pydantic import BaseModel, Field
+from droidrun import DroidAgent, ResultEvent
+from droidrun.config_manager.config_manager import DroidRunConfig
 
 class ContactInfo(BaseModel):
     """Contact information extracted from device."""
@@ -127,16 +135,21 @@ class ContactInfo(BaseModel):
     phone: str = Field(description="Phone number")
     email: str = Field(description="Email address")
 
+# Create config with defaults
+config = DroidRunConfig()
+
 agent = DroidAgent(
     goal="Find John Smith's contact and extract details",
     config=config,
-    tools=tools,
     output_model=ContactInfo  # Automatic structured extraction
 )
 
-result = await agent.run()
-contact: ContactInfo = result["structured_output"]
-print(f"Phone: {contact.phone}")
+handler = agent.run()
+result: ResultEvent = await handler
+
+if result.success and result.structured_output:
+    contact: ContactInfo = result.structured_output
+    print(f"Phone: {contact.phone}")
 ```
 
 <Card title="Structured Output Guide" icon="table" href="/v4/guides/structured-output">
@@ -148,27 +161,40 @@ print(f"Phone: {contact.phone}")
 Extend agent capabilities with custom tools and secure credential management:
 
 ```python
-def get_api_key(tools, service: str) -> str:
-    """Retrieve API key from secure storage."""
-    return tools.credential_manager.get_secret(f"{service}_api_key")
+from droidrun import DroidAgent
+from droidrun.config_manager.config_manager import DroidRunConfig
+
+def search_database(query: str) -> str:
+    """Search the local database."""
+    # Your implementation
+    return f"Results for: {query}"
 
 custom_tools = {
-    "get_api_key": {
-        "signature": "get_api_key(service: str) -> str",
-        "description": "Get API key for a service",
-        "function": get_api_key
+    "search_database": {
+        "signature": "search_database(query: str) -> str",
+        "description": "Search the local database for information",
+        "function": search_database
     }
 }
 
+# Provide credentials directly as a dict
+credentials = {
+    "GMAIL_USERNAME": "user@gmail.com",
+    "GMAIL_PASSWORD": "secret123"
+}
+
+# Create config with defaults
+config = DroidRunConfig()
+
 agent = DroidAgent(
-    goal="Login with stored credentials",
+    goal="Search database and email results",
     config=config,
-    tools=tools,
-    custom_tools=custom_tools
+    custom_tools=custom_tools,
+    credentials=credentials
 )
 ```
 
-Credentials are encrypted using the `cryptography` library and automatically injected as tools.
+Credentials are automatically made available through the `type_secret(secret_id, index)` tool, which securely types credential values without exposing them to the agent.
 
 <Card title="Custom Tools & Credentials" icon="key" href="/v4/guides/custom-tools-credentials">
   Add custom functionality
@@ -207,25 +233,18 @@ When enabled:
 
 ### App Cards
 
-Provide app-specific guidance to agents for better task completion:
+Provide app-specific guidance to agents through markdown files:
 
 ```json
 {
-  "com.android.settings": {
-    "name": "Settings",
-    "description": "System settings app",
-    "guidance": "WiFi settings are under Network & Internet > WiFi"
-  }
+  "com.google.android.gm": "gmail.md"
 }
 ```
 
-App cards can be:
-- **Local** - Loaded from JSON file
-- **Server** - Fetched from remote API
-- **Composite** - Combined local + server cards
+App cards are markdown documents with navigation tips and common actions. Supports local files, remote server, or composite mode.
 
 <Card title="App Cards Guide" icon="id-card" href="/v4/guides/app-cards">
-  Optimize with app-specific guidance
+  Learn more about app cards
 </Card>
 
 ### Custom Variables
@@ -233,22 +252,42 @@ App cards can be:
 Inject dynamic data into agent prompts:
 
 ```python
+from droidrun import DroidAgent
+from droidrun.config_manager.config_manager import DroidRunConfig
+
+# Define custom prompts that render variables
+custom_prompts = {
+    "manager_system": """
+{{ instruction }}
+
+{% if variables %}
+Available variables:
+{% for key, value in variables.items() %}
+- {{ key }}: {{ value }}
+{% endfor %}
+{% endif %}
+    """
+}
+
+# Create config with defaults
+config = DroidRunConfig()
+
 agent = DroidAgent(
-    goal="Book a flight from {{ departure }} to {{ destination }} on {{ date }}",
+    goal="Complete task using context",
     config=config,
-    tools=tools,
     variables={
-        "departure": "San Francisco",
-        "destination": "New York",
-        "date": "2024-03-15"
-    }
+        "user_name": "Alice",
+        "project_id": "12345",
+        "api_endpoint": "https://api.example.com"
+    },
+    prompts=custom_prompts  # Required to see variables
 )
 ```
 
 Variables are accessible in:
-- System prompts (via Jinja2 templating)
-- Agent shared state
-- Custom tools
+- ✅ Agent prompts (via custom Jinja2 templates)
+- ✅ Agents can read and pass to tools as arguments
+- ❌ NOT directly accessible to custom tools
 
 <Card title="Custom Variables Guide" icon="brackets-curly" href="/v4/guides/custom-variables">
   Use dynamic variables
@@ -262,33 +301,33 @@ DroidRun offers flexible deployment to match your workflow:
 
 <CardGroup cols={2}>
 <Card icon="mobile" title="Physical Device" href="/v4/quickstart">
-  **Full Control**
+  **Local Control**
   - Connect via USB or WiFi (TCP/IP)
   - Direct ADB access
-  - Complete device automation
+  - Bring your own hardware
   - Local execution
-  - No usage limits
+  - Self-managed infrastructure
 
   **Best for:**
   - Development and testing
-  - Complex automation workflows
   - Custom device configurations
-  - Full privacy and control
+  - Offline workflows
+  - Hardware-specific testing
 </Card>
 
 <Card icon="cloud" title="Cloud Environment" href="https://cloud.droidrun.ai">
-  **Zero Setup**
+  **Instant Scale**
+  - Zero setup required
   - Instant device provisioning
-  - No hardware required
   - Managed infrastructure
   - Scalable on-demand
-  - API access
+  - Production-ready API
 
   **Best for:**
   - Production deployments
-  - Scaling automation
+  - Rapid scaling
   - CI/CD integration
-  - Quick prototyping
+  - Enterprise workflows
 </Card>
 </CardGroup>
 
@@ -300,13 +339,13 @@ DroidRun v4 is a major architectural upgrade from v3, introducing powerful new c
 
 ### New Agent System
 - **ScripterAgent** - Off-device Python code execution for computations, API calls, and data processing
-- **StructuredOutputAgent** - Automatic extraction of typed data using Pydantic models
-- **Helper Workflows** - AppStarter, TextManipulator for specialized tasks
+- **Structured Output** - Automatic extraction of typed data using Pydantic models
+- **Helper Workflows** - App opener and text manipulator for specialized tasks
 - **Multi-agent coordination** - Hierarchical workflow orchestration with shared state
 
 ### Event Streaming
 - **Real-time event system** - Stream execution events for monitoring and debugging
-- **Two-tier architecture** - Coordination events + internal debugging events
+- **Rich event types** - Workflow events (Manager, Executor, Scripter), action events, and state events
 - **Custom handlers** - Build custom UIs, webhooks, and integrations
 - **Trajectory recording** - Capture screenshots, UI states, and action history
 
@@ -317,19 +356,19 @@ DroidRun v4 is a major architectural upgrade from v3, introducing powerful new c
 - **Cost optimization** - Use powerful models for planning, fast models for actions
 
 ### Enhanced Features
-- **Custom variables** - Dynamic prompt injection with Jinja2 templating
-- **Structured output** - Type-safe data extraction with Pydantic
+- **Custom variables** - Store and access custom data throughout execution
+- **Structured output** - Type-safe data extraction with Pydantic models
 - **Safe execution** - Sandboxed code execution with import/builtin restrictions
-- **Enhanced credentials** - Encrypted storage with auto-injection as custom tools
-- **App cards** - App-specific guidance (local, server, or composite)
-- **Improved error handling** - Error escalation and automatic recovery
+- **Credentials** - Auto-injection as custom tools with direct dict or file-based config
+- **App cards** - App-specific guidance (local, server, or composite modes)
+- **Improved error handling** - Error escalation and plan adjustments
 
 ### Developer Experience
-- **Better configuration** - Cleaner YAML structure with validation
+- **DroidRunConfig** - Clean configuration API with `from_yaml()` loading
 - **Improved logging** - Rich console output with progress tracking
 - **Tracing integration** - Arize Phoenix support for execution tracing
-- **SDK improvements** - Better type hints and documentation
-- **Event-driven architecture** - Easier integration and extensibility
+- **Better type hints** - Complete type annotations and IDE support
+- **Event-driven architecture** - LlamaIndex workflows for easy integration
 
 ---
 
@@ -338,42 +377,43 @@ DroidRun v4 is a major architectural upgrade from v3, introducing powerful new c
 ### Installation
 
 ```bash
-# Install with all providers
-pip install 'droidrun[google,anthropic,openai,deepseek,ollama]'
+# Install for cli usage.
+uv tool install 'droidrun[google,anthropic,openai,deepseek,ollama,openrouter]'
 
-# Or install with specific providers
-pip install 'droidrun[google,anthropic]'
+# Or for developing on top of Droidrun.
+uv pip install 'droidrun[google,anthropic,openai,deepseek,ollama,openrouter]'
 ```
 
 ### Basic Usage
 
 ```python
 import asyncio
-from droidrun import DroidAgent
-from droidrun.tools import AdbTools
-from droidrun.config.config import DroidRunConfig
+from droidrun import DroidAgent, ResultEvent
+from droidrun.config_manager.config_manager import DroidRunConfig
 
 async def main():
-    # Load configuration from YAML
-    config = DroidRunConfig.from_yaml("config.yaml")
+    # Create config with defaults
+    config = DroidRunConfig()
+    config.agent.max_steps = 20
+    config.agent.reasoning = True
 
-    # Or configure programmatically
-    # config = DroidRunConfig()
-    # config.agent.manager.max_steps = 20
-    # config.agent.manager.llm_profile = "manager"
+    # Or load configuration from YAML
+    # config = DroidRunConfig.from_yaml("config.yaml")
 
+    # Create agent (tools auto-created from device config)
     agent = DroidAgent(
         goal="Open Settings and enable WiFi",
-        config=config,
-        tools=AdbTools()
+        config=config
     )
 
-    result = await agent.run()
+    # Run agent and get result
+    handler = agent.run()
+    result: ResultEvent = await handler
 
-    if result["success"]:
-        print(f"Success: {result['reason']}")
+    if result.success:
+        print(f"Success: {result.reason}")
     else:
-        print(f"Failed: {result['reason']}")
+        print(f"Failed: {result.reason}")
 
 asyncio.run(main())
 ```

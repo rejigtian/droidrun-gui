@@ -5,20 +5,22 @@ description: 'Extract structured data from device interactions using Pydantic mo
 
 # Structured Output Extraction
 
-DroidRun's structured output system allows you to extract structured, typed data from device automation tasks. By defining a Pydantic model, you can guide the agent to collect specific information and receive it in a predictable format after task completion.
+DroidRun's structured output system allows you to extract structured, typed data from device automation tasks. Pass a Pydantic model to the `output_model` parameter in `DroidAgent`, and the agent will automatically collect and extract the data into a type-safe object.
 
 ## Overview
 
-Structured output extraction works in two phases:
+The structured output feature uses a simple workflow:
 
-1. **Task Execution**: The agent performs device actions to complete your goal, collecting the required information along the way
-2. **Post-Completion Extraction**: After task completion, a specialized extraction agent analyzes the agent's final answer and extracts structured data based on your Pydantic model
+1. **Define a Pydantic model** with the data you want to collect
+2. **Pass it to `DroidAgent`** via the `output_model` parameter
+3. **Run the agent** - it collects data during normal task execution
+4. **Access typed results** from `result.structured_output`
 
-This approach ensures:
-- Type-safe data extraction with validation
-- Predictable output format for downstream processing
-- Separation of concerns between task execution and data extraction
-- No performance impact during device interaction
+Benefits:
+- Type-safe data extraction with Pydantic validation
+- Automatic schema injection into agent prompts
+- No changes needed to your task goals
+- Falls back gracefully if extraction fails
 
 ---
 
@@ -43,25 +45,26 @@ class ContactInfo(BaseModel):
 # 2. Create agent with output_model
 async def main():
     config = DroidRunConfig()
+    tools = AdbTools()
 
     agent = DroidAgent(
-        goal="Find John Smith's contact information and tell me his phone number and email",
+        goal="Find John Smith's contact information",
         config=config,
-        tools=AdbTools(),
+        tools=tools,
         output_model=ContactInfo,  # Specify the output structure
     )
 
-    # 3. Run agent
+    # 3. Run agent - returns ResultEvent
     result = await agent.run()
 
-    # 4. Access structured data
-    if result["success"] and result["structured_output"]:
-        contact: ContactInfo = result["structured_output"]
+    # 4. Access structured data via attributes
+    if result.success and result.structured_output:
+        contact: ContactInfo = result.structured_output
         print(f"Name: {contact.name}")
         print(f"Phone: {contact.phone}")
         print(f"Email: {contact.email}")
     else:
-        print(f"Task failed: {result['reason']}")
+        print(f"Task failed: {result.reason}")
 
 asyncio.run(main())
 ```
@@ -87,13 +90,13 @@ User Goal → DroidAgent → Task Completion → StructuredOutputAgent → Typed
 
 **Stage 1: Task Execution**
 - DroidAgent performs device actions (Manager/Executor or CodeAct mode)
-- Agent collects information based on your goal
-- Agent's system prompt includes your Pydantic model schema as guidance
+- Agent's system prompt is automatically injected with your Pydantic model schema
+- Agent collects the required information during task execution
 - Agent completes with a natural language answer containing the data
 
 **Stage 2: Extraction (Post-Completion)**
-- StructuredOutputAgent receives the final answer text
-- Uses LLM's `structured_predict()` to extract data into your Pydantic model
+- StructuredOutputAgent receives the final answer text from DroidAgent
+- Uses LLM's `astructured_predict()` to extract data into your Pydantic model
 - Validates the extracted data against your schema
 - Returns typed Pydantic object or `None` if extraction fails
 
@@ -103,12 +106,14 @@ Structured output extraction happens in the `finalize()` step of DroidAgent:
 
 ```python
 @step
-async def finalize(self, ctx: Context, ev: FinalizeEvent) -> StopEvent:
-    result = {
-        "success": ev.success,
-        "reason": ev.reason,
-        "structured_output": None,
-    }
+async def finalize(self, ctx: Context, ev: FinalizeEvent) -> ResultEvent:
+    # Base result with answer
+    result = ResultEvent(
+            success=ev.success,
+            reason=ev.reason,
+            steps=self.shared_state.step_number,
+            structured_output=None,
+        )
 
     # Extract structured output if model was provided
     if self.output_model is not None and ev.reason:
@@ -118,12 +123,13 @@ async def finalize(self, ctx: Context, ev: FinalizeEvent) -> StopEvent:
             answer_text=ev.reason,
         )
 
-        extraction_result = await structured_agent.run()
+        handler = await structured_agent.run()
+        extraction_result = await handler
 
         if extraction_result["success"]:
-            result["structured_output"] = extraction_result["structured_output"]
+            result.structured_output = extraction_result["structured_output"]
 
-    return StopEvent(result)
+    return result
 ```
 
 ---
@@ -265,6 +271,8 @@ class ContactDetails(BaseModel):
     )
 
 # Usage
+config = DroidRunConfig()
+
 agent = DroidAgent(
     goal="Open contacts app and find Sarah Johnson's contact information",
     config=config,
@@ -273,7 +281,7 @@ agent = DroidAgent(
 )
 
 result = await agent.run()
-contact = result["structured_output"]
+contact = result.structured_output
 # contact.full_name → "Sarah Johnson"
 # contact.phone_numbers → "+1-555-0199, +1-555-0200"
 # contact.email_addresses → "sarah.j@company.com"
@@ -309,6 +317,8 @@ class Invoice(BaseModel):
     total_due: float = Field(description="Final amount due in dollars")
 
 # Usage
+config = DroidRunConfig()
+
 agent = DroidAgent(
     goal="Open the Gmail app and find the invoice from Acme Corp, extract all invoice details",
     config=config,
@@ -317,7 +327,7 @@ agent = DroidAgent(
 )
 
 result = await agent.run()
-invoice = result["structured_output"]
+invoice = result.structured_output
 # invoice.invoice_number → "INV-2024-00123"
 # invoice.total_due → 1234.56
 # invoice.line_items[0].description → "Web Development Services"
@@ -355,6 +365,8 @@ class AppSettings(BaseModel):
     )
 
 # Usage
+config = DroidRunConfig()
+
 agent = DroidAgent(
     goal="Open Spotify app, go to settings, and check all current settings",
     config=config,
@@ -363,7 +375,7 @@ agent = DroidAgent(
 )
 
 result = await agent.run()
-settings = result["structured_output"]
+settings = result.structured_output
 # settings.notifications_enabled → True
 # settings.dark_mode → False
 # settings.sync_frequency → "Every 30 minutes"
@@ -402,6 +414,8 @@ class RestaurantInfo(BaseModel):
     )
 
 # Usage
+config = DroidRunConfig()
+
 agent = DroidAgent(
     goal="Open Yelp app and find 'Blue Plate Restaurant', get all details and recent reviews",
     config=config,
@@ -410,7 +424,7 @@ agent = DroidAgent(
 )
 
 result = await agent.run()
-restaurant = result["structured_output"]
+restaurant = result.structured_output
 # restaurant.name → "Blue Plate Restaurant"
 # restaurant.average_rating → 4.5
 # len(restaurant.recent_reviews) → 5
@@ -464,6 +478,8 @@ class CalendarEvent(BaseModel):
     )
 
 # Usage
+config = DroidRunConfig()
+
 agent = DroidAgent(
     goal="Open Google Calendar and find details for tomorrow's 'Team Standup' meeting",
     config=config,
@@ -472,7 +488,7 @@ agent = DroidAgent(
 )
 
 result = await agent.run()
-event = result["structured_output"]
+event = result.structured_output
 # event.title → "Team Standup"
 # event.start_time → "9:00 AM"
 # len(event.attendees) → 5
@@ -503,6 +519,8 @@ class FormData(BaseModel):
     )
 
 # Usage
+config = DroidRunConfig()
+
 agent = DroidAgent(
     goal="Fill out the registration form with my details and verify it was submitted correctly",
     config=config,
@@ -511,7 +529,7 @@ agent = DroidAgent(
 )
 
 result = await agent.run()
-form_data = result["structured_output"]
+form_data = result.structured_output
 
 # Verify form was filled correctly
 assert form_data.form_submitted, "Form was not submitted"
@@ -525,7 +543,7 @@ print(f"Confirmation: {form_data.confirmation_message}")
 
 ### Accessing Structured Data
 
-The result dictionary contains:
+The `ResultEvent` object returned by `agent.run()` contains:
 - `success`: Boolean indicating task completion
 - `reason`: Natural language answer from agent
 - `structured_output`: Extracted Pydantic model instance (or `None`)
@@ -535,18 +553,18 @@ The result dictionary contains:
 result = await agent.run()
 
 # Check if task succeeded
-if result["success"]:
-    print(f"Task completed: {result['reason']}")
+if result.success:
+    print(f"Task completed: {result.reason}")
 
     # Access structured data
-    if result["structured_output"]:
-        data = result["structured_output"]
+    if result.structured_output:
+        data = result.structured_output
         # Now you have a typed Pydantic object
         print(f"Extracted data: {data}")
     else:
         print("Warning: Extraction failed, but task succeeded")
 else:
-    print(f"Task failed: {result['reason']}")
+    print(f"Task failed: {result.reason}")
 ```
 
 ### Handling Extraction Failures
@@ -561,21 +579,21 @@ Extraction can fail if:
 ```python
 result = await agent.run()
 
-if not result["success"]:
+if not result.success:
     # Task execution failed
-    print(f"Task failed: {result['reason']}")
+    print(f"Task failed: {result.reason}")
     return None
 
-if result["structured_output"] is None:
+if result.structured_output is None:
     # Extraction failed, but we have the text answer
     print("Extraction failed, falling back to text answer:")
-    print(result["reason"])
+    print(result.reason)
 
     # Optionally parse manually or retry
     return None
 
 # Success - use structured data
-data = result["structured_output"]
+data = result.structured_output
 return data
 ```
 
@@ -610,9 +628,9 @@ class PriceInfo(BaseModel):
 
 # Usage
 result = await agent.run()
-if result["structured_output"]:
+if result.structured_output:
     # Validation happens automatically
-    price_info = result["structured_output"]
+    price_info = result.structured_output
 
     # Calculate discount
     if price_info.original_price > price_info.current_price:
@@ -628,8 +646,8 @@ Convert structured output to JSON for storage or APIs:
 ```python
 result = await agent.run()
 
-if result["structured_output"]:
-    data = result["structured_output"]
+if result.structured_output:
+    data = result.structured_output
 
     # Convert to dict
     data_dict = data.model_dump()
@@ -651,7 +669,7 @@ if result["structured_output"]:
 
 ### Specifying the Extraction LLM
 
-By default, structured output extraction uses the `codeact` LLM. You can specify a dedicated `structured_output` LLM profile:
+By default, structured output extraction uses the `codeact` LLM from your config. You can specify a dedicated `structured_output` LLM profile for better control over extraction:
 
 **In config.yaml:**
 
@@ -674,6 +692,9 @@ llm_profiles:
 
 ```python
 from droidrun.llm_utils import load_llm
+from droidrun.config_manager.config_manager import DroidRunConfig
+
+config = DroidRunConfig()
 
 # Load LLMs
 llms = {
@@ -899,8 +920,8 @@ class ProductInfo(BaseModel):
 
 # Use with fallbacks
 result = await agent.run()
-if result["structured_output"]:
-    product = result["structured_output"]
+if result.structured_output:
+    product = result.structured_output
 
     # Always available
     print(f"{product.name}: ${product.price}")
@@ -925,10 +946,10 @@ if result["structured_output"]:
 1. **Check if task actually completed:**
    ```python
    result = await agent.run()
-   if not result["success"]:
+   if not result.success:
        print("Task failed - no extraction attempted")
    else:
-       print(f"Task succeeded with answer: {result['reason']}")
+       print(f"Task succeeded with answer: {result.reason}")
        # If reason is empty, extraction won't run
    ```
 
@@ -1083,6 +1104,10 @@ if result["structured_output"]:
 Note: Structured output extraction happens post-completion and doesn't support streaming. However, you can stream the main task execution:
 
 ```python
+from droidrun.config_manager.config_manager import DroidRunConfig
+
+config = DroidRunConfig()
+
 agent = DroidAgent(
     goal="Extract contact for Jane Doe",
     config=config,
@@ -1101,7 +1126,7 @@ async for event in handler.stream_events():
 
 # Get final result with structured output
 result = await handler
-contact = result["structured_output"]
+contact = result.structured_output
 ```
 
 ### Multiple Extractions
@@ -1109,6 +1134,10 @@ contact = result["structured_output"]
 For tasks requiring multiple structured outputs, run separate agents:
 
 ```python
+from droidrun.config_manager.config_manager import DroidRunConfig
+
+config = DroidRunConfig()
+
 # First extraction
 agent1 = DroidAgent(
     goal="Find contact for John Smith",
@@ -1117,7 +1146,7 @@ agent1 = DroidAgent(
     output_model=ContactInfo,
 )
 result1 = await agent1.run()
-contact1 = result1["structured_output"]
+contact1 = result1.structured_output
 
 # Second extraction
 agent2 = DroidAgent(
@@ -1127,7 +1156,7 @@ agent2 = DroidAgent(
     output_model=ContactInfo,
 )
 result2 = await agent2.run()
-contact2 = result2["structured_output"]
+contact2 = result2.structured_output
 
 # Process together
 contacts = [contact1, contact2]
@@ -1136,6 +1165,10 @@ contacts = [contact1, contact2]
 Alternatively, use a list model:
 
 ```python
+from droidrun.config_manager.config_manager import DroidRunConfig
+
+config = DroidRunConfig()
+
 class ContactList(BaseModel):
     """Multiple contacts."""
     contacts: List[ContactInfo] = Field(description="List of contacts found")
@@ -1148,51 +1181,58 @@ agent = DroidAgent(
 )
 
 result = await agent.run()
-contacts = result["structured_output"].contacts
+contacts = result.structured_output.contacts
 ```
 
 ### Custom Extraction Prompts
 
-The default extraction prompt is simple:
+The default extraction prompt is:
 
 ```
 Extract structured information from the following text:
 
-{answer_text}
+{text}
 ```
 
-For custom prompts, use `StructuredOutputAgent` directly:
+The `StructuredOutputAgent` uses LlamaIndex's `astructured_predict()` which automatically handles the extraction. If you need custom extraction logic, you can use `StructuredOutputAgent` directly:
 
 ```python
 from droidrun.agent.oneflows.structured_output_agent import StructuredOutputAgent
-from llama_index.core.prompts import PromptTemplate
+from droidrun.config_manager.config_manager import DroidRunConfig
 
-# Custom prompt
-custom_prompt = PromptTemplate(
-    "Extract contact information from this text. "
-    "Focus on the primary contact details only. "
-    "Text:\n\n{text}"
+config = DroidRunConfig()
+
+# Run agent task first
+agent = DroidAgent(
+    goal="Find contact for John Smith",
+    config=config,
+    tools=AdbTools(),
 )
+result = await agent.run()
 
-# Run extraction with custom prompt
+# Then run custom extraction
 extraction_agent = StructuredOutputAgent(
     llm=llm,
     pydantic_model=ContactInfo,
-    answer_text=agent_result["reason"],
+    answer_text=result.reason,
 )
 
-# Modify prompt (requires accessing internal code)
-# extraction_agent.prompt = custom_prompt
-
-result = await extraction_agent.run()
-contact = result["structured_output"]
+extraction_result = await extraction_agent.run()
+if extraction_result["success"]:
+    contact = extraction_result.structured_output
 ```
+
+**Note:** The extraction prompt is hardcoded in `StructuredOutputAgent`. For most use cases, improving your Pydantic model's field descriptions is more effective than customizing the extraction prompt.
 
 ### Combining with Variables
 
 Use custom variables alongside structured output:
 
 ```python
+from droidrun.config_manager.config_manager import DroidRunConfig
+
+config = DroidRunConfig()
+
 agent = DroidAgent(
     goal="Find recipe for {{ recipe_name }} and extract details",
     config=config,
@@ -1202,7 +1242,7 @@ agent = DroidAgent(
 )
 
 result = await agent.run()
-recipe = result["structured_output"]
+recipe = result.structured_output
 ```
 
 ---

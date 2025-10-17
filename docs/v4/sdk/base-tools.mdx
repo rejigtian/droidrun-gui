@@ -2,7 +2,7 @@
 title: Tools Base Class
 ---
 
-Abstract base class defining the common interface for all device control tools.
+Abstract base class defining the interface for device control tools.
 
 <a id="droidrun.tools.tools.Tools"></a>
 
@@ -12,9 +12,29 @@ Abstract base class defining the common interface for all device control tools.
 class Tools(ABC)
 ```
 
-Abstract base class for all tools.
+Abstract base class for all device control tools.
 
-This class provides a common interface that all tool implementations (AdbTools, IOSTools) must implement. It defines the standard set of methods for device interaction, ensuring consistency across different platforms.
+This class defines the contract that all tool implementations must follow. It provides:
+- 14 abstract methods for device interaction (UI, apps, state, memory)
+- `@ui_action` decorator for automatic trajectory recording
+- Consistent interface across platforms (Android, iOS)
+
+All implementations must provide these methods to ensure compatibility with DroidAgent and other agents.
+
+---
+
+## Quick Reference
+
+**14 Abstract Methods:**
+- `get_state()`, `get_date()`, `tap_by_index()`, `swipe()`, `drag()`, `input_text()`, `back()`, `press_key()`, `start_app()`, `take_screenshot()`, `list_packages()`, `get_apps()`, `remember()`, `get_memory()`, `complete()`, `_extract_element_coordinates_by_index()`
+
+**Key Attributes:**
+- `save_trajectories`: `"none"` | `"step"` | `"action"` - Controls automatic screenshot capture
+- `memory`: `List[str]` - Stores remembered information
+- `finished`, `success`, `reason` - Task completion state
+
+**Decorator:**
+- `@Tools.ui_action` - Captures screenshots when `save_trajectories="action"`
 
 ---
 
@@ -22,15 +42,22 @@ This class provides a common interface that all tool implementations (AdbTools, 
 
 The Tools architecture follows a 2-layer pattern:
 
-1. **Abstract Layer** (`tools.py`): Defines the `Tools` abstract base class with method signatures
+1. **Abstract Layer** (`tools.py`): Defines the `Tools` abstract base class with method signatures and the `@ui_action` decorator
 2. **Implementation Layer**: Platform-specific implementations
-   - `adb.py`: `AdbTools` for Android devices via ADB
-   - `ios.py`: `IOSTools` for iOS devices via Portal app
+   - `adb.py`: `AdbTools` for Android devices using ADB and Portal app (TCP or content provider)
+   - `ios.py`: `IOSTools` for iOS devices using HTTP API to communicate with Portal app
+
+**Key Components:**
+
+- **Tools ABC**: Defines 14 abstract methods that all implementations must provide
+- **@ui_action decorator**: Automatically captures screenshots and UI states when `save_trajectories="action"`
+- **Portal integration**: Android uses `PortalClient` (TCP or content provider), iOS uses HTTP API
 
 This design ensures:
 - Consistent API across platforms
 - Easy addition of new device types
 - Type safety and IDE support
+- Automatic trajectory recording for debugging
 - Clear contract for implementing new tools
 
 ---
@@ -42,17 +69,17 @@ All Tools implementations must provide these methods:
 ### UI Interaction
 
 - `tap_by_index(index: int) -> str` - Tap element by index
-- `swipe(start_x, start_y, end_x, end_y, duration_ms) -> bool` - Swipe gesture
-- `drag(start_x, start_y, end_x, end_y, duration_ms) -> bool` - Drag gesture
-- `input_text(text: str, index: int, clear: bool) -> str` - Text input
+- `swipe(start_x: int, start_y: int, end_x: int, end_y: int, duration_ms: int = 300) -> bool` - Swipe gesture
+- `drag(start_x: int, start_y: int, end_x: int, end_y: int, duration_ms: int = 3000) -> bool` - Drag gesture
+- `input_text(text: str, index: int = -1, clear: bool = False) -> str` - Text input
 - `back() -> str` - Back navigation
 - `press_key(keycode: int) -> str` - Key press
 
 ### App Management
 
-- `start_app(package: str, activity: str) -> str` - Launch app
-- `list_packages(include_system_apps: bool) -> List[str]` - List packages
-- `get_apps(include_system: bool) -> List[Dict[str, Any]]` - Get apps with labels
+- `start_app(package: str, activity: str = "") -> str` - Launch app
+- `list_packages(include_system_apps: bool = False) -> List[str]` - List packages
+- `get_apps(include_system_apps: bool = True) -> List[Dict[str, Any]]` - Get apps with labels
 
 ### State Retrieval
 
@@ -100,22 +127,26 @@ class MyTools(Tools):
 
 **Behavior:**
 
-When `save_trajectories="action"`:
-1. Method executes normally
-2. After method returns, decorator checks for `step_screenshots` and `step_ui_states` in caller's globals
-3. If found, appends current screenshot and UI state to those lists
-4. Enables action replay and debugging
+1. Method executes normally and returns its result
+2. After method returns, decorator checks if `self.save_trajectories == "action"`
+3. If true, it looks for `step_screenshots` and `step_ui_states` in caller's global scope (using `sys._getframe(1)`)
+4. If these lists exist, appends current screenshot (`self.take_screenshot()[1]`) and UI state (`self.get_state()`)
+5. Enables action replay and debugging by building a complete trajectory
 
-**Standard decorated methods:**
+**Important:** The Tools instance must have `save_trajectories` attribute set to `"action"` for the decorator to capture screenshots. Other values (`"none"`, `"step"`) will skip automatic capture.
 
-- `tap_by_index()`
-- `swipe()`
-- `drag()`
-- `input_text()`
-- `back()`
-- `press_key()`
-- `start_app()`
-- `_extract_element_coordinates_by_index()`
+**Standard decorated methods in AdbTools:**
+
+- `_extract_element_coordinates_by_index()` - Extract element coordinates
+- `swipe()` - Swipe gesture
+- `drag()` - Drag gesture
+- `input_text()` - Text input
+- `back()` - Back button
+- `press_key()` - Key press
+- `start_app()` - Launch app
+- `complete()` - Mark task complete
+
+Note: `tap_by_index()` is NOT decorated with `@ui_action` in the current implementation. The decorator is only applied to the internal `_extract_element_coordinates_by_index()` method that `tap_by_index()` calls.
 
 ---
 
@@ -127,30 +158,10 @@ You can extend Tools to add platform-specific functionality or create custom too
 
 ```python
 from droidrun.tools import AdbTools
+from typing import List
 
 class CustomAndroidTools(AdbTools):
     """Custom Android tools with additional methods."""
-
-    def take_photo(self) -> bytes:
-        """Take a photo using device camera."""
-        # Open camera app
-        self.start_app("com.android.camera")
-
-        # Wait for camera to load
-        import time
-        time.sleep(2)
-
-        # Press camera shutter button
-        state = self.get_state()
-        for element in state['a11y_tree']:
-            if 'shutter' in element['text'].lower():
-                self.tap_by_index(element['index'])
-                break
-
-        # Capture and return photo
-        time.sleep(1)
-        format, photo_bytes = self.take_screenshot()
-        return photo_bytes
 
     def read_notifications(self) -> List[str]:
         """Read all notifications from notification shade."""
@@ -174,99 +185,94 @@ class CustomAndroidTools(AdbTools):
 
 # Usage
 tools = CustomAndroidTools(serial="emulator-5554")
-photo = tools.take_photo()
 notifications = tools.read_notifications()
 ```
 
 ### Creating New Tool Implementations
 
+To create a custom Tools implementation, you must implement all 14 abstract methods:
+
 ```python
 from droidrun.tools import Tools
 from typing import Any, Dict, List, Tuple
 
-class WebTools(Tools):
-    """Tools for web-based device control via Selenium."""
+class CustomTools(Tools):
+    """Custom tools implementation."""
 
-    def __init__(self, driver):
-        self.driver = driver
-        self.memory = []
+    def __init__(self):
+        self.memory: List[str] = []
         self.finished = False
         self.success = None
         self.reason = None
+        self.save_trajectories = "none"
 
+    # Required abstract methods:
     def get_state(self) -> Dict[str, Any]:
-        """Get page elements and state."""
-        elements = []
-        clickable = self.driver.find_elements_by_css_selector('[onclick], a, button, input')
+        """Return dict with 'a11y_tree' and 'phone_state' keys."""
+        pass
 
-        for idx, elem in enumerate(clickable):
-            elements.append({
-                "index": idx,
-                "text": elem.text,
-                "className": elem.tag_name,
-                "bounds": elem.rect
-            })
+    def get_date(self) -> str:
+        """Return device date/time as string."""
+        pass
 
-        return {
-            "a11y_tree": elements,
-            "phone_state": {
-                "current_activity": self.driver.current_url
-            }
-        }
-
-    @Tools.ui_action
     def tap_by_index(self, index: int) -> str:
-        """Click element by index."""
-        elements = self.driver.find_elements_by_css_selector('[onclick], a, button, input')
-        if index < len(elements):
-            elements[index].click()
-            return f"Clicked element {index}"
-        return f"Error: Index {index} out of range"
+        """Tap element at given index."""
+        pass
 
-    @Tools.ui_action
+    def swipe(self, start_x: int, start_y: int, end_x: int, end_y: int, duration_ms: int = 300) -> bool:
+        """Perform swipe gesture."""
+        pass
+
+    def drag(self, start_x: int, start_y: int, end_x: int, end_y: int, duration_ms: int = 3000) -> bool:
+        """Perform drag gesture."""
+        pass
+
     def input_text(self, text: str, index: int = -1, clear: bool = False) -> str:
-        """Input text into element."""
-        if index >= 0:
-            elements = self.driver.find_elements_by_tag_name('input')
-            elem = elements[index]
-            if clear:
-                elem.clear()
-            elem.send_keys(text)
-            return f"Input text: {text}"
-        return "Error: Must specify element index"
-
-    # Implement other required methods...
-    def swipe(self, start_x, start_y, end_x, end_y, duration_ms=300) -> bool:
-        """Not applicable for web."""
-        return False
-
-    def drag(self, start_x, start_y, end_x, end_y, duration_ms=3000) -> bool:
-        """Implement drag with Selenium ActionChains."""
-        from selenium.webdriver.common.action_chains import ActionChains
-        # Implementation here
-        return True
+        """Input text."""
+        pass
 
     def back(self) -> str:
         """Navigate back."""
-        self.driver.back()
-        return "Navigated back"
+        pass
 
-    # ... implement all other abstract methods
+    def press_key(self, keycode: int) -> str:
+        """Press key by keycode."""
+        pass
 
-# Usage with DroidAgent
-from droidrun import DroidAgent
-from droidrun.config_manager.config import DroidRunConfig
+    def start_app(self, package: str, activity: str = "") -> str:
+        """Launch app."""
+        pass
 
-# Create config
-config = DroidRunConfig()
-config.agent.max_steps = 20
+    def take_screenshot(self) -> Tuple[str, bytes]:
+        """Return tuple of (format, image_bytes)."""
+        pass
 
-tools = WebTools(driver=my_selenium_driver)
-agent = DroidAgent(
-    goal="Fill out contact form",
-    config=config,
-    tools=tools
-)
+    def list_packages(self, include_system_apps: bool = False) -> List[str]:
+        """List installed packages."""
+        pass
+
+    def get_apps(self, include_system_apps: bool = True) -> List[Dict[str, Any]]:
+        """Get apps with package and label."""
+        pass
+
+    def remember(self, information: str) -> str:
+        """Store information in memory."""
+        self.memory.append(information)
+        return f"Remembered: {information}"
+
+    def get_memory(self) -> List[str]:
+        """Retrieve stored memory."""
+        return self.memory.copy()
+
+    def complete(self, success: bool, reason: str = "") -> None:
+        """Mark task as complete."""
+        self.finished = True
+        self.success = success
+        self.reason = reason
+
+    def _extract_element_coordinates_by_index(self, index: int) -> Tuple[int, int]:
+        """Extract element coordinates by index."""
+        pass
 ```
 
 ---
@@ -337,38 +343,48 @@ if tool_name in available:
 
 ## Tool Communication with Agents
 
-Tools instances are injected into agents and provide the atomic actions that agents use to control devices.
+Tools instances are passed to agents and provide the atomic actions for device control. Agents call these methods directly or wrap them for LLM function calling.
 
-### Direct usage in agents:
+### How Agents Use Tools:
 
 ```python
-# Inside CodeActAgent or ExecutorAgent
-state = tools.get_state()  # Get UI state
-tools.tap_by_index(5)       # Perform action
-tools.remember("Important fact")  # Store memory
+from droidrun import DroidAgent
+from droidrun.tools import AdbTools
+from droidrun.config_manager.config_manager import DroidRunConfig
+
+# Create tools instance
+tools = AdbTools(serial="emulator-5554")
+
+# Create config
+config = DroidRunConfig()
+
+# Pass to agent
+agent = DroidAgent(
+    goal="Open Settings app",
+    tools=tools,  # Agent uses these methods
+    config=config
+)
+
+# Inside agent execution:
+# 1. Agent calls tools.get_state() to get UI
+# 2. Agent analyzes state and decides action
+# 3. Agent calls tools.tap_by_index(5) to tap element
+# 4. Agent uses tools.remember() to store context
+# 5. Agent calls tools.complete() when done
 ```
 
-### Wrapped as callable functions:
+### Tools are used via describe_tools():
+
+The `describe_tools()` function extracts callable methods for LLM function calling:
 
 ```python
-# Agent creates function wrappers
-atomic_tools = {
-    "click": lambda index: tools.tap_by_index(index),
-    "type": lambda text, index=-1: tools.input_text(text, index),
-    "swipe": lambda x1, y1, x2, y2: tools.swipe(x1, y1, x2, y2),
-    # ...
-}
-```
+from droidrun.tools import describe_tools
 
-### Custom tools integration:
+tools = AdbTools()
+tool_dict = describe_tools(tools)
 
-Custom tools (user-defined functions, credential getters) are merged with atomic tools:
-
-```python
-# DroidAgent initialization
-atomic_tools = ATOMIC_ACTION_SIGNATURES.copy()  # Built-in atomic actions
-custom_tools = build_custom_tools(credential_manager)  # Credentials as tools
-all_tools = {**atomic_tools, **custom_tools}  # Merged tool dict
+# Returns: {'swipe': <method>, 'input_text': <method>, 'tap_by_index': <method>, ...}
+# Agents use this dict to expose tools as LLM functions
 ```
 
 ---
@@ -377,16 +393,19 @@ all_tools = {**atomic_tools, **custom_tools}  # Merged tool dict
 
 | Feature | AdbTools (Android) | IOSTools (iOS) |
 |---------|-------------------|----------------|
-| Connection | ADB (USB/TCP) | HTTP (Portal app) |
+| Connection | ADB + Portal (USB/TCP) | HTTP (Portal app) |
 | Element indexing | ✅ Full support | ✅ Full support |
-| Text input | ✅ Unicode support | ✅ Unicode support |
-| Screenshots | ✅ Fast | ✅ Fast |
+| Text input | ✅ Unicode + index/clear | ⚠️ Unicode only (no index/clear) |
+| Screenshots | ✅ Fast (PNG) | ✅ Fast (PNG) |
 | Swipe | ✅ Precise coordinates | ⚠️ Direction-based |
 | Drag | ✅ Full support | ❌ Not implemented |
-| Back button | ✅ Hardware key | ❌ No back button |
+| Back button | ✅ Hardware key (keycode 4) | ❌ Not implemented |
+| `get_date()` | ✅ Device date/time | ❌ Not implemented |
+| `get_apps()` | ✅ All packages with labels | ❌ Not implemented |
 | App packages | ✅ All packages | ⚠️ Limited to configured |
-| Key codes | ✅ Full Android keycodes | ⚠️ Limited iOS keys |
-| State retrieval | ✅ Accessibility tree | ✅ Accessibility tree |
+| Key codes | ✅ Full Android keycodes | ⚠️ Limited (HOME/ACTION/CAMERA) |
+| State retrieval | ✅ Accessibility tree + phone state | ✅ Accessibility tree + phone state |
+| `_extract_element_coordinates_by_index()` | ✅ Implemented | ❌ Not implemented |
 
 ---
 
@@ -394,69 +413,65 @@ all_tools = {**atomic_tools, **custom_tools}  # Merged tool dict
 
 ### 1. Always call get_state() before tap_by_index()
 
+The `tap_by_index()` method relies on cached UI elements from the last `get_state()` call:
+
 ```python
 # Correct
 state = tools.get_state()
 tools.tap_by_index(5)
 
-# Incorrect - will fail
-tools.tap_by_index(5)  # No cached elements!
+# Wrong - will fail with "No UI elements cached"
+tools.tap_by_index(5)
 ```
 
-### 2. Use memory for important context
+### 2. Use remember() for important context
 
 ```python
-# Good - remember important state
+# Store facts that should persist across steps
 tools.remember("User's email: user@example.com")
-tools.remember("Already logged in to Gmail")
+tools.remember("Login successful")
 
-# Later steps will have this context
+# Agents include memory in subsequent prompts
 ```
 
-### 3. Handle platform differences gracefully
+### 3. Enable trajectory recording for debugging
 
 ```python
-if isinstance(tools, AdbTools):
-    # Android-specific features
-    tools.press_key(4)  # Back button
-elif isinstance(tools, IOSTools):
-    # iOS alternative
-    state = tools.get_state()
-    for elem in state['a11y_tree']:
-        if 'back' in elem['label'].lower():
-            tools.tap_by_index(elem['index'])
-            break
-```
-
-### 4. Use complete() to signal task finish
-
-```python
-try:
-    # Perform actions
-    state = tools.get_state()
-    tools.tap_by_index(10)
-
-    # Success
-    tools.complete(success=True, reason="Task completed successfully")
-except Exception as e:
-    # Failure
-    tools.complete(success=False, reason=f"Error: {str(e)}")
-```
-
-### 5. Leverage trajectory recording
-
-```python
-# Enable action-level trajectory recording
+# Set save_trajectories to "action" for automatic screenshot capture
 tools.save_trajectories = "action"
 
-# All @ui_action decorated methods will auto-capture
-tools.tap_by_index(5)  # Screenshot captured
-tools.input_text("test")  # Screenshot captured
-tools.swipe(100, 500, 100, 100)  # Screenshot captured
+# Now all @ui_action decorated methods capture screenshots
+tools.swipe(100, 500, 100, 100)  # Auto-captured
+tools.input_text("test")          # Auto-captured
 
-# Access trajectory data
+# Access captured data
 for screenshot in tools.screenshots:
-    print(f"Captured at: {screenshot['timestamp']}")
+    print(f"Timestamp: {screenshot['timestamp']}")
+```
+
+### 4. Handle platform differences
+
+```python
+from droidrun.tools import AdbTools, IOSTools
+
+if isinstance(tools, AdbTools):
+    tools.press_key(4)  # Android back button
+elif isinstance(tools, IOSTools):
+    # iOS doesn't have back button - find in UI
+    state = tools.get_state()
+    for elem in state['a11y_tree']:
+        if 'back' in elem.get('label', '').lower():
+            tools.tap_by_index(elem['index'])
+```
+
+### 5. Use complete() to signal task finish
+
+```python
+# Always call complete() to mark task as finished
+tools.complete(success=True, reason="Task completed")
+
+# On failure, reason is required
+tools.complete(success=False, reason="Login button not found")
 ```
 
 ---
@@ -489,20 +504,21 @@ except ValueError as e:
 
 ---
 
-## Advanced: Custom Tool Decorator
+## Advanced: Stacking Decorators
 
-You can create custom decorators for additional functionality:
+You can combine `@Tools.ui_action` with custom decorators:
 
 ```python
 import logging
 from functools import wraps
+from droidrun.tools import AdbTools, Tools
 
 def log_action(func):
     """Decorator to log all tool actions."""
     @wraps(func)
     def wrapper(*args, **kwargs):
         logger = logging.getLogger("tools")
-        logger.info(f"Calling {func.__name__} with args={args[1:]}, kwargs={kwargs}")
+        logger.info(f"Calling {func.__name__} with args={args[1:]}")
 
         result = func(*args, **kwargs)
 
@@ -511,20 +527,18 @@ def log_action(func):
     return wrapper
 
 class LoggedAdbTools(AdbTools):
-    @log_action
-    @Tools.ui_action
-    def tap_by_index(self, index: int) -> str:
-        return super().tap_by_index(index)
-
-    @log_action
-    @Tools.ui_action
-    def input_text(self, text: str, index: int = -1, clear: bool = False) -> str:
-        return super().input_text(text, index, clear)
+    @log_action         # Applied first (outer)
+    @Tools.ui_action    # Applied second (inner)
+    def swipe(self, start_x: int, start_y: int, end_x: int, end_y: int, duration_ms: int = 300) -> bool:
+        return super().swipe(start_x, start_y, end_x, end_y, duration_ms)
 
 # Usage
-tools = LoggedAdbTools()
-tools.tap_by_index(5)  # Logs + captures screenshot
+tools = LoggedAdbTools(serial="emulator-5554")
+tools.save_trajectories = "action"
+tools.swipe(100, 500, 100, 100)  # Logs + captures screenshot
 ```
+
+**Decorator order matters:** Place `@Tools.ui_action` closest to the function definition so it executes last (captures screenshot after all other decorators).
 
 ---
 

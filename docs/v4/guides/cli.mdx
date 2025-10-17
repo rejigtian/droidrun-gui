@@ -13,11 +13,22 @@ DroidRun provides a powerful command-line interface for controlling Android and 
 
 The DroidRun CLI supports:
 
-- **Natural language commands** - Control devices with plain English
-- **Device management** - Connect, setup, and monitor devices
-- **Macro replay** - Record and replay automation sequences
+- **Natural language commands** - Control devices with plain English (`run`)
+- **Device management** - List, connect, setup, and ping devices (`devices`, `connect`, `disconnect`, `setup`, `ping`)
+- **Macro replay** - Record and replay automation sequences (`macro list`, `macro replay`)
 - **Flexible configuration** - Override any setting via CLI flags
 - **Multiple LLM providers** - OpenAI, Anthropic, Google, Ollama, DeepSeek, and more
+
+### Available Commands
+
+- `droidrun run` - Execute natural language commands on your device
+- `droidrun devices` - List all connected devices
+- `droidrun setup` - Install and enable the DroidRun Portal
+- `droidrun ping` - Test if Portal is installed and accessible
+- `droidrun connect` - Connect to a device over TCP/IP
+- `droidrun disconnect` - Disconnect from a device
+- `droidrun macro list` - List saved trajectory folders
+- `droidrun macro replay` - Replay a recorded macro
 
 ### Quick Start
 
@@ -25,11 +36,46 @@ The DroidRun CLI supports:
 # Install DroidRun with all providers
 pip install 'droidrun[google,anthropic,openai,deepseek,ollama,dev]'
 
-# Setup device
+# Setup device (automatically creates config.yaml if missing)
 droidrun setup
 
 # Run a command
-droidrun run "Open settings and enable dark mode"
+droidrun run "Send a WhatsApp message to John saying I'll be 15 minutes late"
+
+# Or use shorthand (automatically uses 'run' command)
+droidrun "Send a WhatsApp message to John saying I'll be 15 minutes late"
+```
+
+<Note>
+**Automatic config creation:** When you run any DroidRun CLI command, it checks for `config.yaml` in your working directory. If not found, it automatically creates one from `config_example.yaml`. You can also specify a custom config path with `--config`.
+
+**Command shorthand:** If you don't specify a command and the first argument isn't a known command (like `devices`, `setup`, etc.), DroidRun automatically assumes you want to use the `run` command. This means `droidrun "task"` is equivalent to `droidrun run "task"`.
+</Note>
+
+---
+
+## Common CLI Patterns
+
+Here are the most common ways developers use the DroidRun CLI:
+
+```sh
+# Quick test with default config
+droidrun "Turn on Do Not Disturb until 9 AM tomorrow"
+
+# Test with specific model
+droidrun run "Reply to the latest email from Sarah with 'I'll review the document today'" --provider GoogleGenAI --model models/gemini-2.5-flash
+
+# Debug a failing command
+droidrun run "Book a ride to JFK airport for tomorrow at 8 AM using Uber" --debug --reasoning --vision
+
+# Save trajectory for replay
+droidrun run "Post my latest photo to Instagram with the caption 'Beautiful sunset at the beach'" --save-trajectory action
+
+# Run on specific device
+droidrun run "Check my Chase bank account balance and recent transactions" --device emulator-5554
+
+# Use custom config
+droidrun run "Enable two-factor authentication in Gmail settings" --config /path/to/config.yaml
 ```
 
 ---
@@ -44,6 +90,10 @@ Execute natural language commands on your device.
 droidrun run "<natural language command>" [OPTIONS]
 ```
 
+<Note>
+After execution completes, DroidRun automatically disables the DroidRun Portal keyboard IME. Port forwards are managed automatically and persist until device disconnect.
+</Note>
+
 ### Complete Flag Reference
 
 | Flag | Type | Description | Default |
@@ -54,15 +104,19 @@ droidrun run "<natural language command>" [OPTIONS]
 | `--model`, `-m` | String | LLM model name | From config |
 | `--temperature` | Float | LLM temperature (0.0-1.0) | From config |
 | `--steps` | Integer | Maximum number of steps | `15` |
-| `--base_url`, `-u` | String | Base URL for API (Ollama, OpenRouter) | None |
-| `--api_base` | String | API base URL (OpenAI-compatible APIs) | None |
+| `--base_url`, `-u` | String | Base URL for API (e.g., OpenRouter or Ollama) | None |
+| `--api_base` | String | API base URL (e.g., OpenAI or OpenAI-Like) | None |
 | `--vision` / `--no-vision` | Flag | Enable/disable vision for all agents | From config |
 | `--reasoning` / `--no-reasoning` | Flag | Enable/disable planning mode | `false` |
 | `--tracing` / `--no-tracing` | Flag | Enable/disable Arize Phoenix tracing | `false` |
 | `--debug` / `--no-debug` | Flag | Enable/disable verbose debug logging | `false` |
 | `--tcp` / `--no-tcp` | Flag | Use TCP communication instead of content provider | `false` |
 | `--save-trajectory` | Choice | Trajectory saving level: `none`, `step`, `action` | `none` |
-| `--ios` | Flag | Run on iOS device | `false` |
+| `--ios` | Boolean | Run on iOS device (sets platform to iOS) | `false` |
+
+<Note>
+The `--ios` flag is implemented as `type=bool` in the CLI, not as a standard flag. This means you need to pass `--ios true` to enable it, not just `--ios`.
+</Note>
 
 ---
 
@@ -80,7 +134,7 @@ CLI flags override `config.yaml` settings via direct mutation. This allows you t
 
 ```sh
 # Override provider and model for ALL agents
-droidrun run "Open settings" \
+droidrun run "Change my Spotify password and enable download quality to Very High" \
   --provider GoogleGenAI \
   --model models/gemini-2.5-flash \
   --temperature 0.3
@@ -94,21 +148,21 @@ LLM overrides (`--provider`, `--model`, `--temperature`) apply to **ALL** agent 
 
 | Provider | Description | Required Extra |
 |----------|-------------|----------------|
-| `GoogleGenAI` | Google Gemini models | `pip install 'droidrun[google]'` |
-| `OpenAI` | OpenAI models (GPT-4, GPT-4o) | `pip install 'droidrun[openai]'` |
-| `Anthropic` | Anthropic Claude models | `pip install 'droidrun[anthropic]'` |
-| `DeepSeek` | DeepSeek models | `pip install 'droidrun[deepseek]'` |
-| `Ollama` | Local Ollama server | `pip install 'droidrun[ollama]'` |
-| `OpenAILike` | OpenAI-compatible APIs (OpenRouter, etc.) | `pip install 'droidrun[openai]'` |
+| `GoogleGenAI` | Google Gemini models | `uv pip install 'droidrun[google]'` |
+| `OpenAI` | OpenAI models (GPT-4, GPT-4o) | `uv pip install 'droidrun[openai]'` |
+| `Anthropic` | Anthropic Claude models | `uv pip install 'droidrun[anthropic]'` |
+| `DeepSeek` | DeepSeek models | `uv pip install 'droidrun[deepseek]'` |
+| `Ollama` | Local Ollama server | `uv pip install 'droidrun[ollama]'` |
+| `OpenAILike` | OpenAI-compatible APIs (OpenRouter, etc.) | `uv pip install 'droidrun[openai]'` |
 
 ### Agent Mode
 
 ```sh
 # Enable reasoning mode (Manager-Executor workflow)
-droidrun run "Complex multi-step task" --reasoning
+droidrun run "Go through my email inbox, categorize important emails into folders, and archive everything older than 30 days" --reasoning
 
 # Direct execution mode (CodeAct agent)
-droidrun run "Simple task" --no-reasoning
+droidrun run "Add milk, eggs, and bread to my Keep shopping list" --no-reasoning
 ```
 
 **When to use reasoning mode:**
@@ -124,11 +178,11 @@ droidrun run "Simple task" --no-reasoning
 ### Vision Configuration
 
 ```sh
-# Enable vision for all agents (increases token usage)
-droidrun run "Find the cat in this image" --vision
+# Enable vision for all agents
+droidrun run "Navigate through the Settings app and enable all privacy-related options in each section" --vision
 
 # Disable vision for faster execution
-droidrun run "Open settings" --no-vision
+droidrun run "Set an alarm for 7 AM tomorrow with the label 'Morning workout'" --no-vision
 ```
 
 <Warning>
@@ -139,16 +193,16 @@ Vision mode sends screenshots to the LLM, significantly increasing token usage a
 
 ```sh
 # Increase max steps for complex tasks
-droidrun run "Complete checkout flow" --steps 30
+droidrun run "Transfer $50 from checking to savings account in my banking app and verify the transaction" --steps 30
 
 # Enable debug logging for troubleshooting
-droidrun run "Test command" --debug
+droidrun run "Schedule a dentist appointment for next Tuesday at 3 PM using the ZocDoc app" --debug
 
 # Save trajectory for replay
-droidrun run "Order coffee" --save-trajectory action
+droidrun run "Order a large iced latte with oat milk from Starbucks for pickup at 2 PM" --save-trajectory action
 
 # Enable tracing for detailed execution analysis
-droidrun run "Debug issue" --tracing
+droidrun run "Update my LinkedIn profile headline and add Python as a skill" --tracing
 ```
 
 **Trajectory saving levels:**
@@ -160,27 +214,27 @@ droidrun run "Debug issue" --tracing
 
 ```sh
 # Select specific device by serial
-droidrun run "Open settings" --device emulator-5554
+droidrun run "Clear cache for Instagram app and restart it" --device emulator-5554
 
 # Connect to device over TCP/IP
-droidrun run "Open settings" --device 192.168.1.100:5555
+droidrun run "Export all my contacts to a VCF file and save to Downloads" --device 192.168.1.100:5555
 
 # Use TCP communication instead of content provider
-droidrun run "Open settings" --tcp
+droidrun run "Turn off auto-brightness and set screen brightness to 50%" --tcp
 
 # Run on iOS device
-droidrun run "Open settings" --ios
+droidrun run "Enable Low Power Mode and check battery percentage" --ios true
 ```
 
 ### Custom Configuration File
 
 ```sh
 # Use custom config file
-droidrun run "Open settings" --config /path/to/custom-config.yaml
+droidrun run "Unsubscribe from promotional emails in Gmail by searching for 'unsubscribe' links" --config /path/to/custom-config.yaml
 
 # Environment variable
 export DROIDRUN_CONFIG=/path/to/config.yaml
-droidrun run "Open settings"
+droidrun run "Find the cheapest flight to Miami next weekend on the Kayak app"
 ```
 
 ---
@@ -191,16 +245,16 @@ droidrun run "Open settings"
 
 ```sh
 # Simple app launch
-droidrun run "Open Gmail"
+droidrun run "Open Spotify and play my Discover Weekly playlist"
 
 # Multi-step task
-droidrun run "Open settings and enable dark mode"
+droidrun run "Go to YouTube settings and disable autoplay on mobile data"
 
 # Information retrieval
-droidrun run "What's my battery percentage?"
+droidrun run "Check how much storage space is remaining on my device"
 
 # Complex workflow
-droidrun run "Order a large coffee from Starbucks app"
+droidrun run "Book a table for 2 people at 7 PM tonight using OpenTable for Italian restaurants nearby"
 ```
 
 ### Using Different Providers
@@ -209,7 +263,7 @@ droidrun run "Order a large coffee from Starbucks app"
 
 ```sh
 export GOOGLE_API_KEY=your-key-here
-droidrun run "Open settings" \
+droidrun run "Archive all read emails from the last 7 days in Gmail" \
   --provider GoogleGenAI \
   --model models/gemini-2.5-flash
 ```
@@ -218,7 +272,7 @@ droidrun run "Open settings" \
 
 ```sh
 export OPENAI_API_KEY=your-key-here
-droidrun run "Open settings" \
+droidrun run "Create a new note in Keep with my grocery list and share it with roommate@gmail.com" \
   --provider OpenAI \
   --model gpt-4o
 ```
@@ -227,7 +281,7 @@ droidrun run "Open settings" \
 
 ```sh
 export ANTHROPIC_API_KEY=your-key-here
-droidrun run "Open settings" \
+droidrun run "Go through my Twitter notifications and like all mentions from today" \
   --provider Anthropic \
   --model claude-3-7-sonnet-latest
 ```
@@ -236,7 +290,7 @@ droidrun run "Open settings" \
 
 ```sh
 export DEEPSEEK_API_KEY=your-key-here
-droidrun run "Open settings" \
+droidrun run "Update my Tinder profile bio and add my latest photos" \
   --provider DeepSeek \
   --model deepseek-chat
 ```
@@ -245,7 +299,7 @@ droidrun run "Open settings" \
 
 ```sh
 # No API key required
-droidrun run "Open settings" \
+droidrun run "Find all videos larger than 100MB in my gallery and move them to a new folder" \
   --provider Ollama \
   --model llama3.3:70b \
   --base_url http://localhost:11434
@@ -255,7 +309,7 @@ droidrun run "Open settings" \
 
 ```sh
 export OPENAI_API_KEY=sk-or-v1-your-openrouter-key
-droidrun run "Open settings" \
+droidrun run "Cancel my free trial subscription in the Google Play Store before it charges me" \
   --provider OpenAILike \
   --model anthropic/claude-3.7-sonnet \
   --api_base https://openrouter.ai/api/v1
@@ -265,26 +319,26 @@ droidrun run "Open settings" \
 
 ```sh
 # Complex task with reasoning and vision
-droidrun run "Find all photos of cats and delete them" \
+droidrun run "Go through my calendar for next month and reschedule any conflicting meetings to available time slots" \
   --reasoning \
   --vision \
   --steps 50
 
 # Fast execution on specific device
-droidrun run "Open settings" \
+droidrun run "Mute all group chats in WhatsApp except Work and Family" \
   --device 192.168.1.100:5555 \
   --tcp \
   --no-vision
 
 # Debug mode with trajectory saving
-droidrun run "Test checkout flow" \
+droidrun run "Add 3 items to cart on Amazon, apply a promo code, and proceed to checkout" \
   --debug \
   --tracing \
   --save-trajectory action \
   --steps 30
 
 # Budget-conscious execution (cheap model, no vision)
-droidrun run "Open Gmail" \
+droidrun run "Set a recurring reminder to take medication every day at 9 AM" \
   --provider GoogleGenAI \
   --model models/gemini-2.5-flash \
   --no-vision
@@ -351,9 +405,10 @@ droidrun setup --debug
 #### What it does
 
 1. Downloads latest Portal APK (unless `--path` provided)
-2. Installs APK with `-g` flag (grant all permissions)
-3. Attempts to auto-enable accessibility service
-4. If auto-enable fails, opens accessibility settings with manual instructions
+2. Uninstalls any existing Portal installation
+3. Installs APK with `-g` flag (grant all runtime permissions automatically)
+4. Attempts to auto-enable accessibility service via ADB settings command
+5. If auto-enable fails, opens accessibility settings and displays manual instructions
 
 **Manual steps (if auto-enable fails):**
 
@@ -366,7 +421,7 @@ droidrun setup --debug
 
 ### `droidrun ping`
 
-Test if the DroidRun Portal is installed and accessible on a device.
+Test if the DroidRun Portal is installed and accessible on a device. Verifies both Portal installation and communication channel (TCP or content provider).
 
 #### Usage
 
@@ -397,16 +452,18 @@ droidrun ping --debug
 
 #### What it checks
 
-1. Portal APK is installed
-2. Portal is responding to commands
-3. TCP or content provider communication works
-4. Accessibility service is enabled
+1. Portal APK is installed (`com.droidrun.portal`)
+2. Portal is responding to ping commands
+3. Communication channel works (TCP or content provider, depending on `--tcp` flag)
+4. Accessibility service is enabled and functional
 
-**Output:**
+**Output (success):**
 
 ```
-✓ Portal is installed and accessible. You're good to go!
+Portal is installed and accessible. You're good to go!
 ```
+
+**Note:** If ping fails, you may need to run `droidrun setup` to install/enable the Portal.
 
 ---
 
@@ -433,6 +490,16 @@ droidrun connect 192.168.1.100:5555
 # Connect to device on custom port
 droidrun connect 192.168.1.100:37845
 ```
+
+**Output (success):**
+
+```
+Successfully connected to 192.168.1.100:5555
+```
+
+<Note>
+The connect command checks if the ADB response contains "already connected" to determine success. If connection fails, it will display the error message from ADB.
+</Note>
 
 #### Prerequisites
 
@@ -485,6 +552,12 @@ droidrun disconnect 192.168.1.100:5555
 droidrun disconnect emulator-5554
 ```
 
+**Output:**
+
+```
+Successfully disconnected from 192.168.1.100:5555
+```
+
 ---
 
 ## Macro Commands
@@ -498,12 +571,12 @@ List all saved trajectory folders in a directory.
 #### Usage
 
 ```sh
-droidrun macro list [DIRECTORY] [OPTIONS]
+droidrun macro list [OPTIONS] [DIRECTORY]
 ```
 
 #### Parameters
 
-- `[DIRECTORY]` - Directory to scan for trajectories (default: `trajectories`)
+- `[DIRECTORY]` - Directory to scan for trajectories (default: `trajectories`, optional positional argument)
 
 #### Flags
 
@@ -517,11 +590,14 @@ droidrun macro list [DIRECTORY] [OPTIONS]
 # List trajectories in default directory
 droidrun macro list
 
+# List with debug output
+droidrun macro list --debug
+
 # List trajectories in custom directory
 droidrun macro list /path/to/my-trajectories
 
-# List with debug output
-droidrun macro list --debug
+# List trajectories in custom directory with debug
+droidrun macro list --debug /path/to/my-trajectories
 ```
 
 #### Output
@@ -570,7 +646,7 @@ droidrun macro replay <path> [OPTIONS]
 #### Examples
 
 ```sh
-# Basic replay
+# Basic replay (auto-detects device)
 droidrun macro replay trajectories/open-settings
 
 # Replay on specific device with faster execution
@@ -585,6 +661,9 @@ droidrun macro replay trajectories/coffee-order \
 
 # Dry run (preview actions without executing)
 droidrun macro replay trajectories/enable-dark-mode --dry-run
+
+# Replay with debug output
+droidrun macro replay trajectories/open-settings --debug
 
 # Replay from macro.json file
 droidrun macro replay /path/to/macro.json
@@ -626,11 +705,15 @@ Macros are saved as `macro.json` in trajectory folders:
 To record a macro, use `--save-trajectory`:
 
 ```sh
-# Run task and save trajectory
-droidrun run "Open settings and enable dark mode" \
+# Run task and save trajectory at action level (most detailed)
+droidrun run "Create a morning routine alarm at 6:30 AM with gradual volume increase" \
   --save-trajectory action
 
 # Trajectory saved to: trajectories/<timestamp>/
+
+# Run task and save trajectory at step level
+droidrun run "Export all my workout data from Google Fit to a CSV file" \
+  --save-trajectory step
 ```
 
 Trajectory folder structure:
@@ -659,7 +742,7 @@ DroidRun uses environment variables for API keys and configuration.
 | Anthropic | `ANTHROPIC_API_KEY` | Yes |
 | DeepSeek | `DEEPSEEK_API_KEY` | Yes |
 | Ollama | None | No (local) |
-| OpenRouter | `OPENAI_API_KEY` | Yes (use OpenRouter key) |
+| OpenRouter | `OPENROUTER_API_KEY` | Yes |
 
 ### Configuration
 
@@ -692,32 +775,6 @@ $env:GOOGLE_API_KEY="your-key-here"
 setx GOOGLE_API_KEY "your-key-here"
 ```
 
-### Using .env Files
-
-Create a `.env` file in your project directory:
-
-```sh
-# .env
-GOOGLE_API_KEY=your-google-key
-OPENAI_API_KEY=your-openai-key
-ANTHROPIC_API_KEY=your-anthropic-key
-```
-
-**Load with python-dotenv:**
-
-```python
-from dotenv import load_dotenv
-load_dotenv()
-
-# Now environment variables are available
-from droidrun import DroidAgent
-```
-
-<Warning>
-Never commit `.env` files to version control! Add `.env` to your `.gitignore`.
-</Warning>
-
----
 
 ## Common Workflows
 
@@ -725,7 +782,7 @@ Never commit `.env` files to version control! Add `.env` to your `.gitignore`.
 
 ```sh
 # 1. Install DroidRun
-pip install 'droidrun[google,anthropic,openai]'
+uv tool install 'droidrun[google,anthropic,openai]'
 
 # 2. Set API key
 export GOOGLE_API_KEY=your-key-here
@@ -740,29 +797,29 @@ droidrun setup
 droidrun ping
 
 # 6. Run first command
-droidrun run "Open settings"
+droidrun run "Send a text message to Mom saying I'll call her tonight"
 ```
 
 ### Workflow 2: Testing Different Models
 
 ```sh
 # Test with Gemini Flash (fast, cheap)
-droidrun run "Open Gmail" \
+droidrun run "Block all phone numbers that called me today except contacts" \
   --provider GoogleGenAI \
   --model models/gemini-2.5-flash
 
 # Test with Gemini Pro (better quality)
-droidrun run "Open Gmail" \
+droidrun run "Download all my WhatsApp voice messages from the last week and save to Downloads" \
   --provider GoogleGenAI \
   --model models/gemini-2.5-pro
 
 # Test with Claude Sonnet (best reasoning)
-droidrun run "Open Gmail" \
+droidrun run "Compare prices for AirPods Pro on Amazon, eBay, and Best Buy apps and show me the cheapest" \
   --provider Anthropic \
   --model claude-3-7-sonnet-latest
 
 # Test with local Ollama (free)
-droidrun run "Open Gmail" \
+droidrun run "Turn on battery saver mode and adjust settings to maximize battery life" \
   --provider Ollama \
   --model llama3.3:70b \
   --base_url http://localhost:11434
@@ -772,7 +829,7 @@ droidrun run "Open Gmail" \
 
 ```sh
 # Enable all debugging features
-droidrun run "Complete checkout flow" \
+droidrun run "Split a $100 dinner bill with 3 friends using Venmo and request payment from each person" \
   --debug \
   --reasoning \
   --vision \
@@ -800,7 +857,7 @@ droidrun macro replay trajectories/<folder> \
 droidrun connect $TEST_DEVICE_IP:5555
 
 # Run test scenarios
-droidrun run "Open app and login" \
+droidrun run "Login to the app with test credentials, navigate to checkout, and verify payment methods are displayed" \
   --config config.ci.yaml \
   --device $TEST_DEVICE_IP:5555 \
   --save-trajectory action \
@@ -824,7 +881,7 @@ droidrun devices
 # Run same command on multiple devices
 for device in $(adb devices | awk 'NR>1 {print $1}'); do
   echo "Testing on $device"
-  droidrun run "Open settings" --device $device
+  droidrun run "Clear all notifications and enable Do Not Disturb" --device $device
 done
 ```
 
@@ -844,7 +901,7 @@ droidrun connect $DEVICE_IP:5555
 droidrun ping --device $DEVICE_IP:5555 --tcp
 
 # 5. Run commands wirelessly
-droidrun run "Open settings" \
+droidrun run "Backup all my photos to Google Photos and verify upload is complete" \
   --device $DEVICE_IP:5555 \
   --tcp
 ```
@@ -908,11 +965,8 @@ adb shell am force-stop com.droidrun.portal
 **Solution:**
 
 ```sh
-# Install required LlamaIndex integration
-pip install llama-index-llms-google-genai
-
-# Or install all providers
-pip install 'droidrun[google,anthropic,openai,ollama,deepseek]'
+# Install providers
+pip tool install 'droidrun[google,anthropic,openai,ollama,deepseek,openrouter]'
 ```
 
 **Problem:** Authentication errors (401, 403)
@@ -964,10 +1018,10 @@ droidrun ping --device <device-ip>:5555 --tcp
 
 ```sh
 # 1. Increase max steps
-droidrun run "command" --steps 50
+droidrun run "Create a new playlist on Spotify with my top 50 most played songs from this year" --steps 50
 
 # 2. Enable debug mode to see what's happening
-droidrun run "command" --debug
+droidrun run "Find the best deal for iPhone 15 Pro across shopping apps and add to cart" --debug
 
 # 3. Check device state
 adb shell dumpsys activity activities
@@ -976,7 +1030,7 @@ adb shell dumpsys activity activities
 adb shell am force-stop com.droidrun.portal
 
 # 5. Try with reasoning mode
-droidrun run "command" --reasoning
+droidrun run "Download all my banking statements from the last 6 months and save them to a folder" --reasoning
 ```
 
 ### High API costs
@@ -986,59 +1040,22 @@ droidrun run "command" --reasoning
 **Solution:**
 
 ```sh
-# 1. Disable vision (biggest cost factor)
-droidrun run "command" --no-vision
+# 1. Disable vision
+droidrun run "Reply to all unread messages in my messaging apps with 'Thanks, I'll get back to you soon'" --no-vision
 
 # 2. Use cheaper models
-droidrun run "command" \
+droidrun run "Cancel all my calendar events for next week and send apology emails to attendees" \
   --provider GoogleGenAI \
   --model models/gemini-2.5-flash
 
 # 3. Reduce max steps
-droidrun run "command" --steps 10
+droidrun run "Find the nearest gas station with prices under $3.50 using Google Maps" --steps 10
 
 # 4. Use local Ollama (free)
-droidrun run "command" \
+droidrun run "Delete all apps I haven't used in the last 3 months to free up space" \
   --provider Ollama \
   --model llama3.3:70b \
   --base_url http://localhost:11434
-```
-
-### Config not found
-
-**Problem:** `FileNotFoundError: config.yaml not found`
-
-**Solution:**
-
-```sh
-# Create default config
-droidrun devices  # Generates config.yaml
-
-# Or specify config location
-droidrun run "command" --config /path/to/config.yaml
-
-# Or use environment variable
-export DROIDRUN_CONFIG=/path/to/config.yaml
-```
-
-### Trajectory not saving
-
-**Problem:** `--save-trajectory` doesn't create files.
-
-**Solution:**
-
-```sh
-# Verify save-trajectory flag is correct
-droidrun run "command" --save-trajectory action  # not "actions"
-
-# Check write permissions
-ls -la trajectories/
-
-# Create directory if missing
-mkdir -p trajectories
-
-# Check disk space
-df -h .
 ```
 
 ---
@@ -1049,53 +1066,53 @@ df -h .
 
 ```sh
 # Run multiple commands sequentially
-droidrun run "Open settings" && \
-droidrun run "Enable dark mode" && \
-droidrun run "Go back to home"
+droidrun run "Download all my Slack attachments from the #documents channel" && \
+droidrun run "Organize the downloads into folders by file type" && \
+droidrun run "Upload the organized files to my Google Drive work folder"
 ```
 
 ### Conditional Execution
 
 ```sh
 # Run second command only if first succeeds
-droidrun run "Login to app" && \
-  droidrun run "Navigate to profile"
+droidrun run "Login to my bank app with saved credentials and verify I'm logged in" && \
+  droidrun run "Transfer $500 from savings to checking and take a screenshot of the confirmation"
 
 # Run second command regardless of first
-droidrun run "Clear cache" ; \
-  droidrun run "Open app"
+droidrun run "Attempt to install VPN app from Play Store" ; \
+  droidrun run "Configure VPN with server location set to New York"
 ```
 
 ### Logging to File
 
 ```sh
 # Save output to file
-droidrun run "Open settings" --debug > output.log 2>&1
+droidrun run "Analyze my screen time report and identify the top 5 apps I use most" --debug > screen_time_analysis.log 2>&1
 
 # Tail log in real-time
-droidrun run "Long task" --debug 2>&1 | tee output.log
+droidrun run "Scrape all product prices from my Amazon wishlist and find items with price drops" --debug 2>&1 | tee price_monitor.log
 ```
 
 ### Using with Shell Scripts
 
 ```sh
 #!/bin/bash
-# automate.sh
+# automate_social_media.sh
 
 set -e  # Exit on error
 
 DEVICE="192.168.1.100:5555"
 CONFIG="config.prod.yaml"
 
-echo "Starting automation on $DEVICE"
+echo "Starting social media automation on $DEVICE"
 
-droidrun run "Open app" \
+droidrun run "Post my latest photo to Instagram, Twitter, and Facebook with the caption from my clipboard" \
   --device $DEVICE \
   --config $CONFIG \
   --save-trajectory action
 
 if [ $? -eq 0 ]; then
-  echo "✓ Automation completed"
+  echo "✓ Social media posting completed"
   droidrun disconnect $DEVICE
 else
   echo "✗ Automation failed"
@@ -1107,7 +1124,7 @@ fi
 
 ```sh
 # Use trajectory JSON for analysis
-droidrun run "Order coffee" --save-trajectory action
+droidrun run "Complete my daily habit tracker in Loop Habit Tracker for meditation, exercise, and reading" --save-trajectory action
 
 # Parse trajectory with jq
 TRAJECTORY=$(ls -t trajectories/ | head -1)

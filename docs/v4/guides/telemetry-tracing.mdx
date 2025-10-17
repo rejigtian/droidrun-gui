@@ -1,37 +1,52 @@
 ---
 title: 'Telemetry & Tracing'
-description: 'Monitor agent execution with Arize Phoenix tracing and trajectory recording'
+description: 'Configure anonymous telemetry, Phoenix tracing, and trajectory recording'
 ---
 
 # Telemetry & Tracing
 
-DroidRun provides monitoring capabilities for debugging and analyzing agent execution through **Arize Phoenix tracing** and **trajectory recording**.
+DroidRun provides three monitoring capabilities:
 
-<Note>
-DroidRun collects anonymous usage analytics to help improve the framework. See [Anonymous Telemetry](#anonymous-telemetry) below to opt-out.
-</Note>
+1. **Anonymous Telemetry** - Usage analytics sent to PostHog (enabled by default)
+2. **Arize Phoenix Tracing** - Real-time LLM and agent execution tracing (opt-in)
+3. **Trajectory Recording** - Local screenshots and UI state for debugging (opt-in)
+
+## Quick Reference
+
+```sh
+# Disable anonymous telemetry
+export DROIDRUN_TELEMETRY_ENABLED=false
+
+# Enable Phoenix tracing
+droidrun run "task" --tracing
+
+# Enable trajectory recording
+droidrun run "task" --save-trajectory step
+```
 
 ---
 
 ## Arize Phoenix Tracing
 
-Phoenix provides real-time tracing of LLM calls, agent execution, and tool invocations.
+Phoenix provides real-time tracing of LLM calls, agent execution, and tool invocations. Use it to debug agent behavior, monitor token usage, and analyze execution flow.
 
 ### Setup
 
-Install Phoenix:
+**1. Install Phoenix:**
 
 ```sh
 uv pip install arize-phoenix
 ```
 
-Start Phoenix server:
+**2. Start Phoenix server:**
 
 ```sh
 phoenix serve
 ```
 
-Enable tracing in DroidRun:
+The server starts at `http://localhost:6006` and provides a web UI for viewing traces.
+
+**3. Enable tracing in DroidRun:**
 
 **Via CLI:**
 
@@ -50,78 +65,111 @@ tracing:
 
 ```python
 from droidrun import DroidAgent
-from droidrun.config import DroidRunConfig
+from droidrun.config_manager.config_manager import DroidRunConfig
 
-config = DroidRunConfig.from_yaml("config.yaml")
+config = DroidRunConfig()
 config.tracing.enabled = True
 
 agent = DroidAgent(goal="Open settings", config=config)
 agent.run()
 ```
 
-View traces at `http://localhost:6006`. For more details on using Phoenix, see the [Arize Phoenix documentation](https://docs.arize.com/phoenix).
+**4. View traces:**
+
+Navigate to `http://localhost:6006` to see:
+- LLM calls with prompts, responses, and token counts
+- Agent workflow execution (Manager, Executor, CodeAct)
+- Tool invocations and their results
+- Execution timings and errors
+
+For more on using Phoenix, see the [Arize Phoenix documentation](https://docs.arize.com/phoenix).
 
 ### Configuration
 
 Set environment variables to customize Phoenix:
 
 ```sh
-# Custom Phoenix server URL
-export PHOENIX_URL=http://localhost:6006
+# Custom Phoenix server URL (default: http://127.0.0.1:6006)
+export phoenix_url=http://localhost:6006
 
 # Project name for organizing traces
-export PHOENIX_PROJECT_NAME=my_droidrun_project
+export phoenix_project_name=my_droidrun_project
 ```
+
+<Note>
+Environment variable names are lowercase: `phoenix_url` and `phoenix_project_name`.
+</Note>
 
 ---
 
 ## Anonymous Telemetry
 
-DroidRun collects anonymous usage analytics via PostHog to help improve the framework. This is completely separate from Phoenix tracing and trajectory recording - it's used by the DroidRun team to understand framework usage patterns.
+DroidRun collects anonymous usage analytics via PostHog to help improve the framework. This is completely separate from Phoenix tracing and trajectory recording.
+
+**Telemetry is enabled by default.** The framework tracks agent initialization, task completion, and usage patterns to help prioritize features and improve reliability.
 
 ### What's Collected
 
-DroidRun collects:
-- Agent initialization settings (LLM models used, max steps, vision/reasoning mode)
-- Task completion metrics (success/failure, steps taken, packages visited)
-- Anonymous user ID (stored in `~/.droidrun/user_id`)
+**Agent initialization:**
+- LLM provider and model names (e.g., "GoogleGenAI", "models/gemini-2.5-pro")
+- Configuration settings (max steps, timeout, vision/reasoning mode, debug flags)
+- Tool platform (e.g., "AdbTools", "IOSTools")
+- Trajectory save level ("none", "step", "action")
+- Run type (CLI, developer, web)
+
+**During execution:**
+- App packages and activities visited (e.g., "com.android.settings")
+- Step number when visiting new packages
+
+**Task completion:**
+- Success/failure status and reason
+- Total steps taken
+- Count of unique packages and activities visited
+
+**User identifier:**
+- Anonymous UUID stored in `~/.droidrun/user_id`
+- No personal information attached
 
 **What's NOT collected:**
-- No screenshots or screen content
-- No user input or sensitive data
-- No API keys or credentials
-- No personally identifiable information (PII)
+- Screenshots or screen content
+- User input or task goals (the actual text you type)
+- API keys or credentials
+- Device serial numbers or personal identifiers
 
-### Opt-Out
+### Disable Telemetry
 
-Telemetry is enabled by default but can be disabled:
+Disable via environment variable:
 
 ```sh
 export DROIDRUN_TELEMETRY_ENABLED=false
 ```
 
-Add to your shell config for persistence:
+Make it permanent by adding to your shell config:
 
 ```sh
 echo 'export DROIDRUN_TELEMETRY_ENABLED=false' >> ~/.bashrc
 source ~/.bashrc
 ```
 
-Anonymous telemetry helps the DroidRun team prioritize features and improve reliability. Your privacy is respected - telemetry can be disabled at any time without affecting functionality.
+<Note>
+Telemetry is currently controlled only by the `DROIDRUN_TELEMETRY_ENABLED` environment variable. The `telemetry.enabled` config option is not yet implemented.
+</Note>
 
 ---
 
 ## Trajectory Recording
 
-Trajectory recording saves screenshots and UI state at each step for debugging and performance analysis.
+Trajectory recording saves screenshots and UI state locally for offline debugging and analysis. Unlike telemetry (sent to PostHog) and tracing (sent to Phoenix), trajectories stay on your machine.
 
 ### Recording Levels
 
-| Level | What's Saved | Use Case |
-|-------|--------------|----------|
-| `none` (default) | Nothing | Production use |
-| `step` | Screenshots + state per step | General debugging |
-| `action` | Screenshots + state per action | Detailed debugging |
+| Level | What's Saved | When to Use |
+|-------|--------------|-------------|
+| `none` (default) | Nothing | Production use, saves disk space |
+| `step` | Screenshot + state per agent step | General debugging, recommended for most use cases |
+| `action` | Screenshot + state per atomic action | Detailed debugging, captures every tap/swipe/type |
+
+**Note:** `action` level generates significantly more files than `step` level.
 
 ### Enable Recording
 
@@ -142,18 +190,18 @@ logging:
 
 ```python
 from droidrun import DroidAgent
-from droidrun.config import DroidRunConfig
+from droidrun.config_manager.config_manager import DroidRunConfig
 
-config = DroidRunConfig.from_yaml("config.yaml")
+config = DroidRunConfig()
 config.logging.save_trajectory = "action"
 
 agent = DroidAgent(goal="Open settings", config=config)
 agent.run()
 ```
 
-### Output
+### Output Location
 
-Trajectories are saved to `trajectories/` with screenshots and JSON state files:
+Trajectories are saved to `trajectories/` in your working directory:
 
 ```
 trajectories/
@@ -164,7 +212,29 @@ trajectories/
     └── step_001_state.json
 ```
 
-State files include UI accessibility tree, action details, and agent state for debugging and performance analysis.
+Each trajectory folder contains:
+- **Screenshots** - PNG images of the device screen at each step/action
+- **State files** - JSON files with:
+  - UI accessibility tree (element hierarchy with IDs, text, bounds)
+  - Action executed (e.g., `click(5)`, `type("hello", 3)`)
+  - Agent reasoning and step number
+  - Device state (current app package, activity)
+
+Use these files to:
+- Debug why the agent made specific decisions
+- Replay failed executions
+- Analyze UI element detection issues
+- Build training datasets for agent improvement
+
+---
+
+## Summary
+
+| Feature | Data Location | Default | Purpose | Opt-In/Out |
+|---------|--------------|---------|---------|------------|
+| **Anonymous Telemetry** | PostHog (cloud) | Enabled | Help improve DroidRun | `DROIDRUN_TELEMETRY_ENABLED=false` |
+| **Phoenix Tracing** | Phoenix server (local/cloud) | Disabled | Debug LLM calls and agent flow | `--tracing` flag or config |
+| **Trajectory Recording** | Local disk (`trajectories/`) | Disabled | Offline debugging with screenshots | `--save-trajectory step/action` |
 
 ---
 

@@ -27,11 +27,7 @@ Before installing DroidRun, ensure you have:
 
 ### Installation
 
-DroidRun v4 can be installed using `uv` (recommended) or `pip`. Choose the method that works best for you.
-
-#### Method 1: Using uv (Recommended)
-
-[`uv`](https://docs.astral.sh/uv/) is a fast Python package installer and resolver. It's the recommended way to install DroidRun as it handles dependency resolution more efficiently.
+DroidRun v4 is installed using [`uv`](https://docs.astral.sh/uv/), a fast Python package installer and resolver.
 
 **Install uv (if not already installed):**
 
@@ -43,43 +39,34 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-**Install DroidRun with all providers:**
+**Choose your installation method:**
 
+**For CLI usage only:**
 ```bash
-uv tool install 'droidrun[google,anthropic,openai,deepseek,ollama]'
+uv tool install 'droidrun[google,anthropic,openai,deepseek,ollama,openrouter]'
 ```
 
-This installs DroidRun as a command-line tool with support for all major LLM providers.
-
-#### Method 2: Using pip
-
-If you prefer using `pip` or already have a Python environment set up:
-
+**For CLI + Python code integration:**
 ```bash
-pip install 'droidrun[google,anthropic,openai,deepseek,ollama]'
+uv pip install 'droidrun[google,anthropic,openai,deepseek,ollama,openrouter]'
 ```
 
 <Note>
-If you only need specific providers, you can install just those. For example, `pip install 'droidrun[google,openai]'` installs only Google Gemini and OpenAI support.
+If you only need specific providers, you can install just those. For example, `uv tool install 'droidrun[google,openai]'` installs only Google Gemini and OpenAI support.
 </Note>
 
 ### Setup the Portal APK
 
-DroidRun requires the Portal app to be installed on your Android device for device control. The Portal app provides accessibility services and UI state information.
+DroidRun requires the Portal app to be installed on your Android device for device control. The Portal app provides accessibility services that expose the UI accessibility tree, enabling the agent to see and interact with UI elements.
 
 ```bash
 droidrun setup
 ```
 
-This command:
+This command automatically:
 1. Downloads the latest Portal APK
 2. Installs it on your connected device
-3. Prompts you to enable accessibility services
-
-**Enable accessibility services:**
-1. Open Settings on your device
-2. Go to Accessibility Settings → DroidRun Portal
-3. Toggle the service ON
+3. Enables the accessibility service
 
 ### Test Connection
 
@@ -116,10 +103,6 @@ export ANTHROPIC_API_KEY=your-api-key-here
 export DEEPSEEK_API_KEY=your-api-key-here
 ```
 
-<Tip>
-Add these exports to your shell profile (`~/.bashrc`, `~/.zshrc`, etc.) to make them permanent.
-</Tip>
-
 ### Run Your First Command via CLI
 
 Now you're ready to control your device with natural language:
@@ -152,31 +135,27 @@ For complex automation or integration into your Python projects, create a script
 
 ```python
 import asyncio
-from droidrun import DroidAgent, DroidRunConfig
-from droidrun.tools.adb import AdbTools
+from droidrun import DroidAgent
+from droidrun.config_manager.config_manager import DroidRunConfig
 
 async def main():
-    # Load configuration (very customizable)
+    # Use default configuration with built-in LLM profiles
     config = DroidRunConfig()
 
-    # Initialize tools
-    tools = AdbTools()
-
     # Create agent
-    # LLMs are automatically loaded from default DroidRunConfig
+    # LLMs are automatically loaded from config.llm_profiles
     agent = DroidAgent(
         goal="Open Settings and check battery level",
-        tools=tools,
         config=config,
     )
 
     # Run agent
     result = await agent.run()
 
-    # Check results
-    print(f"Success: {result['success']}")
-    print(f"Reason: {result['reason']}")
-    print(f"Steps: {result['steps']}")
+    # Check results (result is a ResultEvent object)
+    print(f"Success: {result.success}")
+    print(f"Reason: {result.reason}")
+    print(f"Steps: {result.steps}")
 
 if __name__ == "__main__":
     asyncio.run(main())
@@ -185,91 +164,76 @@ if __name__ == "__main__":
 **Advanced example with custom LLMs:**
 
 ```python
-#!/usr/bin/env python3
 import asyncio
-from droidrun import DroidAgent, DroidRunConfig
-from droidrun.tools.adb import AdbTools
+from droidrun import DroidAgent
+from droidrun.config_manager.config_manager import DroidRunConfig, AgentConfig
 from llama_index.llms.openai import OpenAI
 
 async def main():
-    # Load configuration
+    # Load base configuration
     config = DroidRunConfig()
 
-    # Initialize tools
-    tools = AdbTools()
+    # Create custom agent config with overrides
+    agent_config = AgentConfig(
+        max_steps=30,
+        reasoning=True,
+    )
+    agent_config.manager.vision = True
 
-    # Override config settings programmatically
-    config.agent.max_steps = 25
-    config.agent.reasoning = True
-    config.agent.manager.vision = True
-
-    # Or provide custom LLM (overrides config)
+    # Create custom LLM (overrides config LLM profiles)
     custom_llm = OpenAI(model="gpt-4o", temperature=0.2)
 
     agent = DroidAgent(
         goal="Book a flight to New York next Friday",
-        tools=tools,
         config=config,
-        llm=custom_llm,  # Custom LLM for all agents
-        max_steps=30,    # Override config
-        reasoning=True,
+        agent_config=agent_config,  # Override agent config
+        llms=custom_llm,  # Single LLM for all agents (or pass dict for per-agent)
     )
 
     result = await agent.run()
-    print(result)
+    print(f"Success: {result.success}")
+    print(f"Reason: {result.reason}")
+    print(f"Steps: {result.steps}")
 
 if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-### Understanding Config-Driven Architecture
+### Configuration Options
 
-DroidRun v4 introduces a powerful configuration system. Your `config.yaml` file controls:
+DroidRun v4 provides flexible configuration through:
 
-- **Agent behavior**: Execution modes, max steps, timing
-- **LLM profiles**: Different models for different agent types
-- **Vision settings**: Per-agent screenshot processing
-- **Safe execution**: Restricted code execution for security
-- **Prompts**: Customizable Jinja2 templates
-
-**Example config.yaml:**
-
-```yaml
-agent:
-  max_steps: 15
-  reasoning: false  # Direct execution mode
-
-  # Per-agent configuration
-  manager:
-    vision: false
-  executor:
-    vision: false
-  codeact:
-    vision: false
-
-# LLM profiles (different models for different tasks)
-llm_profiles:
-  # Planning agent (used in reasoning mode)
-  manager:
-    provider: GoogleGenAI
-    model: models/gemini-2.5-pro
-    temperature: 0.2
-
-  # Action execution agent
-  executor:
-    provider: GoogleGenAI
-    model: models/gemini-2.5-pro
-    temperature: 0.1
-
-  # Direct execution agent
-  codeact:
-    provider: GoogleGenAI
-    model: models/gemini-2.5-pro
-    temperature: 0.2
+**1. Default Configuration (No File Required):**
+```python
+config = DroidRunConfig()  # Uses built-in defaults
 ```
 
+**2. Load from YAML File:**
+```python
+config = DroidRunConfig.from_yaml("config.yaml")  # Load custom config
+```
+
+**3. Programmatic Configuration:**
+```python
+from droidrun.config_manager.config_manager import DroidRunConfig, AgentConfig
+
+config = DroidRunConfig()
+config.agent.max_steps = 25
+config.agent.reasoning = True
+config.agent.codeact.vision = True
+```
+
+**Key Configuration Areas:**
+
+- **Agent Settings**: `max_steps`, `reasoning`, vision modes
+- **LLM Profiles**: Per-agent model configurations (manager, executor, codeact)
+- **Device**: Serial number, platform (android/ios), TCP mode
+- **Execution**: Safe execution, prompt templates, app cards
+- **Telemetry**: Tracing and logging options
+
+
 <Tip>
-CLI flags override config settings. For example, `--vision` enables vision for all agents regardless of config.yaml settings.
+For detailed configuration options, see the [Configuration Guide](/v4/guides/configuration). The CLI uses `ConfigManager` which auto-creates config.yaml on first run.
 </Tip>
 
 ### Structured Output Extraction
@@ -277,7 +241,10 @@ CLI flags override config settings. For example, `--vision` enables vision for a
 DroidRun v4 supports structured output extraction using Pydantic models:
 
 ```python
+import asyncio
 from pydantic import BaseModel, Field
+from droidrun import DroidAgent
+from droidrun.config_manager.config_manager import DroidRunConfig
 
 class BatteryInfo(BaseModel):
     """Battery information."""
@@ -285,20 +252,26 @@ class BatteryInfo(BaseModel):
     is_charging: bool = Field(description="Whether device is charging")
     temperature: float = Field(description="Battery temperature in Celsius")
 
-agent = DroidAgent(
-    goal="Check battery status",
-    tools=tools,
-    config=config,
-    output_model=BatteryInfo  # Request structured output
-)
+async def main():
+    config = DroidRunConfig()
 
-result = await agent.run()
+    agent = DroidAgent(
+        goal="Check battery status",
+        config=config,
+        output_model=BatteryInfo  # Request structured output
+    )
 
-# Access structured data
-battery = result["structured_output"]
-print(f"Battery: {battery.level}%")
-print(f"Charging: {battery.is_charging}")
-print(f"Temperature: {battery.temperature}°C")
+    result = await agent.run()
+
+    # Access structured data (result.structured_output is a Pydantic model instance)
+    battery = result.structured_output
+    if battery:
+        print(f"Battery: {battery.level}%")
+        print(f"Charging: {battery.is_charging}")
+        print(f"Temperature: {battery.temperature}°C")
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
 ### Execution Modes
@@ -307,20 +280,45 @@ DroidRun v4 supports two execution modes:
 
 **Direct Mode (Default):**
 - Fast execution for simple tasks
-- Uses CodeActAgent to generate and execute code
+- Uses CodeActAgent to generate and execute Python code
 - Best for: Simple commands, quick actions
 
 ```bash
-droidrun run "Open YouTube" --no-reasoning
+droidrun run "Open YouTube"
+```
+
+```python
+# In scripts
+from droidrun import DroidAgent
+from droidrun.config_manager.config_manager import DroidRunConfig
+
+config = DroidRunConfig()
+agent = DroidAgent(goal="Open YouTube", config=config)
 ```
 
 **Reasoning Mode:**
 - Strategic planning for complex tasks
 - Uses Manager-Executor multi-agent workflow
+- Manager creates plans, Executor executes atomic actions
 - Best for: Multi-step workflows, complex navigation
 
 ```bash
 droidrun run "Find contacts from California and export to CSV" --reasoning
+```
+
+```python
+# In scripts - Option 1: Override config
+from droidrun import DroidAgent
+from droidrun.config_manager.config_manager import DroidRunConfig, AgentConfig
+
+config = DroidRunConfig()
+
+config.agent.reasoning = True
+agent = DroidAgent(goal="...", config=config)
+
+# Option 2: Pass custom agent_config
+agent_config = AgentConfig(reasoning=True)
+agent = DroidAgent(goal="...", config=config, agent_config=agent_config)
 ```
 
 ## Next Steps

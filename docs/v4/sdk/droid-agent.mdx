@@ -33,13 +33,12 @@ def __init__(
     logging_config: LoggingConfig | None = None,
     tracing_config: TracingConfig | None = None,
     telemetry_config: TelemetryConfig | None = None,
-    custom_tools: dict = None,
+    custom_tools: dict | None = None,
     credentials: "CredentialsConfig | dict | None" = None,
     variables: dict | None = None,
     output_model: Type[BaseModel] | None = None,
-    timeout: int = 1000,
-    *args,
-    **kwargs
+    prompts: dict[str, str] | None = None,
+    timeout: int = 1000
 )
 ```
 
@@ -69,12 +68,33 @@ Initialize the DroidAgent wrapper.
   - `None`: Uses config.credentials if available
 - `variables` _dict | None_ - Custom variables accessible throughout execution. Available in shared_state.custom_variables.
 - `output_model` _Type[BaseModel] | None_ - Pydantic model for structured output extraction from final answer. If provided, the final answer will be parsed into this model.
+- `prompts` _dict[str, str] | None_ - Custom Jinja2 prompt templates to override defaults. Keys: "codeact_system", "codeact_user", "manager_system", "executor_system", "scripter_system". Values: Jinja2 template strings (NOT file paths).
 - `timeout` _int_ - Workflow timeout in seconds (default: 1000)
 
-**Config-driven initialization pattern (recommended):**
+**Basic initialization pattern (recommended):**
 
 ```python
-from droidrun import DroidAgent, DroidRunConfig
+from droidrun import DroidAgent
+from droidrun.config_manager.config_manager import DroidRunConfig
+
+# Initialize with default config
+config = DroidRunConfig()
+
+# Create agent (LLMs loaded from config.llm_profiles)
+agent = DroidAgent(
+    goal="Open Chrome and search for DroidRun",
+    config=config
+)
+
+# Run agent
+result = await agent.run()
+```
+
+**Loading from YAML (optional):**
+
+```python
+from droidrun import DroidAgent
+from droidrun.config_manager.config_manager import DroidRunConfig
 
 # Load config from config.yaml
 config = DroidRunConfig.from_yaml("config.yaml")
@@ -86,16 +106,19 @@ agent = DroidAgent(
 )
 
 # Run agent
-handler = agent.run()
-result = await handler
+result = await agent.run()
 ```
 
 **Custom LLM dictionary pattern:**
 
 ```python
 from droidrun import DroidAgent
+from droidrun.config_manager.config_manager import DroidRunConfig
 from llama_index.llms.openai import OpenAI
 from llama_index.llms.anthropic import Anthropic
+
+# Initialize config
+config = DroidRunConfig()
 
 # Create custom LLMs
 llms = {
@@ -115,15 +138,18 @@ agent = DroidAgent(
     config=config
 )
 
-handler = agent.run()
-result = await handler
+result = await agent.run()
 ```
 
 **Single LLM pattern:**
 
 ```python
 from droidrun import DroidAgent
+from droidrun.config_manager.config_manager import DroidRunConfig
 from llama_index.llms.openai import OpenAI
+
+# Initialize config
+config = DroidRunConfig()
 
 # Use same LLM for all agents
 llm = OpenAI(model="gpt-4o", temperature=0.2)
@@ -134,14 +160,17 @@ agent = DroidAgent(
     config=config
 )
 
-handler = agent.run()
-result = await handler
+result = await agent.run()
 ```
 
 **Custom tools and credentials:**
 
 ```python
 from droidrun import DroidAgent
+from droidrun.config_manager.config_manager import DroidRunConfig
+
+# Initialize config
+config = DroidRunConfig()
 
 # Define custom tool
 def search_database(query: str) -> str:
@@ -170,15 +199,18 @@ agent = DroidAgent(
     credentials=credentials
 )
 
-handler = agent.run()
-result = await handler
+result = await agent.run()
 ```
 
 **Structured output extraction:**
 
 ```python
 from droidrun import DroidAgent
+from droidrun.config_manager.config_manager import DroidRunConfig
 from pydantic import BaseModel, Field
+
+# Initialize config
+config = DroidRunConfig()
 
 # Define output schema
 class WeatherInfo(BaseModel):
@@ -193,12 +225,11 @@ agent = DroidAgent(
     output_model=WeatherInfo
 )
 
-handler = agent.run()
-result = await handler
+result = await agent.run()
 
 # Access structured output
-if result["success"] and result["structured_output"]:
-    weather = result["structured_output"]  # WeatherInfo object
+if result.success and result.structured_output:
+    weather = result.structured_output  # WeatherInfo object
     print(f"Temperature: {weather.temperature}°C")
     print(f"Condition: {weather.condition}")
 ```
@@ -208,56 +239,60 @@ if result["success"] and result["structured_output"]:
 #### DroidAgent.run
 
 ```python
-def run(*args, **kwargs) -> WorkflowHandler
+async def run(*args, **kwargs) -> ResultEvent
 ```
 
 Run the DroidAgent workflow.
 
 **Returns**:
 
-- `WorkflowHandler` - Async workflow handler. Await this to get the final result.
-
-**Result structure:**
-
-```python
-{
-    "success": bool,          # True if task completed successfully
-    "reason": str,            # Success message or failure reason
-    "steps": int,             # Number of steps executed
-    "structured_output": Any  # Parsed Pydantic model (if output_model provided)
-}
-```
+- `ResultEvent` - Result object with the following attributes:
+  - `success` (bool): True if task completed successfully
+  - `reason` (str): Success message or failure reason
+  - `steps` (int): Number of steps executed
+  - `structured_output` (Any): Parsed Pydantic model (if output_model provided, otherwise None)
 
 **Usage:**
 
 ```python
-# Synchronous-style usage
-agent = DroidAgent(goal="...", config=config)
-handler = agent.run()
-result = await handler
+from droidrun import DroidAgent
+from droidrun.config_manager.config_manager import DroidRunConfig
 
-print(f"Success: {result['success']}")
-print(f"Reason: {result['reason']}")
-print(f"Steps: {result['steps']}")
+# Initialize config
+config = DroidRunConfig()
+
+# Create and run agent
+agent = DroidAgent(goal="...", config=config)
+result = await agent.run()
+
+print(f"Success: {result.success}")
+print(f"Reason: {result.reason}")
+print(f"Steps: {result.steps}")
 ```
 
 **Streaming events:**
 
 ```python
+from droidrun import DroidAgent
+from droidrun.config_manager.config_manager import DroidRunConfig
+
+# Initialize config
+config = DroidRunConfig()
+
 agent = DroidAgent(goal="...", config=config)
-handler = agent.run()
 
 # Stream events as they occur
-async for event in handler.stream_events():
+async for event in agent.run_event_stream():
     if isinstance(event, ManagerInputEvent):
         print("Manager is planning...")
     elif isinstance(event, ExecutorInputEvent):
         print("Executor is taking action...")
     elif isinstance(event, TapActionEvent):
         print(f"Tapping element at {event.x}, {event.y}")
-
-# Get final result
-result = await handler
+    elif isinstance(event, ResultEvent):
+        # Final result
+        print(f"Success: {event.success}")
+        print(f"Reason: {event.reason}")
 ```
 
 ## Event Types
@@ -331,6 +366,10 @@ tracing:
 
 ```python
 from droidrun import DroidAgent, AdbTools
+from droidrun.config_manager.config_manager import DroidRunConfig
+
+# Initialize config
+config = DroidRunConfig()
 
 # Pre-configure tools
 tools = AdbTools(serial="emulator-5554", use_tcp=True)
@@ -341,13 +380,18 @@ agent = DroidAgent(
     tools=tools  # Use pre-configured tools
 )
 
-handler = agent.run()
-result = await handler
+result = await agent.run()
 ```
 
 **Custom variables:**
 
 ```python
+from droidrun import DroidAgent
+from droidrun.config_manager.config_manager import DroidRunConfig
+
+# Initialize config
+config = DroidRunConfig()
+
 agent = DroidAgent(
     goal="Complete task using context",
     config=config,
@@ -358,11 +402,36 @@ agent = DroidAgent(
     }
 )
 
-handler = agent.run()
-result = await handler
+result = await agent.run()
 ```
 
 Variables are accessible in shared_state.custom_variables throughout execution and can be referenced in custom tools or scripts.
+
+**Custom prompts:**
+
+```python
+from droidrun import DroidAgent
+from droidrun.config_manager.config_manager import DroidRunConfig
+
+# Initialize config
+config = DroidRunConfig()
+
+# Override default prompts with custom Jinja2 templates
+custom_prompts = {
+    "codeact_system": "You are a specialized agent for {{ platform }} devices...",
+    "manager_system": "You are a planning agent. Your goal: {{ instruction }}..."
+}
+
+agent = DroidAgent(
+    goal="Complete specialized task",
+    config=config,
+    prompts=custom_prompts
+)
+
+result = await agent.run()
+```
+
+Available prompt keys: "codeact_system", "codeact_user", "manager_system", "executor_system", "scripter_system"
 
 ## Notes
 

@@ -33,9 +33,11 @@ The DroidRun Portal is a companion app that runs on your device and provides:
   </Step>
 
   <Step title="Communication Layer">
-    DroidRun communicates with the Portal app using two methods:
+    DroidRun uses a unified `PortalClient` that automatically selects the best communication method:
     - **TCP Mode** (faster): HTTP server on port 8080 with ADB port forwarding
     - **Content Provider Mode** (fallback): Android content provider via ADB shell commands
+
+    The `PortalClient` handles both modes transparently via the `prefer_tcp` flag in `AdbTools`.
   </Step>
 
   <Step title="Custom Keyboard">
@@ -43,6 +45,7 @@ The DroidRun Portal is a companion app that runs on your device and provides:
     - Supports all characters including special Unicode
     - Handles base64-encoded text for reliability
     - Bypasses Android's text input restrictions
+    - Automatically enabled when creating `AdbTools` instances
   </Step>
 </Steps>
 
@@ -115,8 +118,10 @@ droidrun setup
 
 This command will:
 1. Download the latest Portal APK from GitHub releases
-2. Install it on your connected device (with `-g` flag to grant all permissions)
-3. Attempt to enable the accessibility service automatically
+2. Uninstall any existing Portal app version (using `uninstall=True` flag)
+3. Install the new APK with all permissions granted (using `-g` flag)
+4. Install silently without showing progress (using `silent=True` unless `--debug` is used)
+5. Attempt to enable the accessibility service automatically
 
 <Tabs>
   <Tab title="Automatic Setup (Recommended)">
@@ -135,14 +140,18 @@ This command will:
     If you have a custom APK build:
 
     ```bash
+    # Install custom APK
     droidrun setup --path /path/to/portal.apk --device SERIAL_NUMBER
+
+    # Enable debug logging for troubleshooting
+    droidrun setup --debug
     ```
   </Tab>
 
   <Tab title="Troubleshooting Installation">
     **Installation fails with "INSTALL_FAILED_UPDATE_INCOMPATIBLE":**
-    - Uninstall the existing Portal app first
-    - The setup command uses `--uninstall` flag by default
+    - The setup command automatically uninstalls existing versions (`uninstall=True`)
+    - If it still fails, manually uninstall: `adb uninstall com.droidrun.portal`
 
     **Installation fails with "Permission denied":**
     - Ensure USB debugging is enabled
@@ -160,32 +169,32 @@ The Portal app requires accessibility permissions to read UI state and perform a
 
 <Steps>
   <Step title="Automatic Enablement">
-    The `droidrun setup` command attempts automatic enablement via ADB:
+    The `droidrun setup` command attempts automatic enablement via ADB using the `enable_portal_accessibility()` function:
 
     ```bash
     # This is done automatically during setup
+    # Service name: com.droidrun.portal/com.droidrun.portal.DroidrunAccessibilityService
     adb shell settings put secure enabled_accessibility_services com.droidrun.portal/com.droidrun.portal.DroidrunAccessibilityService
     adb shell settings put secure accessibility_enabled 1
     ```
 
     <Note>
-    Automatic enablement may fail on some devices due to security restrictions. If this happens, follow the manual steps below.
+    Automatic enablement may fail on some devices due to security restrictions. The setup command will automatically open accessibility settings if automatic enablement fails.
     </Note>
   </Step>
 
   <Step title="Manual Enablement">
-    If automatic enablement fails:
+    If automatic enablement fails, the setup command will automatically open accessibility settings:
 
-    1. Open **Settings** on your device
-    2. Navigate to **Accessibility** (path varies by device):
-       - Stock Android: Settings > Accessibility
-       - Samsung: Settings > Accessibility
-       - Xiaomi: Settings > Additional settings > Accessibility
-    3. Find **DroidRun Portal** in the services list
+    1. The device will show **Accessibility Settings**
+    2. Find **DroidRun Portal** (package: `com.droidrun.portal`) in the services list
+    3. Tap on **DroidRun Portal**
     4. Toggle the switch to **ON**
     5. Tap **Allow** on the permission dialog
 
-    The `droidrun setup` command will automatically open the accessibility settings for you.
+    <Note>
+    The setup command automatically runs `am start -a android.settings.ACCESSIBILITY_SETTINGS` to open settings if automatic enablement fails.
+    </Note>
   </Step>
 
   <Step title="Verify Accessibility Service">
@@ -210,14 +219,17 @@ Verify everything is working:
 # List connected devices
 droidrun devices
 
-# Test Portal connection (content provider mode)
+# Test Portal connection (tries content provider mode by default)
 droidrun ping
 
 # Test Portal connection (TCP mode)
 droidrun ping --tcp
 
+# Test with specific device
+droidrun ping --device SERIAL_NUMBER
+
 # Run a simple command
-droidrun "Open the settings app"
+droidrun run "Open the settings app"
 ```
 
 ---
@@ -241,18 +253,22 @@ DroidRun supports two communication modes with automatic fallback:
 **Enable TCP mode:**
 
 ```bash
-# CLI
+# CLI - use --tcp flag
 droidrun run "your command" --tcp
+
+# Or set in config.yaml
+# device:
+#   use_tcp: true
 
 # Python API
 tools = AdbTools(serial="DEVICE_SERIAL", use_tcp=True)
 ```
 
 **Port forwarding details:**
-- Portal listens on device port `8080`
-- ADB automatically allocates a free local port (e.g., `37815`)
+- Portal listens on device port `8080` (configurable via `remote_tcp_port`)
+- ADB automatically allocates a free local port (uses `tcp:0` for auto-allocation)
 - Existing forwards are reused (no duplicates)
-- Forwards persist until device disconnect
+- Forwards persist until device disconnect or manual removal
 
 **Troubleshooting TCP mode:**
 
@@ -295,8 +311,8 @@ tools = AdbTools(serial="DEVICE_SERIAL", use_tcp=True)
 
 **How it works:**
 1. Portal app exposes a content provider at `content://com.droidrun.portal/`
-2. DroidRun sends ADB shell commands like `content query --uri content://com.droidrun.portal/state`
-3. Portal returns data as JSON in the shell output
+2. `PortalClient` sends ADB shell commands like `content query --uri content://com.droidrun.portal/state`
+3. Portal returns data as JSON in the shell output, parsed by `PortalClient`
 
 **Advantages:**
 - 🔒 **Always Available**: No network/port requirements
@@ -309,7 +325,7 @@ tools = AdbTools(serial="DEVICE_SERIAL", use_tcp=True)
 
 **Automatic fallback:**
 
-DroidRun automatically falls back to content provider mode when:
+The `PortalClient` (used internally by `AdbTools`) automatically falls back to content provider mode when:
 - TCP connection fails
 - HTTP server is not responding
 - Port forwarding setup fails
@@ -317,11 +333,11 @@ DroidRun automatically falls back to content provider mode when:
 **Manual content provider mode:**
 
 ```bash
-# Test content provider connection
-droidrun ping --no-tcp
+# Test content provider connection (default behavior)
+droidrun ping
 
-# Force content provider mode
-droidrun run "your command" --no-tcp
+# The --no-tcp flag is not needed as content provider is the default
+# To explicitly disable TCP, use use_tcp=False in Python API
 ```
 
 **Troubleshooting content provider mode:**
@@ -340,13 +356,18 @@ droidrun run "your command" --no-tcp
   </Accordion>
 
   <Accordion title="ContentProvider error: Unknown URI">
-    Available endpoints:
-    - `/state` - Get UI state and phone state
-    - `/keyboard/input` - Input text
-    - `/packages` - List installed packages
-    - `/overlay_offset` - Set overlay offset
+    The Portal content provider is accessed via:
+    ```bash
+    content://com.droidrun.portal/state
+    content://com.droidrun.portal/keyboard/input
+    content://com.droidrun.portal/packages
+    content://com.droidrun.portal/overlay_offset
+    ```
 
-    Ensure you're using the latest Portal app version.
+    If you see "Unknown URI" errors:
+    - Ensure Portal app is installed (`com.droidrun.portal`)
+    - Verify accessibility service is enabled
+    - Update to the latest Portal app version: `droidrun setup`
   </Accordion>
 </AccordionGroup>
 
@@ -570,7 +591,7 @@ from droidrun import IOSTools, DroidAgent
 # Initialize iOS tools with device URL
 tools = IOSTools(
     url="http://DEVICE_IP:8080",
-    bundle_identifiers=["com.example.app"]  # Optional: filter apps
+    bundle_identifiers=["com.example.app"]  # Optional: list of app bundle IDs
 )
 
 # Create agent
@@ -586,16 +607,24 @@ result = await agent.run()
 **CLI:**
 
 ```bash
+# Use --ios flag to target iOS devices
 droidrun run "your command" --ios
+
+# Or set platform in config.yaml:
+# device:
+#   platform: ios
 ```
 
 ### iOS Limitations
 
 Current limitations in iOS support:
 
-- ❌ No `back()` navigation
-- ❌ No `drag()` operation
-- ⚠️ Limited keyboard support
+- ❌ No `get_date()` - Returns "Not implemented for iOS"
+- ❌ No `back()` - Raises `NotImplementedError`
+- ❌ No `drag()` - Not implemented, returns False
+- ❌ No `get_apps()` - Not available (use `list_packages()` instead)
+- ⚠️ `input_text()` does not support `index` or `clear` parameters
+- ⚠️ `_extract_element_coordinates_by_index()` is implemented but works differently than Android
 - ⚠️ Requires manual Portal app installation
 
 ---
@@ -723,13 +752,13 @@ Current limitations in iOS support:
     **Symptoms:** `input_text()` fails or types gibberish
 
     **Solutions:**
-    1. **Check DroidRun keyboard:**
+    1. **Check DroidRun keyboard (automatically set up by AdbTools):**
        ```bash
        # List IMEs
        adb shell ime list -a
        # Should show: com.droidrun.portal/.DroidrunKeyboardIME
 
-       # Enable keyboard
+       # Enable keyboard (done automatically in AdbTools.__init__)
        adb shell ime enable com.droidrun.portal/.DroidrunKeyboardIME
        adb shell ime set com.droidrun.portal/.DroidrunKeyboardIME
        ```
@@ -742,8 +771,11 @@ Current limitations in iOS support:
 
     3. **Focus element before input:**
        ```python
-       # Tap text field first
-       tools.tap_by_index(INDEX_OF_TEXT_FIELD)
+       # Tap text field first or use index parameter
+       tools.input_text("your text", index=5)  # Taps element 5 then inputs text
+
+       # Or manually tap first
+       tools.tap_by_index(5)
        time.sleep(0.5)
        tools.input_text("your text")
        ```
@@ -751,6 +783,10 @@ Current limitations in iOS support:
     4. **Manually switch keyboard:**
        - Long press space bar on device
        - Select "DroidRun Keyboard"
+
+    <Note>
+    The DroidRun keyboard is automatically enabled when you create an `AdbTools` instance via `setup_keyboard()` call in `__init__`.
+    </Note>
   </Accordion>
 
   <Accordion title="UI elements not detected / empty state">
@@ -946,7 +982,12 @@ adb shell content query --uri content://com.droidrun.portal/state
    adb kill-server && adb start-server
    ```
 
-4. **Monitor device battery during long sessions:**
+4. **DroidRun keyboard cleanup:**
+   - The CLI automatically disables the DroidRun keyboard after each run
+   - This prevents the keyboard from interfering with normal device usage
+   - The keyboard is re-enabled automatically on the next run
+
+5. **Monitor device battery during long sessions:**
    - Keep device plugged in
    - Disable sleep/screen timeout
 

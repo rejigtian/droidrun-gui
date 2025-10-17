@@ -7,15 +7,33 @@ description: "Understanding DroidRun event system for real-time monitoring and c
 
 DroidRun features a comprehensive event streaming architecture built on [LlamaIndex Workflows](https://docs.llamaindex.ai/en/stable/understanding/workflows/). Events flow through the system in real-time, enabling you to monitor agent execution, build custom UIs, and integrate with external systems.
 
+**Quick Start:**
+```python
+from droidrun import DroidAgent, ResultEvent
+from droidrun.config_manager.config_manager import DroidRunConfig
+
+config = DroidRunConfig()
+agent = DroidAgent(goal="Your task", config=config)
+handler = agent.run()
+
+# Stream events in real-time
+async for event in handler.stream_events():
+    print(f"Event: {event.__class__.__name__}")
+
+# Get final result (ResultEvent with success, reason, steps, structured_output)
+result: ResultEvent = await handler
+print(f"Success: {result.success}, Reason: {result.reason}")
+```
+
 ### Two-Tier Event System
 
 DroidRun uses a dual-layer event architecture:
 
-1. **Coordination Events** - Lightweight routing events for workflow orchestration
-2. **Internal Events** - Rich debugging events with full metadata for streaming/logging
+1. **Coordination Events** (`droidrun/agent/droid/events.py`) - Lightweight routing events for workflow orchestration between DroidAgent and child agents
+2. **Internal Events** (agent-specific `events.py` files) - Rich debugging events with full metadata, streamed to external consumers
 
 ```python
-# Coordination Event (workflow routing only)
+# Coordination Event (workflow routing only, NOT streamed)
 class ExecutorInputEvent(Event):
     current_subgoal: str  # Minimal data for routing
 
@@ -26,7 +44,11 @@ class ExecutorInternalActionEvent(Event):
     description: str      # Human-readable description
 ```
 
-This separation ensures efficient workflow coordination while providing rich observability for monitoring and debugging.
+**Key distinction:**
+- **Coordination events** trigger workflow steps (e.g., `ManagerInputEvent` → runs Manager)
+- **Internal events** are streamed for monitoring (e.g., `ManagerInternalPlanEvent` → shows plan details)
+- **ResultEvent** is the final return value from `agent.run()` (includes success, reason, steps, structured_output)
+- **StopEvent** is a LlamaIndex internal event (filtered, never streamed to consumers)
 
 ## Event Categories
 
@@ -40,19 +62,20 @@ Located in `/droidrun/agent/droid/events.py`, these events control workflow flow
 | `ManagerPlanEvent` | Manager → DroidAgent routing | `plan`, `current_subgoal`, `thought`, `manager_answer` |
 | `ExecutorInputEvent` | Trigger Executor action | `current_subgoal` |
 | `ExecutorResultEvent` | Executor → DroidAgent routing | `action`, `outcome`, `error`, `summary`, `full_response` |
-| `CodeActExecuteEvent` | Trigger CodeAct execution | `task` |
+| `CodeActExecuteEvent` | Trigger CodeAct execution | `task` (Task object) |
 | `CodeActResultEvent` | CodeAct → DroidAgent routing | `success`, `reason`, `task` |
-| `ScripterExecutorInputEvent` | Trigger Scripter workflow | `task` |
+| `ScripterExecutorInputEvent` | Trigger Scripter workflow | `task` (str) |
 | `ScripterExecutorResultEvent` | Scripter → DroidAgent routing | `task`, `message`, `success`, `code_executions` |
 | `FinalizeEvent` | Signal task completion | `success`, `reason` |
+| `ResultEvent` | Final workflow result | `success`, `reason`, `steps`, `structured_output` |
 
 ### Internal Events (Streamed)
 
-These events are written to the event stream and contain full debugging metadata:
+These events are written to the event stream and contain full debugging metadata. They are located in agent-specific event files:
 
 #### Manager Events
 ```python
-# droidrun/agent/manager/events.py
+# File: droidrun/agent/manager/events.py
 class ManagerThinkingEvent(Event):
     """Manager is analyzing state"""
     pass
@@ -68,7 +91,7 @@ class ManagerInternalPlanEvent(Event):
 
 #### Executor Events
 ```python
-# droidrun/agent/executor/events.py
+# File: droidrun/agent/executor/events.py
 class ExecutorInternalActionEvent(Event):
     """Executor selected an action (with reasoning)"""
     action_json: str      # Raw JSON string
@@ -89,7 +112,7 @@ class ExecutorInternalResultEvent(Event):
 
 #### CodeAct Events
 ```python
-# droidrun/agent/codeact/events.py
+# File: droidrun/agent/codeact/events.py
 class TaskInputEvent(Event):
     """Task input received"""
     input: list[ChatMessage]
@@ -122,7 +145,7 @@ class EpisodicMemoryEvent(Event):
 
 #### Scripter Events
 ```python
-# droidrun/agent/scripter/events.py
+# File: droidrun/agent/scripter/events.py
 class ScripterInputEvent(Event):
     """Scripter input"""
     input: List  # List of ChatMessages
@@ -150,7 +173,7 @@ class ScripterEndEvent(Event):
 
 #### Common Events
 ```python
-# droidrun/agent/common/events.py
+# File: droidrun/agent/common/events.py
 class ScreenshotEvent(Event):
     """Screenshot captured"""
     screenshot: bytes
@@ -168,6 +191,13 @@ class TapActionEvent(MacroEvent):
     element_bounds: str = ""
 
 class SwipeActionEvent(MacroEvent):
+    start_x: int
+    start_y: int
+    end_x: int
+    end_y: int
+    duration_ms: int
+
+class DragActionEvent(MacroEvent):
     start_x: int
     start_y: int
     end_x: int
@@ -227,8 +257,8 @@ class DroidAgentFinalizeEvent(TelemetryEvent):
 The simplest way to capture events is through the workflow handler's `stream_events()` method:
 
 ```python
-from droidrun import DroidAgent
-from droidrun.config.config import DroidRunConfig
+from droidrun import DroidAgent, ResultEvent
+from droidrun.config_manager.config_manager import DroidRunConfig
 
 # Initialize agent with config
 config = DroidRunConfig()
@@ -243,15 +273,17 @@ handler = agent.run()
 async for event in handler.stream_events():
     print(f"Event: {event.__class__.__name__}")
 
-    # Access event-specific fields
+    # Access event-specific fields safely
     if hasattr(event, 'thought'):
         print(f"  Thought: {event.thought}")
     if hasattr(event, 'action'):
         print(f"  Action: {event.action}")
 
 # Get final result
-result = await handler
-print(f"Success: {result['success']}, Reason: {result['reason']}")
+result: ResultEvent = await handler
+print(f"Success: {result.success}")
+print(f"Reason: {result.reason}")
+print(f"Steps: {result.steps}")
 ```
 
 ### Building a Custom Event Handler
@@ -264,6 +296,13 @@ from typing import List
 from rich.console import Console
 from rich.live import Live
 from rich.panel import Panel
+from droidrun import DroidAgent
+from droidrun.config_manager.config_manager import DroidRunConfig
+from droidrun.agent.manager.events import ManagerThinkingEvent, ManagerInternalPlanEvent
+from droidrun.agent.executor.events import ExecutorInternalActionEvent, ExecutorInternalResultEvent
+from droidrun.agent.codeact.events import TaskThinkingEvent, TaskExecutionResultEvent
+from droidrun.agent.common.events import ScreenshotEvent, RecordUIStateEvent
+from droidrun.agent.droid.events import FinalizeEvent
 
 class CustomEventHandler(logging.Handler):
     def __init__(self):
@@ -317,9 +356,7 @@ class CustomEventHandler(logging.Handler):
             status = "🎉 Success" if event.success else "❌ Failed"
             self.console.print(f"{status}: {event.reason}")
 
-# Use the handler
-from droidrun.config.config import DroidRunConfig
-
+# Use the custom handler
 handler_instance = CustomEventHandler()
 config = DroidRunConfig()
 
@@ -329,7 +366,8 @@ workflow_handler = agent.run()
 async for event in workflow_handler.stream_events():
     handler_instance.handle_event(event)
 
-result = await workflow_handler
+result: ResultEvent = await workflow_handler
+print(f"\nFinal result: {result.success} - {result.reason}")
 ```
 
 ### Real-World Example: LogHandler
@@ -404,12 +442,12 @@ with log_handler.render():  # Rich Live rendering
     handler = agent.run()
     async for event in handler.stream_events():
         log_handler.handle_event(event)
-    result = await handler
+    result: ResultEvent = await handler
 ```
 
 ## Shared State Access
 
-DroidAgent maintains shared state accessible across all agents:
+DroidAgent maintains shared state (`DroidAgentState`) accessible across all agents:
 
 ```python
 from droidrun.agent.droid.events import DroidAgentState
@@ -421,39 +459,69 @@ state = DroidAgentState(
     step_number=0,
 
     # Device state
-    formatted_device_state="...",  # XML UI hierarchy
-    a11y_tree=[...],              # Raw accessibility tree
-    phone_state={...},            # Phone metadata
-    screenshot=bytes,             # Current screenshot
+    formatted_device_state="...",     # Complete UI hierarchy text
+    a11y_tree=[...],                  # Raw accessibility tree (list of dicts)
+    phone_state={...},                # Phone metadata (dict)
+    screenshot=bytes,                 # Current screenshot
+    width=1080,                       # Screen width
+    height=1920,                      # Screen height
+    focused_text="...",               # Currently focused element text
+
+    # App Cards
+    app_card="...",                   # Current app-specific instructions
+    current_package_name="...",       # Current app package
+    current_activity_name="...",      # Current activity
 
     # Action tracking
-    action_history=[...],         # All actions taken
-    summary_history=[...],        # Action summaries
-    action_outcomes=[...],        # Success/failure bools
-    error_descriptions=[...],     # Error messages
+    action_history=[...],             # All actions taken (list of dicts)
+    action_pool=[...],                # Raw action JSONs
+    summary_history=[...],            # Action summaries (list of str)
+    action_outcomes=[...],            # Success/failure bools (list of bool)
+    error_descriptions=[...],         # Error messages (list of str)
+    last_action={...},                # Most recent action (dict)
+    last_summary="...",               # Most recent summary
+    last_action_thought="...",        # Most recent thought
 
     # Planning
-    plan="...",                   # Current plan
-    current_subgoal="...",        # Active subgoal
-    memory="...",                 # Agent memory
+    plan="...",                       # Current plan
+    current_subgoal="...",            # Active subgoal
+    finish_thought="...",             # Completion reasoning
+    progress_status="...",            # Current progress
+    manager_answer="...",             # Answer for answer-type tasks
+    memory="...",                     # Agent memory
+    message_history=[...],            # Chat history
+
+    # Error handling
+    error_flag_plan=False,            # Error escalation flag
+    err_to_manager_thresh=2,          # Error threshold
 
     # App tracking
-    visited_packages=set(),       # Visited apps
-    visited_activities=set(),     # Visited activities
+    visited_packages=set(),           # Visited apps
+    visited_activities=set(),         # Visited activities
 
     # Script execution
-    scripter_history=[...],       # Script results
+    scripter_history=[...],           # Script results (list of dicts)
+    last_scripter_message="...",      # Most recent scripter response
+    last_scripter_success=True,       # Most recent scripter status
+
+    # Device state comparison
+    previous_formatted_device_state="...",  # For before/after comparison
+
+    # Output and metadata
+    output_dir="",                    # Output directory path
+    user_id=None,                     # Optional user ID
 
     # Custom data
-    custom_variables={...},       # User-defined variables
+    custom_variables={...},           # User-defined variables
 )
 
 # Access in events
 async for event in handler.stream_events():
     if isinstance(event, ManagerInternalPlanEvent):
-        # State updated by Manager
+        # State is shared across all agents
         current_plan = agent.shared_state.plan
         current_step = agent.shared_state.step_number
+        visited_apps = agent.shared_state.visited_packages
 ```
 
 ## Event Flow by Mode
@@ -470,11 +538,11 @@ graph LR
     Result --> Input
     Result --> End[TaskEndEvent]
     End --> Final[FinalizeEvent]
-    Final --> Stop[StopEvent]
+    Final --> Return[ResultEvent]
 ```
 
 **Events emitted:**
-1. `StartEvent` → DroidAgent starts
+1. `StartEvent` → DroidAgent starts (streamed)
 2. `CodeActExecuteEvent` → CodeAct agent triggered
 3. `TaskInputEvent` → Task input prepared
 4. `TaskThinkingEvent` → LLM thinking (thoughts + code)
@@ -482,9 +550,9 @@ graph LR
 6. `TaskExecutionResultEvent` → Execution result
 7. Loop back to step 3 or proceed to 8
 8. `TaskEndEvent` → Task complete
-9. `FinalizeEvent` → DroidAgent finalizing
-10. Optional: If `output_model` is provided, StructuredOutputAgent extracts structured data
-11. `StopEvent` → Workflow complete
+9. `FinalizeEvent` → DroidAgent finalizing (streamed)
+10. Optional: If `output_model` is provided, StructuredOutputAgent runs to extract structured data
+11. `ResultEvent` → Final result returned (success, reason, steps, structured_output)
 
 ### Reasoning Mode (`reasoning=True`)
 
@@ -502,7 +570,7 @@ graph LR
     ExecRes --> Manager
     Script --> ScriptEnd[ScripterEndEvent]
     ScriptEnd --> Manager
-    Final --> Stop[StopEvent]
+    Final --> Return[ResultEvent]
 ```
 
 **Events emitted (per cycle):**
@@ -520,26 +588,24 @@ graph LR
 
 **Scripter Phase (if `<script>` tag):**
 4. `ScripterExecutorInputEvent` → Scripter triggered
-5. `ScripterThinkingEvent` → Scripter thinking
-6. `ScripterExecutionEvent` → Code executing
-7. `ScripterExecutionResultEvent` → Execution result
-8. `ScripterEndEvent` → Scripter complete
-9. Loop back to Manager (step 1)
+5. `ScripterInputEvent` → Scripter input prepared
+6. `ScripterThinkingEvent` → Scripter thinking
+7. `ScripterExecutionEvent` → Code executing
+8. `ScripterExecutionResultEvent` → Execution result
+9. `ScripterEndEvent` → Scripter complete
+10. Loop back to Manager (step 1)
 
 **Completion:**
-- `FinalizeEvent` → Task complete (when Manager provides answer)
-- Optional: If `output_model` is provided, StructuredOutputAgent runs to extract structured data from the final answer (uses `StartEvent`/`StopEvent` internally, but these are filtered)
-- `StopEvent` → Workflow complete
+- `FinalizeEvent` → Task complete (when Manager provides answer, streamed)
+- Optional: If `output_model` is provided, StructuredOutputAgent runs to extract structured data from the final answer
+- `ResultEvent` → Final result returned (success, reason, steps, structured_output)
 
 ## Nested Event Handling
 
-DroidAgent streams nested workflow events to its parent context:
+DroidAgent streams nested workflow events to its parent context. This is implemented in the `handle_stream_event()` method:
 
 ```python
-# In DroidAgent
-async for nested_ev in handler.stream_events():
-    self.handle_stream_event(nested_ev, ctx)
-
+# In DroidAgent.handle_stream_event()
 def handle_stream_event(self, ev: Event, ctx: Context):
     """Route nested events to parent stream or handle internally"""
 
@@ -548,11 +614,11 @@ def handle_stream_event(self, ev: Event, ctx: Context):
         self.current_episodic_memory = ev.episodic_memory
         return
 
-    # Skip StopEvent (workflow-internal)
+    # Skip StopEvent (workflow-internal coordination only)
     if not isinstance(ev, StopEvent):
         ctx.write_event_to_stream(ev)  # Stream to parent
 
-        # Trajectory tracking
+        # Trajectory tracking for different event types
         if isinstance(ev, ScreenshotEvent):
             self.trajectory.screenshots.append(ev.screenshot)
         elif isinstance(ev, MacroEvent):
@@ -563,10 +629,11 @@ def handle_stream_event(self, ev: Event, ctx: Context):
             self.trajectory.events.append(ev)
 ```
 
-This enables:
-- Transparent event bubbling from child to parent workflows
-- Trajectory recording at the top level
-- Selective event filtering (e.g., episodic memory)
+**Key behaviors:**
+- All child workflow events (Manager, Executor, CodeAct, Scripter) are automatically streamed to the parent
+- `EpisodicMemoryEvent` is captured internally but not streamed (used for memory state tracking)
+- `StopEvent` is filtered out (workflow-internal coordination only, not for external consumers)
+- Events are captured for trajectory recording when `save_trajectory` is enabled
 
 ## Best Practices
 
@@ -683,6 +750,7 @@ Stream events to external systems:
 
 ```python
 import httpx
+import time
 
 class WebhookStreamer:
     def __init__(self, webhook_url: str):
@@ -693,21 +761,31 @@ class WebhookStreamer:
         payload = {
             "type": event.__class__.__name__,
             "timestamp": time.time(),
-            "data": event.dict() if hasattr(event, 'dict') else str(event),
+            "data": event.model_dump() if hasattr(event, 'model_dump') else str(event),
         }
 
         try:
             await self.client.post(self.webhook_url, json=payload)
         except Exception as e:
-            logger.error(f"Webhook failed: {e}")
+            print(f"Webhook failed: {e}")
+
+    async def close(self):
+        await self.client.aclose()
 
 # Usage
+from droidrun.agent.manager.events import ManagerInternalPlanEvent
+from droidrun.agent.executor.events import ExecutorInternalResultEvent
+from droidrun.agent.droid.events import FinalizeEvent
+
 streamer = WebhookStreamer("https://api.example.com/events")
 
-async for event in handler.stream_events():
-    # Filter important events
-    if isinstance(event, (ManagerInternalPlanEvent, ExecutorInternalResultEvent, FinalizeEvent)):
-        await streamer.send_event(event)
+try:
+    async for event in handler.stream_events():
+        # Filter important events
+        if isinstance(event, (ManagerInternalPlanEvent, ExecutorInternalResultEvent, FinalizeEvent)):
+            await streamer.send_event(event)
+finally:
+    await streamer.close()
 ```
 
 ### Event Replay
@@ -758,7 +836,7 @@ for event in events:
 ```python
 from fastapi import FastAPI, WebSocket
 from droidrun import DroidAgent
-from droidrun.config.config import DroidRunConfig
+from droidrun.config_manager.config_manager import DroidRunConfig
 import json
 
 app = FastAPI()
@@ -780,13 +858,20 @@ async def agent_stream(websocket: WebSocket):
         async for event in handler.stream_events():
             event_data = {
                 "type": event.__class__.__name__,
-                "data": event.dict() if hasattr(event, 'dict') else {},
+                "data": event.model_dump() if hasattr(event, 'model_dump') else {},
             }
             await websocket.send_text(json.dumps(event_data))
 
         # Send final result
-        result = await handler
-        await websocket.send_text(json.dumps({"type": "result", "data": result}))
+        result: ResultEvent = await handler
+        await websocket.send_text(json.dumps({
+            "type": "result",
+            "data": {
+                "success": result.success,
+                "reason": result.reason,
+                "steps": result.steps,
+            }
+        }))
 
     except Exception as e:
         await websocket.send_text(json.dumps({"type": "error", "message": str(e)}))
@@ -801,7 +886,9 @@ import discord
 import time
 from discord.ext import commands
 from droidrun import DroidAgent
-from droidrun.config.config import DroidRunConfig
+from droidrun.config_manager.config_manager import DroidRunConfig
+from droidrun.agent.manager.events import ManagerInternalPlanEvent
+from droidrun.agent.executor.events import ExecutorInternalActionEvent
 
 bot = commands.Bot(command_prefix="!")
 
@@ -818,7 +905,7 @@ async def automate(ctx, *, goal: str):
     last_update = time.time()
 
     async for event in handler.stream_events():
-        # Update every 2 seconds
+        # Update every 2 seconds to avoid rate limits
         if time.time() - last_update > 2:
             if isinstance(event, ManagerInternalPlanEvent):
                 await status_msg.edit(content=f"📋 Planning: {event.current_subgoal[:100]}")
@@ -826,12 +913,12 @@ async def automate(ctx, *, goal: str):
                 await status_msg.edit(content=f"⚡ Action: {event.description[:100]}")
             last_update = time.time()
 
-    result = await handler
+    result: ResultEvent = await handler
 
-    if result['success']:
-        await status_msg.edit(content=f"✅ Success: {result['reason']}")
+    if result.success:
+        await status_msg.edit(content=f"✅ Success: {result.reason[:1000]}")
     else:
-        await status_msg.edit(content=f"❌ Failed: {result['reason']}")
+        await status_msg.edit(content=f"❌ Failed: {result.reason[:1000]}")
 ```
 
 ## Troubleshooting
