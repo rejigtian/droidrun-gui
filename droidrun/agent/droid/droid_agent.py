@@ -51,7 +51,7 @@ from droidrun.config_manager.config_manager import (
     AgentConfig,
     CredentialsConfig,
     DeviceConfig,
-    DroidRunConfig,
+    DroidrunConfig,
     LoggingConfig,
     TelemetryConfig,
     ToolsConfig,
@@ -108,7 +108,7 @@ class DroidAgent(Workflow):
     def __init__(
         self,
         goal: str,
-        config: DroidRunConfig | None = None,
+        config: DroidrunConfig | None = None,
         llms: dict[str, LLM] | LLM | None = None,
         agent_config: AgentConfig | None = None,
         device_config: DeviceConfig | None = None,
@@ -190,7 +190,7 @@ class DroidAgent(Workflow):
         )
 
         # Build final config with resolved tools config
-        self.config = DroidRunConfig(
+        self.config = DroidrunConfig(
             agent=agent_config or (base_config.agent if base_config else AgentConfig()),
             device=resolved_device_config,
             tools=tools_config_resolved,

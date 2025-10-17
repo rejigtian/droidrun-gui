@@ -4,7 +4,7 @@ from droidrun.config_manager.config_manager import (
     CodeActConfig,
     ConfigManager,
     DeviceConfig,
-    DroidRunConfig,
+    DroidrunConfig,
     ExecutorConfig,
     LLMProfile,
     LoggingConfig,
@@ -26,7 +26,7 @@ from droidrun.config_manager.safe_execution import (
 __all__ = [
     # Main configuration classes
     "ConfigManager",
-    "DroidRunConfig",
+    "DroidrunConfig",
     "LLMProfile",
     # Agent configs
     "AgentConfig",

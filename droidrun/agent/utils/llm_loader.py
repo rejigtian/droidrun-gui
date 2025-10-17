@@ -12,13 +12,13 @@ from llama_index.core.llms.llm import LLM
 from pydantic import BaseModel
 
 from droidrun.agent.utils.llm_picker import load_llm, load_llms_from_profiles
-from droidrun.config_manager.config_manager import DroidRunConfig
+from droidrun.config_manager.config_manager import DroidrunConfig
 
 logger = logging.getLogger("droidrun")
 
 
 def _get_required_profiles(
-    config: DroidRunConfig, output_model: Type[BaseModel] | None = None
+    config: DroidrunConfig, output_model: Type[BaseModel] | None = None
 ) -> List[str]:
     """
     Determine which LLM profiles are required based on agent configuration.
@@ -46,7 +46,7 @@ def _get_required_profiles(
 
 
 def validate_llm_dict(
-    config: DroidRunConfig,
+    config: DroidrunConfig,
     llms: dict[str, LLM],
     output_model: Type[BaseModel] | None = None,
 ) -> List[str]:
@@ -79,7 +79,7 @@ def validate_llm_dict(
 
 
 def validate_llm_profiles(
-    config: DroidRunConfig, output_model: Type[BaseModel] | None = None
+    config: DroidrunConfig, output_model: Type[BaseModel] | None = None
 ) -> List[str]:
     """
     Validate that required LLM profiles exist in the configuration.
@@ -111,7 +111,7 @@ def validate_llm_profiles(
 
 
 def load_agent_llms(
-    config: DroidRunConfig,
+    config: DroidrunConfig,
     custom_provider: str | None = None,
     custom_model: str | None = None,
     temperature: float | None = None,

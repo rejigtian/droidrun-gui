@@ -410,7 +410,7 @@ class CredentialsConfig:
 
 
 @dataclass
-class DroidRunConfig:
+class DroidrunConfig:
     """Complete DroidRun configuration schema."""
 
     agent: AgentConfig = field(default_factory=AgentConfig)
@@ -487,7 +487,7 @@ class DroidRunConfig:
         return result
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "DroidRunConfig":
+    def from_dict(cls, data: Dict[str, Any]) -> "DroidrunConfig":
         """Create config from dictionary."""
         # Parse LLM profiles
         llm_profiles = {}
@@ -556,7 +556,7 @@ class DroidRunConfig:
         )
 
     @classmethod
-    def from_yaml(cls, path: str) -> "DroidRunConfig":
+    def from_yaml(cls, path: str) -> "DroidrunConfig":
         """
         Create config from YAML file.
 
@@ -564,15 +564,15 @@ class DroidRunConfig:
             path: Path to YAML config file (can be relative or absolute)
 
         Returns:
-            DroidRunConfig instance
+            DroidrunConfig instance
 
         Raises:
             FileNotFoundError: If the YAML file doesn't exist
             yaml.YAMLError: If the YAML is malformed
 
         Example:
-            >>> config = DroidRunConfig.from_yaml("config.yaml")
-            >>> config = DroidRunConfig.from_yaml("/absolute/path/config.yaml")
+            >>> config = DroidrunConfig.from_yaml("config.yaml")
+            >>> config = DroidrunConfig.from_yaml("/absolute/path/config.yaml")
         """
         import logging
 
@@ -658,8 +658,8 @@ class ConfigManager:
                 self.path = PathResolver.resolve("config.yaml")
 
         # Initialize with default config
-        self._config = DroidRunConfig()
-        self.validate_fn: Optional[Callable[[DroidRunConfig], None]] = None
+        self._config = DroidrunConfig()
+        self.validate_fn: Optional[Callable[[DroidrunConfig], None]] = None
 
         self._ensure_file_exists()
         self.load_config()
@@ -668,9 +668,9 @@ class ConfigManager:
 
     # ---------------- Typed property access ----------------
     @property
-    def config(self) -> DroidRunConfig:
+    def config(self) -> DroidrunConfig:
         """
-        Access the internal DroidRunConfig object.
+        Access the internal DroidrunConfig object.
 
         WARNING: Returns a mutable object. Direct modifications bypass thread safety.
         For thread-safe access, use specific property accessors (agent, device, etc.)
@@ -779,10 +779,10 @@ class ConfigManager:
             if not self.path.exists():
                 # create starter file and set default config
                 self._ensure_file_exists()
-                self._config = DroidRunConfig()
+                self._config = DroidrunConfig()
                 return
 
-            self._config = DroidRunConfig.from_yaml(str(self.path))
+            self._config = DroidrunConfig.from_yaml(str(self.path))
             self._run_validation()
 
     def save(self) -> None:
@@ -798,7 +798,7 @@ class ConfigManager:
         self.load_config()
 
     # ---------------- Validation ----------------
-    def register_validator(self, fn: Callable[[DroidRunConfig], None]) -> None:
+    def register_validator(self, fn: Callable[[DroidrunConfig], None]) -> None:
         """
         Register a validation function that takes the config object and raises
         an exception if invalid. The validator is run immediately on registration.

@@ -15,11 +15,10 @@ Valid prompt keys:
 import asyncio
 
 from droidrun.agent.droid import DroidAgent
-from droidrun.config_manager import ConfigManager
+from droidrun.config_manager import DroidrunConfig
 
 # Initialize config
-config_manager = ConfigManager()
-config = config_manager.config
+config = DroidrunConfig()
 
 
 async def main():
