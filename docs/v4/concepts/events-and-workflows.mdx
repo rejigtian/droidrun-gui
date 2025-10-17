@@ -1,0 +1,165 @@
+---
+title: 'Event Streaming'
+description: 'How to consume real-time events from DroidAgent execution.'
+---
+
+## Overview
+
+Droidrun provides **real-time event streaming** that gives you visibility into agent execution as it happens. This allows you to build UIs, logging systems, or monitoring tools that react to agent actions in real-time.
+
+Under the hood, Droidrun uses [llama-index workflows](https://docs.llamaindex.ai/en/stable/understanding/workflows/) - an event-driven orchestration system that powers the agent architecture.
+
+## Basic Usage
+
+```python
+from droidrun.agent.droid import DroidAgent
+
+# Create and run agent
+agent = DroidAgent(goal="Open Gmail and check inbox", config=config)
+handler = agent.run()
+
+# Stream events in real-time
+async for event in handler.stream_events():
+    if isinstance(event, ManagerInternalPlanEvent):
+        print(f"📋 Plan: {event.plan}")
+        print(f"🎯 Current subgoal: {event.current_subgoal}")
+
+    elif isinstance(event, ExecutorInternalActionEvent):
+        print(f"⚡ Action: {event.description}")
+        print(f"💭 Thought: {event.thought}")
+
+    elif isinstance(event, ScreenshotEvent):
+        save_screenshot(event.screenshot, f"step_{event.step}.png")
+
+    elif isinstance(event, CodeGenerationEvent):
+        print(f"🐍 Generated code (step {event.step_number}):")
+        print(event.code)
+
+# Wait for final result
+result = await handler
+print(f"✅ Success: {result.success}")
+print(f"📝 Reason: {result.reason}")
+```
+
+## Event Types
+
+### Planning Events
+
+**ManagerInternalPlanEvent** - Emitted when Manager creates/updates a plan:
+```python
+class ManagerInternalPlanEvent(Event):
+    plan: str              # Full task plan with subgoals
+    current_subgoal: str   # Current subgoal being executed
+    thought: str           # Manager's reasoning
+    manager_answer: str    # Direct answer (if task is complete)
+```
+
+### Execution Events
+
+**ExecutorInternalActionEvent** - Emitted when Executor selects an action:
+```python
+class ExecutorInternalActionEvent(Event):
+    action_json: str    # JSON representation of selected action
+    thought: str        # Executor's reasoning
+    description: str    # Human-readable action description
+```
+
+**CodeGenerationEvent** - Emitted when CodeAct generates code:
+```python
+class CodeGenerationEvent(Event):
+    code: str          # Generated Python code
+    step_number: int   # Current step in execution
+```
+
+**CodeExecutionResultEvent** - Emitted after code execution:
+```python
+class CodeExecutionResultEvent(Event):
+    success: bool    # Whether execution succeeded
+    output: str      # Execution output or error message
+```
+
+### Visual Events
+
+**ScreenshotEvent** - Emitted when a screenshot is captured:
+```python
+class ScreenshotEvent(Event):
+    screenshot: bytes  # PNG image data
+    step: int         # Step number
+```
+
+**AccessibilityTreeEvent** - Emitted when UI tree is captured:
+```python
+class AccessibilityTreeEvent(Event):
+    tree: str         # Accessibility tree dump
+    step: int         # Step number
+```
+
+## Common Patterns
+
+### Building a Live UI
+
+```python
+async def run_with_ui(goal: str):
+    agent = DroidAgent(goal=goal, config=config)
+    handler = agent.run()
+
+    async for event in handler.stream_events():
+        if isinstance(event, ManagerInternalPlanEvent):
+            ui.update_plan(event.plan)
+            ui.update_current_step(event.current_subgoal)
+
+        elif isinstance(event, ExecutorInternalActionEvent):
+            ui.add_action_log(event.description, event.thought)
+
+        elif isinstance(event, ScreenshotEvent):
+            ui.update_screenshot(event.screenshot)
+
+    result = await handler
+    ui.show_completion(result.success, result.reason)
+```
+
+### Logging and Monitoring
+
+```python
+import logging
+
+logger = logging.getLogger("droidrun.monitor")
+
+async def monitor_execution(goal: str):
+    agent = DroidAgent(goal=goal, config=config)
+    handler = agent.run()
+
+    start_time = time.time()
+    action_count = 0
+
+    async for event in handler.stream_events():
+        if isinstance(event, ExecutorInternalActionEvent):
+            action_count += 1
+            logger.info(f"Action {action_count}: {event.description}")
+
+        elif isinstance(event, CodeExecutionResultEvent):
+            if not event.success:
+                logger.error(f"Code execution failed: {event.output}")
+
+    result = await handler
+    duration = time.time() - start_time
+
+    logger.info(f"Task completed in {duration:.2f}s with {action_count} actions")
+    logger.info(f"Result: {result.success} - {result.reason}")
+```
+
+## Notes
+
+- Events are **streamed in real-time** as the agent executes
+- Not all events are emitted in every execution (depends on mode and actions)
+- **Reasoning mode** emits `ManagerInternalPlanEvent` and `ExecutorInternalActionEvent`
+- **Direct mode** emits `CodeGenerationEvent` and `CodeExecutionResultEvent`
+- All events are **Pydantic models** with full type safety
+- The `handler` object is **async** - always use `await handler` to get the final result
+
+## Learn More
+
+- [LlamaIndex Workflows](https://docs.llamaindex.ai/en/stable/understanding/workflows/) - The underlying orchestration system
+- [Agent Architecture](./agent-architecture) - Multi-agent system overview
+- [Reasoning Mode](./reasoning-mode) - Manager/Executor workflow details
+- [Direct Mode](./direct-mode) - CodeAct workflow details

@@ -5,7 +5,7 @@ description: 'Configure anonymous telemetry, Phoenix tracing, and trajectory rec
 
 # Telemetry & Tracing
 
-DroidRun provides three monitoring capabilities:
+Droidrun provides three monitoring capabilities:
 
 1. **Anonymous Telemetry** - Usage analytics sent to PostHog (enabled by default)
 2. **Arize Phoenix Tracing** - Real-time LLM and agent execution tracing (opt-in)
@@ -46,7 +46,7 @@ phoenix serve
 
 The server starts at `http://localhost:6006` and provides a web UI for viewing traces.
 
-**3. Enable tracing in DroidRun:**
+**3. Enable tracing in Droidrun:**
 
 **Via CLI:**
 
@@ -65,9 +65,9 @@ tracing:
 
 ```python
 from droidrun import DroidAgent
-from droidrun.config_manager.config_manager import DroidRunConfig
+from droidrun.config_manager.config_manager import DroidrunConfig
 
-config = DroidRunConfig()
+config = DroidrunConfig()
 config.tracing.enabled = True
 
 agent = DroidAgent(goal="Open settings", config=config)
@@ -104,37 +104,22 @@ Environment variable names are lowercase: `phoenix_url` and `phoenix_project_nam
 
 ## Anonymous Telemetry
 
-DroidRun collects anonymous usage analytics via PostHog to help improve the framework. This is completely separate from Phoenix tracing and trajectory recording.
-
-**Telemetry is enabled by default.** The framework tracks agent initialization, task completion, and usage patterns to help prioritize features and improve reliability.
+Droidrun collects anonymous usage analytics via PostHog to help improve the framework. Telemetry is enabled by default.
 
 ### What's Collected
 
-**Agent initialization:**
-- LLM provider and model names (e.g., "GoogleGenAI", "models/gemini-2.5-pro")
-- Configuration settings (max steps, timeout, vision/reasoning mode, debug flags)
-- Tool platform (e.g., "AdbTools", "IOSTools")
-- Trajectory save level ("none", "step", "action")
-- Run type (CLI, developer, web)
-
-**During execution:**
-- App packages and activities visited (e.g., "com.android.settings")
-- Step number when visiting new packages
-
-**Task completion:**
-- Success/failure status and reason
-- Total steps taken
-- Count of unique packages and activities visited
-
-**User identifier:**
+- Task goals and completion status
+- LLM providers and configuration settings (max steps, timeout, vision/reasoning mode, debug flags)
+- Available tools and packages/activities visited
 - Anonymous UUID stored in `~/.droidrun/user_id`
-- No personal information attached
 
-**What's NOT collected:**
+### What's NOT Collected
+
 - Screenshots or screen content
-- User input or task goals (the actual text you type)
 - API keys or credentials
-- Device serial numbers or personal identifiers
+- LLM responses
+- Device serial numbers
+- Detailed action history
 
 ### Disable Telemetry
 
@@ -190,9 +175,9 @@ logging:
 
 ```python
 from droidrun import DroidAgent
-from droidrun.config_manager.config_manager import DroidRunConfig
+from droidrun.config_manager.config_manager import DroidrunConfig
 
-config = DroidRunConfig()
+config = DroidrunConfig()
 config.logging.save_trajectory = "action"
 
 agent = DroidAgent(goal="Open settings", config=config)
@@ -232,7 +217,7 @@ Use these files to:
 
 | Feature | Data Location | Default | Purpose | Opt-In/Out |
 |---------|--------------|---------|---------|------------|
-| **Anonymous Telemetry** | PostHog (cloud) | Enabled | Help improve DroidRun | `DROIDRUN_TELEMETRY_ENABLED=false` |
+| **Anonymous Telemetry** | PostHog (cloud) | Enabled | Help improve Droidrun | `DROIDRUN_TELEMETRY_ENABLED=false` |
 | **Phoenix Tracing** | Phoenix server (local/cloud) | Disabled | Debug LLM calls and agent flow | `--tracing` flag or config |
 | **Trajectory Recording** | Local disk (`trajectories/`) | Disabled | Offline debugging with screenshots | `--save-trajectory step/action` |
 
@@ -240,6 +225,6 @@ Use these files to:
 
 ## Related Documentation
 
-- [Configuration System](/docs/v4/guides/configuration) - Configure tracing and telemetry settings
-- [Event Streaming](/docs/v4/concepts/event-streaming) - Build custom monitoring integrations
-- [CLI Usage](/docs/v4/guides/cli) - Command-line flags for monitoring
+- [Configuration System](/v4/sdk/configuration) - Configure tracing and telemetry settings
+- [Events and Workflows](/v4/concepts/events-and-workflows) - Build custom monitoring integrations
+- [CLI Usage](/v4/guides/cli) - Command-line flags for monitoring

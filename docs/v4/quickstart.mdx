@@ -1,6 +1,6 @@
 ---
 title: 'Quickstart'
-description: 'Get up and running with DroidRun v4 quickly and effectively'
+description: 'Get up and running with Droidrun v4 quickly and effectively'
 ---
 
 <iframe
@@ -12,11 +12,11 @@ description: 'Get up and running with DroidRun v4 quickly and effectively'
   allowFullScreen
 ></iframe>
 
-This guide will help you get DroidRun v4 installed and running quickly, controlling your Android device through natural language in minutes. DroidRun v4 introduces a config-driven architecture, making it easier to customize agent behavior, LLM selection, and execution modes.
+This guide will help you get Droidrun v4 installed and running quickly, controlling your Android device through natural language in minutes. Droidrun v4 introduces a config-driven architecture, making it easier to customize agent behavior, LLM selection, and execution modes.
 
 ### Prerequisites
 
-Before installing DroidRun, ensure you have:
+Before installing Droidrun, ensure you have:
 
 1. **Python 3.11+** installed on your system
 2. [Android Debug Bridge (adb)](https://developer.android.com/studio/releases/platform-tools) installed and configured
@@ -27,7 +27,7 @@ Before installing DroidRun, ensure you have:
 
 ### Installation
 
-DroidRun v4 is installed using [`uv`](https://docs.astral.sh/uv/), a fast Python package installer and resolver.
+Droidrun v4 is installed using [`uv`](https://docs.astral.sh/uv/), a fast Python package installer and resolver.
 
 **Install uv (if not already installed):**
 
@@ -57,7 +57,7 @@ If you only need specific providers, you can install just those. For example, `u
 
 ### Setup the Portal APK
 
-DroidRun requires the Portal app to be installed on your Android device for device control. The Portal app provides accessibility services that expose the UI accessibility tree, enabling the agent to see and interact with UI elements.
+Droidrun requires the Portal app to be installed on your Android device for device control. The Portal app provides accessibility services that expose the UI accessibility tree, enabling the agent to see and interact with UI elements.
 
 ```bash
 droidrun setup
@@ -70,7 +70,7 @@ This command automatically:
 
 ### Test Connection
 
-Verify that DroidRun can communicate with your device:
+Verify that Droidrun can communicate with your device:
 
 ```bash
 droidrun ping
@@ -85,7 +85,7 @@ If successful, you'll see:
 
 ### Configure Your LLM
 
-DroidRun v4 uses a configuration-driven approach. On first run, DroidRun creates a `config.yaml` file with default settings. You'll need to set your API key for your chosen LLM provider.
+Droidrun v4 uses a configuration-driven approach. On first run, Droidrun creates a `config.yaml` file with default settings. You'll need to set your API key for your chosen LLM provider.
 
 **Set your API key:**
 
@@ -136,11 +136,11 @@ For complex automation or integration into your Python projects, create a script
 ```python
 import asyncio
 from droidrun import DroidAgent
-from droidrun.config_manager.config_manager import DroidRunConfig
+from droidrun.config_manager.config_manager import DroidrunConfig
 
 async def main():
     # Use default configuration with built-in LLM profiles
-    config = DroidRunConfig()
+    config = DroidrunConfig()
 
     # Create agent
     # LLMs are automatically loaded from config.llm_profiles
@@ -166,12 +166,12 @@ if __name__ == "__main__":
 ```python
 import asyncio
 from droidrun import DroidAgent
-from droidrun.config_manager.config_manager import DroidRunConfig, AgentConfig
+from droidrun.config_manager.config_manager import DroidrunConfig, AgentConfig
 from llama_index.llms.openai import OpenAI
 
 async def main():
     # Load base configuration
-    config = DroidRunConfig()
+    config = DroidrunConfig()
 
     # Create custom agent config with overrides
     agent_config = AgentConfig(
@@ -201,23 +201,23 @@ if __name__ == "__main__":
 
 ### Configuration Options
 
-DroidRun v4 provides flexible configuration through:
+Droidrun v4 provides flexible configuration through:
 
 **1. Default Configuration (No File Required):**
 ```python
-config = DroidRunConfig()  # Uses built-in defaults
+config = DroidrunConfig()  # Uses built-in defaults
 ```
 
 **2. Load from YAML File:**
 ```python
-config = DroidRunConfig.from_yaml("config.yaml")  # Load custom config
+config = DroidrunConfig.from_yaml("config.yaml")  # Load custom config
 ```
 
 **3. Programmatic Configuration:**
 ```python
-from droidrun.config_manager.config_manager import DroidRunConfig, AgentConfig
+from droidrun.config_manager.config_manager import DroidrunConfig, AgentConfig
 
-config = DroidRunConfig()
+config = DroidrunConfig()
 config.agent.max_steps = 25
 config.agent.reasoning = True
 config.agent.codeact.vision = True
@@ -233,18 +233,18 @@ config.agent.codeact.vision = True
 
 
 <Tip>
-For detailed configuration options, see the [Configuration Guide](/v4/guides/configuration). The CLI uses `ConfigManager` which auto-creates config.yaml on first run.
+For detailed configuration options, see the [Configuration Guide](/v4/sdk/configuration). The CLI uses `ConfigManager` which auto-creates config.yaml on first run.
 </Tip>
 
 ### Structured Output Extraction
 
-DroidRun v4 supports structured output extraction using Pydantic models:
+Droidrun v4 supports structured output extraction using Pydantic models:
 
 ```python
 import asyncio
 from pydantic import BaseModel, Field
 from droidrun import DroidAgent
-from droidrun.config_manager.config_manager import DroidRunConfig
+from droidrun.config_manager.config_manager import DroidrunConfig
 
 class BatteryInfo(BaseModel):
     """Battery information."""
@@ -253,7 +253,7 @@ class BatteryInfo(BaseModel):
     temperature: float = Field(description="Battery temperature in Celsius")
 
 async def main():
-    config = DroidRunConfig()
+    config = DroidrunConfig()
 
     agent = DroidAgent(
         goal="Check battery status",
@@ -276,7 +276,7 @@ if __name__ == "__main__":
 
 ### Execution Modes
 
-DroidRun v4 supports two execution modes:
+Droidrun v4 supports two execution modes:
 
 **Direct Mode (Default):**
 - Fast execution for simple tasks
@@ -290,9 +290,9 @@ droidrun run "Open YouTube"
 ```python
 # In scripts
 from droidrun import DroidAgent
-from droidrun.config_manager.config_manager import DroidRunConfig
+from droidrun.config_manager.config_manager import DroidrunConfig
 
-config = DroidRunConfig()
+config = DroidrunConfig()
 agent = DroidAgent(goal="Open YouTube", config=config)
 ```
 
@@ -309,9 +309,9 @@ droidrun run "Find contacts from California and export to CSV" --reasoning
 ```python
 # In scripts - Option 1: Override config
 from droidrun import DroidAgent
-from droidrun.config_manager.config_manager import DroidRunConfig, AgentConfig
+from droidrun.config_manager.config_manager import DroidrunConfig, AgentConfig
 
-config = DroidRunConfig()
+config = DroidrunConfig()
 
 config.agent.reasoning = True
 agent = DroidAgent(goal="...", config=config)
@@ -323,15 +323,14 @@ agent = DroidAgent(goal="...", config=config, agent_config=agent_config)
 
 ## Next Steps
 
-Now that you've got DroidRun v4 running, explore these topics:
+Now that you've got Droidrun v4 running, explore these topics:
 
 ### Core Concepts
 - [Architecture](/v4/concepts/architecture) - Multi-agent system architecture
-- [Workflow Architecture](/v4/concepts/workflow-architecture) - Event-driven coordination
-- [Event Streaming](/v4/concepts/event-streaming) - Real-time execution monitoring
+- [Events and Workflows](/v4/concepts/events-and-workflows) - Event-driven coordination and real-time execution monitoring
 
 ### Configuration
-- [Configuration System](/v4/guides/configuration) - Complete configuration guide
+- [Configuration System](/v4/sdk/configuration) - Complete configuration guide
 - [Custom Tools & Credentials](/v4/guides/custom-tools-credentials) - Extend functionality
 - [Custom Variables](/v4/guides/custom-variables) - Pass custom data to agents
 - [Structured Output](/v4/guides/structured-output) - Extract structured data
@@ -342,10 +341,10 @@ Now that you've got DroidRun v4 running, explore these topics:
 
 ### Advanced Topics
 - [Vision Mode](/v4/concepts/architecture#vision-configuration) - Screenshot processing
-- [Safe Execution](/v4/guides/configuration#safe-execution) - Secure code execution
-- [Tracing & Telemetry](/v4/guides/configuration#tracing-settings) - Debugging and monitoring
-- [Custom Prompts](/v4/guides/configuration#prompt-customization) - Customize agent behavior
+- [Safe Execution](/v4/sdk/configuration#safe-execution) - Secure code execution
+- [Tracing & Telemetry](/v4/sdk/configuration#tracing-settings) - Debugging and monitoring
+- [Custom Prompts](/v4/sdk/configuration#prompt-customization) - Customize agent behavior
 
 ---
 
-**Welcome to DroidRun v4!** The config-driven architecture gives you complete control over agent behavior, making it easier than ever to build powerful device automation workflows.
+**Welcome to Droidrun v4!** The config-driven architecture gives you complete control over agent behavior, making it easier than ever to build powerful device automation workflows.

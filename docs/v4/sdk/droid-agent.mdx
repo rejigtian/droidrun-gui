@@ -25,7 +25,7 @@ A wrapper class that coordinates between agents to achieve a user's goal.
 ```python
 def __init__(
     goal: str,
-    config: DroidRunConfig | None = None,
+    config: DroidrunConfig | None = None,
     llms: dict[str, LLM] | LLM | None = None,
     agent_config: AgentConfig | None = None,
     device_config: DeviceConfig | None = None,
@@ -47,7 +47,7 @@ Initialize the DroidAgent wrapper.
 **Arguments**:
 
 - `goal` _str_ - User's goal or command to execute
-- `config` _DroidRunConfig | None_ - Full configuration object (required if llms not provided). Contains agent settings, LLM profiles, device config, and more. If provided, individual config overrides (agent_config, device_config, etc.) take precedence.
+- `config` _DroidrunConfig | None_ - Full configuration object (required if llms not provided). Contains agent settings, LLM profiles, device config, and more. If provided, individual config overrides (agent_config, device_config, etc.) take precedence.
 - `llms` _dict[str, LLM] | LLM | None_ - Optional LLM configuration:
   - `dict[str, LLM]`: Agent-specific LLMs with keys: "manager", "executor", "codeact", "text_manipulator", "app_opener", "scripter", "structured_output"
   - `LLM`: Single LLM instance used for all agents
@@ -75,14 +75,14 @@ Initialize the DroidAgent wrapper.
 
 ```python
 from droidrun import DroidAgent
-from droidrun.config_manager.config_manager import DroidRunConfig
+from droidrun.config_manager.config_manager import DroidrunConfig
 
 # Initialize with default config
-config = DroidRunConfig()
+config = DroidrunConfig()
 
 # Create agent (LLMs loaded from config.llm_profiles)
 agent = DroidAgent(
-    goal="Open Chrome and search for DroidRun",
+    goal="Open Chrome and search for Droidrun",
     config=config
 )
 
@@ -94,14 +94,14 @@ result = await agent.run()
 
 ```python
 from droidrun import DroidAgent
-from droidrun.config_manager.config_manager import DroidRunConfig
+from droidrun.config_manager.config_manager import DroidrunConfig
 
 # Load config from config.yaml
-config = DroidRunConfig.from_yaml("config.yaml")
+config = DroidrunConfig.from_yaml("config.yaml")
 
 # Create agent (LLMs loaded from config.llm_profiles)
 agent = DroidAgent(
-    goal="Open Chrome and search for DroidRun",
+    goal="Open Chrome and search for Droidrun",
     config=config
 )
 
@@ -113,17 +113,17 @@ result = await agent.run()
 
 ```python
 from droidrun import DroidAgent
-from droidrun.config_manager.config_manager import DroidRunConfig
+from droidrun.config_manager.config_manager import DroidrunConfig
 from llama_index.llms.openai import OpenAI
 from llama_index.llms.anthropic import Anthropic
 
 # Initialize config
-config = DroidRunConfig()
+config = DroidrunConfig()
 
 # Create custom LLMs
 llms = {
-    "manager": Anthropic(model="claude-sonnet-4-5", temperature=0.2),
-    "executor": Anthropic(model="claude-sonnet-4-5", temperature=0.1),
+    "manager": Anthropic(model="claude-sonnet-4-5-latest", temperature=0.2),
+    "executor": Anthropic(model="claude-sonnet-4-5-latest", temperature=0.1),
     "codeact": OpenAI(model="gpt-4o", temperature=0.2),
     "text_manipulator": OpenAI(model="gpt-4o-mini", temperature=0.3),
     "app_opener": OpenAI(model="gpt-4o-mini", temperature=0.0),
@@ -145,11 +145,11 @@ result = await agent.run()
 
 ```python
 from droidrun import DroidAgent
-from droidrun.config_manager.config_manager import DroidRunConfig
+from droidrun.config_manager.config_manager import DroidrunConfig
 from llama_index.llms.openai import OpenAI
 
 # Initialize config
-config = DroidRunConfig()
+config = DroidrunConfig()
 
 # Use same LLM for all agents
 llm = OpenAI(model="gpt-4o", temperature=0.2)
@@ -167,10 +167,10 @@ result = await agent.run()
 
 ```python
 from droidrun import DroidAgent
-from droidrun.config_manager.config_manager import DroidRunConfig
+from droidrun.config_manager.config_manager import DroidrunConfig
 
 # Initialize config
-config = DroidRunConfig()
+config = DroidrunConfig()
 
 # Define custom tool
 def search_database(query: str) -> str:
@@ -206,11 +206,11 @@ result = await agent.run()
 
 ```python
 from droidrun import DroidAgent
-from droidrun.config_manager.config_manager import DroidRunConfig
+from droidrun.config_manager.config_manager import DroidrunConfig
 from pydantic import BaseModel, Field
 
 # Initialize config
-config = DroidRunConfig()
+config = DroidrunConfig()
 
 # Define output schema
 class WeatherInfo(BaseModel):
@@ -256,10 +256,10 @@ Run the DroidAgent workflow.
 
 ```python
 from droidrun import DroidAgent
-from droidrun.config_manager.config_manager import DroidRunConfig
+from droidrun.config_manager.config_manager import DroidrunConfig
 
 # Initialize config
-config = DroidRunConfig()
+config = DroidrunConfig()
 
 # Create and run agent
 agent = DroidAgent(goal="...", config=config)
@@ -274,10 +274,10 @@ print(f"Steps: {result.steps}")
 
 ```python
 from droidrun import DroidAgent
-from droidrun.config_manager.config_manager import DroidRunConfig
+from droidrun.config_manager.config_manager import DroidrunConfig
 
 # Initialize config
-config = DroidRunConfig()
+config = DroidrunConfig()
 
 agent = DroidAgent(goal="...", config=config)
 
@@ -328,7 +328,7 @@ DroidAgent emits various events during execution:
 
 ## Configuration
 
-DroidAgent uses a hierarchical configuration system. See the [Configuration Guide](/docs/v4/guides/configuration) for details.
+DroidAgent uses a hierarchical configuration system. See the [Configuration Guide](/v4/sdk/configuration) for details.
 
 **Key configuration options:**
 
@@ -365,19 +365,18 @@ tracing:
 **Custom Tools instance:**
 
 ```python
-from droidrun import DroidAgent, AdbTools
-from droidrun.config_manager.config_manager import DroidRunConfig
+from droidrun import DroidAgent, DeviceConfig
+from droidrun.config_manager.config_manager import DroidrunConfig
 
 # Initialize config
-config = DroidRunConfig()
+config = DroidrunConfig()
 
-# Pre-configure tools
-tools = AdbTools(serial="emulator-5554", use_tcp=True)
+device_config = DeviceConfig(serial="emulator-5554", use_tcp=True)
 
 agent = DroidAgent(
     goal="Open settings",
     config=config,
-    tools=tools  # Use pre-configured tools
+    device_config=device_config
 )
 
 result = await agent.run()
@@ -387,10 +386,10 @@ result = await agent.run()
 
 ```python
 from droidrun import DroidAgent
-from droidrun.config_manager.config_manager import DroidRunConfig
+from droidrun.config_manager.config_manager import DroidrunConfig
 
 # Initialize config
-config = DroidRunConfig()
+config = DroidrunConfig()
 
 agent = DroidAgent(
     goal="Complete task using context",
@@ -411,10 +410,10 @@ Variables are accessible in shared_state.custom_variables throughout execution a
 
 ```python
 from droidrun import DroidAgent
-from droidrun.config_manager.config_manager import DroidRunConfig
+from droidrun.config_manager.config_manager import DroidrunConfig
 
 # Initialize config
-config = DroidRunConfig()
+config = DroidrunConfig()
 
 # Override default prompts with custom Jinja2 templates
 custom_prompts = {

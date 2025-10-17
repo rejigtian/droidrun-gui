@@ -24,20 +24,11 @@
                 ]
               },
               {
-                "group": "Concepts",
-                "pages": [
-                  "v4/concepts/architecture",
-                  "v4/concepts/workflow-architecture",
-                  "v4/concepts/event-streaming"
-                ]
-              },
-              {
                 "group": "Guides",
                 "pages": [
                   "v4/guides/overview",
-                  "v4/guides/cli",
-                  "v4/guides/configuration",
                   "v4/guides/device-setup",
+                  "v4/guides/cli",
                   "v4/guides/custom-tools-credentials",
                   "v4/guides/custom-variables",
                   "v4/guides/app-cards",
@@ -46,12 +37,25 @@
                 ]
               },
               {
+                "group": "Concepts",
+                "pages": [
+                  "v4/concepts/overview",
+                  "v4/concepts/agent-architecture",
+                  "v4/concepts/scripter-agent",
+                  "v4/concepts/shared-state",
+                  "v4/concepts/events-and-workflows",
+                  "v4/concepts/prompts"
+                ]
+              },
+              {
                 "group": "SDK Reference",
                 "pages": [
+                  "v4/sdk",
                   "v4/sdk/droid-agent",
                   "v4/sdk/adb-tools",
                   "v4/sdk/ios-tools",
-                  "v4/sdk/base-tools"
+                  "v4/sdk/base-tools",
+                  "v4/sdk/configuration"
                 ]
               }
             ]
@@ -84,15 +88,6 @@
                   "v3/concepts/models",
                   "v3/concepts/android-tools",
                   "v3/concepts/portal-app"
-                ]
-              },
-              {
-                "group": "SDK Reference",
-                "pages": [
-                  "v3/sdk/droid-agent",
-                  "v3/sdk/adb-tools",
-                  "v3/sdk/ios-tools",
-                  "v3/sdk/base-tools"
                 ]
               }
             ]

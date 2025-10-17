@@ -12,7 +12,7 @@ title: IOSTools
 class IOSTools(Tools)
 ```
 
-Core UI interaction tools for iOS device control via the DroidRun iOS Portal app.
+Core UI interaction tools for iOS device control via the Droidrun iOS Portal app.
 
 **Status**: iOS support is in beta with limited functionality compared to AdbTools.
 
@@ -59,7 +59,7 @@ tools = IOSTools(
 
 **Setup Requirements:**
 
-1. Install DroidRun iOS Portal app on device
+1. Install Droidrun iOS Portal app on device
 2. Launch Portal app (starts HTTP server)
 3. Connect device and computer to same network
 4. Use displayed URL to initialize IOSTools
@@ -612,7 +612,7 @@ for elem in state['a11y_tree']:
     if elem['type'] == 'TextField' and 'message' in elem['label'].lower():
         tools.tap_by_index(elem['index'])
         break
-tools.input_text("Hello from DroidRun!")
+tools.input_text("Hello from Droidrun!")
 
 # Send
 state = tools.get_state()
@@ -630,5 +630,5 @@ tools.complete(True, "Successfully sent iMessage")
 
 ## See Also
 
-- [AdbTools](/docs/v4/sdk/adb-tools) - Android device control with full functionality
-- [Tools Base Class](/docs/v4/sdk/base-tools) - Abstract base class reference
+- [AdbTools](/v4/sdk/adb-tools) - Android device control with full functionality
+- [Tools Base Class](/v4/sdk/base-tools) - Abstract base class reference

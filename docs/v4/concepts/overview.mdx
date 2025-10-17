@@ -1,0 +1,107 @@
+---
+title: 'Architecture Overview'
+description: 'Understanding Droidrun v4 multi-agent system for device automation.'
+---
+
+## What is Droidrun?
+
+Droidrun uses a **multi-agent architecture** where specialized agents work together to complete tasks. Instead of one agent doing everything, different agents handle planning, execution, and computation.
+
+### Two Execution Modes
+
+- **Reasoning Mode** (`reasoning=True`): Manager plans, Executor acts. Best for complex tasks.
+- **Direct Mode** (`reasoning=False`): CodeActAgent executes immediately. Best for simple tasks.
+
+## Core Agents
+
+### DroidAgent (Orchestrator)
+Main coordinator that manages the workflow and routes between agents.
+
+**Location**: `droidrun/agent/droid/droid_agent.py:75`
+
+### ManagerAgent (Planner)
+Creates high-level plans and monitors progress. Only used in reasoning mode.
+
+**Location**: `droidrun/agent/manager/manager_agent.py:46`
+
+### ExecutorAgent (Actor)
+Executes specific actions for each subgoal. Only used in reasoning mode.
+
+**Location**: `droidrun/agent/executor/executor_agent.py:46`
+
+### CodeActAgent (Direct Executor)
+Generates and executes Python code directly. Used in direct mode.
+
+**Location**: `droidrun/agent/codeact/codeact_agent.py`
+
+### ScripterAgent (Off-Device)
+Handles Python computations without device interaction (API calls, calculations).
+
+**Location**: `droidrun/agent/scripter/`
+
+## Workflow Comparison
+
+### Reasoning Mode Flow
+```
+Goal → Manager (creates plan) → Executor (executes action) →
+Manager (checks result) → Executor (next action) → ...
+```
+
+### Direct Mode Flow
+```
+Goal → CodeActAgent (generates code) → Execute → Done
+```
+
+## Per-Agent Configuration
+
+Configure different LLMs for each agent:
+
+```yaml
+# config.yaml
+llm_profiles:
+  manager:
+    provider: Anthropic
+    model: claude-sonnet-4
+
+  executor:
+    provider: OpenAI
+    model: gpt-4o
+
+  codeact:
+    provider: GoogleGenAI
+    model: models/gemini-2.0-flash-exp
+
+agent:
+  reasoning: true
+  max_steps: 15
+```
+
+## When to Use Each Mode
+
+**Use Reasoning Mode for:**
+- Multi-step tasks (booking flights, configuring settings)
+- Tasks requiring planning and adaptation
+- Complex workflows across multiple apps
+
+**Use Direct Mode for:**
+- Simple actions (screenshots, sending messages)
+- Fast execution without planning overhead
+- Well-defined single-step tasks
+
+## Key Features
+
+### Shared State
+All agents share `DroidAgentState` for coordination:
+- Action history
+- Error tracking
+- Memory and context
+- Script results
+
+## Dive Deeper
+
+- [Agent Architecture](./agent-architecture) - Detailed design
+- [Reasoning Mode](./reasoning-mode) - Manager/Executor workflow
+- [Direct Mode](./direct-mode) - CodeAct workflow
+- [Configuration](./configuration) - Setup and LLM profiles
+- [Custom Tools](./custom-tools) - Extending functionality
+- [Migration Guide](./migration-guide) - Upgrading from v3

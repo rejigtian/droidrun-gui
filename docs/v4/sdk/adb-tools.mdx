@@ -14,7 +14,7 @@ class AdbTools(Tools)
 
 Core UI interaction tools for Android device control.
 
-AdbTools provides a comprehensive interface for interacting with Android devices through ADB (Android Debug Bridge). It supports both TCP communication and content provider modes for device communication via the DroidRun Portal app.
+AdbTools provides a comprehensive interface for interacting with Android devices through ADB (Android Debug Bridge). It supports both TCP communication and content provider modes for device communication via the Droidrun Portal app.
 
 <a id="droidrun.tools.adb.AdbTools.__init__"></a>
 
@@ -67,7 +67,7 @@ tools = AdbTools(
 ```
 
 **Notes:**
-- Automatically sets up the DroidRun Portal keyboard on initialization via `setup_keyboard()`
+- Automatically sets up the Droidrun Portal keyboard on initialization via `setup_keyboard()`
 - Creates a PortalClient instance that handles TCP/content provider communication
 - Device serial can be emulator name, USB serial, or TCP/IP address:port
 
@@ -293,7 +293,7 @@ result = tools.input_text("Hello\nWorld")  # Multiline text
 
 **Notes:**
 - Always ensure a text field is focused before inputting text (use `tap_by_index()` or set `index` parameter)
-- Uses the DroidRun Portal app keyboard for reliable text input via PortalClient
+- Uses the Droidrun Portal app keyboard for reliable text input via PortalClient
 - Supports Unicode characters and special characters including non-ASCII
 - If `index != -1`, automatically taps the element first before inputting text
 - Call `get_state()` first to populate element cache if using `index` parameter
@@ -803,7 +803,7 @@ tools.complete(success=False, reason="Could not find contact 'John' in contacts 
 
 ## Notes
 
-- **Portal app required**: The DroidRun Portal app must be installed and accessibility service enabled on the device
+- **Portal app required**: The Droidrun Portal app must be installed and accessibility service enabled on the device
 - **TCP vs Content Provider**: TCP is faster but requires port forwarding (`adb forward tcp:8080 tcp:8080`). Content provider is the fallback mode using ADB shell commands.
 - **Element caching**: Always call `get_state()` before using `tap_by_index()` or `tap()` to populate the element cache
 - **Trajectory recording**: When `save_trajectories="action"`, screenshots and UI states are automatically captured for each UI action via the `@Tools.ui_action` decorator
@@ -843,7 +843,7 @@ for element in state['a11y_tree']:
         break
 
 # Input search query
-result = tools.input_text("DroidRun framework")
+result = tools.input_text("Droidrun framework")
 print(result)
 
 # Press enter key
@@ -857,10 +857,10 @@ with open("search_result.png", "wb") as f:
     f.write(screenshot)
 
 # Remember result for future context
-tools.remember("Searched for DroidRun framework in Chrome")
+tools.remember("Searched for Droidrun framework in Chrome")
 
 # Complete task
-tools.complete(success=True, reason="Successfully searched for DroidRun in Chrome")
+tools.complete(success=True, reason="Successfully searched for Droidrun in Chrome")
 
 # Check completion status
 print(f"Task finished: {tools.finished}")

@@ -5,7 +5,7 @@ description: 'Enhance agent performance with app-specific guidance and best prac
 
 # App-Specific Instruction Cards
 
-DroidRun's app card system provides app-specific guidance to agents, helping them understand how to operate specific apps more effectively. App cards are automatically loaded based on the currently active app and injected into agent prompts to improve task success rates.
+Droidrun's app card system provides app-specific guidance to agents, helping them understand how to operate specific apps more effectively. App cards are automatically loaded based on the currently active app and injected into agent prompts to improve task success rates.
 
 ## Overview
 
@@ -17,7 +17,7 @@ App cards are markdown documents that contain:
 - **Known gotchas**: Quirks, issues, or important notes about the app
 - **Search syntax**: Special search operators or filters (for apps like Gmail, file managers, etc.)
 
-When a DroidRun agent detects it's operating within a specific app (by package name), it automatically loads the corresponding app card and uses that knowledge to make better decisions.
+When a Droidrun agent detects it's operating within a specific app (by package name), it automatically loads the corresponding app card and uses that knowledge to make better decisions.
 
 ---
 
@@ -25,8 +25,8 @@ When a DroidRun agent detects it's operating within a specific app (by package n
 
 ### Automatic Detection and Loading
 
-1. **Package Detection**: DroidRun monitors the current foreground app package name (e.g., "com.google.android.gm" for Gmail)
-2. **Async Loading**: When the package or instruction changes, DroidRun starts loading the app card in the background
+1. **Package Detection**: Droidrun monitors the current foreground app package name (e.g., "com.google.android.gm" for Gmail)
+2. **Async Loading**: When the package or instruction changes, Droidrun starts loading the app card in the background
 3. **Caching**: All providers use in-memory caching with `(package_name, instruction)` as cache keys
 4. **Prompt Injection**: The app card content is injected into the Manager's system prompt within `<app_card>` tags
 5. **Context-Aware Actions**: The agent uses the app-specific guidance to perform actions more effectively
@@ -53,7 +53,7 @@ App cards are used by the **Manager Agent** in reasoning mode (`--reasoning` fla
 
 ## Built-in App Cards
 
-DroidRun ships with app cards for popular apps. Currently included:
+Droidrun ships with app cards for popular apps. Currently included:
 
 | App | Package Name | Features Covered |
 |-----|--------------|------------------|
@@ -188,9 +188,9 @@ adb shell pm list packages | grep keyword
 adb shell dumpsys window windows | grep -E 'mCurrentFocus'
 ```
 
-**Using DroidRun Debug Mode:**
+**Using Droidrun Debug Mode:**
 ```sh
-# Run DroidRun with debug logging
+# Run Droidrun with debug logging
 droidrun run "Open the app" --debug
 
 # The package name will appear in logs when the app is opened
@@ -230,7 +230,7 @@ Add an entry to `app_cards.json`:
 
 ### Step 4: Test the App Card
 
-Run DroidRun with the app and verify the app card is loaded:
+Run Droidrun with the app and verify the app card is loaded:
 
 ```sh
 droidrun run "Open myapp and do something" --reasoning --debug
@@ -391,10 +391,10 @@ App cards are cached in memory. Restart the agent or call `provider.clear_cache(
 
 ## Related Documentation
 
-- [CLI Usage](/docs/v4/guides/cli) - DroidRun CLI command reference
-- [Configuration](/docs/v4/concepts/configuration) - Configuration system details
-- [Agent Architecture](/docs/v4/concepts/architecture) - How agents use app cards
-- [Manager Agent](/docs/v4/sdk/droid-agent#manager-agent) - Agent that uses app cards
+- [CLI Usage](/v4/guides/cli) - Droidrun CLI command reference
+- [Configuration](/v4/sdk/configuration) - Configuration system details
+- [Agent Architecture](/v4/concepts/agent-architecture) - How agents use app cards
+- [Manager Agent](/v4/sdk/droid-agent#manager-agent) - Agent that uses app cards
 
 ---
 

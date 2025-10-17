@@ -1,284 +1,103 @@
 ---
 title: 'Device Setup & Communication'
-description: 'Complete guide to setting up Android and iOS devices, understanding the Portal app, and troubleshooting device connections'
+description: 'Setting up Android and iOS devices for Droidrun automation'
 ---
 
 ## Overview
 
-DroidRun controls devices through a specialized Portal app that acts as a bridge between your computer and the device. This guide covers everything from initial setup to advanced troubleshooting.
-
----
-
-## Understanding the Portal App
-
-### What is the DroidRun Portal?
-
-The DroidRun Portal is a companion app that runs on your device and provides:
-
-1. **Accessibility Tree Extraction** - Captures UI elements and their properties
-2. **Device State Monitoring** - Tracks current activity, keyboard visibility, and device info
-3. **Command Execution** - Executes tap, swipe, text input, and other actions
-4. **Visual Feedback** - Displays overlay to show detected UI elements (optional)
-5. **Dual Communication Modes** - Supports both TCP and content provider communication
-
-### How It Works
-
-<Steps>
-  <Step title="Accessibility Service">
-    The Portal app uses Android's [Accessibility Services](https://developer.android.com/reference/android/accessibilityservice/AccessibilityService) to:
-    - Monitor UI changes in real-time
-    - Identify interactive elements (buttons, text fields, etc.)
-    - Extract element positions, text content, and metadata
-    - Detect focused elements for text input
-  </Step>
-
-  <Step title="Communication Layer">
-    DroidRun uses a unified `PortalClient` that automatically selects the best communication method:
-    - **TCP Mode** (faster): HTTP server on port 8080 with ADB port forwarding
-    - **Content Provider Mode** (fallback): Android content provider via ADB shell commands
-
-    The `PortalClient` handles both modes transparently via the `prefer_tcp` flag in `AdbTools`.
-  </Step>
-
-  <Step title="Custom Keyboard">
-    The Portal includes a custom IME (Input Method Editor) that:
-    - Supports all characters including special Unicode
-    - Handles base64-encoded text for reliability
-    - Bypasses Android's text input restrictions
-    - Automatically enabled when creating `AdbTools` instances
-  </Step>
-</Steps>
-
-### Portal App Permissions
-
-The Portal app requires the following permissions:
-
-| Permission | Purpose | Required |
-|------------|---------|----------|
-| Accessibility Service | Read UI state and perform actions | ✅ Yes |
-| Display over other apps | Show element overlay (optional) | ❌ No |
-| Query all packages | List installed apps | ✅ Yes |
-
-<Warning>
-**Privacy Note**: The Portal app only communicates locally via ADB. No data is sent to external servers. The app can be disabled when not in use through Android settings.
-</Warning>
-
----
-
-## Android Device Setup
-
-### Prerequisites
-
-<AccordionGroup>
-  <Accordion title="Install ADB (Android Debug Bridge)">
-    **Option 1: Platform Tools (Recommended)**
-
-    Download from [Android Developer Site](https://developer.android.com/studio/releases/platform-tools):
-    - **Windows**: Download ZIP, extract, add to PATH
-    - **macOS**: `brew install android-platform-tools`
-    - **Linux**: `sudo apt install adb` or download platform-tools
-
-    **Verify Installation:**
-    ```bash
-    adb version
-    # Should show: Android Debug Bridge version 1.0.41 or higher
-    ```
-  </Accordion>
-
-  <Accordion title="Enable Developer Options on Your Device">
-    1. Open **Settings** on your Android device
-    2. Navigate to **About phone** (or **About device**)
-    3. Find **Build number** (may be under "Software information")
-    4. Tap **Build number** 7 times
-    5. You'll see a message: "You are now a developer!"
-    6. Go back to main Settings
-    7. Find **Developer options** (usually under System or Advanced)
-  </Accordion>
-
-  <Accordion title="Enable USB Debugging">
-    1. Open **Settings** > **Developer options**
-    2. Toggle on **USB debugging**
-    3. If prompted, check "Always allow from this computer" and tap **OK**
-
-    **Verify Connection:**
-    ```bash
-    adb devices
-    # Should show your device serial number
-    ```
-  </Accordion>
-</AccordionGroup>
-
-### Install the Portal App
-
-DroidRun provides a simple command to download and install the latest Portal APK:
-
-```bash
-droidrun setup
-```
-
-This command will:
-1. Download the latest Portal APK from GitHub releases
-2. Uninstall any existing Portal app version (using `uninstall=True` flag)
-3. Install the new APK with all permissions granted (using `-g` flag)
-4. Install silently without showing progress (using `silent=True` unless `--debug` is used)
-5. Attempt to enable the accessibility service automatically
+Droidrun controls devices through a specialized Portal app that bridges your computer and the device.
 
 <Tabs>
-  <Tab title="Automatic Setup (Recommended)">
+  <Tab title="Android Setup">
+
+## Prerequisites
+
+<Steps>
+  <Step title="Install ADB">
+    **macOS**: `brew install android-platform-tools`
+
+    **Linux**: `sudo apt install adb`
+
+    **Windows**: Download from [Android Developer Site](https://developer.android.com/studio/releases/platform-tools)
+
+    Verify: `adb version`
+  </Step>
+
+  <Step title="Enable USB Debugging">
+    1. Go to **Settings** > **About phone**
+    2. Tap **Build number** 7 times (enables Developer options)
+    3. Go to **Settings** > **Developer options**
+    4. Enable **USB debugging**
+    5. Connect device and tap **Always allow**
+
+    Verify: `adb devices`
+  </Step>
+
+  <Step title="Install Portal App">
     ```bash
-    # Using the first connected device
+    # Automatic setup (downloads latest Portal APK)
     droidrun setup
 
-    # Using a specific device
+    # Or specify device
     droidrun setup --device SERIAL_NUMBER
     ```
 
-    If automatic accessibility enablement fails, you'll see instructions to enable it manually.
-  </Tab>
-
-  <Tab title="Manual Installation">
-    If you have a custom APK build:
-
-    ```bash
-    # Install custom APK
-    droidrun setup --path /path/to/portal.apk --device SERIAL_NUMBER
-
-    # Enable debug logging for troubleshooting
-    droidrun setup --debug
-    ```
-  </Tab>
-
-  <Tab title="Troubleshooting Installation">
-    **Installation fails with "INSTALL_FAILED_UPDATE_INCOMPATIBLE":**
-    - The setup command automatically uninstalls existing versions (`uninstall=True`)
-    - If it still fails, manually uninstall: `adb uninstall com.droidrun.portal`
-
-    **Installation fails with "Permission denied":**
-    - Ensure USB debugging is enabled
-    - Check that the device is authorized (check `adb devices`)
-
-    **Installation succeeds but app doesn't appear:**
-    - Check if the APK is for the correct architecture (arm64-v8a, armeabi-v7a, x86)
-    - Try installing manually: `adb install -r -g portal.apk`
-  </Tab>
-</Tabs>
-
-### Enable Accessibility Service
-
-The Portal app requires accessibility permissions to read UI state and perform actions.
-
-<Steps>
-  <Step title="Automatic Enablement">
-    The `droidrun setup` command attempts automatic enablement via ADB using the `enable_portal_accessibility()` function:
-
-    ```bash
-    # This is done automatically during setup
-    # Service name: com.droidrun.portal/com.droidrun.portal.DroidrunAccessibilityService
-    adb shell settings put secure enabled_accessibility_services com.droidrun.portal/com.droidrun.portal.DroidrunAccessibilityService
-    adb shell settings put secure accessibility_enabled 1
-    ```
-
-    <Note>
-    Automatic enablement may fail on some devices due to security restrictions. The setup command will automatically open accessibility settings if automatic enablement fails.
-    </Note>
+    This will:
+    - Download the latest Portal APK
+    - Install with all permissions granted
+    - Enable accessibility service automatically
   </Step>
 
-  <Step title="Manual Enablement">
-    If automatic enablement fails, the setup command will automatically open accessibility settings:
-
-    1. The device will show **Accessibility Settings**
-    2. Find **DroidRun Portal** (package: `com.droidrun.portal`) in the services list
-    3. Tap on **DroidRun Portal**
-    4. Toggle the switch to **ON**
-    5. Tap **Allow** on the permission dialog
-
-    <Note>
-    The setup command automatically runs `am start -a android.settings.ACCESSIBILITY_SETTINGS` to open settings if automatic enablement fails.
-    </Note>
-  </Step>
-
-  <Step title="Verify Accessibility Service">
-    Check if the service is enabled:
-
+  <Step title="Verify Setup">
     ```bash
     droidrun ping
-    ```
-
-    You should see:
-    ```
-    Portal is installed and accessible. You're good to go!
+    # Output: Portal is installed and accessible. You're good to go!
     ```
   </Step>
 </Steps>
 
-### Test Your Setup
+---
 
-Verify everything is working:
+## Portal App
 
-```bash
-# List connected devices
-droidrun devices
+The Droidrun Portal (`com.droidrun.portal`) provides:
 
-# Test Portal connection (tries content provider mode by default)
-droidrun ping
+- **Accessibility Tree** - Extracts UI elements and their properties
+- **Device State** - Tracks current activity, keyboard visibility
+- **Action Execution** - Tap, swipe, text input, and other actions
+- **Dual Communication** - TCP (faster) or Content Provider (fallback)
 
-# Test Portal connection (TCP mode)
-droidrun ping --tcp
-
-# Test with specific device
-droidrun ping --device SERIAL_NUMBER
-
-# Run a simple command
-droidrun run "Open the settings app"
-```
+<Note>
+The Portal only communicates locally via ADB. No data is sent to external servers.
+</Note>
 
 ---
 
 ## Communication Modes
 
-DroidRun supports two communication modes with automatic fallback:
-
-### TCP Mode (Recommended)
-
-**How it works:**
-1. Portal app runs an HTTP server on device port 8080
-2. ADB forwards a local port to the device's port 8080
-3. DroidRun sends HTTP requests to `localhost:FORWARDED_PORT`
-
-**Advantages:**
-- ⚡ **Faster**: Direct HTTP communication (~2-5x faster)
-- 📦 **Efficient**: Binary data transfer for screenshots
-- 🔄 **Reliable**: Automatic port reuse, no cleanup needed
-
-**Enable TCP mode:**
-
-```bash
-# CLI - use --tcp flag
-droidrun run "your command" --tcp
-
-# Or set in config.yaml
-# device:
-#   use_tcp: true
-
-# Python API
-tools = AdbTools(serial="DEVICE_SERIAL", use_tcp=True)
-```
-
-**Port forwarding details:**
-- Portal listens on device port `8080` (configurable via `remote_tcp_port`)
-- ADB automatically allocates a free local port (uses `tcp:0` for auto-allocation)
-- Existing forwards are reused (no duplicates)
-- Forwards persist until device disconnect or manual removal
-
-**Troubleshooting TCP mode:**
-
 <AccordionGroup>
-  <Accordion title="TCP connection test failed">
+  <Accordion title="TCP Mode (Recommended) - per operation">
+    **How it works:**
+    - Portal runs HTTP server on device port 8080
+    - ADB forwards local port → device port 8080
+    - Droidrun sends HTTP requests to `localhost:PORT`
+
+    **Enable:**
     ```bash
-    # Check if port forwarding exists
+    # CLI
+    droidrun run "your command" --tcp
+
+    # Python
+    tools = DeviceConfig(serial="DEVICE_SERIAL", use_tcp=True)
+    ```
+
+    **Troubleshooting:**
+    ```bash
+    # Check port forwarding
     adb forward --list
 
-    # Should show: SERIAL tcp:LOCAL_PORT tcp:8080
+    # Test Portal server
+    adb shell netstat -an | grep 8080
 
     # Remove all forwards and retry
     adb forward --remove-all
@@ -286,465 +105,187 @@ tools = AdbTools(serial="DEVICE_SERIAL", use_tcp=True)
     ```
   </Accordion>
 
-  <Accordion title="Connection refused or timeout">
-    - Ensure Portal app is installed and accessibility service is enabled
-    - Check if the Portal HTTP server is running: `adb shell netstat -an | grep 8080`
-    - Restart the Portal app
-    - Try content provider mode as fallback
-  </Accordion>
+  <Accordion title="Content Provider (Fallback) - per operation">
+    **How it works:**
+    - Portal exposes content provider at `content://com.droidrun.portal/`
+    - Commands sent via ADB shell: `content query --uri ...`
+    - JSON responses parsed from shell output
 
-  <Accordion title="Port already in use">
-    DroidRun automatically finds free ports. If you see this error:
-
+    **Usage:**
     ```bash
-    # List what's using the port
-    lsof -i :PORT_NUMBER  # macOS/Linux
-    netstat -ano | findstr :PORT_NUMBER  # Windows
+    # Default mode (no flag needed)
+    droidrun ping
 
-    # Remove specific forward
-    adb forward --remove tcp:PORT_NUMBER
-    ```
-  </Accordion>
-</AccordionGroup>
-
-### Content Provider Mode (Fallback)
-
-**How it works:**
-1. Portal app exposes a content provider at `content://com.droidrun.portal/`
-2. `PortalClient` sends ADB shell commands like `content query --uri content://com.droidrun.portal/state`
-3. Portal returns data as JSON in the shell output, parsed by `PortalClient`
-
-**Advantages:**
-- 🔒 **Always Available**: No network/port requirements
-- 🛡️ **Secure**: Uses Android's built-in IPC mechanism
-- 🔧 **Reliable**: Works even if TCP server fails
-
-**Limitations:**
-- 🐌 **Slower**: ADB shell overhead (~2-5x slower than TCP)
-- 📏 **Data size limits**: Shell output may be truncated for large responses
-
-**Automatic fallback:**
-
-The `PortalClient` (used internally by `AdbTools`) automatically falls back to content provider mode when:
-- TCP connection fails
-- HTTP server is not responding
-- Port forwarding setup fails
-
-**Manual content provider mode:**
-
-```bash
-# Test content provider connection (default behavior)
-droidrun ping
-
-# The --no-tcp flag is not needed as content provider is the default
-# To explicitly disable TCP, use use_tcp=False in Python API
-```
-
-**Troubleshooting content provider mode:**
-
-<AccordionGroup>
-  <Accordion title="Parse error or invalid response">
-    The content provider returns data in this format:
-    ```
-    Row: 0 result={"data": "{\"a11y_tree\": [...]}"}
+    # Python
+    tools = DeviceConfig(serial="DEVICE_SERIAL", use_tcp=False)
     ```
 
-    If parsing fails:
-    - Ensure Portal app is up to date
-    - Check accessibility service is enabled
-    - Try reinstalling: `droidrun setup`
-  </Accordion>
-
-  <Accordion title="ContentProvider error: Unknown URI">
-    The Portal content provider is accessed via:
+    **Troubleshooting:**
     ```bash
-    content://com.droidrun.portal/state
-    content://com.droidrun.portal/keyboard/input
-    content://com.droidrun.portal/packages
-    content://com.droidrun.portal/overlay_offset
-    ```
+    # Test content provider directly
+    adb shell content query --uri content://com.droidrun.portal/state
 
-    If you see "Unknown URI" errors:
-    - Ensure Portal app is installed (`com.droidrun.portal`)
-    - Verify accessibility service is enabled
-    - Update to the latest Portal app version: `droidrun setup`
-  </Accordion>
-</AccordionGroup>
-
-### Performance Comparison
-
-| Operation | TCP Mode | Content Provider |
-|-----------|----------|------------------|
-| Get UI State | ~100-200ms | ~300-500ms |
-| Input Text | ~50-100ms | ~200-300ms |
-| Take Screenshot | ~150-250ms | ~400-600ms |
-| Execute Action | ~50ms | ~100-200ms |
-
----
-
-## Wireless Debugging Setup
-
-Control devices over WiFi without USB cables.
-
-### Android 11+ (Wireless Debugging)
-
-<Steps>
-  <Step title="Enable Wireless Debugging">
-    1. Open **Settings** > **Developer options**
-    2. Enable **Wireless debugging**
-    3. Tap **Wireless debugging** to open settings
-    4. Note your device's IP address and port (e.g., `192.168.1.100:37757`)
-  </Step>
-
-  <Step title="Pair Device (First Time Only)">
-    **Method 1: QR Code Pairing (Easiest)**
-    ```bash
-    # Android 11+ has QR code pairing in Wireless debugging settings
-    # Scan QR with this command:
-    adb pair <QR_CODE_STRING>
-    ```
-
-    **Method 2: Pairing Code**
-    1. In Wireless debugging settings, tap **Pair device with pairing code**
-    2. Note the pairing code and IP:port
-    3. Run: `adb pair IP:PORT`
-    4. Enter the pairing code when prompted
-  </Step>
-
-  <Step title="Connect">
-    ```bash
-    # Connect to device
-    adb connect IP:PORT
-
-    # Verify connection
-    adb devices
-    # Should show: IP:PORT device
-
-    # Use with DroidRun
-    droidrun ping --device IP:PORT
-    ```
-  </Step>
-</Steps>
-
-### Android 10 and Below (TCP/IP Mode)
-
-<Steps>
-  <Step title="Enable via USB first">
-    ```bash
-    # Connect device via USB first
-    adb devices
-
-    # Enable TCP/IP mode on port 5555
-    adb tcpip 5555
-
-    # Device will restart ADB in network mode
-    ```
-  </Step>
-
-  <Step title="Find Device IP Address">
-    **On Device:**
-    - Settings > About phone > Status > IP address
-
-    **Via ADB:**
-    ```bash
-    adb shell ip addr show wlan0 | grep inet
-    ```
-  </Step>
-
-  <Step title="Connect Wirelessly">
-    ```bash
-    # Disconnect USB cable
-    # Connect to device
-    adb connect DEVICE_IP:5555
-
-    # Verify
-    adb devices
-    ```
-  </Step>
-</Steps>
-
-### Managing Wireless Connections
-
-```bash
-# List all connected devices
-droidrun devices
-
-# Connect to device
-droidrun connect 192.168.1.100:5555
-
-# Disconnect from device
-droidrun disconnect 192.168.1.100:5555
-
-# Use specific wireless device
-droidrun run "your command" --device 192.168.1.100:5555
-```
-
-**Troubleshooting wireless connection:**
-
-<AccordionGroup>
-  <Accordion title="Connection refused">
-    - Ensure device and computer are on the same WiFi network
-    - Check firewall settings on both device and computer
-    - Verify port 5555 (or your port) is not blocked
-    - Try restarting wireless debugging
-  </Accordion>
-
-  <Accordion title="Connection drops frequently">
-    - Move device closer to WiFi router
-    - Disable battery optimization for ADB
-    - Use 5GHz WiFi if available (more stable)
-    - Consider USB connection for critical operations
-  </Accordion>
-
-  <Accordion title="Cannot find device IP">
-    ```bash
-    # Get IP via USB connection
-    adb shell ip addr show wlan0 | grep "inet " | awk '{print $2}' | cut -d/ -f1
+    # Should show: Row: 0 result={"data": "{...}"}
     ```
   </Accordion>
 </AccordionGroup>
 
 ---
 
-## Multiple Device Management
-
-Control multiple Android devices simultaneously.
-
-### List Connected Devices
-
-```bash
-droidrun devices
-# Output:
-# Found 2 connected device(s):
-#   • emulator-5554
-#   • 192.168.1.100:5555
-```
-
-### Target Specific Device
-
-```bash
-# CLI - using --device flag
-droidrun run "your command" --device emulator-5554
-
-# Python API
-tools = AdbTools(serial="emulator-5554")
-agent = DroidAgent(goal="your task", tools=tools)
-```
-
-### Working with Multiple Devices
-
-```python
-import asyncio
-from droidrun import AdbTools, DroidAgent
-from adbutils import adb
-
-async def control_device(serial: str, command: str):
-    """Control a specific device"""
-    tools = AdbTools(serial=serial)
-    agent = DroidAgent(goal=command, tools=tools)
-    result = await agent.run()
-    return result
-
-async def main():
-    # Get all connected devices
-    devices = adb.list()
-
-    # Run tasks on multiple devices in parallel
-    tasks = [
-        control_device(devices[0].serial, "Open settings"),
-        control_device(devices[1].serial, "Check battery level"),
-    ]
-
-    results = await asyncio.gather(*tasks)
-    print(results)
-
-asyncio.run(main())
-```
-
----
-
-## iOS Device Support
-
-<Note>
-iOS support is currently in **beta** and requires a separate iOS Portal app.
-</Note>
-
-### Prerequisites
-
-- **macOS** with Xcode installed (for iOS device communication)
-- **iOS device** with Developer mode enabled
-- **iOS Portal app** installed on device
-
-### Setup iOS Device
-
-The iOS Portal uses a different architecture than Android:
-
-1. **HTTP Server**: iOS Portal runs an HTTP server on the device
-2. **Direct Communication**: No ADB required - direct HTTP requests
-3. **Accessibility API**: Uses iOS accessibility APIs for UI state
-
-**Python API:**
-
-```python
-from droidrun import IOSTools, DroidAgent
-
-# Initialize iOS tools with device URL
-tools = IOSTools(
-    url="http://DEVICE_IP:8080",
-    bundle_identifiers=["com.example.app"]  # Optional: list of app bundle IDs
-)
-
-# Create agent
-agent = DroidAgent(
-    goal="Open Settings and check WiFi",
-    tools=tools,
-    platform="ios"
-)
-
-result = await agent.run()
-```
-
-**CLI:**
-
-```bash
-# Use --ios flag to target iOS devices
-droidrun run "your command" --ios
-
-# Or set platform in config.yaml:
-# device:
-#   platform: ios
-```
-
-### iOS Limitations
-
-Current limitations in iOS support:
-
-- ❌ No `get_date()` - Returns "Not implemented for iOS"
-- ❌ No `back()` - Raises `NotImplementedError`
-- ❌ No `drag()` - Not implemented, returns False
-- ❌ No `get_apps()` - Not available (use `list_packages()` instead)
-- ⚠️ `input_text()` does not support `index` or `clear` parameters
-- ⚠️ `_extract_element_coordinates_by_index()` is implemented but works differently than Android
-- ⚠️ Requires manual Portal app installation
-
----
-
-## Troubleshooting Guide
-
-### Common Issues and Solutions
+## Advanced Setup
 
 <AccordionGroup>
-  <Accordion title="Device not found / No devices connected">
-    **Symptoms:** `adb devices` shows no devices or unauthorized
+  <Accordion title="Wireless Debugging (Android 11+)">
+    ### Setup
+
+    <Steps>
+      <Step title="Enable Wireless Debugging">
+        1. **Settings** > **Developer options** > **Wireless debugging**
+        2. Note IP address and port (e.g., `192.168.1.100:37757`)
+      </Step>
+
+      <Step title="Pair Device (First Time)">
+        **QR Code Method:**
+        ```bash
+        adb pair <QR_CODE_STRING>
+        ```
+
+        **Pairing Code Method:**
+        1. Tap **Pair device with pairing code**
+        2. Note pairing code and IP:port
+        3. Run: `adb pair IP:PORT`
+        4. Enter pairing code
+      </Step>
+
+      <Step title="Connect">
+        ```bash
+        adb connect IP:PORT
+        droidrun ping --device IP:PORT
+        ```
+      </Step>
+    </Steps>
+
+    ### Common Issues
+
+    - Connection refused → Check same WiFi network and firewall
+    - Frequent drops → Use 5GHz WiFi or stay near router
+    - Can't find IP → Run `adb shell ip addr show wlan0 | grep "inet "` via USB
+  </Accordion>
+
+  <Accordion title="Wireless Debugging (Android 10 and Below)">
+    <Steps>
+      <Step title="Enable TCP/IP Mode (USB Required)">
+        ```bash
+        # Connect via USB first
+        adb tcpip 5555
+        ```
+      </Step>
+
+      <Step title="Find Device IP">
+        ```bash
+        adb shell ip addr show wlan0 | grep inet
+        ```
+      </Step>
+
+      <Step title="Connect Wirelessly">
+        ```bash
+        # Disconnect USB cable
+        adb connect DEVICE_IP:5555
+        droidrun ping --device DEVICE_IP:5555
+        ```
+      </Step>
+    </Steps>
+  </Accordion>
+
+  <Accordion title="Multiple Devices">
+    ### List Devices
+
+    ```bash
+    droidrun devices
+    # Found 2 connected device(s):
+    #   • emulator-5554
+    #   • 192.168.1.100:5555
+    ```
+
+    ### Target Specific Device
+
+    ```bash
+    # CLI
+    droidrun run "your command" --device emulator-5554
+
+    # Python
+    tools = DeviceConfig(serial="emulator-5554")
+    agent = DroidAgent(goal="your task", tools=tools)
+    ```
+
+    ### Parallel Control
+
+    ```python
+    import asyncio
+    from droidrun import DeviceConfig, DroidAgent
+    from adbutils import adb
+
+    async def control_device(serial: str, command: str):
+        device_config = DeviceConfig(serial=serial)
+        agent = DroidAgent(goal=command, device_config=tools)
+        return await agent.run()
+
+    async def main():
+        devices = adb.list()
+
+        tasks = [
+            control_device(devices[0].serial, "Open settings"),
+            control_device(devices[1].serial, "Check battery"),
+        ]
+
+        results = await asyncio.gather(*tasks)
+        print(results)
+
+    asyncio.run(main())
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Device not found">
+    **Symptoms:** `adb devices` shows no devices or `unauthorized`
 
     **Solutions:**
-    1. **Check USB connection:**
-       ```bash
-       # Unplug and replug USB cable
-       # Try a different USB port or cable
-       ```
-
-    2. **Authorize device:**
-       - Unplug device
-       - Revoke USB debugging authorizations (Developer options > Revoke USB debugging authorizations)
-       - Reconnect device
-       - Tap "Always allow" on authorization prompt
-
-    3. **Restart ADB server:**
-       ```bash
-       adb kill-server
-       adb start-server
-       adb devices
-       ```
-
-    4. **Check drivers (Windows):**
-       - Install [Google USB Driver](https://developer.android.com/studio/run/win-usb)
-       - Or manufacturer-specific drivers (Samsung, Xiaomi, etc.)
+    1. Unplug/replug USB cable, try different port
+    2. Revoke USB debugging authorizations (Developer options)
+    3. Reconnect and tap "Always allow"
+    4. Restart ADB: `adb kill-server && adb start-server`
+    5. **Windows**: Install [Google USB Driver](https://developer.android.com/studio/run/win-usb)
   </Accordion>
 
-  <Accordion title="Portal is not installed on the device">
+  <Accordion title="Portal not installed">
     **Symptoms:** `droidrun ping` fails with "Portal is not installed"
 
     **Solutions:**
-    1. **Reinstall Portal:**
-       ```bash
-       droidrun setup --device SERIAL
-       ```
-
-    2. **Check installation manually:**
-       ```bash
-       adb shell pm list packages | grep droidrun
-       # Should show: package:com.droidrun.portal
-       ```
-
-    3. **Verify APK architecture:**
-       - Portal APK must match device architecture
-       - Most devices: arm64-v8a
-       - Older devices: armeabi-v7a
-       - Emulators: x86 or x86_64
+    1. Reinstall: `droidrun setup`
+    2. Check: `adb shell pm list packages | grep droidrun`
+    3. Verify APK architecture matches device (arm64-v8a for most devices)
   </Accordion>
 
   <Accordion title="Accessibility service not enabled">
-    **Symptoms:** `droidrun ping` fails with "Portal is not enabled as an accessibility service"
+    **Symptoms:** `droidrun ping` fails with "accessibility service not enabled"
 
     **Solutions:**
-    1. **Enable automatically:**
+    1. Auto-enable:
        ```bash
-       adb shell settings put secure enabled_accessibility_services com.droidrun.portal/com.droidrun.portal.DroidrunAccessibilityService
+       adb shell settings put secure enabled_accessibility_services \
+         com.droidrun.portal/com.droidrun.portal.DroidrunAccessibilityService
        adb shell settings put secure accessibility_enabled 1
        ```
-
-    2. **Enable manually:**
-       - The error will auto-open accessibility settings
-       - Find "DroidRun Portal" and toggle ON
-       - Allow permissions
-
-    3. **Verify service status:**
+    2. Manual: Settings > Accessibility > Droidrun Portal > Toggle ON
+    3. Verify:
        ```bash
        adb shell settings get secure enabled_accessibility_services
-       # Should contain: com.droidrun.portal/com.droidrun.portal.DroidrunAccessibilityService
-       ```
-
-    4. **Force stop and restart:**
-       ```bash
-       adb shell am force-stop com.droidrun.portal
-       adb shell am start-service com.droidrun.portal/.DroidrunAccessibilityService
-       ```
-  </Accordion>
-
-  <Accordion title="TCP connection fails">
-    **Symptoms:** TCP mode not working, falls back to content provider
-
-    **Solutions:**
-    1. **Check port forwarding:**
-       ```bash
-       adb forward --list
-       # Should show: SERIAL tcp:PORT tcp:8080
-
-       # If missing, reconnect:
-       adb forward tcp:0 tcp:8080
-       ```
-
-    2. **Test Portal HTTP server:**
-       ```bash
-       # Check if server is running
-       adb shell netstat -an | grep 8080
-
-       # Test endpoint
-       adb forward tcp:12345 tcp:8080
-       curl http://localhost:12345/ping
-       ```
-
-    3. **Restart Portal app:**
-       ```bash
-       adb shell am force-stop com.droidrun.portal
-       # Wait 2 seconds
-       adb shell am start-service com.droidrun.portal/.DroidrunAccessibilityService
-       ```
-
-    4. **Use content provider fallback:**
-       ```bash
-       droidrun run "your command" --no-tcp
+       # Should contain: com.droidrun.portal/...
        ```
   </Accordion>
 
@@ -752,252 +293,144 @@ Current limitations in iOS support:
     **Symptoms:** `input_text()` fails or types gibberish
 
     **Solutions:**
-    1. **Check DroidRun keyboard (automatically set up by AdbTools):**
+    1. Keyboard auto-enabled by `AdbTools.__init__()`:
        ```bash
-       # List IMEs
-       adb shell ime list -a
-       # Should show: com.droidrun.portal/.DroidrunKeyboardIME
-
-       # Enable keyboard (done automatically in AdbTools.__init__)
-       adb shell ime enable com.droidrun.portal/.DroidrunKeyboardIME
-       adb shell ime set com.droidrun.portal/.DroidrunKeyboardIME
-       ```
-
-    2. **Verify keyboard is active:**
-       ```bash
+       # Verify
        adb shell settings get secure default_input_method
        # Should show: com.droidrun.portal/.DroidrunKeyboardIME
        ```
-
-    3. **Focus element before input:**
-       ```python
-       # Tap text field first or use index parameter
-       tools.input_text("your text", index=5)  # Taps element 5 then inputs text
-
-       # Or manually tap first
-       tools.tap_by_index(5)
-       time.sleep(0.5)
-       tools.input_text("your text")
-       ```
-
-    4. **Manually switch keyboard:**
-       - Long press space bar on device
-       - Select "DroidRun Keyboard"
-
-    <Note>
-    The DroidRun keyboard is automatically enabled when you create an `AdbTools` instance via `setup_keyboard()` call in `__init__`.
-    </Note>
+    2. Manual switch: Long press space bar → Select "Droidrun Keyboard"
+    3. Focus element first: `tools.tap_by_index(5)` then `tools.input_text("text")`
   </Accordion>
 
-  <Accordion title="UI elements not detected / empty state">
+  <Accordion title="Empty UI state">
     **Symptoms:** `get_state()` returns empty or incomplete UI tree
 
     **Solutions:**
-    1. **Verify accessibility service:**
-       ```bash
-       droidrun ping
-       ```
-
-    2. **Check app compatibility:**
-       - Some apps block accessibility services
-       - WebView content may not be accessible
-       - Games and apps with custom UI may have limited accessibility
-
-    3. **Wait for UI to load:**
-       ```python
-       import time
-       tools.tap_by_index(5)
-       time.sleep(1)  # Wait for animation/transition
-       state = tools.get_state()
-       ```
-
-    4. **Enable visual overlay:**
-       - Check Portal app settings
-       - Enable overlay to see what elements are detected
-  </Accordion>
-
-  <Accordion title="Emulator-specific issues">
-    **Symptoms:** Works on physical device but not on emulator
-
-    **Solutions:**
-    1. **Check emulator architecture:**
-       ```bash
-       # Most emulators are x86/x86_64
-       adb shell getprop ro.product.cpu.abi
-       ```
-
-    2. **Enable Google APIs:**
-       - Use emulator image with Google APIs
-       - Required for some services
-
-    3. **Increase emulator resources:**
-       - AVD Manager > Edit > Advanced Settings
-       - Increase RAM to 4GB+
-       - Enable hardware acceleration
-
-    4. **Use `-writable-system` flag:**
-       ```bash
-       emulator -avd YOUR_AVD -writable-system
-       ```
-  </Accordion>
-
-  <Accordion title="Permission denied errors">
-    **Symptoms:** ADB commands fail with permission errors
-
-    **Solutions:**
-    1. **Run ADB as root (if device is rooted):**
-       ```bash
-       adb root
-       adb remount
-       ```
-
-    2. **Grant all permissions to Portal:**
-       ```bash
-       adb install -r -g portal.apk
-       # -g flag grants all runtime permissions
-       ```
-
-    3. **Manually grant permissions:**
-       ```bash
-       adb shell pm grant com.droidrun.portal android.permission.QUERY_ALL_PACKAGES
-       ```
-
-    4. **Check SELinux (advanced):**
-       ```bash
-       # Temporarily set to permissive (rooted devices only)
-       adb shell setenforce 0
-       ```
+    1. Verify accessibility: `droidrun ping`
+    2. Some apps block accessibility services (WebViews, games, custom UI)
+    3. Wait for UI: `time.sleep(1)` after tap/swipe
+    4. Enable Portal overlay to see detected elements
   </Accordion>
 </AccordionGroup>
 
-### Debug Mode
+  </Tab>
 
-Enable verbose logging to troubleshoot issues:
+  <Tab title="iOS Setup (Beta)">
 
-```bash
-# CLI
-droidrun run "your command" --debug
+<Warning>
+iOS support is currently in **beta**. Functionality is limited compared to Android.
+</Warning>
 
-# Python API
-import logging
-logging.basicConfig(level=logging.DEBUG)
+---
+
+## Prerequisites
+
+- **macOS** with Xcode installed
+- **iOS device** with Developer mode enabled
+- **iOS Portal app** (separate from Android Portal)
+
+---
+
+## Setup
+
+<Steps>
+  <Step title="Install iOS Portal">
+    The iOS Portal app must be manually installed on your device.
+
+    <Note>
+    Installation instructions and download link coming soon.
+    </Note>
+  </Step>
+
+  <Step title="Get Device IP">
+    Find your iOS device's IP address in Settings > WiFi > (i) icon
+  </Step>
+
+  <Step title="Test Connection">
+    ```python
+    from droidrun import IOSTools
+
+    tools = IOSTools(url="http://DEVICE_IP:8080")
+    result = tools.ping()
+    print(result)
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Architecture
+
+iOS Portal uses a different architecture than Android:
+
+| Feature | Android | iOS |
+|---------|---------|-----|
+| Communication | ADB + TCP/Content Provider | HTTP server only |
+| Setup Tool | `droidrun setup` | Manual installation |
+| Accessibility | Android Accessibility API | iOS Accessibility API |
+| Text Input | Custom keyboard IME | Direct text input |
+
+---
+
+## Usage
+
+### Python API
+
+```python
+from droidrun import IOSTools, DroidAgent
+
+# Initialize iOS tools with device URL
+tools = IOSTools(
+    url="http://192.168.1.100:8080",
+    bundle_identifiers=["com.example.app"]  # Optional
+)
+
+# Create agent
+agent = DroidAgent(
+    goal="Open Settings and check WiFi",
+    tools=tools
+)
+
+result = await agent.run()
 ```
 
-Debug mode shows:
-- ADB communication details
-- Portal requests/responses
-- Port forwarding status
-- UI state parsing
-- Error stack traces
-
-### Diagnostic Commands
+### CLI
 
 ```bash
-# Check ADB version
-adb version
+# Use --ios flag
+droidrun run "your command" --ios
 
-# Check device info
-adb shell getprop | grep -E "ro.build|ro.product"
-
-# List installed packages
-adb shell pm list packages | grep droidrun
-
-# Check accessibility services
-adb shell settings get secure enabled_accessibility_services
-
-# Check default keyboard
-adb shell settings get secure default_input_method
-
-# View Portal app logs
-adb logcat | grep DroidRun
-
-# Test content provider directly
-adb shell content query --uri content://com.droidrun.portal/state
+# Or set platform in config.yaml:
+# device:
+#   platform: ios
 ```
 
 ---
 
-## Best Practices
+## Limitations
 
-### Performance Optimization
+Current iOS support has these limitations:
 
-1. **Use TCP mode for production:**
-   ```python
-   tools = AdbTools(use_tcp=True)
-   ```
+| Feature | Status | Notes |
+|---------|--------|-------|
+| `get_date()` | ❌ | Returns "Not implemented for iOS" |
+| `back()` | ❌ | Raises `NotImplementedError` |
+| `drag()` | ❌ | Not implemented, returns False |
+| `get_apps()` | ⚠️ | Use `list_packages()` instead |
+| `input_text()` | ⚠️ | No `index` or `clear` parameters |
+| `tap()`, `swipe()` | ✅ | Fully supported |
+| `get_state()` | ✅ | Returns accessibility tree |
+| `take_screenshot()` | ✅ | Fully supported |
 
-2. **Minimize screenshot captures:**
-   ```python
-   # Use vision only when needed
-   agent = DroidAgent(goal="task", tools=tools, vision=True)
-   ```
-
-3. **Cache UI state when possible:**
-   ```python
-   # Avoid repeated get_state() calls in loops
-   state = tools.get_state()
-   # Work with cached state
-   ```
-
-4. **Use wireless debugging for development only:**
-   - USB is faster and more reliable
-   - Reserve wireless for testing/demos
-
-### Security Considerations
-
-1. **Disable Portal when not in use:**
-   ```bash
-   # Disable accessibility service
-   adb shell settings put secure enabled_accessibility_services ""
-   ```
-
-2. **Revoke debugging authorization after use:**
-   - Settings > Developer options > Revoke USB debugging authorizations
-
-3. **Use TCP mode on trusted networks only:**
-   - Port forwarding exposes local server
-   - Content provider is more secure for untrusted environments
-
-4. **Never commit device serials or IPs:**
-   ```python
-   # Use environment variables
-   import os
-   device_serial = os.getenv("DEVICE_SERIAL")
-   ```
-
-### Maintenance
-
-1. **Keep Portal app updated:**
-   ```bash
-   droidrun setup  # Reinstalls latest version
-   ```
-
-2. **Clean up port forwards periodically:**
-   ```bash
-   adb forward --remove-all
-   ```
-
-3. **Restart ADB server if issues persist:**
-   ```bash
-   adb kill-server && adb start-server
-   ```
-
-4. **DroidRun keyboard cleanup:**
-   - The CLI automatically disables the DroidRun keyboard after each run
-   - This prevents the keyboard from interfering with normal device usage
-   - The keyboard is re-enabled automatically on the next run
-
-5. **Monitor device battery during long sessions:**
-   - Keep device plugged in
-   - Disable sleep/screen timeout
+  </Tab>
+</Tabs>
 
 ---
 
 ## Next Steps
 
-Now that your device is set up:
-
-- Learn about the [Agent System](/v4/concepts/agent)
-- Explore [Configuration Options](/v4/guides/configuration)
+- Learn about the [Agent System](/v4/concepts/agent-architecture)
+- Explore [Configuration Options](/v4/sdk/configuration)
 - Try [Custom Tools](/v4/guides/custom-tools-credentials)
 - Implement [Structured Output](/v4/guides/structured-output)

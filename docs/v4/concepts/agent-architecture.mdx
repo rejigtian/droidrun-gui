@@ -1,0 +1,241 @@
+---
+title: 'Multi-Agent Architecture'
+description: 'Droidrun v4 hierarchical agent system with specialized roles for planning, execution, and computation.'
+---
+
+## What is Multi-Agent Architecture?
+
+Droidrun v4 uses a **hierarchical multi-agent system** where specialized agents work together:
+
+- **DroidAgent**: Main orchestrator coordinating all agents
+- **ManagerAgent**: Strategic planner creating task plans
+- **ExecutorAgent**: Tactical actor executing atomic actions
+- **CodeActAgent**: Direct code generator for simple tasks
+- **ScripterAgent**: Off-device Python executor for API calls, file operations, and computations
+
+**Location**: `droidrun/agent/droid/droid_agent.py`
+
+## How It Works
+
+```
+DroidAgent (orchestrator)
+├── Reasoning Mode: ManagerAgent → ExecutorAgent → ScripterAgent
+└── Direct Mode: CodeActAgent
+```
+
+All agents share `DroidAgentState` for coordination and communicate through events.
+
+## DroidAgent (Orchestrator)
+
+Entry point for all tasks. Routes to appropriate agents based on mode.
+
+```python
+from droidrun.agent.droid import DroidAgent
+from droidrun.config_manager import DroidrunConfig
+
+
+config = DroidrunConfig()
+
+# Reasoning mode (complex tasks)
+agent = DroidAgent(reasoning=True, config=config)
+
+# Direct mode (simple tasks)
+agent = DroidAgent(reasoning=False, config=config)
+
+result = agent.run("Send message to John")
+```
+
+## ManagerAgent (Planner)
+
+Creates strategic plans and breaks tasks into subgoals.
+
+**Location**: `droidrun/agent/manager/manager_agent.py:46`
+
+```python
+class ManagerPlan(BaseModel):
+    current_subgoal: str  # Next subgoal for Executor
+    reasoning: str        # Why this subgoal
+    should_finalize: bool # Task complete?
+    script_block: str | None  # Python for ScripterAgent
+    full_plan: List[str]  # Complete plan
+```
+
+**Configuration:**
+```yaml
+agent:
+  manager:
+    max_steps: 10
+    vision: true
+
+llm_profiles:
+  manager:
+    provider: Anthropic
+    model: claude-sonnet-4
+    temperature: 0.7
+```
+
+## ExecutorAgent (Actor)
+
+Executes atomic actions for each subgoal.
+
+**Location**: `droidrun/agent/executor/executor_agent.py`
+
+```python
+class ExecutorAction(BaseModel):
+    action: str        # "click", "type", "swipe", etc.
+    parameters: dict   # Action parameters
+    reasoning: str     # Why this action
+
+class ExecutorResult(BaseModel):
+    success: bool      # Action succeeded?
+    outcome: str       # What happened
+    error_message: str | None
+```
+
+**Configuration:**
+```yaml
+agent:
+  executor:
+    max_steps: 5
+    vision: true
+
+llm_profiles:
+  executor:
+    provider: OpenAI
+    model: gpt-4o
+    temperature: 0.3
+```
+
+## CodeActAgent (Direct Executor)
+
+Generates Python code using atomic actions (no planning overhead).
+
+**Location**: `droidrun/agent/codeact/codeact_agent.py`
+
+```python
+# Available functions in CodeAct
+click(index: int)
+long_press(index: int)
+type(text: str, index: int = None)
+swipe(coordinate: tuple, coordinate2: tuple)
+system_button(button: str)
+open_app(text: str)
+get_state() -> dict
+take_screenshot() -> str
+remember(information: str)
+complete(success: bool, reason: str)
+```
+
+**Configuration:**
+```yaml
+agent:
+  codeact:
+    max_steps: 15
+    vision: false
+    safe_execution:
+      enabled: true
+
+llm_profiles:
+  codeact:
+    provider: GoogleGenAI
+    model: models/gemini-2.0-flash-exp
+```
+
+## ScripterAgent (Python Executor)
+
+Executes off-device Python for API calls, file operations, data processing, and computations.
+
+**Location**: `droidrun/agent/scripter/`
+
+Triggered when Manager delegates tasks requiring off-device computation. ScripterAgent is a **ReAct agent** that iteratively generates and executes Python code, then returns a final message to Manager.
+
+```python
+# Manager delegates with context + task
+"""
+User needs weather in San Francisco for clothing decision.
+Task: Fetch current weather and report temperature + conditions
+API: https://api.weather.com/forecast?city=San Francisco
+"""
+
+# ScripterAgent (ReAct loop):
+# 1. Generates code
+import requests
+response = requests.get("https://api.weather.com/forecast",
+                       params={"city": "San Francisco"})
+print(response.json())
+
+# 2. Observes output: {'temp': 62, 'description': 'Partly cloudy'}
+
+# 3. Returns message to Manager:
+"The weather in San Francisco is 62°F with partly cloudy conditions."
+```
+
+**Configuration:**
+```yaml
+agent:
+  scripter:
+    max_steps: 10
+    safe_execution:
+      enabled: true
+      allowed_modules:
+        - datetime
+        - json
+        - requests
+```
+
+## Agent Coordination
+
+### Shared State
+
+All agents read/write `DroidAgentState`:
+
+```python
+state = DroidAgentState(
+    task="Book flight",
+    action_history=[],
+    visited_packages=[],
+    error_count=0,
+    scripter_results={},
+    manager_plan="",
+    executor_feedback="",
+    step_count=0
+)
+```
+
+### Event Flow (Reasoning Mode)
+
+```
+StartEvent
+  ↓
+ManagerInputEvent → run_manager()
+  ↓
+ManagerPlanEvent → handle_manager_plan()
+  ↓
+ExecutorInputEvent → run_executor()
+  ↓
+ExecutorResultEvent → handle_executor_result()
+  ↓
+[loop or finalize]
+  ↓
+FinalizeEvent → finalize()
+  ↓
+ResultEvent (StopEvent)
+```
+
+## Quick Reference
+
+| Agent | Role | Best For | Config Key |
+|-------|------|----------|------------|
+| DroidAgent | Orchestrator | Entry point | `agent.*` |
+| ManagerAgent | Planner | Strategy, recovery | `agent.manager.*` |
+| ExecutorAgent | Actor | Action execution | `agent.executor.*` |
+| CodeActAgent | Direct | Simple tasks | `agent.codeact.*` |
+| ScripterAgent | Python Executor | APIs, files, data | `agent.scripter.*` |
+
+## Related Topics
+
+- [Reasoning Mode](./reasoning-mode) - Manager → Executor workflow
+- [Direct Mode](./direct-mode) - CodeActAgent workflow
+- [ScripterAgent](./scripter-agent) - Off-device computation
+- [Shared State](./shared-state) - DroidAgentState coordination
+- [Configuration](./configuration) - Per-agent LLM profiles
