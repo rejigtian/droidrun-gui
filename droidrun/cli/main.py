@@ -5,6 +5,7 @@ DroidRun CLI - Command line interface for controlling Android devices through LL
 import asyncio
 import logging
 import os
+import sys
 import warnings
 from contextlib import nullcontext
 from functools import wraps
@@ -14,6 +15,7 @@ from adbutils import adb
 from rich.console import Console
 
 from droidrun.agent.droid import DroidAgent
+from droidrun.agent import ResultEvent
 from droidrun.cli.logs import LogHandler
 from droidrun.config_manager import ConfigManager
 from droidrun.macro.cli import macro_cli
@@ -110,8 +112,12 @@ async def run_command(
     allow_drag: bool | None = None,
     temperature: float | None = None,
     **kwargs,
-):
-    """Run a command on your Android device using natural language."""
+) -> bool:
+    """Run a command on your Android device using natural language.
+
+    Returns:
+        bool: True if the task completed successfully, False otherwise.
+    """
     # Load config and apply CLI overrides via direct mutation
     config_manager = ConfigManager(config_path)
     config = config_manager.config
@@ -233,13 +239,15 @@ async def run_command(
 
                 async for event in handler.stream_events():
                     log_handler.handle_event(event)
-                result = await handler  # noqa: F841
+                result: ResultEvent = await handler
+                return result.success
 
             except KeyboardInterrupt:
                 log_handler.is_completed = True
                 log_handler.is_success = False
                 log_handler.current_step = "Stopped by user"
                 logger.info("⏹️ Stopped by user")
+                return False
 
             except Exception as e:
                 log_handler.is_completed = True
@@ -250,6 +258,7 @@ async def run_command(
                     import traceback
 
                     logger.debug(traceback.format_exc())
+                return False
 
         except Exception as e:
             log_handler.current_step = f"Error: {e}"
@@ -259,6 +268,7 @@ async def run_command(
                 import traceback
 
                 logger.debug(traceback.format_exc())
+            return False
 
 
 class DroidRunCLI(click.Group):
@@ -350,7 +360,7 @@ def run(
     """Run a command on your Android device using natural language."""
 
     try:
-        run_command(
+        success = run_command(
             command=command,
             config_path=config,
             device=device,
@@ -380,6 +390,9 @@ def run(
                     )
         except Exception:
             click.echo("Failed to disable DroidRun keyboard")
+
+    # Exit with appropriate code
+    sys.exit(0 if success else 1)
 
 
 @cli.command()

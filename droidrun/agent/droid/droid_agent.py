@@ -14,8 +14,9 @@ import llama_index.core
 from pydantic import BaseModel
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
-from workflows.events import Event
 
+from workflows.events import Event
+from workflows.handler import WorkflowHandler
 from droidrun.agent.codeact import CodeActAgent
 from droidrun.agent.codeact.events import EpisodicMemoryEvent
 from droidrun.agent.common.events import MacroEvent, RecordUIStateEvent, ScreenshotEvent
@@ -355,22 +356,9 @@ class DroidAgent(Workflow):
 
         logger.info("✅ DroidAgent initialized successfully.")
 
-    async def run(self, *args, **kwargs) -> ResultEvent:
-        """
-        Run the DroidAgent workflow.
-
-        Returns:
-            ResultEvent object with attributes:
-            - success: Whether the task completed successfully
-            - reason: Explanation of the result or error message
-            - steps: Number of steps taken
-            - structured_output: Extracted structured data (if output_model was provided)
-
-        Example:
-            result = await agent.run()
-            print(result.success, result.reason)
-        """
-        return await super().run(*args, **kwargs)  # type: ignore[return-value]
+    def run(self, *args, **kwargs) -> WorkflowHandler:
+        handler = super().run(*args, **kwargs)  # type: ignore[assignment]
+        return handler
 
     @step
     async def execute_task(
