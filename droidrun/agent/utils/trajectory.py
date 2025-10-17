@@ -283,7 +283,7 @@ class Trajectory:
                 logger.info(f"📖 Loaded macro data from {macro_json_path}")
 
             # Check for GIF
-            gif_path = os.path.join(trajectory_folder, "screenshots.gif")
+            gif_path = os.path.join(trajectory_folder, "screenshots", "trajectory.gif")
             if os.path.exists(gif_path):
                 result["gif_path"] = gif_path
                 logger.info(f"🎬 Found screenshot GIF at {gif_path}")
