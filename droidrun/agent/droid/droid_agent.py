@@ -8,7 +8,7 @@ Architecture:
 """
 
 import logging
-from typing import TYPE_CHECKING, Type
+from typing import TYPE_CHECKING, Type, Awaitable
 
 import llama_index.core
 from pydantic import BaseModel
@@ -356,7 +356,7 @@ class DroidAgent(Workflow):
 
         logger.info("✅ DroidAgent initialized successfully.")
 
-    def run(self, *args, **kwargs) -> WorkflowHandler:
+    def run(self, *args, **kwargs) -> Awaitable[ResultEvent] | WorkflowHandler:
         handler = super().run(*args, **kwargs)  # type: ignore[assignment]
         return handler
 

@@ -11,7 +11,7 @@ from droidrun.agent.utils.llm_picker import load_llm
 # Import macro functionality
 from droidrun.macro import MacroPlayer, replay_macro_file, replay_macro_folder
 from droidrun.tools import AdbTools, IOSTools, Tools
-
+from droidrun.agent import ResultEvent
 # Make main components available at package level
 __all__ = [
     "DroidAgent",
@@ -22,4 +22,5 @@ __all__ = [
     "MacroPlayer",
     "replay_macro_file",
     "replay_macro_folder",
+    "ResultEvent",
 ]

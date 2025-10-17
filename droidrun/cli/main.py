@@ -14,8 +14,7 @@ import click
 from adbutils import adb
 from rich.console import Console
 
-from droidrun.agent.droid import DroidAgent
-from droidrun.agent import ResultEvent
+from droidrun import ResultEvent, DroidAgent
 from droidrun.cli.logs import LogHandler
 from droidrun.config_manager import ConfigManager
 from droidrun.macro.cli import macro_cli
