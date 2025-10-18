@@ -29,6 +29,7 @@ from droidrun.portal import (
 from droidrun.telemetry import print_telemetry_message
 from droidrun.config_manager.path_resolver import PathResolver
 from droidrun.agent.utils.llm_picker import load_llm
+
 # Suppress all warnings
 warnings.filterwarnings("ignore")
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -206,16 +207,26 @@ async def run_command(
             # Build DroidAgent kwargs for LLM loading
             droid_agent_kwargs = {"runtype": "cli"}
             llm = None
-            # Add custom LLM parameters if provided
+
             if provider or model:
-                assert provider and model, "Either both provider and model must be provided or none of them"
-                llm = load_llm(provider, model, **kwargs)
-            if temperature is not None:
-                droid_agent_kwargs["temperature"] = temperature
-            if base_url is not None:
-                droid_agent_kwargs["base_url"] = base_url
-            if api_base is not None:
-                droid_agent_kwargs["api_base"] = api_base
+                assert (
+                    provider and model
+                ), "Either both provider and model must be provided or none of them"
+                llm_kwargs = {}
+                if temperature is not None:
+                    llm_kwargs["temperature"] = temperature
+                if base_url is not None:
+                    llm_kwargs["base_url"] = base_url
+                if api_base is not None:
+                    llm_kwargs["api_base"] = api_base
+                llm = load_llm(provider, model, **llm_kwargs, **kwargs)
+            else:
+                if temperature is not None:
+                    droid_agent_kwargs["temperature"] = temperature
+                if base_url is not None:
+                    droid_agent_kwargs["base_url"] = base_url
+                if api_base is not None:
+                    droid_agent_kwargs["api_base"] = api_base
 
             droid_agent = DroidAgent(
                 goal=command,
