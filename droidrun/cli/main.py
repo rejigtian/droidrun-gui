@@ -219,7 +219,7 @@ async def run_command(
                     llm_kwargs["base_url"] = base_url
                 if api_base is not None:
                     llm_kwargs["api_base"] = api_base
-                llm = load_llm(provider, model, **llm_kwargs, **kwargs)
+                llm = load_llm(provider, model=model, **llm_kwargs, **kwargs)
             else:
                 if temperature is not None:
                     droid_agent_kwargs["temperature"] = temperature
