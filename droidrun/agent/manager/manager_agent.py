@@ -513,7 +513,9 @@ class ManagerAgent(Workflow):
         logger.debug(
             f"  - Device state prepared (text_modify={has_text_to_modify}, screenshot={screenshot is not None})"
         )
-        return ManagerThinkingEvent()
+        event = ManagerThinkingEvent()
+        ctx.write_event_to_stream(event)
+        return event
 
     @step
     async def think(

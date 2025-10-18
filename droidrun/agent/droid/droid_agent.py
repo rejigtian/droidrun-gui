@@ -413,17 +413,21 @@ class DroidAgent(Workflow):
             result = await handler
 
             if "success" in result and result["success"]:
-                return CodeActResultEvent(
+                event = CodeActResultEvent(
                     success=True,
                     reason=result["reason"],
                     task=task,
                 )
+                ctx.write_event_to_stream(event)
+                return event
             else:
-                return CodeActResultEvent(
+                event = CodeActResultEvent(
                     success=False,
                     reason=result["reason"],
                     task=task,
                 )
+                ctx.write_event_to_stream(event)
+                return event
 
         except Exception as e:
             logger.error(f"Error during task execution: {e}")
@@ -431,26 +435,32 @@ class DroidAgent(Workflow):
                 import traceback
 
                 logger.error(traceback.format_exc())
-            return CodeActResultEvent(
+            event = CodeActResultEvent(
                 success=False, reason=f"Error: {str(e)}", task=task
             )
+            ctx.write_event_to_stream(event)
+            return event
 
     @step
     async def handle_codeact_execute(
         self, ctx: Context, ev: CodeActResultEvent
     ) -> FinalizeEvent:
         try:
-            return FinalizeEvent(success=ev.success, reason=ev.reason)
+            event = FinalizeEvent(success=ev.success, reason=ev.reason)
+            ctx.write_event_to_stream(event)
+            return event
         except Exception as e:
             logger.error(f"❌ Error during DroidAgent execution: {e}")
             if self.config.logging.debug:
                 import traceback
 
                 logger.error(traceback.format_exc())
-            return FinalizeEvent(
+            event = FinalizeEvent(
                 success=False,
                 reason=str(e),
             )
+            ctx.write_event_to_stream(event)
+            return event
 
     @step
     async def start_handler(
@@ -485,10 +495,14 @@ class DroidAgent(Workflow):
                 status=self.task_manager.STATUS_PENDING,
                 agent_type="Default",
             )
-            return CodeActExecuteEvent(task=task)
+            event = CodeActExecuteEvent(task=task)
+            ctx.write_event_to_stream(event)
+            return event
 
         logger.info("🧠 Reasoning mode - initializing Manager/Executor workflow")
-        return ManagerInputEvent()
+        event = ManagerInputEvent()
+        ctx.write_event_to_stream(event)
+        return event
 
     # ========================================================================
     # Manager/Executor Workflow Steps
@@ -506,10 +520,12 @@ class DroidAgent(Workflow):
         """
         if self.shared_state.step_number >= self.config.agent.max_steps:
             logger.warning(f"⚠️ Reached maximum steps ({self.config.agent.max_steps})")
-            return FinalizeEvent(
+            event = FinalizeEvent(
                 success=False,
                 reason=f"Reached maximum steps ({self.config.agent.max_steps})",
             )
+            ctx.write_event_to_stream(event)
+            return event
 
         logger.info(
             f"📋 Running Manager for planning... (step {self.shared_state.step_number}/{self.config.agent.max_steps})"
@@ -525,13 +541,15 @@ class DroidAgent(Workflow):
         result = await handler
 
         # Manager already updated shared_state, just return event with results
-        return ManagerPlanEvent(
+        event = ManagerPlanEvent(
             plan=result["plan"],
             current_subgoal=result["current_subgoal"],
             thought=result["thought"],
             manager_answer=result.get("manager_answer", ""),
             success=result.get("success"),
         )
+        ctx.write_event_to_stream(event)
+        return event
 
     @step
     async def handle_manager_plan(
@@ -551,7 +569,9 @@ class DroidAgent(Workflow):
             )
             self.shared_state.progress_status = f"Answer: {ev.manager_answer}"
 
-            return FinalizeEvent(success=success, reason=ev.manager_answer)
+            event = FinalizeEvent(success=success, reason=ev.manager_answer)
+            ctx.write_event_to_stream(event)
+            return event
 
         # Check for <script> tag in current_subgoal, then extract from full plan
         if "<script>" in ev.current_subgoal:
@@ -563,7 +583,9 @@ class DroidAgent(Workflow):
                 # Extract content between first <script> and first </script> in plan
                 task = ev.plan[start_idx + len("<script>") : end_idx].strip()
                 logger.info(f"🐍 Routing to ScripterAgent: {task[:80]}...")
-                return ScripterExecutorInputEvent(task=task)
+                event = ScripterExecutorInputEvent(task=task)
+                ctx.write_event_to_stream(event)
+                return event
             else:
                 # <script> found in subgoal but not properly closed in plan - log warning
                 logger.warning(
@@ -572,7 +594,9 @@ class DroidAgent(Workflow):
 
         # Continue to Executor with current subgoal
         logger.info(f"▶️  Proceeding to Executor with subgoal: {ev.current_subgoal}")
-        return ExecutorInputEvent(current_subgoal=ev.current_subgoal)
+        event = ExecutorInputEvent(current_subgoal=ev.current_subgoal)
+        ctx.write_event_to_stream(event)
+        return event
 
     @step
     async def run_executor(
@@ -604,12 +628,14 @@ class DroidAgent(Workflow):
         self.shared_state.last_action_thought = result.get("thought", "")
         self.shared_state.action_pool.append(result["action_json"])
 
-        return ExecutorResultEvent(
+        event = ExecutorResultEvent(
             action=result["action"],
             outcome=result["outcome"],
             error=result["error"],
             summary=result["summary"],
         )
+        ctx.write_event_to_stream(event)
+        return event
 
     @step
     async def handle_executor_result(
@@ -640,7 +666,9 @@ class DroidAgent(Workflow):
             f"🔄 Step {self.shared_state.step_number}/{self.config.agent.max_steps} complete, looping to Manager"
         )
 
-        return ManagerInputEvent()
+        event = ManagerInputEvent()
+        ctx.write_event_to_stream(event)
+        return event
 
     # ========================================================================
     # Script Executor Workflow Steps
@@ -687,12 +715,14 @@ class DroidAgent(Workflow):
 
         logger.info(f"🐍 ScripterAgent finished: {result['message'][:2000]}...")
 
-        return ScripterExecutorResultEvent(
+        event = ScripterExecutorResultEvent(
             task=ev.task,
             message=result["message"],
             success=result["success"],
             code_executions=result.get("code_executions", 0),
         )
+        ctx.write_event_to_stream(event)
+        return event
 
     @step
     async def handle_scripter_result(
@@ -715,7 +745,9 @@ class DroidAgent(Workflow):
         )
 
         # Loop back to Manager (script result in shared_state)
-        return ManagerInputEvent()
+        event = ManagerInputEvent()
+        ctx.write_event_to_stream(event)
+        return event
 
     # ========================================================================
     # End Manager/Executor/Script Workflow Steps
