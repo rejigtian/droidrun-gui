@@ -34,9 +34,12 @@ def parse_manager_response(response: str) -> dict:
     """
 
     def extract(tag: str) -> str:
-        """Extract content between XML-style tags."""
-        if f"<{tag}>" in response and f"</{tag}>" in response:
-            return response.split(f"<{tag}>", 1)[-1].split(f"</{tag}>", 1)[0].strip()
+        """Extract content between XML-style tags (handles attributes)."""
+        # Use regex to handle tags with attributes like <tag attr="value">
+        pattern = rf"<{tag}(?:\s+[^>]*)?>(.+?)</{tag}>"
+        match = re.search(pattern, response, re.DOTALL)
+        if match:
+            return match.group(1).strip()
         return ""
 
     thought = extract("thought")
