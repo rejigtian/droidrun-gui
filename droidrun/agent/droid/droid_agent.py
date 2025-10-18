@@ -530,6 +530,7 @@ class DroidAgent(Workflow):
             current_subgoal=result["current_subgoal"],
             thought=result["thought"],
             manager_answer=result.get("manager_answer", ""),
+            success=result.get("success"),
         )
 
     @step
@@ -543,10 +544,14 @@ class DroidAgent(Workflow):
         """
         # Check for answer-type termination
         if ev.manager_answer.strip():
-            logger.info(f"💬 Manager provided answer: {ev.manager_answer}")
+            # Use success field from manager, default to True if not set for backward compatibility
+            success = ev.success if ev.success is not None else True
+            logger.info(
+                f"💬 Manager provided answer (success={success}): {ev.manager_answer}"
+            )
             self.shared_state.progress_status = f"Answer: {ev.manager_answer}"
 
-            return FinalizeEvent(success=True, reason=ev.manager_answer)
+            return FinalizeEvent(success=success, reason=ev.manager_answer)
 
         # Check for <script> tag in current_subgoal, then extract from full plan
         if "<script>" in ev.current_subgoal:

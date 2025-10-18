@@ -349,8 +349,12 @@ class ManagerAgent(Workflow):
             error_message = None
 
             if parsed["answer"] and not parsed["plan"]:
-                # Valid: answer without plan (task complete)
-                break
+                # Check if success attribute is present
+                if parsed["success"] is None:
+                    error_message = 'You must include success="true" or success="false" attribute in the <request_accomplished> tag.\nExample: <request_accomplished success="true">Task completed successfully</request_accomplished>\nRetry again.'
+                else:
+                    # Valid: answer without plan (task complete)
+                    break
             elif parsed["plan"] and parsed["answer"]:
                 error_message = "You cannot use both request_accomplished tag while the plan is not finished. If you want to use request_accomplished tag, please make sure the plan is finished.\nRetry again."
             elif not parsed["plan"]:
@@ -624,6 +628,7 @@ class ManagerAgent(Workflow):
             thought=parsed["thought"],
             manager_answer=parsed["answer"],
             memory_update=memory_update,
+            success=parsed["success"],
         )
 
         # Write event to stream for web interface
@@ -643,5 +648,6 @@ class ManagerAgent(Workflow):
                 "thought": ev.thought,
                 "manager_answer": ev.manager_answer,
                 "memory_update": ev.memory_update,
+                "success": ev.success,
             }
         )

@@ -194,6 +194,7 @@ class ManagerPlanEvent(Event):
     current_subgoal: str
     thought: str
     manager_answer: str = ""
+    success: bool | None = None  # True/False if task complete, None if still in progress
 
 
 class ExecutorInputEvent(Event):

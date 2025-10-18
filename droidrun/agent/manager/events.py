@@ -32,3 +32,4 @@ class ManagerInternalPlanEvent(Event):
     thought: str
     manager_answer: str = ""
     memory_update: str = ""  # Debugging metadata: LLM's memory additions
+    success: bool | None = None  # True/False if task complete, None if still in progress

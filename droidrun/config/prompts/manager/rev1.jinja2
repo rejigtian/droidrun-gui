@@ -155,7 +155,8 @@ You should:
 
 1. **Assess** the current screenshot and progress
 2. **Decide:** Is the request complete?
-   - If YES → Use `<request_accomplished>` with confirmation message
+   - If YES and SUCCESSFUL → Use `<request_accomplished success="true">` with confirmation message
+   - If YES but FAILED → Use `<request_accomplished success="false">` with explanation of why it failed
    - If NO → Update the plan
 3. **Handle errors:** Revise plan if stuck or blocked
 4. **Make assumptions:** If clarification needed, act as the user would
@@ -164,6 +165,7 @@ You should:
 - Remove completed subgoals from the plan
 - Keep the next action as the first item
 - Don't repeat completed steps unless screen shows they failed
+- Always include `success="true"` or `success="false"` attribute in `<request_accomplished>` tag
 
 ---
 
@@ -185,6 +187,12 @@ Example: "At step 5, I obtained recipe from recipes.jpg: Chicken Pasta - ingredi
 ...
 </plan>
 
-<request_accomplished>
-Use ONLY when request is fully completed through concrete actions. Include confirmation message of what was accomplished.
+<request_accomplished success="true">
+Use ONLY when request is fully completed successfully. Include confirmation message of what was accomplished.
+</request_accomplished>
+
+OR
+
+<request_accomplished success="false">
+Use when request cannot be completed due to insurmountable errors or constraints. Explain why it failed.
 </request_accomplished>

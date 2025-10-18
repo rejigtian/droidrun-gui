@@ -13,11 +13,12 @@ def parse_manager_response(response: str) -> dict:
     - <thought>...</thought>
     - <add_memory>...</add_memory>
     - <plan>...</plan>
-    - <request_accomplished>...</request_accomplished> (answer)
+    - <request_accomplished success="true|false">...</request_accomplished> (answer)
 
     Also derives:
     - current_subgoal: first line of plan (with list markers removed)
     - If first item is <script> tag, extract script content as current_subgoal
+    - success: bool | None parsed from request_accomplished success attribute
 
     Args:
         response: Raw LLM response text
@@ -28,7 +29,8 @@ def parse_manager_response(response: str) -> dict:
             - memory: str
             - plan: str
             - current_subgoal: str (first line of plan, cleaned, or script content)
-            - request_accomplished: str (from request_accomplished tag)
+            - answer: str (from request_accomplished tag)
+            - success: bool | None (True/False if task complete, None if still in progress)
     """
 
     def extract(tag: str) -> str:
@@ -41,6 +43,19 @@ def parse_manager_response(response: str) -> dict:
     memory_section = extract("add_memory")
     plan = extract("plan")
     answer = extract("request_accomplished")
+
+    # Parse success attribute from request_accomplished tag
+    success = None
+    if answer:
+        # Try to extract success attribute from tag
+        success_match = re.search(
+            r'<request_accomplished\s+success="(true|false)">', response
+        )
+        if success_match:
+            success = success_match.group(1) == "true"
+        else:
+            # Default to True for backward compatibility if no attribute present
+            success = True
 
     # Parse current subgoal from first line of plan
     current_goal_text = plan
@@ -78,4 +93,5 @@ def parse_manager_response(response: str) -> dict:
         "memory": memory_section,
         "current_subgoal": current_subgoal,
         "answer": answer,
+        "success": success,
     }
