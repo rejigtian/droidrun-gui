@@ -28,7 +28,7 @@ from droidrun.portal import (
 )
 from droidrun.telemetry import print_telemetry_message
 from droidrun.config_manager.path_resolver import PathResolver
-
+from droidrun.agent.utils.llm_picker import load_llm
 # Suppress all warnings
 warnings.filterwarnings("ignore")
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -205,12 +205,11 @@ async def run_command(
 
             # Build DroidAgent kwargs for LLM loading
             droid_agent_kwargs = {"runtype": "cli"}
-
+            llm = None
             # Add custom LLM parameters if provided
-            if provider is not None:
-                droid_agent_kwargs["custom_provider"] = provider
-            if model is not None:
-                droid_agent_kwargs["custom_model"] = model
+            if provider or model:
+                assert provider and model, "Either both provider and model must be provided or none of them"
+                llm = load_llm(provider, model, **kwargs)
             if temperature is not None:
                 droid_agent_kwargs["temperature"] = temperature
             if base_url is not None:
@@ -220,6 +219,7 @@ async def run_command(
 
             droid_agent = DroidAgent(
                 goal=command,
+                llms=llm,
                 config=config,
                 timeout=1000,
                 **droid_agent_kwargs,
