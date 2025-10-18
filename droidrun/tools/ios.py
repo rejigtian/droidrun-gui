@@ -55,9 +55,9 @@ class IOSTools(Tools):
         self.finished = False
         self.memory: List[str] = []
         self.screenshots: List[Dict[str, Any]] = []
-        self.last_tapped_rect: Optional[
-            str
-        ] = None  # Store last tapped element's rect for text input
+        self.last_tapped_rect: Optional[str] = (
+            None  # Store last tapped element's rect for text input
+        )
         self.bundle_identifiers = bundle_identifiers or []
         logger.info(f"iOS device URL: {url}")
 
