@@ -269,7 +269,7 @@ class ExecutorAgent(Workflow):
                         "Failed: click requires index",
                     )
 
-                result = click(self.tools_instance, index)
+                result = click(index, tools=self.tools_instance)
                 return True, "None", f"Clicked element at index {index}"
 
             elif action_type == "long_press":
@@ -281,7 +281,7 @@ class ExecutorAgent(Workflow):
                         "Failed: long_press requires index",
                     )
 
-                success = long_press(self.tools_instance, index)
+                success = long_press(index, tools=self.tools_instance)
                 if success:
                     return True, "None", f"Long pressed element at index {index}"
                 else:
@@ -302,7 +302,7 @@ class ExecutorAgent(Workflow):
                         "Failed: type requires text",
                     )
 
-                result = type(self.tools_instance, text, index)
+                result = type(text, index, tools=self.tools_instance)
                 return True, "None", f"Typed '{text}' into element at index {index}"
 
             elif action_type == "system_button":
@@ -314,7 +314,7 @@ class ExecutorAgent(Workflow):
                         "Failed: system_button requires button",
                     )
 
-                result = system_button(self.tools_instance, button)
+                result = system_button(button, tools=self.tools_instance)
                 if "Error" in result:
                     return False, result, f"Failed to press {button} button"
                 return True, "None", f"Pressed {button} button"
@@ -344,7 +344,7 @@ class ExecutorAgent(Workflow):
                         "Failed: coordinate2 must be [x, y]",
                     )
 
-                success = swipe(self.tools_instance, coordinate, coordinate2)
+                success = swipe(coordinate, coordinate2, tools=self.tools_instance)
                 if success:
                     return True, "None", f"Swiped from {coordinate} to {coordinate2}"
                 else:
@@ -363,7 +363,7 @@ class ExecutorAgent(Workflow):
                         "Failed: open_app requires text",
                     )
 
-                result = await open_app(self.tools_instance, text)
+                result = await open_app(text, tools=self.tools_instance)
                 return True, "None", f"Opened app: {text}"
 
             else:
