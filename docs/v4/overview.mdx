@@ -51,24 +51,28 @@ Droidrun v4 introduces a hierarchical multi-agent system with specialized agents
 Monitor and debug agent execution in real-time with Droidrun's comprehensive event system:
 
 ```python
+import asyncio
 from droidrun import DroidAgent, ResultEvent
 from droidrun.agent.droid.events import ManagerPlanEvent, ExecutorResultEvent
 from droidrun.config_manager.config_manager import DroidrunConfig
 
-# Create config with defaults
-config = DroidrunConfig()
+async def main():
+    # Create config with defaults
+    config = DroidrunConfig()
 
-agent = DroidAgent(goal="Open Settings and enable WiFi", config=config)
-handler = agent.run()
+    agent = DroidAgent(goal="Open Settings and enable WiFi", config=config)
+    handler = agent.run()
 
-# Stream events in real-time
-async for event in handler.stream_events():
-    if isinstance(event, ManagerPlanEvent):
-        print(f"Plan: {event.plan}")
-    elif isinstance(event, ExecutorResultEvent):
-        print(f"Action: {event.action}")
+    # Stream events in real-time
+    async for event in handler.stream_events():
+        if isinstance(event, ManagerPlanEvent):
+            print(f"Plan: {event.plan}")
+        elif isinstance(event, ExecutorResultEvent):
+            print(f"Action: {event.action}")
 
-result: ResultEvent = await handler
+    result: ResultEvent = await handler
+
+asyncio.run(main())
 ```
 
 Events provide rich metadata for:
@@ -125,6 +129,7 @@ llm_profiles:
 Extract type-safe, validated data from device interactions using Pydantic models:
 
 ```python
+import asyncio
 from pydantic import BaseModel, Field
 from droidrun import DroidAgent, ResultEvent
 from droidrun.config_manager.config_manager import DroidrunConfig
@@ -135,21 +140,24 @@ class ContactInfo(BaseModel):
     phone: str = Field(description="Phone number")
     email: str = Field(description="Email address")
 
-# Create config with defaults
-config = DroidrunConfig()
+async def main():
+    # Create config with defaults
+    config = DroidrunConfig()
 
-agent = DroidAgent(
-    goal="Find John Smith's contact and extract details",
-    config=config,
-    output_model=ContactInfo  # Automatic structured extraction
-)
+    agent = DroidAgent(
+        goal="Find John Smith's contact and extract details",
+        config=config,
+        output_model=ContactInfo  # Automatic structured extraction
+    )
 
-handler = agent.run()
-result: ResultEvent = await handler
+    handler = agent.run()
+    result: ResultEvent = await handler
 
-if result.success and result.structured_output:
-    contact: ContactInfo = result.structured_output
-    print(f"Phone: {contact.phone}")
+    if result.success and result.structured_output:
+        contact: ContactInfo = result.structured_output
+        print(f"Phone: {contact.phone}")
+
+asyncio.run(main())
 ```
 
 <Card title="Structured Output Guide" icon="table" href="/v4/guides/structured-output">
