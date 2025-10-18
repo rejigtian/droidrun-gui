@@ -261,7 +261,7 @@ class DroidAgent(Workflow):
                 import traceback
 
                 logger.error(traceback.format_exc())
-            return CodeActResultEvent(success=False, reason=f"Error: {str(e)}", task=task, steps=[])
+            return CodeActResultEvent(success=False, reason=f"Error: {str(e)}", task=task, steps=0)
 
     @step
     async def handle_codeact_execute(
