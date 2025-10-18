@@ -733,7 +733,7 @@ async def test(
 
 
 if __name__ == "__main__":
-    command = "check which keyboard i am using and let me know by sending a message on this webhook https://discord.com/api/webhooks/1413748479628410963/vEBXLMbAmGf0N1KKxO308084S9_w8TFPLQ8gQfn7BJC4wCG5Mmfdtxmo4J-y6KDaRZTy"
+    command = "check the last chat history i had on whatsapp"
     command = "use open_app to open the settings"
     device = None
     provider = "GoogleGenAI"
@@ -751,4 +751,4 @@ if __name__ == "__main__":
     ios = False
     save_trajectory = "none"
     allow_drag = False
-    asyncio.run(test(command, reasoning=False))
+    asyncio.run(test(command, reasoning=True))

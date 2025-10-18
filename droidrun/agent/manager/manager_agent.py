@@ -10,7 +10,6 @@ This agent is responsible for:
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import TYPE_CHECKING, Optional, Type
 
@@ -428,35 +427,19 @@ class ManagerAgent(Workflow):
         )
 
         # ====================================================================
-        # Step 1.5: Start loading app card in background (only if package/instruction changed)
+        # Step 1.5: Load app card (blocking)
         # ====================================================================
         if self.app_card_config.enabled:
-            current_package = self.shared_state.current_package_name
-            current_instruction = self.shared_state.instruction
-
-            # Check if we need to start a new loading task
-            package_changed = current_package != self.shared_state._app_card_package
-            instruction_changed = (
-                current_instruction != self.shared_state._app_card_instruction
-            )
-
-            if package_changed or instruction_changed:
-                # Cancel old task if it exists and is still running (non-blocking)
-                if (
-                    self.shared_state.app_card_loading_task
-                    and not self.shared_state.app_card_loading_task.done()
-                ):
-                    self.shared_state.app_card_loading_task.cancel()
-
-                # Start new loading task
-                loading_task = asyncio.create_task(
-                    self.app_card_provider.load_app_card(
-                        package_name=current_package, instruction=current_instruction
-                    )
+            try:
+                self.shared_state.app_card = await self.app_card_provider.load_app_card(
+                    package_name=self.shared_state.current_package_name,
+                    instruction=self.shared_state.instruction,
                 )
-                self.shared_state.app_card_loading_task = loading_task
-                self.shared_state._app_card_package = current_package
-                self.shared_state._app_card_instruction = current_instruction
+            except Exception as e:
+                logger.warning(f"Error loading app card: {e}")
+                self.shared_state.app_card = ""
+        else:
+            self.shared_state.app_card = ""
         # ====================================================================
         # Step 2: Capture screenshot if vision enabled
         # ====================================================================
@@ -538,29 +521,7 @@ class ManagerAgent(Workflow):
         screenshot = self.shared_state.screenshot
 
         # ====================================================================
-        # Try to get app card from previous iteration's loading task
-        # ====================================================================
-        if self.app_card_config.enabled and self.shared_state.app_card_loading_task:
-            try:
-                # Wait briefly for the background task to complete (0.1s timeout)
-                self.shared_state.app_card = await asyncio.wait_for(
-                    self.shared_state.app_card_loading_task, timeout=0.1
-                )
-            except asyncio.TimeoutError:
-                # Task not ready yet, use empty string
-                self.shared_state.app_card = ""
-            except asyncio.CancelledError:
-                # Task was cancelled (app/instruction changed), use empty string
-                logger.debug("App card task was cancelled")
-                self.shared_state.app_card = ""
-            except Exception as e:
-                logger.warning(f"Error getting app card: {e}")
-                self.shared_state.app_card = ""
-        else:
-            self.shared_state.app_card = ""
-
-        # ====================================================================
-        # Step 1: Build system prompt
+        # Step 1: Build system prompt (app card already loaded in prepare_input)
         # ====================================================================
         system_prompt = self._build_system_prompt(has_text_to_modify)
 
