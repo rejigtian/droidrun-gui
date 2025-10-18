@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger("droidrun")
 
 
-def load_llm(provider_name: str, **kwargs: Any) -> LLM:
+def load_llm(provider_name: str, model: str | None = None, **kwargs: Any) -> LLM:
     """
     Dynamically loads and initializes a LlamaIndex LLM.
 
@@ -24,6 +24,8 @@ def load_llm(provider_name: str, **kwargs: Any) -> LLM:
     Args:
         provider_name: The case-sensitive name of the provider and the class
                        (e.g., "OpenAI", "Ollama", "HuggingFaceLLM").
+        model: The model name to use (e.g., "gpt-4", "models/gemini-2.5-pro").
+               If provided, will be passed as 'model' kwarg to the LLM constructor.
         **kwargs: Keyword arguments for the LLM class constructor.
 
     Returns:
@@ -37,6 +39,11 @@ def load_llm(provider_name: str, **kwargs: Any) -> LLM:
     """
     if not provider_name:
         raise ValueError("provider_name cannot be empty.")
+
+    # Add model to kwargs if provided as positional argument
+    if model is not None:
+        kwargs["model"] = model
+
     if provider_name == "OpenAILike":
         module_provider_part = "openai_like"
         kwargs.setdefault("is_chat_model", True)
