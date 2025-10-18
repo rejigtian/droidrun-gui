@@ -788,7 +788,7 @@ class DroidAgent(Workflow):
                     timeout=self.timeout,
                 )
 
-                handler = await structured_agent.run()
+                handler = structured_agent.run()
 
                 # Stream nested events
                 async for nested_ev in handler.stream_events():
