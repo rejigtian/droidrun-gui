@@ -10,7 +10,12 @@ from .chat_utils import (
     remove_empty_messages,
 )
 
-from .device_state_formatter import format_device_state, format_ui_elements, get_device_state_exact_format, format_phone_state
+from .device_state_formatter import (
+    format_device_state,
+    format_ui_elements,
+    get_device_state_exact_format,
+    format_phone_state,
+)
 from .prompt_resolver import PromptResolver
 from .tools import (
     ATOMIC_ACTION_SIGNATURES,

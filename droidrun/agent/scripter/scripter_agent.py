@@ -180,7 +180,9 @@ class ScripterAgent(Workflow):
         ctx.write_event_to_stream(ev)
 
         # Convert to ChatMessages for LLM call
-        chat_messages = chat_utils.convert_messages_to_chatmessages(self.message_history)
+        chat_messages = chat_utils.convert_messages_to_chatmessages(
+            self.message_history
+        )
 
         try:
             response = await acall_with_retries(self.llm, chat_messages)

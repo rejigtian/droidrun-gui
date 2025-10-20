@@ -40,7 +40,6 @@ async def add_screenshot_image_block(
     return chat_history
 
 
-
 async def add_device_state_block(
     formatted_device_state: str, chat_history: List[ChatMessage], copy: bool = True
 ) -> List[ChatMessage]:
@@ -181,6 +180,7 @@ def remove_empty_messages(messages):
         return unique_messages
 
     return process_messages()
+
 
 def image_to_image_bytes(image_source: Union[str, Path, Image.Image, bytes]) -> bytes:
     """

@@ -15,7 +15,6 @@ from llama_index.core.workflow import Event, StopEvent
 from pydantic import BaseModel
 
 
-
 class CodeActExecuteEvent(Event):
     instruction: str
 
