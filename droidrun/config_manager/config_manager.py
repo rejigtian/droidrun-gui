@@ -91,32 +91,24 @@ llm_profiles:
     provider: GoogleGenAI
     model: models/gemini-2.5-pro
     temperature: 0.2
-    kwargs:
-      max_tokens: 8192
 
   # Executor: Selects and executes atomic actions
   executor:
     provider: GoogleGenAI
     model: models/gemini-2.5-pro
     temperature: 0.1
-    kwargs:
-      max_tokens: 4096
 
   # CodeAct: Generates and executes code actions
   codeact:
     provider: GoogleGenAI
     model: models/gemini-2.5-pro
     temperature: 0.2
-    kwargs:
-      max_tokens: 8192
 
   # Text Manipulator: Edits text in input fields
   text_manipulator:
     provider: GoogleGenAI
     model: models/gemini-2.5-pro
     temperature: 0.3
-    kwargs:
-      max_tokens: 4096
 
   # App Opener: Opens apps by name/description
   app_opener:
@@ -125,25 +117,18 @@ llm_profiles:
     temperature: 0.0
     base_url: null
     api_base: null
-    kwargs:
-      max_tokens: 512
-      api_key: YOUR_API_KEY
 
   # Scripter: Executes Python scripts for off-device operations
   scripter:
     provider: GoogleGenAI
     model: models/gemini-2.5-flash
     temperature: 0.1
-    kwargs:
-      max_tokens: 4096
 
   # Structured Output: Extracts structured data from final answers
   structured_output:
     provider: GoogleGenAI
     model: models/gemini-2.5-flash
     temperature: 0.0
-    kwargs:
-      max_tokens: 2048
 
 # === Device Settings ===
 device:
@@ -448,7 +433,7 @@ class DroidrunConfig:
                 provider="GoogleGenAI",
                 model="models/gemini-2.5-pro",
                 temperature=0.2,
-                kwargs={"max_tokens": 8192},
+                kwargs={},
             ),
             "text_manipulator": LLMProfile(
                 provider="GoogleGenAI",
@@ -466,13 +451,13 @@ class DroidrunConfig:
                 provider="GoogleGenAI",
                 model="models/gemini-2.5-flash",
                 temperature=0.1,
-                kwargs={"max_tokens": 4096},
+                kwargs={},
             ),
             "structured_output": LLMProfile(
                 provider="GoogleGenAI",
                 model="models/gemini-2.5-flash",
                 temperature=0.0,
-                kwargs={"max_tokens": 2048},
+                kwargs={},
             ),
         }
 
