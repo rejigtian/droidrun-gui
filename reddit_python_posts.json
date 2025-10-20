@@ -1,0 +1,35 @@
+{
+  "subreddit": "python",
+  "posts": [
+    {
+      "title": "PEP 810 – Explicit lazy imports",
+      "content": "PEP: https://pep-previews--4622.org.readthedocs.build/pep-0810/\nDiscussion: https://discuss.python.org/t/pep-810-explicit-lazy-imports/104131\nThis PEP introduces lazy imports as an explicit language feature. Currently, a module is eagerly loaded at the point of the import statement. Lazy imports defer the loading and execution of a module until the first time the imported name is used.\nBy allowing developers to mark individual imports as lazy with explicit syntax, Python programs can reduce startup time, memory usage, and unnecessary work. This is particularly beneficial for command-line tools, test suites, and applications with large dependency graphs.\nThe proposal preserves full backwards compatibility: normal import statements remain unchanged, and lazy imports are enabled only where explicitly requested.",
+      "upvotes": 470,
+      "comments": 151
+    },
+    {
+      "title": "Showcase: I wrote a GitHub Action to Summarize uv.lock Changes",
+      "content": "What My Project Does\nI have been loving everything about uv but reviewing changes as git diffs is always a chore.\nI wrote this action to summarize the changes and provide a simple report via PR comment.\nTarget Audience\nThis is intended for anyone building or maintaining Python projects with uv in Github.\nComparison\nI could not find any other similar actions out there.\nURL: https://github.com/mw-root/uv-lock-report\nExample PR Comments: https://github.com/mw-root/uv-lock-report/raw/main/images/uv-lock-report-simple-comment.png\nhttps://github.com/mw-root/uv-lock-report/raw/main/images/uv-lock-report-table-comment.png",
+      "upvotes": 48,
+      "comments": 10
+    },
+    {
+      "title": "Advice on logging libraries: Logfire, Loguru, or just Python's built-in logging?",
+      "content": "Hey everyone,\nI’m exploring different logging options for my projects (fastapi backend with langgraph) and I’d love some input.\nSo far I’ve looked at:\n\t• Python’s built-in logging module\n\t• Loguru\n\t• Logfire\nI’m mostly interested in:\n\t• Clean and beautiful output (readability really matters)\n\t• Ease of use / developer experience\n\t• Flexibility for future scaling (e.g., larger apps, integrations)\nHas anyone here done a serious comparison or has strong opinions on which one strikes the best balance?\nIs there some hidden gem I should check out instead?\nThanks in advance!",
+      "upvotes": 199,
+      "comments": 77
+    },
+    {
+      "title": "Python 3.13 is 10% slower than 3.12 for my file parser",
+      "content": "I have written a custom parser for a game-specific file format.\nIt performs particularly bad when there's too many nested references (A reference to a different object in an object), but that's a different problem on its own.\nThe current problem I have is with the performance degradation by almost 10% when using Python 3.13. I am trying to figure out what changes happened in 3.13 that might be relevant for my issue.\nI should probably attach the concrete code, so here is the method in question.",
+      "upvotes": 399,
+      "comments": 74
+    },
+    {
+      "title": "CTkSidebar: a customizable sidebar navigation control for CustomTkinter",
+      "content": "Hi everyone.\nI'm sharing a new package I've been working on: ctk-sidebar. It's a customizable control for CustomTkinter that adds sidebar navigation to your Python GUI app.\nProject link and screenshots: https://github.com/anthony-bernaert/ctk-sidebar\nWhat My Project Does\n\t• Adds a sidebar to your CustomTkinter app\n\t• Handles navigation: each menu item gets a separate view where you can add your controls\n\t• Easy to use\n\t• Customizable styling\n\t• Supports hierarchical navigation (tree structure) with collapsible submenus\n\t• Optional, automatic colorization of menu icons\nTarget Audience\nEveryone who wants to include multiple UI panes inside the same window, and wants an easy, modern-looking solution.\nComparison\nCustomTkinter already features a tab view control to switch between multiple views, but a sidebar is better suited for more complex types of navigation, or to navigate between more unrelated sections. Except for some code snippets, I didn't find any existing package that implemented this in CustomTkinter yet.",
+      "upvotes": 1,
+      "comments": 0
+    }
+  ]
+}

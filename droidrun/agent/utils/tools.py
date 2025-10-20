@@ -190,7 +190,12 @@ def system_button(button: str, *, tools: "Tools" = None, **kwargs) -> str:
 
 
 def swipe(
-    coordinate: List[int], coordinate2: List[int], *, tools: "Tools" = None, **kwargs
+    coordinate: List[int],
+    coordinate2: List[int],
+    duration: float = 1.0,
+    *,
+    tools: "Tools" = None,
+    **kwargs,
 ) -> bool:
     """
     Swipe from one coordinate to another.
@@ -198,6 +203,7 @@ def swipe(
     Args:
         coordinate: Starting coordinate as [x, y]
         coordinate2: Ending coordinate as [x, y]
+        duration: Duration of swipe in seconds (default: 1.0)
         tools: The Tools instance (injected automatically)
 
     Returns:
@@ -216,7 +222,10 @@ def swipe(
     start_x, start_y = coordinate
     end_x, end_y = coordinate2
 
-    return tools.swipe(start_x, start_y, end_x, end_y, duration_ms=300)
+    # Convert seconds to milliseconds
+    duration_ms = int(duration * 1000)
+
+    return tools.swipe(start_x, start_y, end_x, end_y, duration_ms=duration_ms)
 
 
 async def open_app(text: str, *, tools: "Tools" = None, **kwargs) -> str:
@@ -312,8 +321,8 @@ ATOMIC_ACTION_SIGNATURES = {
         "function": system_button,
     },
     "swipe": {
-        "arguments": ["coordinate", "coordinate2"],
-        "description": 'Scroll from the position with coordinate to the position with coordinate2. Please make sure the start and end points of your swipe are within the swipeable area and away from the keyboard (y1 < 1400). Usage Example: {"action": "swipe", "coordinate": [x1, y1], "coordinate2": [x2, y2]}',
+        "arguments": ["coordinate", "coordinate2", "duration=1.0"],
+        "description": 'Scroll from the position with coordinate to the position with coordinate2. Duration is in seconds (default: 1.0). Please make sure the start and end points of your swipe are within the swipeable area and away from the keyboard (y1 < 1400). Usage Example: {"action": "swipe", "coordinate": [x1, y1], "coordinate2": [x2, y2], "duration": 1.5}',
         "function": swipe,
     },
     # "copy": {

@@ -322,6 +322,7 @@ class ExecutorAgent(Workflow):
             elif action_type == "swipe":
                 coordinate = action_dict.get("coordinate")
                 coordinate2 = action_dict.get("coordinate2")
+                duration = action_dict.get("duration", 1.0)  # Default to 1.0 seconds
 
                 if coordinate is None or coordinate2 is None:
                     return (
@@ -344,9 +345,15 @@ class ExecutorAgent(Workflow):
                         "Failed: coordinate2 must be [x, y]",
                     )
 
-                success = swipe(coordinate, coordinate2, tools=self.tools_instance)
+                success = swipe(
+                    coordinate, coordinate2, duration, tools=self.tools_instance
+                )
                 if success:
-                    return True, "None", f"Swiped from {coordinate} to {coordinate2}"
+                    return (
+                        True,
+                        "None",
+                        f"Swiped from {coordinate} to {coordinate2} over {duration}s",
+                    )
                 else:
                     return (
                         False,
