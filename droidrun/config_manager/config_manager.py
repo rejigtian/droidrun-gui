@@ -11,223 +11,6 @@ from droidrun.config_manager.path_resolver import PathResolver
 from droidrun.config_manager.safe_execution import SafeExecutionConfig
 
 
-# ---------- Helpers / defaults ----------
-def _default_config_text() -> str:
-    """Generate default config.yaml content with all settings."""
-    return """# DroidRun Configuration File
-# This file is auto-generated. Edit values as needed.
-
-# === Agent Settings ===
-agent:
-  # Maximum number of steps per task
-  max_steps: 15
-  # Enable planning with reasoning mode
-  reasoning: false
-  # Sleep duration after each action, waits for ui state to be updated (seconds)
-  after_sleep_action: 1.0
-  # Wait duration for UI to stabilize (seconds)
-  wait_for_stable_ui: 0.3
-  # Base directory for prompt templates
-  prompts_dir: config/prompts
-
-  # CodeAct Agent Configuration
-  codeact:
-    # Enable vision capabilities (screenshots)
-    vision: false
-    # System prompt filename (located in prompts_dir/codeact/)
-    system_prompt: system.jinja2
-    # User prompt filename (located in prompts_dir/codeact/)
-    user_prompt: user.jinja2
-    # Enable safe code execution (restricts imports and builtins)
-    safe_execution: false
-
-  # Manager Agent Configuration
-  manager:
-    # Enable vision capabilities (screenshots)
-    vision: false
-    # System prompt filename (located in prompts_dir/manager/)
-    system_prompt: system.jinja2
-
-  # Executor Agent Configuration
-  executor:
-    # Enable vision capabilities (screenshots)
-    vision: false
-    # System prompt filename (located in prompts_dir/executor/)
-    system_prompt: system.jinja2
-
-  # Scripter Agent Configuration
-  scripter:
-    # Enable scripter execution for off-device operations
-    enabled: true
-    # Maximum steps per script task
-    max_steps: 10
-    # Execution timeout per code block (seconds)
-    execution_timeout: 30.0
-    # System prompt filename (located in prompts_dir/scripter/)
-    system_prompt_path: system.jinja2
-    # Enable safe code execution (restricts imports and builtins)
-    safe_execution: false
-
-  # App Cards Configuration
-  app_cards:
-    # Enable app-specific instruction cards
-    enabled: true
-    # Mode: local (file-based), server (HTTP API), or composite (server with local fallback)
-    mode: local
-    # Directory containing app card files (for local/composite modes)
-    app_cards_dir: config/app_cards
-    # Server URL for remote app cards (for server/composite modes)
-    server_url: null
-    # Server request timeout in seconds
-    server_timeout: 2.0
-    # Number of server retry attempts
-    server_max_retries: 2
-
-# === LLM Profiles ===
-# Define LLM configurations for each agent type
-llm_profiles:
-  # Manager: Plans and reasons about task progress
-  manager:
-    provider: GoogleGenAI
-    model: models/gemini-2.5-pro
-    temperature: 0.2
-
-  # Executor: Selects and executes atomic actions
-  executor:
-    provider: GoogleGenAI
-    model: models/gemini-2.5-pro
-    temperature: 0.1
-
-  # CodeAct: Generates and executes code actions
-  codeact:
-    provider: GoogleGenAI
-    model: models/gemini-2.5-pro
-    temperature: 0.2
-
-  # Text Manipulator: Edits text in input fields
-  text_manipulator:
-    provider: GoogleGenAI
-    model: models/gemini-2.5-pro
-    temperature: 0.3
-
-  # App Opener: Opens apps by name/description
-  app_opener:
-    provider: OpenAI
-    model: gpt-4o-mini
-    temperature: 0.0
-    base_url: null
-    api_base: null
-
-  # Scripter: Executes Python scripts for off-device operations
-  scripter:
-    provider: GoogleGenAI
-    model: models/gemini-2.5-flash
-    temperature: 0.1
-
-  # Structured Output: Extracts structured data from final answers
-  structured_output:
-    provider: GoogleGenAI
-    model: models/gemini-2.5-flash
-    temperature: 0.0
-
-# === Device Settings ===
-device:
-  # Default device serial (null = auto-detect for Android)
-  serial: null
-  # Platform: android or ios
-  platform: android
-  # Use TCP communication instead of content provider
-  use_tcp: false
-
-# === Telemetry Settings ===
-telemetry:
-  # Enable anonymous telemetry
-  enabled: true
-
-# === Tracing Settings ===
-tracing:
-  # Enable Arize Phoenix tracing
-  enabled: false
-
-# === Logging Settings ===
-logging:
-  # Enable debug logging
-  debug: false
-  # Trajectory saving level (none, step, action)
-  save_trajectory: none
-  rich_text: false
-
-# === Safe Execution Settings ===
-# Applied when agent.codeact.safe_execution or agent.scripter.safe_execution is true
-safe_execution:
-  # Allow all imports (ignores allowed_modules, respects blocked_modules)
-  allow_all_imports: false
-
-  # Allowed modules (empty + allow_all_imports=false = no imports allowed)
-  # Example: ['json', 'requests', 're', 'datetime', 'math', 'collections']
-  allowed_modules: []
-
-  # Blocked modules (takes precedence over allowed_modules and allow_all_imports)
-  # Prevents dangerous file operations, subprocess execution, and code manipulation
-  blocked_modules:
-    - os
-    - sys
-    - subprocess
-    - shutil
-    - pathlib
-    - pty
-    - fcntl
-    - resource
-    - pickle
-    - shelve
-    - marshal
-    - imp
-    - importlib
-    - ctypes
-    - code
-    - codeop
-    - tempfile
-    - glob
-    - socket
-    - socketserver
-    - asyncio
-
-  # Allow all builtins (ignores allowed_builtins, respects blocked_builtins)
-  allow_all_builtins: false
-
-  # Allowed builtins (empty + allow_all_builtins=false = use safe defaults)
-  # Safe defaults include: int, str, list, dict, print, len, range, etc.
-  allowed_builtins: []
-
-  # Blocked builtins (takes precedence over allowed_builtins and allow_all_builtins)
-  blocked_builtins:
-    - open
-    - compile
-    - exec
-    - eval
-    - __import__
-    - breakpoint
-    - exit
-    - quit
-    - input
-
-# === Tool Settings ===
-tools:
-  # Enable drag tool
-  allow_drag: false
-
-# === Credential Settings ===
-credentials:
-  # Enable credential manager
-  enabled: false
-  # Path to credentials file (resolved via PathResolver)
-  file_path: credentials.yaml
-"""
-
-
-# Removed: _default_project_config_path() - now using PathResolver
-
-
 # ---------- Config Schema ----------
 @dataclass
 class LLMProfile:
@@ -749,11 +532,19 @@ class ConfigManager:
 
     # ---------------- I/O ----------------
     def _ensure_file_exists(self) -> None:
+        """Create default config file if it doesn't exist."""
         parent = self.path.parent
         parent.mkdir(parents=True, exist_ok=True)
         if not self.path.exists():
+            # Generate config programmatically from DroidrunConfig defaults
+            default_config = DroidrunConfig()
             with open(self.path, "w", encoding="utf-8") as f:
-                f.write(_default_config_text())
+                yaml.dump(
+                    default_config.to_dict(),
+                    f,
+                    sort_keys=False,
+                    default_flow_style=False,
+                )
 
     def load_config(self) -> None:
         """
