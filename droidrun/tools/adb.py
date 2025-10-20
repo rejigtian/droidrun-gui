@@ -22,7 +22,7 @@ from droidrun.tools.tools import Tools
 
 from droidrun.tools.portal_client import PortalClient
 
-logger = logging.getLogger("droidrun-tools")
+logger = logging.getLogger("droidrun")
 PORTAL_DEFAULT_TCP_PORT = 8080
 
 

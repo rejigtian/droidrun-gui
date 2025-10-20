@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional
 import requests
 from adbutils import AdbDevice
 
-logger = logging.getLogger("droidrun-tools")
+logger = logging.getLogger("droidrun")
 
 PORTAL_REMOTE_PORT = 8080  # Port on device where Portal HTTP server runs
 

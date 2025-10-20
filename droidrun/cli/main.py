@@ -73,7 +73,7 @@ def configure_logging(goal: str, debug: bool, rich_text: bool = True):
     logger.propagate = False
 
     if debug:
-        tools_logger = logging.getLogger("droidrun-tools")
+        tools_logger = logging.getLogger("droidrun")
         tools_logger.addHandler(handler)
         tools_logger.propagate = False
         tools_logger.setLevel(logging.DEBUG if debug else logging.INFO)

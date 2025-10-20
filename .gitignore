@@ -37,3 +37,5 @@ credentials.yaml
 
 backend/
 frontend/
+
+reddit_python_posts.json
