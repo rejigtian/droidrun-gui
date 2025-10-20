@@ -20,8 +20,7 @@ from pydantic import BaseModel
 from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
 from droidrun.agent.manager.events import ManagerInternalPlanEvent, ManagerThinkingEvent
 from droidrun.agent.manager.prompts import parse_manager_response
-from droidrun.agent.utils import convert_messages_to_chatmessages
-from droidrun.agent.utils.chat_utils import remove_empty_messages
+from droidrun.agent.utils.chat_utils import remove_empty_messages, convert_messages_to_chatmessages
 from droidrun.agent.utils.device_state_formatter import format_device_state
 from droidrun.agent.utils.inference import acall_with_retries
 from droidrun.agent.utils.prompt_resolver import PromptResolver

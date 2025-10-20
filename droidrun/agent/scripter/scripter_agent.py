@@ -21,7 +21,7 @@ from droidrun.agent.scripter.events import (
     ScripterInputEvent,
     ScripterThinkingEvent,
 )
-from droidrun.agent.utils import chat_utils, convert_messages_to_chatmessages
+from droidrun.agent.utils import chat_utils
 from droidrun.agent.utils.executer import ExecuterState, SimpleCodeExecutor
 from droidrun.agent.utils.inference import acall_with_retries
 from droidrun.config_manager.config_manager import AgentConfig
@@ -180,7 +180,7 @@ class ScripterAgent(Workflow):
         ctx.write_event_to_stream(ev)
 
         # Convert to ChatMessages for LLM call
-        chat_messages = convert_messages_to_chatmessages(self.message_history)
+        chat_messages = chat_utils.convert_messages_to_chatmessages(self.message_history)
 
         try:
             response = await acall_with_retries(self.llm, chat_messages)
