@@ -18,7 +18,6 @@ from llama_index.core.memory import Memory
 from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
 
 from droidrun.agent.codeact.events import (
-    EpisodicMemoryEvent,
     TaskEndEvent,
     TaskExecutionEvent,
     TaskExecutionResultEvent,
@@ -27,7 +26,6 @@ from droidrun.agent.codeact.events import (
 )
 from droidrun.agent.common.constants import LLM_HISTORY_LIMIT
 from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
-from droidrun.agent.context.episodic_memory import EpisodicMemory, EpisodicMemoryStep
 from droidrun.agent.usage import get_usage_from_response
 from droidrun.agent.utils import chat_utils
 from droidrun.agent.utils.device_state_formatter import format_device_state
@@ -85,7 +83,6 @@ class CodeActAgent(Workflow):
         self.prompt_resolver = prompt_resolver or PromptResolver()
 
         self.chat_memory = None
-        self.episodic_memory = EpisodicMemory()
         self.remembered_info = None
 
         self.goal = None
@@ -459,10 +456,6 @@ Now, describe the next step you will take to address the original goal: {goal}""
         self.tools.finished = False
         await ctx.store.set("chat_memory", self.chat_memory)
 
-        # Add final state observation to episodic memory
-        if self.vision:
-            await self._add_final_state_observation(ctx)
-
         result = {}
         result.update(
             {
@@ -470,10 +463,6 @@ Now, describe the next step you will take to address the original goal: {goal}""
                 "reason": ev.reason,
                 "code_executions": self.code_exec_counter,
             }
-        )
-
-        ctx.write_event_to_stream(
-            EpisodicMemoryEvent(episodic_memory=self.episodic_memory)
         )
 
         return StopEvent(result)
@@ -499,26 +488,6 @@ Now, describe the next step you will take to address the original goal: {goal}""
                         if not isinstance(block, chat_utils.ImageBlock)
                     ]
                 filtered_chat_history.append(filtered_msg)
-
-            # Convert chat history and response to JSON strings
-            chat_history_str = json.dumps(
-                [
-                    {"role": msg.role, "content": msg.content}
-                    for msg in filtered_chat_history
-                ]
-            )
-            response_str = json.dumps(
-                {"role": response.message.role, "content": response.message.content}
-            )
-
-            step = EpisodicMemoryStep(
-                chat_history=chat_history_str,
-                response=response_str,
-                timestamp=time.time(),
-                screenshot=(await ctx.store.get("screenshot", None)),
-            )
-
-            self.episodic_memory.steps.append(step)
 
             assert hasattr(
                 response, "message"
@@ -577,48 +546,3 @@ Now, describe the next step you will take to address the original goal: {goal}""
             preserved_head = []
 
         return preserved_head + tail
-
-    async def _add_final_state_observation(self, ctx: Context) -> None:
-        """Add the current UI state and screenshot as the final observation step."""
-        try:
-            # Get current screenshot and UI state
-            screenshot = None
-
-            try:
-                _, screenshot_bytes = self.tools.take_screenshot()
-                screenshot = screenshot_bytes
-            except Exception as e:
-                logger.warning(f"Failed to capture final screenshot: {e}")
-
-            try:
-                state = self.tools.get_state()
-                a11y_tree = state.get("a11y_tree", "")
-                phone_state = state.get("phone_state", "")  # noqa: F841
-            except Exception as e:
-                raise Exception(f"Failed to capture final UI state: {e}") from e
-
-            # Create final observation chat history and response
-            final_chat_history = [
-                {
-                    "role": "system",
-                    "content": "Final state observation after task completion",
-                }
-            ]
-            final_response = {
-                "role": "user",
-                "content": f"Final State Observation:\nUI State: {a11y_tree}\nScreenshot: {'Available' if screenshot else 'Not available'}",
-            }
-
-            # Create final episodic memory step
-            final_step = EpisodicMemoryStep(
-                chat_history=json.dumps(final_chat_history),
-                response=json.dumps(final_response),
-                timestamp=time.time(),
-                screenshot=screenshot,
-            )
-
-            self.episodic_memory.steps.append(final_step)
-            logger.info("Added final state observation to episodic memory")
-
-        except Exception as e:
-            logger.error(f"Failed to add final state observation: {e}")

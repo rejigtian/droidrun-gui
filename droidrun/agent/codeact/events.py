@@ -3,7 +3,6 @@ from typing import Optional
 from llama_index.core.llms import ChatMessage
 from llama_index.core.workflow import Event
 
-from droidrun.agent.context.episodic_memory import EpisodicMemory
 from droidrun.agent.usage import UsageResult
 
 
@@ -30,7 +29,3 @@ class TaskExecutionResultEvent(Event):
 class TaskEndEvent(Event):
     success: bool
     reason: str
-
-
-class EpisodicMemoryEvent(Event):
-    episodic_memory: EpisodicMemory

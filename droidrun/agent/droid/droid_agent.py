@@ -267,9 +267,6 @@ class DroidAgent(Workflow):
             self.structured_output_llm = llms
 
         self.trajectory = Trajectory(goal=self.shared_state.instruction)
-        self.task_manager = TaskManager()
-        self.task_iter = None
-        self.current_episodic_memory = None
 
         self.atomic_tools = ATOMIC_ACTION_SIGNATURES.copy()
 
@@ -376,14 +373,13 @@ class DroidAgent(Workflow):
         Execute a single task using the CodeActAgent.
 
         Args:
-            task: Task dictionary with description and status
+            instruction: task of what the agent shall do
 
         Returns:
             Tuple of (success, reason)
         """
-        task: Task = ev.task
 
-        logger.info(f"🔧 Executing task: {task.description}")
+        logger.info(f"🔧 Executing task: {ev.instruction}")
 
         try:
             codeact_agent = CodeActAgent(
@@ -401,7 +397,7 @@ class DroidAgent(Workflow):
             )
 
             handler = codeact_agent.run(
-                input=task.description,
+                input=ev.instruction,
                 remembered_info=self.tools_instance.memory,
             )
 
@@ -414,7 +410,7 @@ class DroidAgent(Workflow):
                 event = CodeActResultEvent(
                     success=True,
                     reason=result["reason"],
-                    task=task,
+                    instruction=ev.instruction,
                 )
                 ctx.write_event_to_stream(event)
                 return event
@@ -422,7 +418,7 @@ class DroidAgent(Workflow):
                 event = CodeActResultEvent(
                     success=False,
                     reason=result["reason"],
-                    task=task,
+                    instruction=ev.instruction,
                 )
                 ctx.write_event_to_stream(event)
                 return event
@@ -434,7 +430,7 @@ class DroidAgent(Workflow):
 
                 logger.error(traceback.format_exc())
             event = CodeActResultEvent(
-                success=False, reason=f"Error: {str(e)}", task=task
+                success=False, reason=f"Error: {str(e)}", instruction=ev.instruction
             )
             ctx.write_event_to_stream(event)
             return event
@@ -488,12 +484,7 @@ class DroidAgent(Workflow):
             logger.info(
                 f"🔄 Direct execution mode - executing goal: {self.shared_state.instruction}"
             )
-            task = Task(
-                description=self.shared_state.instruction,
-                status=self.task_manager.STATUS_PENDING,
-                agent_type="Default",
-            )
-            event = CodeActExecuteEvent(task=task)
+            event = CodeActExecuteEvent(instruction=self.shared_state.instruction)
             ctx.write_event_to_stream(event)
             return event
 
@@ -817,10 +808,6 @@ class DroidAgent(Workflow):
         return result
 
     def handle_stream_event(self, ev: Event, ctx: Context):
-        if isinstance(ev, EpisodicMemoryEvent):
-            self.current_episodic_memory = ev.episodic_memory
-            return
-
         if not isinstance(ev, StopEvent):
             ctx.write_event_to_stream(ev)
 

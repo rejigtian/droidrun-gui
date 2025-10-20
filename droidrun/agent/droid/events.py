@@ -7,25 +7,23 @@ They carry minimal data needed for routing workflow steps.
 For internal events with full debugging metadata, see:
 - manager/events.py (ManagerInternalPlanEvent)
 - executor/events.py (ExecutorInternalActionEvent, ExecutorInternalResultEvent)
-- codeact/events.py (Task*, EpisodicMemoryEvent)
 """
 
-from typing import Dict, List
+from typing import Dict
 
 from llama_index.core.workflow import Event, StopEvent
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel
 
-from droidrun.agent.context import Task
 
 
 class CodeActExecuteEvent(Event):
-    task: Task
+    instruction: str
 
 
 class CodeActResultEvent(Event):
     success: bool
     reason: str
-    task: Task
+    instruction: str
 
 
 class FinalizeEvent(Event):
