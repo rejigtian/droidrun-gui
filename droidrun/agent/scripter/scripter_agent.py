@@ -28,7 +28,7 @@ from droidrun.config_manager.config_manager import AgentConfig
 from droidrun.config_manager.prompt_loader import PromptLoader
 
 if TYPE_CHECKING:
-    from droidrun.agent.droid.events import DroidAgentState
+    from droidrun.agent.droid import DroidAgentState
 
 logger = logging.getLogger("droidrun")
 
@@ -165,7 +165,9 @@ class ScripterAgent(Workflow):
 
         # Check max steps
         if self.step_counter >= self.max_steps:
-            logger.warning(f"⚠️ Max steps ({self.max_steps}) reached without completion")
+            logger.warning(
+                f"⚠️ Max steps ({self.max_steps}) reached without completion"
+            )
             return ScripterEndEvent(
                 message=f"Max steps ({self.max_steps}) reached without completion",
                 success=False,

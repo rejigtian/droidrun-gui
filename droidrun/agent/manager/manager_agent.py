@@ -34,7 +34,7 @@ from droidrun.app_cards.providers import (
 from droidrun.config_manager.prompt_loader import PromptLoader
 
 if TYPE_CHECKING:
-    from droidrun.agent.droid.events import DroidAgentState
+    from droidrun.agent.droid import DroidAgentState
     from droidrun.config_manager.config_manager import AgentConfig
     from droidrun.tools import Tools
 

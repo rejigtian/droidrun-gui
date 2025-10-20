@@ -24,7 +24,6 @@ from droidrun.agent.context.task_manager import Task, TaskManager
 from droidrun.agent.droid.events import (
     CodeActExecuteEvent,
     CodeActResultEvent,
-    DroidAgentState,
     ExecutorInputEvent,
     ExecutorResultEvent,
     FinalizeEvent,
@@ -34,6 +33,7 @@ from droidrun.agent.droid.events import (
     ScripterExecutorInputEvent,
     ScripterExecutorResultEvent,
 )
+from droidrun.agent.droid import DroidAgentState
 from droidrun.agent.executor import ExecutorAgent
 from droidrun.agent.manager import ManagerAgent
 from droidrun.agent.scripter import ScripterAgent

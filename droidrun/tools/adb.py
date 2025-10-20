@@ -310,7 +310,7 @@ class AdbTools(Tools):
         start_y: int,
         end_x: int,
         end_y: int,
-        duration_ms: float = 300,
+        duration_ms: float = 1000,
     ) -> bool:
         """
         Performs a straight-line swipe gesture on the device screen.
