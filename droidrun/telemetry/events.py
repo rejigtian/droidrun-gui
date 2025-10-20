@@ -30,9 +30,9 @@ class DroidAgentInitEvent(TelemetryEvent):
     debug: bool
     save_trajectories: str = "none"
     runtype: str = "developer"  # "cli" | "developer" | "web"
-    custom_prompts: Optional[Dict[str, str]] = (
-        None  # Keys: prompt names, Values: "custom" or None
-    )
+    custom_prompts: Optional[
+        Dict[str, str]
+    ] = None  # Keys: prompt names, Values: "custom" or None
 
 
 class PackageVisitEvent(TelemetryEvent):
