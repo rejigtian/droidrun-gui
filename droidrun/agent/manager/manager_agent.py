@@ -17,6 +17,7 @@ from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
 from pydantic import BaseModel
 
+from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
 from droidrun.agent.manager.events import ManagerInternalPlanEvent, ManagerThinkingEvent
 from droidrun.agent.manager.prompts import parse_manager_response
 from droidrun.agent.utils import convert_messages_to_chatmessages
@@ -426,6 +427,9 @@ class ManagerAgent(Workflow):
             activity_name=phone_state.get("currentApp", "Unknown"),
         )
 
+        # Stream UI state for trajectory
+        ctx.write_event_to_stream(RecordUIStateEvent(ui_state=a11y_tree))
+
         # ====================================================================
         # Step 1.5: Load app card (blocking)
         # ====================================================================
@@ -454,6 +458,9 @@ class ManagerAgent(Workflow):
 
                 else:
                     screenshot = result
+
+                if screenshot:
+                    ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
                 logger.debug("📸 Screenshot captured for Manager")
             except Exception as e:
                 logger.warning(f"Failed to capture screenshot: {e}")
