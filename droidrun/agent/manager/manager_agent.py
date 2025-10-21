@@ -601,6 +601,7 @@ class ManagerAgent(Workflow):
             manager_answer=parsed["answer"],
             memory_update=memory_update,
             success=parsed["success"],
+            full_response=output_planning,
         )
 
         # Write event to stream for web interface

@@ -35,3 +35,4 @@ class ManagerInternalPlanEvent(Event):
     success: bool | None = (
         None  # True/False if task complete, None if still in progress
     )
+    full_response: str = ""
