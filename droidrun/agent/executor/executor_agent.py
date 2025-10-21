@@ -33,6 +33,7 @@ from droidrun.agent.utils.tools import (
     swipe,
     system_button,
     type,
+    wait,
 )
 from droidrun.config_manager.config_manager import AgentConfig
 from droidrun.config_manager.prompt_loader import PromptLoader
@@ -360,6 +361,18 @@ class ExecutorAgent(Workflow):
                         "Swipe failed",
                         f"Failed to swipe from {coordinate} to {coordinate2}",
                     )
+
+            elif action_type == "wait":
+                duration = action_dict.get("duration")
+                if duration is None:
+                    return (
+                        False,
+                        "Missing 'duration' parameter",
+                        "Failed: wait requires duration",
+                    )
+
+                result = wait(duration)
+                return True, "None", f"Waited for {duration} seconds"
 
             elif action_type == "open_app":
                 text = action_dict.get("text")

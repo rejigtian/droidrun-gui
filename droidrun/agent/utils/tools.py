@@ -260,6 +260,20 @@ async def open_app(text: str, *, tools: "Tools" = None, **kwargs) -> str:
     return result
 
 
+def wait(duration: float, **kwargs) -> str:
+    """
+    Wait for a specified duration in seconds.
+
+    Args:
+        duration: Duration to wait in seconds
+
+    Returns:
+        Confirmation message
+    """
+    time.sleep(duration)
+    return f"Waited for {duration} seconds"
+
+
 def remember(information: str, *, tools: "Tools" = None, **kwargs) -> str:
     """
     Remember important information for later use.
@@ -324,6 +338,11 @@ ATOMIC_ACTION_SIGNATURES = {
         "arguments": ["coordinate", "coordinate2", "duration=1.0"],
         "description": 'Scroll from the position with coordinate to the position with coordinate2. Duration is in seconds (default: 1.0). Please make sure the start and end points of your swipe are within the swipeable area and away from the keyboard (y1 < 1400). Usage Example: {"action": "swipe", "coordinate": [x1, y1], "coordinate2": [x2, y2], "duration": 1.5}',
         "function": swipe,
+    },
+    "wait": {
+        "arguments": ["duration"],
+        "description": 'Wait for a specified duration in seconds. Useful for waiting for animations, page loads, or other time-based operations. Usage Example: {"action": "wait", "duration": 2.0}',
+        "function": wait,
     },
     # "copy": {
     #     "arguments": ["text"],
