@@ -63,7 +63,7 @@ ollama = [
     "llama-index-llms-ollama>=0.7.2",
 ]
 dev = [
-    "black>=23.0.0",
+    "black==25.9.0",
     "ruff>=0.13.0",
     "mypy>=1.0.0",
     "bandit>=1.8.6",
