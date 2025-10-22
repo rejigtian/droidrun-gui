@@ -1,6 +1,6 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
+  "theme": "almond",
   "name": "DroidRun",
   "colors": {
     "primary": "#0D9373",
@@ -8,134 +8,69 @@
     "dark": "#0D9373"
   },
   "favicon": "/favicon.png",
+  "icons": {
+    "library": "lucide"
+  },
   "navigation": {
-    "tabs": [
+    "products": [
       {
-        "tab": "Framework",
-        "versions": [
+        "product": "Framework",
+        "description": "Open Source Framework",
+        "groups": [
           {
-            "version": "0.4.0",
-            "groups": [
-              {
-                "group": "Get Started",
-                "pages": [
-                  "v4/overview",
-                  "v4/quickstart"
-                ]
-              },
-              {
-                "group": "Guides",
-                "pages": [
-                  "v4/guides/overview",
-                  "v4/guides/device-setup",
-                  "v4/guides/cli",
-                  "v4/guides/custom-tools-credentials",
-                  "v4/guides/custom-variables",
-                  "v4/guides/app-cards",
-                  "v4/guides/structured-output",
-                  "v4/guides/telemetry-tracing"
-                ]
-              },
-              {
-                "group": "Concepts",
-                "pages": [
-                  "v4/concepts/overview",
-                  "v4/concepts/agent-architecture",
-                  "v4/concepts/scripter-agent",
-                  "v4/concepts/shared-state",
-                  "v4/concepts/events-and-workflows",
-                  "v4/concepts/prompts"
-                ]
-              },
-              {
-                "group": "SDK Reference",
-                "pages": [
-                  "v4/sdk",
-                  "v4/sdk/droid-agent",
-                  "v4/sdk/adb-tools",
-                  "v4/sdk/ios-tools",
-                  "v4/sdk/base-tools",
-                  "v4/sdk/configuration"
-                ]
-              }
+            "group": "Introduction",
+            "pages": [
+              "/overview",
+              "/quickstart"
             ]
           },
           {
-            "version": "0.3.8",
-            "groups": [
-              {
-                "group": "Introduction",
-                "pages": [
-                  "v3/overview",
-                  "v3/quickstart"
-                ]
-              },
-              {
-                "group": "Guides",
-                "pages": [
-                  "v3/guides/overview",
-                  "v3/guides/cli",
-                  "v3/guides/gemini",
-                  "v3/guides/openailike",
-                  "v3/guides/ollama",
-                  "v3/guides/telemetry"
-                ]
-              },
-              {
-                "group": "Core Concepts",
-                "pages": [
-                  "v3/concepts/agent",
-                  "v3/concepts/models",
-                  "v3/concepts/android-tools",
-                  "v3/concepts/portal-app"
-                ]
-              }
+            "group": "Features",
+            "pages": [
+              "/features/structured-output",
+              "/features/credentials",
+              "/features/app-cards",
+              "/features/custom-tools",
+              "/features/custom-variables",
+              "/features/telemetry-tracing"
             ]
           },
           {
-            "version": "0.2.0",
-            "groups": [
-              {
-                "group": "Getting Started",
-                "pages": [
-                  "v2/overview",
-                  "v2/quickstart"
-                ]
-              },
-              {
-                "group": "Core Concepts",
-                "pages": [
-                  "v2/concepts/agent",
-                  "v2/concepts/planning",
-                  "v2/concepts/android-control",
-                  "v2/concepts/portal-app",
-                  "v2/concepts/tracing"
-                ]
-              }
+            "group": "Guides",
+            "pages": [
+              "/guides/overview",
+              "/guides/device-setup",
+              "/guides/cli"
             ]
           },
           {
-            "version": "0.1.0",
-            "groups": [
-              {
-                "group": "Getting Started",
-                "pages": [
-                  "v1/overview",
-                  "v1/quickstart"
-                ]
-              },
-              {
-                "group": "Core Concepts",
-                "pages": [
-                  "v1/concepts/agent",
-                  "v1/concepts/android-control",
-                  "v1/concepts/portal-app"
-                ]
-              }
+            "group": "Concepts",
+            "pages": [
+              "/concepts/overview",
+              "/concepts/agent-architecture",
+              "/concepts/scripter-agent",
+              "/concepts/shared-state",
+              "/concepts/events-and-workflows",
+              "/concepts/prompts"
+            ]
+          },
+          {
+            "group": "SDK Reference",
+            "pages": [
+              "/sdk/reference",
+              "/sdk/droid-agent",
+              "/sdk/adb-tools",
+              "/sdk/ios-tools",
+              "/sdk/base-tools",
+              "/sdk/configuration"
             ]
           }
         ]
-      }
+      },
+      {
+      "product": "Cloud API",
+      "description": "Managed Cloud API"
+    }
     ]
   },
   "logo": {

@@ -1,11 +1,11 @@
 ---
 title: 'Multi-Agent Architecture'
-description: 'Droidrun v4 hierarchical agent system with specialized roles for planning, execution, and computation.'
+description: 'Droidrun hierarchical agent system with specialized roles for planning, execution, and computation.'
 ---
 
 ## What is Multi-Agent Architecture?
 
-Droidrun v4 uses a **hierarchical multi-agent system** where specialized agents work together:
+Droidrun uses a **hierarchical multi-agent system** where specialized agents work together:
 
 - **DroidAgent**: Main orchestrator coordinating all agents
 - **ManagerAgent**: Strategic planner creating task plans
@@ -232,11 +232,3 @@ ResultEvent (StopEvent)
 | ExecutorAgent | Actor | Action execution | `agent.executor.*` |
 | CodeActAgent | Direct | Simple tasks | `agent.codeact.*` |
 | ScripterAgent | Python Executor | APIs, files, data | `agent.scripter.*` |
-
-## Related Topics
-
-- [Reasoning Mode](./reasoning-mode) - Manager → Executor workflow
-- [Direct Mode](./direct-mode) - CodeActAgent workflow
-- [ScripterAgent](./scripter-agent) - Off-device computation
-- [Shared State](./shared-state) - DroidAgentState coordination
-- [Configuration](./configuration) - Per-agent LLM profiles

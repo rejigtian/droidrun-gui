@@ -1,11 +1,7 @@
 ---
-title: 'App-Specific Instruction Cards'
-description: 'Enhance agent performance with app-specific guidance and best practices'
+title: 'App Instruction Cards'
+description: 'Droidruns app card system provides app-specific guidance to agents, helping them understand how to operate specific apps more effectively. App cards are automatically loaded based on the currently active app and injected into agent prompts to improve task success rates.'
 ---
-
-# App-Specific Instruction Cards
-
-Droidrun's app card system provides app-specific guidance to agents, helping them understand how to operate specific apps more effectively. App cards are automatically loaded based on the currently active app and injected into agent prompts to improve task success rates.
 
 ## Overview
 
@@ -270,131 +266,12 @@ Disable with `enabled: false`. For server/composite modes, add `server_url` conf
 
 ---
 
-## Examples
-
-### Example 1: Custom App Cards Directory
-
-Create app cards in a custom location:
-
-**Directory structure:**
-```
-my_project/
-├── droidrun_cards/
-│   ├── app_cards.json
-│   ├── myapp.md
-│   └── otherapp.md
-└── config.yaml
-```
-
-**config.yaml:**
-```yaml
-agent:
-  app_cards:
-    enabled: true
-    mode: local
-    app_cards_dir: droidrun_cards
-```
-
-### Example 2: Programmatic App Card Loading
-
-Use app card providers directly in Python:
-
-```python
-import asyncio
-from droidrun.app_cards.providers import LocalAppCardProvider
-
-async def main():
-    # Initialize provider
-    provider = LocalAppCardProvider(app_cards_dir="config/app_cards")
-
-    # Load app card for Gmail
-    gmail_card = await provider.load_app_card(
-        package_name="com.google.android.gm",
-        instruction=""  # Optional context for server providers
-    )
-
-    if gmail_card:
-        print("Gmail app card loaded:")
-        print(gmail_card)
-    else:
-        print("No app card found for Gmail")
-
-    # Get cache statistics
-    stats = provider.get_cache_stats()
-    print(f"Content entries: {stats['content_entries']}")
-    print(f"Mapping entries: {stats['mapping_entries']}")
-
-    # Clear cache (useful for testing)
-    provider.clear_cache()
-
-asyncio.run(main())
-```
-
----
-
-## Best Practices
-
-### 1. Be Concise and Actionable
-
-Focus on brief, actionable guidance. Avoid verbose descriptions.
-
-### 2. Use Examples for Complex Features
-
-Show concrete examples for special syntax or filters (like Gmail's `from:`, `has:attachment`).
-
-### 3. Focus on Agent-Relevant Information
-
-Include information that helps agents **act** (button locations, field order, gestures) not just descriptions.
-
-### 4. Update Regularly
-
-Review and update app cards when apps receive major updates or UI changes.
-
-### 5. Organize by Categories
-
-Use subdirectories for related apps (e.g., `social/`, `productivity/`, `banking/`).
-
-### 6. Test App Cards
-
-Test with `--reasoning --debug` and verify the card loads in logs.
-
-### 7. Include Known Issues
-
-Document UI quirks, broken buttons, or gestures that don't work to help agents avoid pitfalls.
-
-### 8. Use Consistent Formatting
-
-- `#` for app name, `##` for sections
-- `-` for bullets, `**bold**` for actions
-- Backticks for UI elements
-
-### 9. Version Control
-
-Store app cards in git for tracking changes and team collaboration.
-
----
-
-## Troubleshooting
-
-### App card not loading
-
-1. Enable app cards: `enabled: true` in config
-2. Enable reasoning mode: `--reasoning` flag or `reasoning: true`
-3. Verify package name in `app_cards.json` (case-sensitive)
-4. Check debug logs: `droidrun run "..." --reasoning --debug`
-
-### App card not updating
-
-App cards are cached in memory. Restart the agent or call `provider.clear_cache()`.
-
----
-
 ## Related Documentation
 
-- [CLI Usage](/v4/guides/cli) - Droidrun CLI command reference
-- [Configuration](/v4/sdk/configuration) - Configuration system details
-- [Agent Architecture](/v4/concepts/agent-architecture) - How agents use app cards
-- [Manager Agent](/v4/sdk/droid-agent#manager-agent) - Agent that uses app cards
+- [CLI Usage](/guides/cli) - Droidrun CLI command reference
+- [Configuration](/sdk/configuration) - Configuration system details
+- [Agent Architecture](/concepts/agent-architecture) - How agents use app cards
+- [Manager Agent](/sdk/droid-agent#manager-agent) - Agent that uses app cards
 
 ---
 
