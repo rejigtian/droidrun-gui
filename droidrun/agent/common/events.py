@@ -64,5 +64,11 @@ class StartAppEvent(MacroEvent):
     activity: str = None
 
 
+class WaitEvent(MacroEvent):
+    """Event for wait/sleep actions"""
+
+    duration: float
+
+
 class RecordUIStateEvent(Event):
     ui_state: list[Dict[str, Any]]

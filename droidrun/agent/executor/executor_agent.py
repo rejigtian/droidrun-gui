@@ -94,6 +94,9 @@ class ExecutorAgent(Workflow):
         3. Validates action format (blocks answer actions!)
         4. Returns action event
         """
+        # macro tools context
+        self.tools_instance._set_context(ctx)
+
         subgoal = ev.get("subgoal", "")
         logger.info(f"🧠 Executor thinking about action for: {subgoal}")
 

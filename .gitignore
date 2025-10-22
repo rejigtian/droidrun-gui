@@ -39,3 +39,5 @@ backend/
 frontend/
 
 reddit_python_posts.json
+
+test/

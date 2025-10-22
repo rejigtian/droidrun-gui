@@ -7,6 +7,7 @@ that were generated during DroidAgent trajectory recording.
 
 import asyncio
 import logging
+import time
 from typing import Any, Dict, Optional
 
 from droidrun.agent.utils.trajectory import Trajectory
@@ -108,6 +109,8 @@ class MacroPlayer:
                 )
                 result = tools.swipe(start_x, start_y, end_x, end_y, duration_ms)
                 logger.debug(f"   Result: {result}")
+                # Additional wait after swipe for UI to settle
+                time.sleep(2)
                 return True
 
             elif action_type == "drag":
@@ -147,6 +150,13 @@ class MacroPlayer:
                 logger.info("⬅️  Pressing back button")
                 result = tools.back()
                 logger.debug(f"   Result: {result}")
+                return True
+
+            elif action_type == "wait":
+                duration = action.get("duration", 1.0)
+                logger.info(f"⏳ Waiting for {duration} seconds")
+                time.sleep(duration)
+                logger.debug(f"   Waited for {duration} seconds")
                 return True
 
             else:

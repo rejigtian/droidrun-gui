@@ -260,16 +260,28 @@ async def open_app(text: str, *, tools: "Tools" = None, **kwargs) -> str:
     return result
 
 
-def wait(duration: float, **kwargs) -> str:
+def wait(duration: float = 1.0, *, tools: "Tools" = None, **kwargs) -> str:
     """
     Wait for a specified duration in seconds.
 
     Args:
         duration: Duration to wait in seconds
+        tools: The Tools instance (injected automatically)
 
     Returns:
         Confirmation message
     """
+    # Emit WaitEvent for macro recording if context available
+    if tools is not None and hasattr(tools, "_ctx") and tools._ctx is not None:
+        from droidrun.agent.common.events import WaitEvent
+
+        wait_event = WaitEvent(
+            action_type="wait",
+            description=f"Wait for {duration} seconds",
+            duration=duration,
+        )
+        tools._ctx.write_event_to_stream(wait_event)
+
     time.sleep(duration)
     return f"Waited for {duration} seconds"
 

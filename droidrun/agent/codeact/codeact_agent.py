@@ -191,6 +191,9 @@ class CodeActAgent(Workflow):
     @step
     async def prepare_chat(self, ctx: Context, ev: StartEvent) -> TaskInputEvent:
         """Prepare chat history from user input."""
+        # macro tools context
+        self.tools._set_context(ctx)
+
         logger.info("💬 Preparing chat for task execution...")
 
         self.chat_memory: Memory = await ctx.store.get(
