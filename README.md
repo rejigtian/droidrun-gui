@@ -1,4 +1,4 @@
-<picture>
+<picture align="center">
   <source media="(prefers-color-scheme: dark)" srcset="./static/droidrun-dark.png">
   <source media="(prefers-color-scheme: light)" srcset="./static/droidrun.png">
   <img src="./static/droidrun.png"  width="full">
@@ -6,8 +6,8 @@
 
 <div align="center">
 
-[![Docs](https://img.shields.io/badge/Docs-📕-blue?style=for-the-badge)](https://docs.droidrun.ai)
-[![Cloud](https://img.shields.io/badge/Cloud-☁️-blue?style=for-the-badge)](http://cloud.droidrun.ai)
+[![Docs](https://img.shields.io/badge/Docs-📕-0D9373?style=for-the-badge)](https://docs.droidrun.ai)
+[![Cloud](https://img.shields.io/badge/Cloud-☁️-0D9373?style=for-the-badge)](http://cloud.droidrun.ai)
 
 [![GitHub stars](https://img.shields.io/github/stars/droidrun/droidrun?style=social)](https://github.com/droidrun/droidrun/stargazers)
 [![Discord](https://img.shields.io/discord/1360219330318696488?color=7289DA&label=Discord&logo=discord&logoColor=white)](https://discord.gg/ZZbKEZZkwK)
