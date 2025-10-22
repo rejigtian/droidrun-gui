@@ -52,6 +52,7 @@ class ManagerInternalPlanEvent(Event):
     current_subgoal: str   # Current subgoal being executed
     thought: str           # Manager's reasoning
     manager_answer: str    # Direct answer (if task is complete)
+    full_response: str     # Complete LLM response from Manager
 ```
 
 ### Execution Events
