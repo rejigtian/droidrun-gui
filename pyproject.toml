@@ -72,6 +72,9 @@ dev = [
 openrouter = [
     "llama-index-llms-openrouter>=0.4.2",
 ]
+langfuse = [
+    "llama-index-callbacks-langfuse"
+]
 
 [build-system]
 requires = ["hatchling"]
