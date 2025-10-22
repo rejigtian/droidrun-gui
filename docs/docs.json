@@ -32,7 +32,8 @@
               "/features/app-cards",
               "/features/custom-tools",
               "/features/custom-variables",
-              "/features/telemetry-tracing"
+              "/features/tracing",
+              "/features/telemetry"
             ]
           },
           {

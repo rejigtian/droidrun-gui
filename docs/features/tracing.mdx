@@ -1,22 +1,16 @@
 ---
-title: 'Telemetry & Tracing'
-description: 'Configure anonymous telemetry, Phoenix tracing, and trajectory recording'
+title: 'Tracing'
+description: 'Configure Phoenix tracing, and trajectory recording'
 ---
 
-# Telemetry & Tracing
+Droidrun provides two monitoring capabilities:
 
-Droidrun provides three monitoring capabilities:
-
-1. **Anonymous Telemetry** - Usage analytics sent to PostHog (enabled by default)
-2. **Arize Phoenix Tracing** - Real-time LLM and agent execution tracing (opt-in)
-3. **Trajectory Recording** - Local screenshots and UI state for debugging (opt-in)
+1. **Arize Phoenix Tracing** - Real-time LLM and agent execution tracing
+2. **Trajectory Recording** - Local screenshots and UI state for debugging
 
 ## Quick Reference
 
 ```sh
-# Disable anonymous telemetry
-export DROIDRUN_TELEMETRY_ENABLED=false
-
 # Enable Phoenix tracing
 droidrun run "task" --tracing
 
@@ -102,46 +96,6 @@ Environment variable names are lowercase: `phoenix_url` and `phoenix_project_nam
 
 ---
 
-## Anonymous Telemetry
-
-Droidrun collects anonymous usage analytics via PostHog to help improve the framework. Telemetry is enabled by default.
-
-### What's Collected
-
-- Task goals and completion status
-- LLM providers and configuration settings (max steps, timeout, vision/reasoning mode, debug flags)
-- Available tools and packages/activities visited
-- Anonymous UUID stored in `~/.droidrun/user_id`
-
-### What's NOT Collected
-
-- Screenshots or screen content
-- API keys or credentials
-- LLM responses
-- Device serial numbers
-- Detailed action history
-
-### Disable Telemetry
-
-Disable via environment variable:
-
-```sh
-export DROIDRUN_TELEMETRY_ENABLED=false
-```
-
-Make it permanent by adding to your shell config:
-
-```sh
-echo 'export DROIDRUN_TELEMETRY_ENABLED=false' >> ~/.bashrc
-source ~/.bashrc
-```
-
-<Note>
-Telemetry is currently controlled only by the `DROIDRUN_TELEMETRY_ENABLED` environment variable. The `telemetry.enabled` config option is not yet implemented.
-</Note>
-
----
-
 ## Trajectory Recording
 
 Trajectory recording saves screenshots and UI state locally for offline debugging and analysis. Unlike telemetry (sent to PostHog) and tracing (sent to Phoenix), trajectories stay on your machine.
@@ -210,16 +164,6 @@ Use these files to:
 - Replay failed executions
 - Analyze UI element detection issues
 - Build training datasets for agent improvement
-
----
-
-## Summary
-
-| Feature | Data Location | Default | Purpose | Opt-In/Out |
-|---------|--------------|---------|---------|------------|
-| **Anonymous Telemetry** | PostHog (cloud) | Enabled | Help improve Droidrun | `DROIDRUN_TELEMETRY_ENABLED=false` |
-| **Phoenix Tracing** | Phoenix server (local/cloud) | Disabled | Debug LLM calls and agent flow | `--tracing` flag or config |
-| **Trajectory Recording** | Local disk (`trajectories/`) | Disabled | Offline debugging with screenshots | `--save-trajectory step/action` |
 
 ---
 
