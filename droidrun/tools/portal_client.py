@@ -113,16 +113,14 @@ class PortalClient:
         """
         try:
             forwards = self.device.forward_list()
-            # Format: ['serial tcp:local_port tcp:remote_port', ...]
+            # forwards is a list of ForwardItem objects with serial, local, remote attributes
             for forward in forwards:
                 if (
-                    self.device.serial in forward
-                    and f"tcp:{PORTAL_REMOTE_PORT}" in forward
+                    forward.serial == self.device.serial
+                    and forward.remote == f"tcp:{PORTAL_REMOTE_PORT}"
                 ):
-                    # Extract local port: "serial tcp:12345 tcp:8080"
-                    match = re.search(
-                        r"tcp:(\d+)\s+tcp:" + str(PORTAL_REMOTE_PORT), forward
-                    )
+                    # Extract local port from "tcp:12345"
+                    match = re.search(r"tcp:(\d+)", forward.local)
                     if match:
                         local_port = int(match.group(1))
                         logger.debug(
