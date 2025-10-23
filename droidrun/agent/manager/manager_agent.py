@@ -535,7 +535,7 @@ class ManagerAgent(Workflow):
         screenshot = self.shared_state.screenshot
 
         # ====================================================================
-        # Step 1: Build system prompt (app card already loaded in prepare_input)
+        # Step 1: Build system prompt (app card already loaded in prepare_context)
         # ====================================================================
         system_prompt = self._build_system_prompt(has_text_to_modify)
 
