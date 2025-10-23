@@ -5,8 +5,8 @@ These events are used for WORKFLOW COORDINATION between DroidAgent and its child
 They carry minimal data needed for routing workflow steps.
 
 For internal events with full debugging metadata, see:
-- manager/events.py (ManagerInternalPlanEvent)
-- executor/events.py (ExecutorInternalActionEvent, ExecutorInternalResultEvent)
+- manager/events.py (ManagerPlanDetailsEvent, ManagerContextEvent, ManagerResponseEvent)
+- executor/events.py (ExecutorActionEvent, ExecutorActionResultEvent, ExecutorContextEvent, ExecutorResponseEvent)
 """
 
 from typing import Dict
@@ -67,7 +67,7 @@ class ManagerPlanEvent(Event):
     Coordination event from ManagerAgent to DroidAgent.
 
     Used for workflow step routing only (NOT streamed to frontend).
-    For internal events with memory_update metadata, see ManagerInternalPlanEvent.
+    For internal events with memory_update metadata, see ManagerPlanDetailsEvent.
     """
 
     plan: str
@@ -90,7 +90,7 @@ class ExecutorResultEvent(Event):
     Coordination event from ExecutorAgent to DroidAgent.
 
     Used for workflow step routing only (NOT streamed to frontend).
-    For internal events with thought/action_json metadata, see ExecutorInternalResultEvent.
+    For internal events with thought/action_json metadata, see ExecutorActionResultEvent.
     """
 
     action: Dict

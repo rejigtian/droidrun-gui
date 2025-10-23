@@ -29,12 +29,13 @@ from droidrun.agent.droid.events import (
     TaskRunnerEvent,
 )
 from droidrun.agent.executor.events import (
-    ExecutorInternalActionEvent,
-    ExecutorInternalResultEvent,
+    ExecutorActionEvent,
+    ExecutorActionResultEvent,
 )
 from droidrun.agent.manager.events import (
-    ManagerInternalPlanEvent,
-    ManagerThinkingEvent,
+    ManagerContextEvent,
+    ManagerPlanDetailsEvent,
+    ManagerResponseEvent,
 )
 
 
@@ -232,11 +233,15 @@ class LogHandler(logging.Handler):
             logger.debug("✏️ Recording UI state")
 
         # Manager events (reasoning mode - planning)
-        elif isinstance(event, ManagerThinkingEvent):
-            self.current_step = "Manager analyzing state..."
-            logger.info("🧠 Manager analyzing current state...")
+        elif isinstance(event, ManagerContextEvent):
+            self.current_step = "Manager preparing context..."
+            logger.info("🧠 Manager preparing context...")
 
-        elif isinstance(event, ManagerInternalPlanEvent):
+        elif isinstance(event, ManagerResponseEvent):
+            self.current_step = "Manager received response..."
+            logger.debug("📥 Manager received LLM response")
+
+        elif isinstance(event, ManagerPlanDetailsEvent):
             self.current_step = "Plan created"
             # Show thought (concise reasoning)
             if hasattr(event, "thought") and event.thought:
@@ -270,7 +275,7 @@ class LogHandler(logging.Handler):
                 logger.debug(f"🧠 Memory: {event.memory_update[:100]}...")
 
         # Executor events (reasoning mode - action execution)
-        elif isinstance(event, ExecutorInternalActionEvent):
+        elif isinstance(event, ExecutorActionEvent):
             self.current_step = "Selecting action..."
             # Show what action was chosen
             if hasattr(event, "description") and event.description:
@@ -285,7 +290,7 @@ class LogHandler(logging.Handler):
                 )
                 logger.debug(f"💭 Reasoning: {thought_preview}")
 
-        elif isinstance(event, ExecutorInternalResultEvent):
+        elif isinstance(event, ExecutorActionResultEvent):
             # Show result with appropriate emoji
             if hasattr(event, "outcome") and hasattr(event, "summary"):
                 if event.outcome:
