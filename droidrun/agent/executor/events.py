@@ -16,7 +16,8 @@ from llama_index.core.workflow.events import Event
 class ExecutorContextEvent(Event):
     """Executor context prepared, ready for LLM call"""
 
-    pass
+    messages: list  # ChatMessage list for LLM
+    subgoal: str  # Current subgoal being executed
 
 
 class ExecutorResponseEvent(Event):

@@ -75,8 +75,8 @@ class ManagerPlanDetailsEvent(Event):
 **ExecutorContextEvent** - Emitted after Executor prepares context:
 ```python
 class ExecutorContextEvent(Event):
-    """Signals that Executor has prepared context and is ready for LLM call"""
-    pass  # No fields - this is just a signal event
+    messages: list  # ChatMessage list for LLM
+    subgoal: str    # Current subgoal being executed
 ```
 
 **ExecutorResponseEvent** - Emitted after Executor receives LLM response:

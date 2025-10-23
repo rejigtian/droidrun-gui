@@ -164,13 +164,9 @@ class ExecutorAgent(Workflow):
                 logger.warning("⚠️ Vision enabled but no screenshot available")
         messages = [ChatMessage(role="user", blocks=blocks)]
 
-        # Store messages and subgoal in shared state for next step
-        self.shared_state.executor_messages = messages
-        self.shared_state.executor_subgoal = subgoal
-
         logger.debug("✅ Executor context prepared")
 
-        event = ExecutorContextEvent()
+        event = ExecutorContextEvent(messages=messages, subgoal=subgoal)
         ctx.write_event_to_stream(event)
 
         return event
@@ -188,7 +184,8 @@ class ExecutorAgent(Workflow):
         """
         logger.info("🧠 Executor getting LLM response...")
 
-        messages = self.shared_state.executor_messages
+        # Receive messages from event (not shared_state)
+        messages = ev.messages
 
         try:
             response = await acall_with_retries(self.llm, messages)
