@@ -1,268 +1,278 @@
 ---
 title: 'App Instruction Cards'
-description: 'Droidruns app card system provides app-specific guidance to agents, helping them understand how to operate specific apps more effectively. App cards are automatically loaded based on the currently active app and injected into agent prompts to improve task success rates.'
+description: 'App cards give your agents app-specific knowledge to operate apps more effectively. They automatically load when agents work with specific apps, improving success rates for navigation and complex tasks.'
 ---
 
-## Overview
+## What Are App Cards?
 
-App cards are markdown documents that contain:
+App cards are **app-specific instruction guides** that teach agents how to use apps effectively. Think of them as cheat sheets that help your agent understand:
 
-- **Navigation tips**: How to navigate through the app's UI
-- **Common actions**: Step-by-step guides for frequent tasks
-- **UI patterns**: App-specific interaction patterns and conventions
-- **Known gotchas**: Quirks, issues, or important notes about the app
-- **Search syntax**: Special search operators or filters (for apps like Gmail, file managers, etc.)
+- How to navigate the app's UI
+- Where to find buttons and features
+- App-specific shortcuts and gestures
+- Search syntax and filters (for apps like Gmail)
+- Common workflows and best practices
 
-When a Droidrun agent detects it's operating within a specific app (by package name), it automatically loads the corresponding app card and uses that knowledge to make better decisions.
+**Example:** When your agent opens Gmail, it automatically loads the Gmail app card and learns that:
+- The compose button is at the bottom-right
+- Search supports filters like `from:sender@email.com` or `has:attachment`
+- Swiping right archives emails, swiping left deletes them
+
+This knowledge helps agents complete tasks faster and more reliably.
+
+---
+
+## Why Use App Cards?
+
+**Without app cards:**
+- Agents guess how to navigate unfamiliar apps
+- Trial-and-error wastes time and tokens
+- Success rates drop for complex workflows
+
+**With app cards:**
+- ✅ Agents know exactly where to find features
+- ✅ First-attempt success for common tasks
+- ✅ Reduced token usage (less exploration needed)
+- ✅ Better handling of app-specific quirks
+
+---
+
+## Quick Start
+
+Droidrun includes a sample Gmail app card to demonstrate how app cards work:
+
+```bash
+# App cards are enabled by default
+droidrun run "Send an email to john@example.com" --reasoning
+```
+
+When the agent opens Gmail, the Gmail app card automatically loads and guides the workflow.
+
+**Sample app card included:**
+- **Gmail** (`com.google.android.gm`) - Email navigation, search, composition
+
+You can use this as a template to create cards for other apps (see "Creating Custom App Cards" below).
 
 ---
 
 ## How App Cards Work
 
-### Automatic Detection and Loading
+### Automatic Loading
 
-1. **Package Detection**: Droidrun monitors the current foreground app package name (e.g., "com.google.android.gm" for Gmail)
-2. **Async Loading**: When the package or instruction changes, Droidrun starts loading the app card in the background
-3. **Caching**: All providers use in-memory caching with `(package_name, instruction)` as cache keys
-4. **Prompt Injection**: The app card content is injected into the Manager's system prompt within `<app_card>` tags
-5. **Context-Aware Actions**: The agent uses the app-specific guidance to perform actions more effectively
+1. **Detection:** Agent detects the current foreground app (e.g., Gmail)
+2. **Loading:** Droidrun loads the app card for that package name
+3. **Injection:** App card content is added to the agent's prompt
+4. **Guidance:** Agent uses the instructions to make better decisions
 
-**Loading Strategy:**
-- App cards are loaded asynchronously to avoid blocking agent execution
-- Loading starts when package/instruction changes are detected
-- The Manager waits briefly (0.1s) for the background task to complete
-- If loading isn't ready, the Manager proceeds without the app card
-- Subsequent requests will use the cached result
+**Technical note:** App cards are loaded asynchronously and cached in memory. Loading happens in the background and doesn't block agent execution.
 
-### When App Cards Are Used
+### When Are They Used?
 
-App cards are used by the **Manager Agent** in reasoning mode (`--reasoning` flag or `reasoning=True` in config). The Manager uses app cards to:
+App cards are used by the **Manager Agent** when running in reasoning mode (`--reasoning` flag or `reasoning: true` in config):
 
-- Plan multi-step workflows that align with the app's UI structure
-- Make informed decisions about navigation and action sequences
-- Understand app-specific features and capabilities
-- Avoid common pitfalls and known issues
+```bash
+# App cards enabled (Manager uses them for planning)
+droidrun run "Archive all unread emails" --reasoning
 
-**Note:** App cards are loaded asynchronously when the current app package changes. The card is injected into the Manager's system prompt within `<app_card>` tags.
-
----
-
-## Built-in App Cards
-
-Droidrun ships with app cards for popular apps. Currently included:
-
-| App | Package Name | Features Covered |
-|-----|--------------|------------------|
-| **Gmail** | `com.google.android.gm` | Navigation, search filters, composing emails, organizing messages, folder management |
-
-More app cards are continuously added. Check `droidrun/config/app_cards/` in the package directory for the latest list.
-
----
-
-## App Card Format
-
-App cards are stored as markdown files and mapped to package names via `app_cards.json`.
-
-### Directory Structure
-
-```
-config/app_cards/
-├── app_cards.json       # Package name → file mapping
-├── gmail.md             # Gmail app card
-├── chrome.md            # Chrome app card (example)
-└── social/              # Organize in subdirectories
-    ├── whatsapp.md
-    └── instagram.md
-```
-
-### Mapping File (app_cards.json)
-
-The `app_cards.json` file maps Android package names to markdown files:
-
-```json
-{
-  "com.google.android.gm": "gmail.md",
-  "com.android.chrome": "chrome.md",
-  "com.whatsapp": "social/whatsapp.md",
-  "com.instagram.android": "social/instagram.md"
-}
-```
-
-### Markdown File Structure
-
-App card markdown files should follow this structure:
-
-```markdown
-# App Name Guide
-
-## Navigation
-- How to navigate the app
-- Key screens and menus
-- Drawer/hamburger menu contents
-
-## Search
-- How to use search functionality
-- Special search operators or filters
-- Tips for finding specific content
-
-## Common Actions
-- **Action Name**: Step-by-step guide
-- **Another Action**: How to perform it
-- Use bullet points for clarity
-
-## Composing/Creating Content
-- How to create new items (emails, posts, documents, etc.)
-- Where to find creation buttons
-- Required vs. optional fields
-
-## Tips
-- App-specific tips
-- Known issues or quirks
-- Performance considerations
-- Best practices
-```
-
-### Example: Gmail App Card
-
-Here's the complete Gmail app card (`gmail.md`):
-
-```markdown
-# Gmail App Guide
-
-## Navigation
-- Use the hamburger menu (top-left) to access folders (Inbox, Sent, Drafts, Trash, etc.)
-- Tap the compose button (bottom-right floating action button) to write new emails
-- Swipe left or right on emails to quickly archive or delete
-
-## Search
-- Use the search bar at the top to find emails
-- Search supports filters like:
-  - `from:sender@email.com` - Find emails from specific sender
-  - `to:recipient@email.com` - Find emails to specific recipient
-  - `subject:keyword` - Search in subject line
-  - `has:attachment` - Find emails with attachments
-  - `is:unread` - Find unread emails
-
-## Common Actions
-- **Archive**: Swipe right on an email in the list
-- **Delete**: Swipe left on an email in the list
-- **Select Multiple**: Long press on an email to enter selection mode
-- **Star/Unstar**: Tap the star icon next to an email
-- **Mark as Read/Unread**: Long press → Select → Tap the mark read/unread icon
-- **Move to Folder**: Long press → Select → Tap the folder icon
-
-## Composing Emails
-- Tap the floating compose button (bottom-right)
-- Fill in recipient, subject, and body
-- Attach files by tapping the paperclip icon
-- Send by tapping the send button (paper plane icon) in the top-right
-
-## Tips
-- Primary inbox shows important emails automatically
-- Social and Promotions tabs filter promotional and social emails
-- Enable notifications for important emails only
-- Use labels to organize emails
+# App cards not used (direct execution mode)
+droidrun run "Tap the button"
 ```
 
 ---
 
 ## Creating Custom App Cards
 
+Want to add an app card for your favorite app? Here's how:
+
 ### Step 1: Find the Package Name
 
-To create an app card, you first need the app's package name.
-
-**Using ADB:**
-```sh
-# List all packages
+```bash
+# Get all apps
 adb shell pm list packages
 
-# Search for specific app
+# Or search for a specific app
 adb shell pm list packages | grep keyword
-
-# Get the current foreground app
-adb shell dumpsys window windows | grep -E 'mCurrentFocus'
 ```
 
-**Using Droidrun Debug Mode:**
-```sh
-# Run Droidrun with debug logging
-droidrun run "Open the app" --debug
-
-# The package name will appear in logs when the app is opened
-```
-
-**Common Package Names:**
-- Gmail: `com.google.android.gm`
+**Common package names:**
 - Chrome: `com.android.chrome`
 - WhatsApp: `com.whatsapp`
 - Instagram: `com.instagram.android`
-- Facebook: `com.facebook.katana`
 - YouTube: `com.google.android.youtube`
-- Google Maps: `com.google.android.apps.maps`
 
-### Step 2: Create the Markdown File
+### Step 2: Create the Files
 
-Create a markdown file in your app cards directory:
+Create the app cards directory and files:
 
-```sh
-# In your working directory
+```bash
 mkdir -p config/app_cards
-touch config/app_cards/myapp.md
+touch config/app_cards/app_cards.json
+touch config/app_cards/chrome.md
 ```
 
-Fill the file with app-specific guidance following the structure shown above.
+**Example structure:**
 
-### Step 3: Update app_cards.json
+```markdown
+# Chrome App Guide
 
-Add an entry to `app_cards.json`:
+## Navigation
+- Address bar at the top for entering URLs
+- Three-dot menu (top-right) for settings and history
+- Tabs button (top-right) to switch between tabs
+
+## Search
+- Type queries directly in the address bar
+- Use voice search via the microphone icon
+
+## Common Actions
+- **New Tab**: Tap the tabs button → Plus icon
+- **Close Tab**: Swipe tab away in tab switcher
+- **Refresh**: Pull down from the top of the page
+- **Bookmarks**: Three-dot menu → Bookmarks
+
+## Tips
+- Incognito mode available via three-dot menu
+- Downloads accessible via three-dot menu → Downloads
+```
+
+### Step 3: Register the App Card
+
+Add your app mapping to `config/app_cards/app_cards.json`:
 
 ```json
 {
   "com.google.android.gm": "gmail.md",
-  "com.myapp.package": "myapp.md"
+  "com.android.chrome": "chrome.md"
 }
 ```
 
-### Step 4: Test the App Card
+**Using subdirectories:**
 
-Run Droidrun with the app and verify the app card is loaded:
-
-```sh
-droidrun run "Open myapp and do something" --reasoning --debug
+```json
+{
+  "com.whatsapp": "social/whatsapp.md",
+  "com.instagram.android": "social/instagram.md"
+}
 ```
 
-Look for log messages like:
+### Step 4: Test
+
+```bash
+droidrun run "Open Chrome and search for droidrun" --reasoning --debug
 ```
-Loaded app_cards.json with 2 entries
-Loaded app card for com.myapp.package from config/app_cards/myapp.md
+
+Look for this log message:
+```
+Loaded app card for com.android.chrome from config/app_cards/chrome.md
 ```
 
 ---
 
 ## Configuration
 
-App cards are configured in `config.yaml` under the `agent.app_cards` section:
+App cards are enabled by default and load from `config/app_cards/`:
 
 ```yaml
 agent:
   app_cards:
     enabled: true
-    mode: local  # local, server, or composite
     app_cards_dir: config/app_cards
 ```
 
-Disable with `enabled: false`. For server/composite modes, add `server_url` configuration.
+**To disable:**
+```yaml
+agent:
+  app_cards:
+    enabled: false
+```
 
 ---
 
-## Providers
+## App Card Best Practices
 
-**LocalProvider (default):** Loads from local filesystem. Set `mode: local`.
+### Content Guidelines
 
-**ServerProvider:** Fetches from remote HTTP via `POST {server_url}/app-cards`. Set `mode: server`.
+**Do:**
+- Be concise and actionable
+- Focus on UI patterns and workflows
+- Include search syntax and special features
+- Mention common pitfalls or quirks
+- Use bullet points and clear headings
 
-**CompositeProvider:** Tries server first, falls back to local. Set `mode: composite`.
+**Don't:**
+- Write essays or lengthy explanations
+- Describe every single feature
+- Include information that changes frequently (version-specific details)
+- Duplicate general Android knowledge (agents already know how to tap, swipe, etc.)
+
+### Example: Good vs Bad
+
+**❌ Bad (too verbose):**
+```markdown
+Gmail is an email application developed by Google. It has many features
+including the ability to send and receive emails. To compose an email,
+you need to first understand that Gmail uses a material design interface
+with a floating action button, which is a circular button...
+```
+
+**✅ Good (concise and actionable):**
+```markdown
+## Composing Emails
+- Tap the floating compose button (bottom-right)
+- Fill recipient, subject, and body
+- Send via paper plane icon (top-right)
+```
+
+---
+
+## Troubleshooting
+
+### App Card Not Loading
+
+**Check these:**
+
+1. **Is the package name correct?**
+   ```bash
+   adb shell dumpsys window windows | grep -E 'mCurrentFocus'
+   ```
+
+2. **Is the mapping correct in app_cards.json?**
+   ```json
+   {
+     "com.your.app": "yourapp.md"
+   }
+   ```
+
+3. **Does the markdown file exist?**
+   ```bash
+   ls config/app_cards/yourapp.md
+   ```
+
+4. **Are app cards enabled?**
+   ```yaml
+   agent:
+     app_cards:
+       enabled: true
+   ```
+
+5. **Are you using reasoning mode?**
+   ```bash
+   droidrun run "command" --reasoning
+   ```
+
+### Debug Mode
+
+Run with `--debug` to see app card loading:
+
+```bash
+droidrun run "Open Gmail" --reasoning --debug
+```
+
+Look for these log messages:
+```
+Loaded app_cards.json with 2 entries
+Loaded app card for com.google.android.gm from config/app_cards/gmail.md
+```
 
 ---
 
@@ -270,9 +280,9 @@ Disable with `enabled: false`. For server/composite modes, add `server_url` conf
 
 - [CLI Usage](/guides/cli) - Droidrun CLI command reference
 - [Configuration](/sdk/configuration) - Configuration system details
-- [Agent Architecture](/concepts/agent-architecture) - How agents use app cards
+- [Agent Architecture](/concepts/agent-architecture) - How agents work
 - [Manager Agent](/sdk/droid-agent#manager-agent) - Agent that uses app cards
 
 ---
 
-**Improve your agent's performance with well-crafted app cards!**
+**Help your agents become app experts with well-crafted app cards!**
