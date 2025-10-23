@@ -1,37 +1,47 @@
+import asyncio
+import json
 import logging
 import re
 import time
-import asyncio
-import json
-import os
-from typing import List, Optional, Tuple, Union
-from llama_index.core.base.llms.types import ChatMessage, ChatResponse
-from llama_index.core.prompts import PromptTemplate
+import warnings
+from typing import TYPE_CHECKING, List, Optional, Type, Union
+
+from pydantic import BaseModel
+
+# Suppress all warnings for llama-index import (version compatibility)
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    from llama_index.core.base.llms.types import ChatMessage, ChatResponse
+
 from llama_index.core.llms.llm import LLM
-from llama_index.core.workflow import Workflow, StartEvent, StopEvent, Context, step
 from llama_index.core.memory import Memory
+from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
+
 from droidrun.agent.codeact.events import (
-    TaskInputEvent,
     TaskEndEvent,
     TaskExecutionEvent,
     TaskExecutionResultEvent,
+    TaskInputEvent,
     TaskThinkingEvent,
-    EpisodicMemoryEvent,
 )
 from droidrun.agent.common.constants import LLM_HISTORY_LIMIT
 from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
 from droidrun.agent.usage import get_usage_from_response
 from droidrun.agent.utils import chat_utils
-from droidrun.agent.utils.executer import SimpleCodeExecutor
-from droidrun.agent.codeact.prompts import (
-    DEFAULT_CODE_ACT_USER_PROMPT,
-    DEFAULT_NO_THOUGHTS_PROMPT,
+from droidrun.agent.utils.device_state_formatter import format_device_state
+from droidrun.agent.utils.executer import ExecuterState, SimpleCodeExecutor
+from droidrun.agent.utils.prompt_resolver import PromptResolver
+from droidrun.agent.utils.tools import (
+    ATOMIC_ACTION_SIGNATURES,
+    build_custom_tool_descriptions,
+    get_atomic_tool_descriptions,
 )
-
-from droidrun.agent.context.episodic_memory import EpisodicMemory, EpisodicMemoryStep
+from droidrun.config_manager.config_manager import AgentConfig
+from droidrun.config_manager.prompt_loader import PromptLoader
 from droidrun.tools import Tools
-from typing import Optional, Dict, Tuple, List, Any, Callable
-from droidrun.agent.context.agent_persona import AgentPersona
+
+if TYPE_CHECKING:
+    from droidrun.agent.droid import DroidAgentState
 
 logger = logging.getLogger("droidrun")
 
@@ -46,61 +56,134 @@ class CodeActAgent(Workflow):
     def __init__(
         self,
         llm: LLM,
-        persona: AgentPersona,
-        vision: bool,
+        agent_config: AgentConfig,
         tools_instance: "Tools",
-        all_tools_list: Dict[str, Callable[..., Any]],
-        max_steps: int = 5,
+        custom_tools: dict = None,
+        atomic_tools: dict = None,
         debug: bool = False,
+        shared_state: Optional["DroidAgentState"] = None,
+        safe_execution_config=None,
+        output_model: Type[BaseModel] | None = None,
+        prompt_resolver: Optional[PromptResolver] = None,
         *args,
         **kwargs,
     ):
-        # assert instead of if
         assert llm, "llm must be provided."
         super().__init__(*args, **kwargs)
 
         self.llm = llm
-        self.max_steps = max_steps
-
-        self.user_prompt = persona.user_prompt
-        self.no_thoughts_prompt = None
-
-        self.vision = vision
+        self.agent_config = agent_config
+        self.config = agent_config.codeact  # Shortcut to codeact config
+        self.max_steps = agent_config.max_steps
+        self.vision = agent_config.codeact.vision
+        self.debug = debug
+        self.tools = tools_instance
+        self.shared_state = shared_state
+        self.output_model = output_model
+        self.prompt_resolver = prompt_resolver or PromptResolver()
 
         self.chat_memory = None
-        self.episodic_memory = EpisodicMemory(persona=persona)
         self.remembered_info = None
 
         self.goal = None
-        self.steps_counter = 0
         self.code_exec_counter = 0
-        self.debug = debug
 
-        self.tools = tools_instance
+        if atomic_tools is None:
+            atomic_tools = ATOMIC_ACTION_SIGNATURES
+
+        merged_signatures = {**atomic_tools, **(custom_tools or {})}
 
         self.tool_list = {}
+        for action_name, signature in merged_signatures.items():
+            func = signature["function"]
 
-        for tool_name in persona.allowed_tools:
-            if tool_name in all_tools_list:
-                self.tool_list[tool_name] = all_tools_list[tool_name]
+            # Pass tools and shared_state as keyword arguments for flexible signatures
+            self.tool_list[action_name] = (
+                lambda *args, f=func, ti=tools_instance, ss=shared_state, **kwargs: f(
+                    *args, tools=ti, shared_state=ss, **kwargs
+                )
+            )
 
-        self.tool_descriptions = chat_utils.parse_tool_descriptions(self.tool_list)
+        self.tool_list["remember"] = tools_instance.remember
+        self.tool_list["complete"] = tools_instance.complete
 
-        self.system_prompt_content = persona.system_prompt.format(
-            tool_descriptions=self.tool_descriptions
+        # Build tool descriptions
+        self.tool_descriptions = get_atomic_tool_descriptions()
+        custom_descriptions = build_custom_tool_descriptions(custom_tools or {})
+        if custom_descriptions:
+            self.tool_descriptions += "\n" + custom_descriptions
+        self.tool_descriptions += (
+            "\n- remember(information: str): Remember information for later use"
         )
-        self.system_prompt = ChatMessage(
-            role="system", content=self.system_prompt_content
+        self.tool_descriptions += (
+            "\n- complete(success: bool, reason: str): Mark task as complete"
         )
 
-        self.required_context = persona.required_context
+        # Get available secrets from credential manager
+        available_secrets = []
+        if (
+            hasattr(tools_instance, "credential_manager")
+            and tools_instance.credential_manager
+        ):
+            available_secrets = (
+                tools_instance.credential_manager.list_available_secrets()
+            )
+
+        # Prepare output structure schema if provided
+        output_schema = None
+        if self.output_model is not None:
+            output_schema = self.output_model.model_json_schema()
+
+        # Load prompts from custom or config
+        custom_system_prompt = self.prompt_resolver.get_prompt("codeact_system")
+        if custom_system_prompt:
+            system_prompt_text = PromptLoader.render_template(
+                custom_system_prompt,
+                {
+                    "tool_descriptions": self.tool_descriptions,
+                    "available_secrets": available_secrets,
+                    "variables": shared_state.custom_variables if shared_state else {},
+                    "output_schema": output_schema,
+                },
+            )
+        else:
+            system_prompt_text = PromptLoader.load_prompt(
+                agent_config.get_codeact_system_prompt_path(),
+                {
+                    "tool_descriptions": self.tool_descriptions,
+                    "available_secrets": available_secrets,
+                    "variables": shared_state.custom_variables if shared_state else {},
+                    "output_schema": output_schema,
+                },
+            )
+        self.system_prompt = ChatMessage(role="system", content=system_prompt_text)
+
+        # Get safety settings
+        safe_mode = self.config.safe_execution
+        safe_config = safe_execution_config
 
         self.executor = SimpleCodeExecutor(
             loop=asyncio.get_event_loop(),
             locals={},
             tools=self.tool_list,
-            tools_instance=tools_instance,
             globals={"__builtins__": __builtins__},
+            safe_mode=safe_mode,
+            allowed_modules=(
+                safe_config.get_allowed_modules() if safe_config and safe_mode else None
+            ),
+            blocked_modules=(
+                safe_config.get_blocked_modules() if safe_config and safe_mode else None
+            ),
+            allowed_builtins=(
+                safe_config.get_allowed_builtins()
+                if safe_config and safe_mode
+                else None
+            ),
+            blocked_builtins=(
+                safe_config.get_blocked_builtins()
+                if safe_config and safe_mode
+                else None
+            ),
         )
 
         logger.info("✅ CodeActAgent initialized successfully.")
@@ -108,8 +191,10 @@ class CodeActAgent(Workflow):
     @step
     async def prepare_chat(self, ctx: Context, ev: StartEvent) -> TaskInputEvent:
         """Prepare chat history from user input."""
-        logger.info("💬 Preparing chat for task execution...")
+        # macro tools context
+        self.tools._set_context(ctx)
 
+        logger.info("💬 Preparing chat for task execution...")
 
         self.chat_memory: Memory = await ctx.store.get(
             "chat_memory", default=Memory.from_defaults()
@@ -123,17 +208,38 @@ class CodeActAgent(Workflow):
 
         logger.debug("  - Adding goal to memory.")
         goal = user_input
-        self.user_message = ChatMessage(
-            role="user",
-            content=PromptTemplate(
-                self.user_prompt or DEFAULT_CODE_ACT_USER_PROMPT
-            ).format(goal=goal),
-        )
-        self.no_thoughts_prompt = ChatMessage(
-            role="user",
-            content=PromptTemplate(DEFAULT_NO_THOUGHTS_PROMPT).format(goal=goal),
-        )
 
+        # Format user prompt with goal
+        custom_user_prompt = self.prompt_resolver.get_prompt("codeact_user")
+        if custom_user_prompt:
+            user_prompt_text = PromptLoader.render_template(
+                custom_user_prompt,
+                {
+                    "goal": goal,
+                    "variables": (
+                        self.shared_state.custom_variables if self.shared_state else {}
+                    ),
+                },
+            )
+        else:
+            user_prompt_text = PromptLoader.load_prompt(
+                self.agent_config.get_codeact_user_prompt_path(),
+                {
+                    "goal": goal,
+                    "variables": (
+                        self.shared_state.custom_variables if self.shared_state else {}
+                    ),
+                },
+            )
+        self.user_message = ChatMessage(role="user", content=user_prompt_text)
+
+        # No thoughts prompt
+        no_thoughts_text = f"""Your previous response provided code without explaining your reasoning first. Remember to always describe your thought process and plan *before* providing the code block.
+
+The code you provided will be executed below.
+
+Now, describe the next step you will take to address the original goal: {goal}"""
+        self.no_thoughts_prompt = ChatMessage(role="user", content=no_thoughts_text)
 
         await self.chat_memory.aput(self.user_message)
 
@@ -150,7 +256,7 @@ class CodeActAgent(Workflow):
         assert len(chat_history) > 0, "Chat history cannot be empty."
         ctx.write_event_to_stream(ev)
 
-        if self.steps_counter >= self.max_steps:
+        if self.shared_state.step_number + 1 > self.max_steps:
             ev = TaskEndEvent(
                 success=False,
                 reason=f"Reached max step count of {self.max_steps} steps",
@@ -158,47 +264,63 @@ class CodeActAgent(Workflow):
             ctx.write_event_to_stream(ev)
             return ev
 
-        self.steps_counter += 1
-        logger.info(f"🧠 Step {self.steps_counter}: Thinking...")
+        logger.info(f"🧠 Step {self.shared_state.step_number + 1}: Thinking...")
 
         model = self.llm.class_name()
-        
+
         if "remember" in self.tool_list and self.remembered_info:
             await ctx.store.set("remembered_info", self.remembered_info)
-            chat_history = await chat_utils.add_memory_block(self.remembered_info, chat_history)
+            chat_history = await chat_utils.add_memory_block(
+                self.remembered_info, chat_history
+            )
 
-        for context in self.required_context:
-            if context == "screenshot":
-                # if vision is disabled, screenshot should save to trajectory
-                screenshot = (self.tools.take_screenshot())[1]
-                ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
+        # Always capture screenshot for trajectory
+        screenshot = (self.tools.take_screenshot())[1]
+        ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
+        await ctx.store.set("screenshot", screenshot)
 
-                await ctx.store.set("screenshot", screenshot)
-                if model == "DeepSeek":
-                    logger.warning(
-                        "[yellow]DeepSeek doesnt support images. Disabling screenshots[/]"
-                    )
-                elif self.vision == True: # if vision is enabled, add screenshot to chat history
-                    chat_history = await chat_utils.add_screenshot_image_block(screenshot, chat_history)
+        # Add screenshot to chat only if vision enabled
+        if self.vision and model != "DeepSeek":
+            chat_history = await chat_utils.add_screenshot_image_block(
+                screenshot, chat_history
+            )
 
-            if context == "ui_state":
-                try:
-                    state = self.tools.get_state()
-                    await ctx.store.set("ui_state", state["a11y_tree"])
-                    ctx.write_event_to_stream(RecordUIStateEvent(ui_state=state["a11y_tree"]))
-                    chat_history = await chat_utils.add_ui_text_block(
-                        state["a11y_tree"], chat_history
-                    )
-                    chat_history = await chat_utils.add_phone_state_block(state["phone_state"], chat_history)
-                except Exception as e:
-                    logger.warning(f"⚠️ Error retrieving state from the connected device. Is the Accessibility Service enabled?")
+        # Get and format device state using unified formatter
+        try:
+            # Get raw state from device
+            raw_state = self.tools.get_state()
 
+            # Format using unified function (returns 4 values)
+            formatted_text, focused_text, a11y_tree, phone_state = format_device_state(
+                raw_state
+            )
 
-            if context == "packages":
-                chat_history = await chat_utils.add_packages_block(
-                    self.tools.list_packages(include_system_apps=True),
-                    chat_history,
-                )
+            # Update shared_state if available
+            assert self.shared_state is not None, "Shared state is not set"
+            self.shared_state.formatted_device_state = formatted_text
+            self.shared_state.focused_text = focused_text
+            self.shared_state.a11y_tree = a11y_tree
+            self.shared_state.phone_state = phone_state
+
+            # Extract and store package/app name (using unified update method)
+            self.shared_state.update_current_app(
+                package_name=phone_state.get("packageName", "Unknown"),
+                activity_name=phone_state.get("currentApp", "Unknown"),
+            )
+
+            # Stream formatted state for trajectory
+            ctx.write_event_to_stream(RecordUIStateEvent(ui_state=a11y_tree))
+
+            # Add device state to chat using new chat_utils function
+            # This injects into LAST user message, doesn't create new message
+            chat_history = await chat_utils.add_device_state_block(
+                formatted_text, chat_history
+            )
+
+        except Exception as e:
+            logger.warning(f"⚠️ Error retrieving state from the connected device: {e}")
+            if self.debug:
+                logger.error("State retrieval error details:", exc_info=True)
 
         response = await self._get_llm_response(ctx, chat_history)
         if response is None:
@@ -213,6 +335,7 @@ class CodeActAgent(Workflow):
             usage = None
 
         await self.chat_memory.aput(response.message)
+        self.shared_state.step_number += 1
 
         code, thoughts = chat_utils.extract_code_and_thought(response.message.content)
 
@@ -254,32 +377,44 @@ class CodeActAgent(Workflow):
         """Execute the code and return the result."""
         code = ev.code
         assert code, "Code cannot be empty."
-        logger.info(f"⚡ Executing action...")
+        logger.info("⚡ Executing action...")
         logger.info(f"Code to execute:\n```python\n{code}\n```")
 
         try:
             self.code_exec_counter += 1
-            result = await self.executor.execute(ctx, code)
-            logger.info(f"💡 Code execution successful. Result: {result['output']}")
-            screenshots = result['screenshots']
-            for screenshot in screenshots[:-1]: # the last screenshot will be captured by next step
-                ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
+            result = await self.executor.execute(
+                ExecuterState(ui_state=await ctx.store.get("ui_state", None)), code
+            )
+            logger.info(f"💡 Code execution successful. Result: {result}")
+            await asyncio.sleep(self.agent_config.after_sleep_action)
 
-            ui_states = result['ui_states']
-            for ui_state in ui_states[:-1]:
-                ctx.write_event_to_stream(RecordUIStateEvent(ui_state=ui_state['a11y_tree']))
+            # Check if complete() was called
+            if self.tools.finished:
+                logger.info("✅ Task marked as complete via complete() function")
 
-            if self.tools.finished == True:
-                logger.debug("  - Task completed.")
-                event = TaskEndEvent(
-                    success=self.tools.success, reason=self.tools.reason
+                # Validate completion state
+                success = (
+                    self.tools.success if self.tools.success is not None else False
                 )
+                reason = (
+                    self.tools.reason
+                    if self.tools.reason
+                    else "Task completed without reason"
+                )
+
+                # Reset finished flag for next execution
+                self.tools.finished = False
+
+                logger.info(f"  - Success: {success}")
+                logger.info(f"  - Reason: {reason}")
+
+                event = TaskEndEvent(success=success, reason=reason)
                 ctx.write_event_to_stream(event)
                 return event
-            
+
             self.remembered_info = self.tools.memory
-            
-            event = TaskExecutionResultEvent(output=str(result['output']))
+
+            event = TaskExecutionResultEvent(output=str(result))
             ctx.write_event_to_stream(event)
             return event
 
@@ -323,24 +458,14 @@ class CodeActAgent(Workflow):
         """Finalize the workflow."""
         self.tools.finished = False
         await ctx.store.set("chat_memory", self.chat_memory)
-        
-        # Add final state observation to episodic memory
-        if self.vision:
-            await self._add_final_state_observation(ctx)
-        
+
         result = {}
         result.update(
             {
                 "success": ev.success,
                 "reason": ev.reason,
-                "output": ev.reason,
-                "codeact_steps": self.steps_counter,
                 "code_executions": self.code_exec_counter,
             }
-        )
-
-        ctx.write_event_to_stream(
-            EpisodicMemoryEvent(episodic_memory=self.episodic_memory)
         )
 
         return StopEvent(result)
@@ -367,27 +492,6 @@ class CodeActAgent(Workflow):
                     ]
                 filtered_chat_history.append(filtered_msg)
 
-            # Convert chat history and response to JSON strings
-            chat_history_str = json.dumps(
-                [
-                    {"role": msg.role, "content": msg.content}
-                    for msg in filtered_chat_history
-                ]
-            )
-            response_str = json.dumps(
-                {"role": response.message.role, "content": response.message.content}
-            )
-
-            step = EpisodicMemoryStep(
-                chat_history=chat_history_str,
-                response=response_str,
-                timestamp=time.time(),
-                screenshot=(await ctx.store.get("screenshot", None))
-            )
-
-
-            self.episodic_memory.steps.append(step)
-
             assert hasattr(
                 response, "message"
             ), f"LLM response does not have a message attribute.\nResponse: {response}"
@@ -403,20 +507,21 @@ class CodeActAgent(Workflow):
                     logger.error(f"Rate limit error. Retrying in {seconds} seconds...")
                     time.sleep(seconds)
                 else:
-                    logger.error(f"Rate limit error. Retrying in 5 seconds...")
+                    logger.error("Rate limit error. Retrying in 5 seconds...")
                     time.sleep(40)
                 logger.debug("🔍 Retrying call to LLM...")
                 response = await self.llm.achat(messages=messages_to_send)
-            elif (
-                self.llm.class_name() == "Anthropic_LLM"
-                and "overloaded_error" in str(e)
+            elif self.llm.class_name() == "Anthropic_LLM" and "overloaded_error" in str(
+                e
             ):
                 # Use exponential backoff for Anthropic errors
-                if not hasattr(self, '_anthropic_retry_count'):
+                if not hasattr(self, "_anthropic_retry_count"):
                     self._anthropic_retry_count = 0
                 self._anthropic_retry_count += 1
-                seconds = min(2 ** self._anthropic_retry_count, 60)  # Cap at 60 seconds
-                logger.error(f"Anthropic overload error. Retrying in {seconds} seconds... (attempt {self._anthropic_retry_count})")
+                seconds = min(2**self._anthropic_retry_count, 60)  # Cap at 60 seconds
+                logger.error(
+                    f"Anthropic overload error. Retrying in {seconds} seconds... (attempt {self._anthropic_retry_count})"
+                )
                 time.sleep(seconds)
                 logger.debug("🔍 Retrying call to LLM...")
                 response = await self.llm.achat(messages=messages_to_send)
@@ -427,9 +532,7 @@ class CodeActAgent(Workflow):
         logger.debug("  - Received response from LLM.")
         return response
 
-    def _limit_history(
-        self, chat_history: List[ChatMessage]
-    ) -> List[ChatMessage]:
+    def _limit_history(self, chat_history: List[ChatMessage]) -> List[ChatMessage]:
         if LLM_HISTORY_LIMIT <= 0:
             return chat_history
 
@@ -446,42 +549,3 @@ class CodeActAgent(Workflow):
             preserved_head = []
 
         return preserved_head + tail
-
-    async def _add_final_state_observation(self, ctx: Context) -> None:
-        """Add the current UI state and screenshot as the final observation step."""
-        try:
-            # Get current screenshot and UI state
-            screenshot = None
-            ui_state = None
-            
-            try:
-                _, screenshot_bytes = self.tools.take_screenshot()
-                screenshot = screenshot_bytes
-            except Exception as e:
-                logger.warning(f"Failed to capture final screenshot: {e}")
-            
-            try:
-                (a11y_tree, phone_state) = self.tools.get_state()
-            except Exception as e:
-                logger.warning(f"Failed to capture final UI state: {e}")
-            
-            # Create final observation chat history and response
-            final_chat_history = [{"role": "system", "content": "Final state observation after task completion"}]
-            final_response = {
-                "role": "user", 
-                "content": f"Final State Observation:\nUI State: {a11y_tree}\nScreenshot: {'Available' if screenshot else 'Not available'}"
-            }
-            
-            # Create final episodic memory step
-            final_step = EpisodicMemoryStep(
-                chat_history=json.dumps(final_chat_history),
-                response=json.dumps(final_response),
-                timestamp=time.time(),
-                screenshot=screenshot
-            )
-            
-            self.episodic_memory.steps.append(final_step)
-            logger.info("Added final state observation to episodic memory")
-            
-        except Exception as e:
-            logger.error(f"Failed to add final state observation: {e}")

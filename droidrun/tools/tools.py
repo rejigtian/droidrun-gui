@@ -1,9 +1,8 @@
-from abc import ABC, abstractmethod
-from typing import List, Optional, Dict, Any
 import logging
-from typing import Tuple, Dict, Callable, Any, Optional
-from functools import wraps
 import sys
+from abc import ABC, abstractmethod
+from functools import wraps
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 # Get a logger for this module
 logger = logging.getLogger(__name__)
@@ -17,27 +16,32 @@ class Tools(ABC):
 
     @staticmethod
     def ui_action(func):
-        """"
+        """
         Decorator to capture screenshots and UI states for actions that modify the UI.
         """
+
         @wraps(func)
         def wrapper(*args, **kwargs):
             self = args[0]
             result = func(*args, **kwargs)
-            
+
             # Check if save_trajectories attribute exists and is set to "action"
-            if hasattr(self, 'save_trajectories') and self.save_trajectories == "action":
+            if (
+                hasattr(self, "save_trajectories")
+                and self.save_trajectories == "action"
+            ):
                 frame = sys._getframe(1)
                 caller_globals = frame.f_globals
-                
-                step_screenshots = caller_globals.get('step_screenshots')
-                step_ui_states = caller_globals.get('step_ui_states')
-                
+
+                step_screenshots = caller_globals.get("step_screenshots")
+                step_ui_states = caller_globals.get("step_ui_states")
+
                 if step_screenshots is not None:
                     step_screenshots.append(self.take_screenshot()[1])
                 if step_ui_states is not None:
                     step_ui_states.append(self.get_state())
             return result
+
         return wrapper
 
     @abstractmethod
@@ -48,14 +52,21 @@ class Tools(ABC):
         pass
 
     @abstractmethod
+    def get_date(self) -> str:
+        """
+        Get the current date on device.
+        """
+        pass
+
+    @abstractmethod
     def tap_by_index(self, index: int) -> str:
         """
         Tap the element at the given index.
         """
         pass
 
-    #@abstractmethod
-    #async def tap_by_coordinates(self, x: int, y: int) -> bool:
+    # @abstractmethod
+    # async def tap_by_coordinates(self, x: int, y: int) -> bool:
     #    pass
 
     @abstractmethod
@@ -69,7 +80,12 @@ class Tools(ABC):
 
     @abstractmethod
     def drag(
-        self, start_x: int, start_y: int, end_x: int, end_y: int, duration_ms: int = 3000
+        self,
+        start_x: int,
+        start_y: int,
+        end_x: int,
+        end_y: int,
+        duration_ms: int = 3000,
     ) -> bool:
         """
         Drag from the given start coordinates to the given end coordinates.
@@ -77,7 +93,7 @@ class Tools(ABC):
         pass
 
     @abstractmethod
-    def input_text(self, text: str) -> str:
+    def input_text(self, text: str, index: int = -1, clear: bool = False) -> str:
         """
         Input the given text into a focused input field.
         """
@@ -119,6 +135,13 @@ class Tools(ABC):
         pass
 
     @abstractmethod
+    def get_apps(self, include_system_apps: bool = True) -> List[Dict[str, Any]]:
+        """
+        List all apps on the device.
+        """
+        pass
+
+    @abstractmethod
     def remember(self, information: str) -> str:
         """
         Remember the given information. This is used to store information in the tool's memory.
@@ -139,8 +162,17 @@ class Tools(ABC):
         """
         pass
 
+    @abstractmethod
+    def _extract_element_coordinates_by_index(self, index: int) -> Tuple[int, int]:
+        """
+        Extract the coordinates of the element with the given index.
+        """
+        pass
 
-def describe_tools(tools: Tools, exclude_tools: Optional[List[str]] = None) -> Dict[str, Callable[..., Any]]:
+
+def describe_tools(
+    tools: Tools, exclude_tools: Optional[List[str]] = None
+) -> Dict[str, Callable[..., Any]]:
     """
     Describe the tools available for the given Tools instance.
 

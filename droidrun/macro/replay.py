@@ -5,14 +5,13 @@ This module provides functionality to load and replay macro JSON files
 that were generated during DroidAgent trajectory recording.
 """
 
-import json
 import asyncio
 import logging
 import time
-import os
-from typing import Dict, List, Any, Optional
-from droidrun.tools.adb import AdbTools
+from typing import Any, Dict, Optional
+
 from droidrun.agent.utils.trajectory import Trajectory
+from droidrun.tools.adb import AdbTools
 
 logger = logging.getLogger("droidrun-macro")
 
@@ -82,7 +81,6 @@ class MacroPlayer:
         action_type = action.get("action_type", action.get("type", "unknown"))
 
         try:
-
             if action_type == "start_app":
                 package = action.get("package")
                 activity = action.get("activity", None)
@@ -111,6 +109,8 @@ class MacroPlayer:
                 )
                 result = tools.swipe(start_x, start_y, end_x, end_y, duration_ms)
                 logger.debug(f"   Result: {result}")
+                # Additional wait after swipe for UI to settle
+                time.sleep(2)
                 return True
 
             elif action_type == "drag":
@@ -123,7 +123,9 @@ class MacroPlayer:
                 logger.info(
                     f"👆 Dragging from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration_ms} milliseconds"
                 )
-                result = tools.drag(start_x, start_y, end_x, end_y, duration_ms)
+                result = tools.drag(
+                    start_x, start_y, end_x, end_y, duration_ms / 1000.0
+                )
                 logger.debug(f"   Result: {result}")
                 return True
 
@@ -145,9 +147,16 @@ class MacroPlayer:
                 return True
 
             elif action_type == "back":
-                logger.info(f"⬅️  Pressing back button")
+                logger.info("⬅️  Pressing back button")
                 result = tools.back()
                 logger.debug(f"   Result: {result}")
+                return True
+
+            elif action_type == "wait":
+                duration = action.get("duration", 1.0)
+                logger.info(f"⏳ Waiting for {duration} seconds")
+                time.sleep(duration)
+                logger.debug(f"   Waited for {duration} seconds")
                 return True
 
             else:
@@ -211,10 +220,10 @@ class MacroPlayer:
 
             if success:
                 success_count += 1
-                logger.info(f"   ✅ Action completed successfully")
+                logger.info("   ✅ Action completed successfully")
             else:
                 failed_count += 1
-                logger.error(f"   ❌ Action failed")
+                logger.error("   ❌ Action failed")
 
             # Wait between actions (except for the last one)
             if i < len(actions):
@@ -227,7 +236,7 @@ class MacroPlayer:
             (success_count / total_executed * 100) if total_executed > 0 else 0
         )
 
-        logger.info(f"\n🎉 Macro replay completed!")
+        logger.info("\n🎉 Macro replay completed!")
         logger.info(
             f"📊 Success: {success_count}/{total_executed} ({success_rate:.1f}%)"
         )

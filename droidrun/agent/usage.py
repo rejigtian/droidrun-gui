@@ -1,12 +1,12 @@
 import contextlib
-from llama_index.core.callbacks import CallbackManager
+import logging
+from typing import Any, Dict, List, Optional
+from uuid import uuid4
+
 from llama_index.core.callbacks.base_handler import BaseCallbackHandler
 from llama_index.core.callbacks.schema import CBEventType, EventPayload
 from llama_index.core.llms import LLM, ChatResponse
 from pydantic import BaseModel
-from typing import Any, Dict, List, Optional
-from uuid import uuid4
-import logging
 
 logger = logging.getLogger("droidrun")
 SUPPORTED_PROVIDERS = [
@@ -26,6 +26,7 @@ class UsageResult(BaseModel):
     response_tokens: int
     total_tokens: int
     requests: int
+
 
 def get_usage_from_response(provider: str, chat_rsp: ChatResponse) -> UsageResult:
     rsp = chat_rsp.raw
@@ -85,6 +86,7 @@ def get_usage_from_response(provider: str, chat_rsp: ChatResponse) -> UsageResul
 
     raise ValueError(f"Unsupported provider: {provider}")
 
+
 class TokenCountingHandler(BaseCallbackHandler):
     """Token counting handler for LLamaIndex LLM calls."""
 
@@ -111,7 +113,7 @@ class TokenCountingHandler(BaseCallbackHandler):
         )
 
     def _get_event_usage(self, payload: Dict[str, Any]) -> UsageResult:
-        if not EventPayload.RESPONSE in payload:
+        if EventPayload.RESPONSE not in payload:
             raise ValueError("No response in payload")
 
         chat_rsp: ChatResponse = payload.get(EventPayload.RESPONSE)
@@ -162,6 +164,7 @@ class TokenCountingHandler(BaseCallbackHandler):
         """Run when an overall trace is exited."""
         pass
 
+
 @contextlib.contextmanager
 def llm_callback(llm: LLM, *args: List[BaseCallbackHandler]):
     for arg in args:
@@ -169,6 +172,7 @@ def llm_callback(llm: LLM, *args: List[BaseCallbackHandler]):
     yield
     for arg in args:
         llm.callback_manager.remove_handler(arg)
+
 
 def create_tracker(llm: LLM) -> TokenCountingHandler:
     provider = llm.__class__.__name__
@@ -180,26 +184,26 @@ def create_tracker(llm: LLM) -> TokenCountingHandler:
 
 def track_usage(llm: LLM) -> TokenCountingHandler:
     """Track token usage for an LLM instance across all requests.
-    
+
     This function:
     - Creates a new TokenCountingHandler for the LLM provider
     - Registers that handler as an LLM callback to monitor all requests
     - Returns the handler for accessing cumulative usage statistics
-    
+
     The handler counts tokens for total LLM usage across all requests. For fine-grained
     per-request counting, use either:
     - `create_tracker()` with `llm_callback()` context manager for temporary tracking
     - `get_usage_from_response()` to extract usage from individual responses
-    
+
     Args:
         llm: The LLamaIndex LLM instance to track usage for
-        
+
     Returns:
         TokenCountingHandler: The registered handler that accumulates usage statistics
-        
+
     Raises:
         ValueError: If the LLM provider is not supported for tracking
-        
+
     Example:
         >>> llm = OpenAI()
         >>> tracker = track_usage(llm)

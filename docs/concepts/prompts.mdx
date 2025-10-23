@@ -1,0 +1,325 @@
+---
+title: 'Prompt Templates'
+description: 'Customizing agent behavior with Jinja2 prompt templates.'
+---
+
+## Overview
+
+Droidrun uses **Jinja2 templates** for agent prompts. You can customize agent behavior by passing custom template strings to `DroidAgent`:
+
+```python
+custom_prompts = {
+    "manager_system": "Your Jinja2 template here...",
+    "executor_system": "Another template...",
+    "codeact_system": "...",
+    "codeact_user": "...",
+    "scripter_system": "..."
+}
+
+agent = DroidAgent(
+    goal="Send an email",
+    config=config,
+    prompts=custom_prompts  # Pass template strings, not file paths
+)
+```
+
+**Important**: The `prompts` parameter accepts Jinja2 **template strings**, not file paths.
+
+## How It Works
+
+1. `DroidAgent` creates a `PromptResolver` with your custom prompts
+2. Each agent checks if you provided a custom template for its key (e.g., "manager_system")
+3. If found: uses your custom template
+4. If not found: loads the default template from Droidrun's built-in files
+5. Templates are rendered with context variables specific to each agent
+
+## Available Prompt Keys
+
+| Key | Agent | When Used |
+|-----|-------|-----------|
+| `manager_system` | Manager | Planning and reasoning (only in reasoning mode) |
+| `executor_system` | Executor | Action selection (only in reasoning mode) |
+| `codeact_system` | CodeAct | Direct execution (always used) |
+| `codeact_user` | CodeAct | Task input formatting (always used) |
+| `scripter_system` | Scripter | Off-device Python execution (when enabled) |
+
+## Context Variables
+
+Each agent has access to different variables in its templates:
+
+### Manager
+
+- `instruction` - User's goal
+- `device_date` - Current device date/time
+- `app_card` - App-specific guidance (empty if none available)
+- `error_history` - List of recent failed actions with details
+- `custom_tools_descriptions` - Custom tool documentation
+- `scripter_execution_enabled` - Whether Scripter is available
+- `available_secrets` - Available credential IDs
+- `variables` - Custom variables passed to DroidAgent
+- `output_schema` - Pydantic model schema (if provided)
+
+### Executor
+
+- `instruction` - User's goal
+- `device_state` - Current UI tree
+- `subgoal` - Current subgoal from Manager
+- `atomic_actions` - Available actions (includes custom tools)
+- `action_history` - Recent actions with outcomes
+
+### CodeAct
+
+**System prompt:**
+- `tool_descriptions` - Available tool signatures
+- `available_secrets` - Credential IDs
+- `variables` - Custom variables
+- `output_schema` - Output model schema (if provided)
+
+**User prompt:**
+- `goal` - Task description
+- `variables` - Custom variables
+
+### Scripter
+
+- `task` - Task description from Manager
+- `available_secrets` - Credential IDs
+- `variables` - Custom variables
+
+## Example: Custom Manager Prompt
+
+```python
+custom_prompts = {
+    "manager_system": """
+You are a mobile automation planning agent.
+
+Task: {{ instruction }}
+Date: {{ device_date }}
+
+{% if app_card %}
+App guidance:
+{{ app_card }}
+{% endif %}
+
+{% if error_history %}
+Recent errors (you may be stuck):
+{% for error in error_history %}
+- Action: {{ error.action }}
+  Error: {{ error.error }}
+{% endfor %}
+{% endif %}
+
+{% if custom_tools_descriptions %}
+Custom tools:
+{{ custom_tools_descriptions }}
+{% endif %}
+
+{% if variables.domain %}
+Domain: {{ variables.domain }}
+{% endif %}
+
+Output format:
+<thought>Your reasoning</thought>
+<plan>
+1. First step
+2. Second step
+3. DONE
+</plan>
+
+Or if complete:
+<request_accomplished>
+Task is done. Answer: ...
+</request_accomplished>
+"""
+}
+
+agent = DroidAgent(
+    goal="Send an email",
+    config=config,
+    prompts=custom_prompts,
+    variables={"domain": "finance"}
+)
+```
+
+## Example: Using Custom Variables
+
+Custom variables let you inject dynamic context into prompts:
+
+```python
+custom_prompts = {
+    "manager_system": """
+Task: {{ instruction }}
+
+{% if variables.budget %}
+Budget limit: ${{ variables.budget }}
+{% endif %}
+
+{% if variables.priority %}
+Priority: {{ variables.priority }}
+{% endif %}
+
+Guidelines:
+{% for rule in variables.rules %}
+- {{ rule }}
+{% endfor %}
+"""
+}
+
+agent = DroidAgent(
+    goal="Buy a phone",
+    config=config,
+    prompts=custom_prompts,
+    variables={
+        "budget": 1000,
+        "priority": "high",
+        "rules": ["Check reviews", "Compare prices", "Use coupons"]
+    }
+)
+```
+
+## Jinja2 Syntax Reference
+
+### Variables
+
+```jinja2
+{{ instruction }}
+{{ variables.my_var }}
+```
+
+### Conditionals
+
+```jinja2
+{% if app_card %}
+<app_card>{{ app_card }}</app_card>
+{% endif %}
+
+{% if error_history %}
+You have {{ error_history | length }} errors
+{% endif %}
+```
+
+### Loops
+
+```jinja2
+{% for error in error_history %}
+- {{ error.action }}: {{ error.error }}
+{% endfor %}
+```
+
+### Filters
+
+```jinja2
+{{ instruction | upper }}
+{{ available_secrets | join(', ') }}
+{{ error_history | length }}
+```
+
+## Best Practices
+
+### 1. Use Clear Structure
+
+```jinja2
+<instruction>
+{{ instruction }}
+</instruction>
+
+<guidelines>
+1. Rule one
+2. Rule two
+</guidelines>
+
+<output_format>
+Expected format
+</output_format>
+```
+
+### 2. Handle Missing Data with Conditionals
+
+```jinja2
+{% if app_card %}
+<app_card>{{ app_card }}</app_card>
+{% else %}
+<note>No app-specific guidance available</note>
+{% endif %}
+```
+
+### 3. Document Expected Variables
+
+```jinja2
+{# Expected variables:
+   - instruction: str - User's goal
+   - device_date: str - Current date/time
+   - app_card: str - App guidance (may be empty)
+#}
+```
+
+### 4. Use Variables for Dynamic Behavior
+
+```jinja2
+{% if variables.strict_mode %}
+<strict>
+Follow instructions exactly. Do not make assumptions.
+</strict>
+{% endif %}
+```
+
+## Complete Example
+
+```python
+from droidrun import DroidAgent
+from droidrun.config_manager import DroidrunConfig
+
+# E-commerce automation with custom prompts
+ecommerce_prompts = {
+    "manager_system": """
+You are an e-commerce automation specialist.
+
+Task: {{ instruction }}
+Budget: ${{ variables.budget }}
+
+{% if app_card %}
+App info:
+{{ app_card }}
+{% endif %}
+
+{% if error_history %}
+Errors encountered:
+{% for error in error_history %}
+- {{ error.summary }}: {{ error.error }}
+{% endfor %}
+Consider changing your approach.
+{% endif %}
+
+Rules:
+1. Verify product names exactly
+2. Check prices before purchasing
+3. Store order confirmations in memory
+4. Never exceed budget
+
+Output:
+<thought>Your reasoning</thought>
+<plan>
+1. Step
+2. DONE
+</plan>
+"""
+}
+
+config = DroidrunConfig()
+agent = DroidAgent(
+    goal="Buy iPhone 15 Pro from Amazon",
+    config=config,
+    prompts=ecommerce_prompts,
+    variables={"budget": 1200}
+)
+
+result = await agent.run()
+```
+
+## Key Points
+
+- Pass Jinja2 template **strings** (not file paths) to `DroidAgent(prompts={...})`
+- Each agent has different available variables in its template
+- Use `variables` parameter to inject custom context
+- Templates are rendered at runtime with current state
+- If no custom prompt provided, default templates are used
+- Supports full Jinja2 syntax (conditionals, loops, filters)

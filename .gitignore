@@ -24,3 +24,20 @@ patch_apis.py
 .arize-phoenix
 
 todo.txt
+
+config.yaml
+
+credentials.yaml
+**/credentials.yaml
+!**/credentials_example.yaml
+
+.*/
+!.gitignore
+!.github/
+
+backend/
+frontend/
+
+reddit_python_posts.json
+
+test/

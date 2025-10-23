@@ -1,6 +1,6 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
+  "theme": "almond",
   "name": "DroidRun",
   "colors": {
     "primary": "#0D9373",
@@ -8,105 +8,69 @@
     "dark": "#0D9373"
   },
   "favicon": "/favicon.png",
+  "icons": {
+    "library": "lucide"
+  },
   "navigation": {
-    "tabs": [
+    "products": [
       {
-        "tab": "Framework",
-        "versions": [
+        "product": "Framework",
+        "description": "Open Source Framework",
+        "groups": [
           {
-            "version": "0.3.8",
-            "groups": [
-              {
-                "group": "Introduction",
-                "pages": [
-                  "v3/overview",
-                  "v3/quickstart"
-                ]
-              },
-              {
-                "group": "Guides",
-                "pages": [
-                  "v3/guides/overview",
-                  "v3/guides/cli",
-                  "v3/guides/gemini",
-                  "v3/guides/openailike",
-                  "v3/guides/ollama",
-                  "v3/guides/telemetry"
-                ]
-              },
-              {
-                "group": "Core Concepts",
-                "pages": [
-                  "v3/concepts/agent",
-                  "v3/concepts/models",
-                  "v3/concepts/android-tools",
-                  "v3/concepts/portal-app"
-                ]
-              },
-              {
-                "group": "SDK Reference",
-                "pages": [
-                  "v3/sdk/droid-agent",
-                  "v3/sdk/adb-tools",
-                  "v3/sdk/ios-tools",
-                  "v3/sdk/base-tools"
-                ]
-              }
+            "group": "Introduction",
+            "pages": [
+              "/overview",
+              "/quickstart"
             ]
           },
           {
-            "version": "0.2.0",
-            "groups": [
-              {
-                "group": "Getting Started",
-                "pages": [
-                  "v2/overview",
-                  "v2/quickstart"
-                ]
-              },
-              {
-                "group": "Core Concepts",
-                "pages": [
-                  "v2/concepts/agent",
-                  "v2/concepts/planning",
-                  "v2/concepts/android-control",
-                  "v2/concepts/portal-app",
-                  "v2/concepts/tracing"
-                ]
-              }
+            "group": "Features",
+            "pages": [
+              "/features/structured-output",
+              "/features/credentials",
+              "/features/app-cards",
+              "/features/custom-tools",
+              "/features/custom-variables",
+              "/features/tracing",
+              "/features/telemetry"
             ]
           },
           {
-            "version": "0.1.0",
-            "groups": [
-              {
-                "group": "Getting Started",
-                "pages": [
-                  "v1/overview",
-                  "v1/quickstart"
-                ]
-              },
-              {
-                "group": "Core Concepts",
-                "pages": [
-                  "v1/concepts/agent",
-                  "v1/concepts/android-control",
-                  "v1/concepts/portal-app"
-                ]
-              }
+            "group": "Guides",
+            "pages": [
+              "/guides/overview",
+              "/guides/device-setup",
+              "/guides/cli"
+            ]
+          },
+          {
+            "group": "Concepts",
+            "pages": [
+              "/concepts/architecture",
+              "/concepts/scripter-agent",
+              "/concepts/shared-state",
+              "/concepts/events-and-workflows",
+              "/concepts/prompts"
+            ]
+          },
+          {
+            "group": "SDK Reference",
+            "pages": [
+              "/sdk/reference",
+              "/sdk/droid-agent",
+              "/sdk/adb-tools",
+              "/sdk/ios-tools",
+              "/sdk/base-tools",
+              "/sdk/configuration"
             ]
           }
         ]
       },
       {
-        "tab": "Cloud API",
-        "versions": [
-          {
-            "version": "0.1.0",
-            "openapi": "https://api.droidrun.ai/v1/openapi.json"
-          }
-        ]
-      }
+      "product": "Cloud API",
+      "description": "Managed Cloud API"
+    }
     ]
   },
   "logo": {

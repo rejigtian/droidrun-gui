@@ -1,0 +1,159 @@
+---
+title: 'ScripterAgent'
+description: 'Off-device Python execution for API calls, file operations, and data processing.'
+---
+
+## What is ScripterAgent?
+
+**ScripterAgent** executes **off-device Python code** for tasks that don't require device interaction. It's triggered by ManagerAgent when API calls, file operations, or data processing are needed.
+
+ScripterAgent enables:
+- **API calls**: REST APIs, webhooks, database queries
+- **File operations**: Reading, writing, parsing files
+- **Data processing**: JSON/CSV parsing, transformations, filtering
+
+**Key difference**: ScripterAgent runs code that **doesn't interact with the device**, while CodeActAgent generates code that **uses device atomic actions**.
+
+## How It Works
+
+ManagerAgent delegates tasks to ScripterAgent by providing **full context and a high-level task description**. ScripterAgent is a **ReAct agent** that follows a think-execute-observe loop:
+
+1. **Receives task** from Manager with full context
+2. **Thinks** and generates Python code to make progress
+3. **Executes** the code and observes the output
+4. **Repeats** steps 2-3 until task is complete
+5. **Returns message** to Manager summarizing the results
+
+ScripterAgent signals completion by returning a message **without code** (not a function call). Variables persist across iterations like a Jupyter notebook.
+
+## Examples
+
+### API Calls
+
+**Manager delegates**:
+```
+User needs current weather in San Francisco to decide clothing.
+Task: Fetch weather from API and extract temperature + conditions
+API: https://api.weather.com/forecast?city=San Francisco
+```
+
+**ScripterAgent (Iteration 1)**:
+```python
+# Think: I need to make an API request to get weather data
+import requests
+
+response = requests.get(
+    "https://api.weather.com/forecast",
+    params={"city": "San Francisco"}
+)
+print(response.json())
+```
+**Output**: `{'temp': 62, 'description': 'Partly cloudy', 'humidity': 65}`
+
+**ScripterAgent (Final)**:
+```
+The weather in San Francisco is 62°F with partly cloudy conditions.
+```
+*(Manager receives this message)*
+
+### Webhook Notifications
+
+**Manager delegates**:
+```
+Flight booking was completed successfully at 2024-01-15T10:30:00.
+Task: Send status update to monitoring webhook
+Webhook URL: https://webhook.site/your-webhook-id
+Include: task name, status, timestamp
+```
+
+**ScripterAgent**:
+```python
+import requests
+
+payload = {
+    "task": "Flight booking completed",
+    "status": "success",
+    "timestamp": "2024-01-15T10:30:00"
+}
+
+response = requests.post(
+    "https://webhook.site/your-webhook-id",
+    json=payload
+)
+print(f"Webhook response: {response.status_code}")
+```
+**Output**: `Webhook response: 200`
+
+**ScripterAgent (Final)**:
+```
+Successfully sent webhook notification. Server responded with status 200.
+```
+
+### File Operations
+
+**Manager delegates**:
+```
+Contacts file at /tmp/contacts.csv contains all contacts.
+Task: Filter contacts from New York and save as JSON
+Output: /tmp/filtered_contacts.json
+```
+
+**ScripterAgent (Iteration 1)**:
+```python
+import csv
+
+with open('/tmp/contacts.csv', 'r') as f:
+    reader = csv.DictReader(f)
+    contacts = list(reader)
+print(f"Total contacts: {len(contacts)}")
+print(f"Sample: {contacts[0]}")
+```
+**Output**: `Total contacts: 150` `Sample: {'name': 'John', 'city': 'New York', 'email': '...'}`
+
+**ScripterAgent (Iteration 2)**:
+```python
+import json
+
+# Filter New York contacts
+ny_contacts = [c for c in contacts if c['city'] == 'New York']
+
+with open('/tmp/filtered_contacts.json', 'w') as f:
+    json.dump(ny_contacts, f, indent=2)
+
+print(f"Filtered {len(ny_contacts)} contacts from New York")
+```
+**Output**: `Filtered 23 contacts from New York`
+
+**ScripterAgent (Final)**:
+```
+Found 23 contacts from New York and saved them to /tmp/filtered_contacts.json
+```
+
+## Configuration
+
+```yaml
+agent:
+  scripter:
+    max_steps: 10
+    safe_execution:
+      enabled: true
+      allowed_modules:
+        - requests    # API calls, webhooks
+        - json        # JSON parsing
+        - csv         # CSV file operations
+        - pathlib     # File path handling
+      blocked_modules:
+        - subprocess  # Process spawning
+        - os          # System operations
+        - sys         # System modifications
+```
+
+**Safe execution** restricts dangerous operations by default. Only modules in `allowed_modules` can be imported.
+
+## Key Points
+
+- **ReAct agent**: Think-execute-observe loop until task complete
+- **Off-device only**: No device interactions
+- **State persistence**: Variables persist across iterations (Jupyter-style)
+- **Completion signal**: Returns message without code when done
+- **Safe by default**: Restricted imports/builtins

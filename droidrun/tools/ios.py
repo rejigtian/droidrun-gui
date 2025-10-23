@@ -2,11 +2,13 @@
 UI Actions - Core UI interaction tools for iOS device control.
 """
 
+import logging
 import re
 import time
-from typing import Optional, Dict, Tuple, List, Any
-import logging
+from typing import Any, Dict, List, Optional, Tuple
+
 import requests
+
 from droidrun.tools.tools import Tools
 
 logger = logging.getLogger("IOS")
@@ -37,13 +39,14 @@ SYSTEM_BUNDLE_IDENTIFIERS = [
 class IOSTools(Tools):
     """Core UI interaction tools for iOS device control."""
 
-    def __init__(self, url: str, bundle_identifiers: List[str] = []) -> None:
+    def __init__(self, url: str, bundle_identifiers: List[str] | None = None) -> None:
         """Initialize the IOSTools instance.
 
         Args:
             url: iOS device URL. This is the URL of the iOS device. It is used to send requests to the iOS device.
             bundle_identifiers: List of bundle identifiers to include in the list of packages
         """
+
         self.clickable_elements_cache: List[Dict[str, Any]] = []
         self.url = url
         self.last_screenshot = None
@@ -55,7 +58,7 @@ class IOSTools(Tools):
         self.last_tapped_rect: Optional[str] = (
             None  # Store last tapped element's rect for text input
         )
-        self.bundle_identifiers = bundle_identifiers
+        self.bundle_identifiers = bundle_identifiers or []
         logger.info(f"iOS device URL: {url}")
 
     def get_state(self) -> List[Dict[str, Any]]:
@@ -373,7 +376,12 @@ class IOSTools(Tools):
             return False
 
     def drag(
-        self, start_x: int, start_y: int, end_x: int, end_y: int, duration_ms: int = 3000
+        self,
+        start_x: int,
+        start_y: int,
+        end_x: int,
+        end_y: int,
+        duration_ms: int = 3000,
     ) -> bool:
         """
         Drag from the given start coordinates to the given end coordinates.
@@ -387,7 +395,7 @@ class IOSTools(Tools):
             Bool indicating success or failure
         """
         # TODO: implement this
-        logger.info(f"Drag action FAILED! Not implemented for iOS")
+        logger.info("Drag action FAILED! Not implemented for iOS")
         return False
 
     def input_text(self, text: str) -> str:
@@ -506,7 +514,7 @@ class IOSTools(Tools):
 
         except Exception as e:
             logger.error(f"Error capturing screenshot: {e}")
-            raise ValueError(f"Error taking screenshot: {str(e)}")
+            raise ValueError(f"Error taking screenshot: {str(e)}") from e
 
     def _get_phone_state(self) -> Dict[str, Any]:
         """

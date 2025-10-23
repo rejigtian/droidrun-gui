@@ -1,0 +1,134 @@
+---
+title: 'Architecture'
+description: 'Understanding Droidrun multi-agent system for device automation.'
+---
+
+## What is Droidrun?
+
+Droidrun uses a **multi-agent architecture** where specialized agents work together to complete tasks. Instead of one agent doing everything, different agents handle planning, execution, and computation.
+
+```
+DroidAgent (orchestrator)
+├── Reasoning Mode: ManagerAgent → ExecutorAgent → ScripterAgent
+└── Direct Mode: CodeActAgent
+```
+
+## Execution Modes
+
+### Reasoning Mode (`reasoning=True`)
+Manager creates plans, Executor takes actions. Best for complex multi-step tasks.
+
+```
+Goal → Manager (plan) → Executor (action) → Manager (check) → Executor (next) → ...
+```
+
+### Direct Mode (`reasoning=False`)
+CodeActAgent executes immediately without planning overhead. Best for simple tasks.
+
+```
+Goal → CodeActAgent (generate + execute) → Done
+```
+
+## Core Agents
+
+### DroidAgent (Orchestrator)
+Main coordinator that routes between agents based on mode.
+
+**Location**: `droidrun/agent/droid/droid_agent.py`
+
+### ManagerAgent (Planner)
+Creates strategic plans and breaks tasks into subgoals. Reasoning mode only.
+
+**Location**: `droidrun/agent/manager/manager_agent.py`
+
+**Workflow**: `prepare_context()` → `get_response()` → `process_response()` → `finalize()`
+
+### ExecutorAgent (Actor)
+Executes atomic actions for each subgoal. Reasoning mode only.
+
+**Location**: `droidrun/agent/executor/executor_agent.py`
+
+**Workflow**: `prepare_context()` → `get_response()` → `process_response()` → `execute()` → `finalize()`
+
+### CodeActAgent (Direct Executor)
+Generates Python code using atomic actions. Direct mode only.
+
+**Location**: `droidrun/agent/codeact/codeact_agent.py`
+
+**Available Actions**:
+```python
+click(index), long_press(index), type(text, index),
+swipe(coordinate, coordinate2), system_button(button),
+wait(duration), open_app(text), get_state(), take_screenshot(),
+remember(information), complete(success, reason)
+```
+
+### ScripterAgent (Off-Device)
+Executes Python for API calls, file operations, and computations. Triggered by Manager when needed.
+
+**Location**: `droidrun/agent/scripter/`
+
+## Configuration
+
+Configure different LLMs per agent:
+
+```yaml
+llm_profiles:
+  manager:
+    provider: Anthropic
+    model: claude-sonnet-4
+  executor:
+    provider: OpenAI
+    model: gpt-4o
+  codeact:
+    provider: GoogleGenAI
+    model: models/gemini-2.0-flash-exp
+  scripter:
+    provider: OpenAI
+    model: gpt-4o
+
+agent:
+  reasoning: true       # Enable Manager/Executor workflow
+  max_steps: 15         # Maximum execution steps (global)
+  manager:
+    vision: true        # Send screenshots to Manager
+  executor:
+    vision: true        # Send screenshots to Executor
+  codeact:
+    vision: false
+    safe_execution: false
+  scripter:
+    max_steps: 10       # Scripter-specific max steps
+    safe_execution: false
+```
+
+## When to Use Each Mode
+
+**Use Reasoning Mode for:**
+- Multi-step tasks (booking flights, configuring settings)
+- Tasks requiring planning and adaptation
+- Complex workflows across multiple apps
+
+**Use Direct Mode for:**
+- Simple actions (screenshots, sending messages)
+- Fast execution without planning overhead
+- Well-defined single-step tasks
+
+## Shared State
+
+All agents share `DroidAgentState` for coordination:
+- Action history and outcomes
+- Error tracking and recovery
+- Memory and context
+- Scripter results
+- Current plan and progress
+
+## Quick Reference
+
+| Agent | Role | Best For | Mode | Config Key |
+|-------|------|----------|------|------------|
+| DroidAgent | Orchestrator | Entry point | Both | `agent.*` |
+| ManagerAgent | Planner | Strategy, recovery | Reasoning | `agent.manager.*` |
+| ExecutorAgent | Actor | Action execution | Reasoning | `agent.executor.*` |
+| CodeActAgent | Direct | Simple tasks | Direct | `agent.codeact.*` |
+| ScripterAgent | Python Executor | APIs, files, data | Reasoning | `agent.scripter.*` |

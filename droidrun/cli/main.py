@@ -3,29 +3,32 @@ DroidRun CLI - Command line interface for controlling Android devices through LL
 """
 
 import asyncio
-import click
-import os
 import logging
+import os
+import sys
 import warnings
 from contextlib import nullcontext
-from rich.console import Console
-from adbutils import adb
-from droidrun.agent.droid import DroidAgent
-from droidrun.agent.utils.llm_picker import load_llm
-from droidrun.tools import AdbTools, IOSTools
-from droidrun.agent.context.personas import DEFAULT, BIG_AGENT
 from functools import wraps
+
+import click
+from adbutils import adb
+from rich.console import Console
+
+from droidrun import ResultEvent, DroidAgent
 from droidrun.cli.logs import LogHandler
-from droidrun.telemetry import print_telemetry_message
+from droidrun.config_manager import ConfigManager
+from droidrun.macro.cli import macro_cli
 from droidrun.portal import (
+    PORTAL_PACKAGE_NAME,
     download_portal_apk,
     enable_portal_accessibility,
-    PORTAL_PACKAGE_NAME,
     ping_portal,
-    ping_portal_tcp,
     ping_portal_content,
+    ping_portal_tcp,
 )
-from droidrun.macro.cli import macro_cli
+from droidrun.telemetry import print_telemetry_message
+from droidrun.config_manager.path_resolver import PathResolver
+from droidrun.agent.utils.llm_picker import load_llm
 
 # Suppress all warnings
 warnings.filterwarnings("ignore")
@@ -34,12 +37,31 @@ os.environ["GRPC_ENABLE_FORK_SUPPORT"] = "false"
 
 console = Console()
 
+# Ensure config.yaml exists (check working dir, then package dir)
+try:
+    config_path = PathResolver.resolve("config.yaml")
+    console.print(f"[blue]Using existing config: {config_path}[/]")
+except FileNotFoundError:
+    # Config not found, try to create from example
+    try:
+        example_path = PathResolver.resolve("config_example.yaml")
+        config_path = PathResolver.resolve("config.yaml", create_if_missing=True)
 
-def configure_logging(goal: str, debug: bool):
+        import shutil
+
+        shutil.copy2(example_path, config_path)
+        console.print(f"[blue]Created config.yaml from example at: {config_path}[/]")
+    except FileNotFoundError:
+        console.print(
+            "[yellow]Warning: config_example.yaml not found, config.yaml not created[/]"
+        )
+
+
+def configure_logging(goal: str, debug: bool, rich_text: bool = True):
     logger = logging.getLogger("droidrun")
     logger.handlers = []
 
-    handler = LogHandler(goal)
+    handler = LogHandler(goal, rich_text=rich_text)
     handler.setFormatter(
         logging.Formatter("%(levelname)s %(name)s %(message)s", "%H:%M:%S")
         if debug
@@ -49,12 +71,6 @@ def configure_logging(goal: str, debug: bool):
 
     logger.setLevel(logging.DEBUG if debug else logging.INFO)
     logger.propagate = False
-
-    if debug:
-        tools_logger = logging.getLogger("droidrun-tools")
-        tools_logger.addHandler(handler)
-        tools_logger.propagate = False
-        tools_logger.setLevel(logging.DEBUG if debug else logging.INFO)
 
     return handler
 
@@ -70,101 +86,153 @@ def coro(f):
 @coro
 async def run_command(
     command: str,
-    device: str | None,
-    provider: str,
-    model: str,
-    steps: int,
-    base_url: str,
-    api_base: str,
-    vision: bool,
-    reasoning: bool,
-    reflection: bool,
-    tracing: bool,
-    debug: bool,
-    use_tcp: bool,
-    save_trajectory: str = "none",
+    config_path: str | None = None,
+    device: str | None = None,
+    provider: str | None = None,
+    model: str | None = None,
+    steps: int | None = None,
+    base_url: str | None = None,
+    api_base: str | None = None,
+    vision: bool | None = None,
+    manager_vision: bool | None = None,
+    executor_vision: bool | None = None,
+    codeact_vision: bool | None = None,
+    reasoning: bool | None = None,
+    tracing: bool | None = None,
+    debug: bool | None = None,
+    tcp: bool | None = None,
+    save_trajectory: str | None = None,
     ios: bool = False,
-    allow_drag: bool = False,
+    allow_drag: bool | None = None,
+    temperature: float | None = None,
     **kwargs,
-):
-    """Run a command on your Android device using natural language."""
-    log_handler = configure_logging(command, debug)
+) -> bool:
+    """Run a command on your Android device using natural language.
+
+    Returns:
+        bool: True if the task completed successfully, False otherwise.
+    """
+    # Load config and apply CLI overrides via direct mutation
+    config_manager = ConfigManager(config_path)
+    config = config_manager.config
+
+    # Initialize logging first (use config default if debug not specified)
+    debug_mode = debug if debug is not None else config.logging.debug
+    log_handler = configure_logging(command, debug_mode, config.logging.rich_text)
     logger = logging.getLogger("droidrun")
 
     log_handler.update_step("Initializing...")
 
-    with log_handler.render() as live:
+    with log_handler.render():
         try:
             logger.info(f"🚀 Starting: {command}")
             print_telemetry_message()
 
-            if not kwargs.get("temperature"):
-                kwargs["temperature"] = 0
+            # ================================================================
+            # STEP 1: Apply CLI overrides via direct mutation
+            # ================================================================
 
-            log_handler.update_step("Setting up tools...")
-
-            # Device setup
-            if device is None and not ios:
-                logger.info("🔍 Finding connected device...")
-
-                devices = adb.list()
-                if not devices:
-                    raise ValueError("No connected devices found.")
-                device = devices[0].serial
-                logger.info(f"📱 Using device: {device}")
-            elif device is None and ios:
-                raise ValueError(
-                    "iOS device not specified. Please specify the device base url (http://device-ip:6643) via --device"
-                )
+            # Vision overrides
+            if vision is not None:
+                # --vision flag overrides all agents
+                config.agent.manager.vision = vision
+                config.agent.executor.vision = vision
+                config.agent.codeact.vision = vision
+                logger.debug(f"CLI override: vision={vision} (all agents)")
             else:
-                logger.info(f"📱 Using device: {device}")
+                # Apply individual agent vision overrides
+                if manager_vision is not None:
+                    config.agent.manager.vision = manager_vision
+                if executor_vision is not None:
+                    config.agent.executor.vision = executor_vision
+                if codeact_vision is not None:
+                    config.agent.codeact.vision = codeact_vision
 
-            tools = (
-                AdbTools(serial=device, use_tcp=use_tcp)
-                if not ios
-                else IOSTools(url=device)
-            )
-            # Set excluded tools based on CLI flags
-            excluded_tools = [] if allow_drag else ["drag"]
+            # Agent overrides
+            if steps is not None:
+                config.agent.max_steps = steps
+            if reasoning is not None:
+                config.agent.reasoning = reasoning
 
-            # Select personas based on --drag flag
-            personas = [BIG_AGENT] if allow_drag else [DEFAULT]
+            # Device overrides
+            if device is not None:
+                config.device.serial = device
+            if tcp is not None:
+                config.device.use_tcp = tcp
 
-            # LLM setup
-            log_handler.update_step("Initializing LLM...")
-            llm = load_llm(
-                provider_name=provider,
-                model=model,
-                base_url=base_url,
-                api_base=api_base,
-                **kwargs,
-            )
-            logger.info(f"🧠 LLM ready: {provider}/{model}")
+            # Tools overrides
+            if allow_drag is not None:
+                config.tools.allow_drag = allow_drag
 
-            # Agent setup
+            # Logging overrides
+            if debug is not None:
+                config.logging.debug = debug
+            if save_trajectory is not None:
+                config.logging.save_trajectory = save_trajectory
+
+            # Tracing overrides
+            if tracing is not None:
+                config.tracing.enabled = tracing
+
+            # Platform overrides
+            if ios:
+                config.device.platform = "ios"
+
+            # ================================================================
+            # STEP 2: Initialize DroidAgent with config
+            # ================================================================
+
             log_handler.update_step("Initializing DroidAgent...")
 
-            mode = "planning with reasoning" if reasoning else "direct execution"
+            mode = (
+                "planning with reasoning"
+                if config.agent.reasoning
+                else "direct execution"
+            )
             logger.info(f"🤖 Agent mode: {mode}")
+            logger.info(
+                f"👁️  Vision settings: Manager={config.agent.manager.vision}, "
+                f"Executor={config.agent.executor.vision}, CodeAct={config.agent.codeact.vision}"
+            )
 
-            if tracing:
+            if config.tracing.enabled:
                 logger.info("🔍 Tracing enabled")
+
+            # Build DroidAgent kwargs for LLM loading
+            droid_agent_kwargs = {"runtype": "cli"}
+            llm = None
+
+            if provider or model:
+                assert (
+                    provider and model
+                ), "Either both provider and model must be provided or none of them"
+                llm_kwargs = {}
+                if temperature is not None:
+                    llm_kwargs["temperature"] = temperature
+                if base_url is not None:
+                    llm_kwargs["base_url"] = base_url
+                if api_base is not None:
+                    llm_kwargs["api_base"] = api_base
+                llm = load_llm(provider, model=model, **llm_kwargs, **kwargs)
+            else:
+                if temperature is not None:
+                    droid_agent_kwargs["temperature"] = temperature
+                if base_url is not None:
+                    droid_agent_kwargs["base_url"] = base_url
+                if api_base is not None:
+                    droid_agent_kwargs["api_base"] = api_base
 
             droid_agent = DroidAgent(
                 goal=command,
-                llm=llm,
-                tools=tools,
-                personas=personas,
-                excluded_tools=excluded_tools,
-                max_steps=steps,
+                llms=llm,
+                config=config,
                 timeout=1000,
-                vision=vision,
-                reasoning=reasoning,
-                reflection=reflection,
-                enable_tracing=tracing,
-                debug=debug,
-                save_trajectories=save_trajectory,
+                **droid_agent_kwargs,
             )
+
+            # ================================================================
+            # STEP 3: Run agent
+            # ================================================================
 
             logger.info("▶️  Starting agent execution...")
             logger.info("Press Ctrl+C to stop")
@@ -175,139 +243,71 @@ async def run_command(
 
                 async for event in handler.stream_events():
                     log_handler.handle_event(event)
-                result = await handler
+                result: ResultEvent = await handler
+                return result.success
 
             except KeyboardInterrupt:
                 log_handler.is_completed = True
                 log_handler.is_success = False
                 log_handler.current_step = "Stopped by user"
                 logger.info("⏹️ Stopped by user")
+                return False
 
             except Exception as e:
                 log_handler.is_completed = True
                 log_handler.is_success = False
                 log_handler.current_step = f"Error: {e}"
                 logger.error(f"💥 Error: {e}")
-                if debug:
+                if config.logging.debug:
                     import traceback
 
                     logger.debug(traceback.format_exc())
+                return False
 
         except Exception as e:
             log_handler.current_step = f"Error: {e}"
             logger.error(f"💥 Setup error: {e}")
-            if debug:
+            debug_mode = debug if debug is not None else config.logging.debug
+            if debug_mode:
                 import traceback
 
                 logger.debug(traceback.format_exc())
+            return False
 
 
 class DroidRunCLI(click.Group):
     def parse_args(self, ctx, args):
         # If the first arg is not an option and not a known command, treat as 'run'
-        if args and """not args[0].startswith("-")""" and args[0] not in self.commands:
+        if args and not args[0].startswith("-") and args[0] not in self.commands:
             args.insert(0, "run")
 
         return super().parse_args(ctx, args)
 
 
-@click.option("--device", "-d", help="Device serial number or IP address", default=None)
-@click.option(
-    "--provider",
-    "-p",
-    help="LLM provider (OpenAI, Ollama, Anthropic, GoogleGenAI, DeepSeek)",
-    default="GoogleGenAI",
-)
-@click.option(
-    "--model",
-    "-m",
-    help="LLM model name",
-    default="models/gemini-2.5-flash",
-)
-@click.option("--temperature", type=float, help="Temperature for LLM", default=0.2)
-@click.option("--steps", type=int, help="Maximum number of steps", default=15)
-@click.option(
-    "--base_url",
-    "-u",
-    help="Base URL for API (e.g., OpenRouter or Ollama)",
-    default=None,
-)
-@click.option(
-    "--api_base",
-    help="Base URL for API (e.g., OpenAI, OpenAI-Like)",
-    default=None,
-)
-@click.option(
-    "--vision",
-    is_flag=True,
-    help="Enable vision capabilites by using screenshots",
-    default=False,
-)
-@click.option(
-    "--reasoning", is_flag=True, help="Enable planning with reasoning", default=False
-)
-@click.option(
-    "--reflection",
-    is_flag=True,
-    help="Enable reflection step for higher reasoning",
-    default=False,
-)
-@click.option(
-    "--tracing", is_flag=True, help="Enable Arize Phoenix tracing", default=False
-)
-@click.option(
-    "--debug", is_flag=True, help="Enable verbose debug logging", default=False
-)
-@click.option(
-    "--use-tcp",
-    is_flag=True,
-    help="Use TCP communication for device control",
-    default=False,
-)
-@click.option(
-    "--save-trajectory",
-    type=click.Choice(["none", "step", "action"]),
-    help="Trajectory saving level: none (no saving), step (save per step), action (save per action)",
-    default="none",
-)
 @click.group(cls=DroidRunCLI)
-def cli(
-    device: str | None,
-    provider: str,
-    model: str,
-    steps: int,
-    base_url: str,
-    api_base: str,
-    temperature: float,
-    vision: bool,
-    reasoning: bool,
-    reflection: bool,
-    tracing: bool,
-    debug: bool,
-    use_tcp: bool,
-    save_trajectory: str = "none",
-):
+def cli():
     """DroidRun - Control your Android device through LLM agents."""
     pass
 
 
 @cli.command()
 @click.argument("command", type=str)
+@click.option("--config", "-c", help="Path to custom config file", default=None)
 @click.option("--device", "-d", help="Device serial number or IP address", default=None)
 @click.option(
     "--provider",
     "-p",
     help="LLM provider (OpenAI, Ollama, Anthropic, GoogleGenAI, DeepSeek)",
-    default="GoogleGenAI",
+    default=None,
 )
 @click.option(
     "--model",
     "-m",
     help="LLM model name",
-    default="models/gemini-2.5-flash",
+    default=None,
 )
-@click.option("--temperature", type=float, help="Temperature for LLM", default=0.2)
-@click.option("--steps", type=int, help="Maximum number of steps", default=15)
+@click.option("--temperature", type=float, help="Temperature for LLM", default=None)
+@click.option("--steps", type=int, help="Maximum number of steps", default=None)
 @click.option(
     "--base_url",
     "-u",
@@ -320,86 +320,83 @@ def cli(
     default=None,
 )
 @click.option(
-    "--vision",
-    is_flag=True,
-    help="Enable vision capabilites by using screenshots",
-    default=False,
+    "--vision/--no-vision",
+    default=None,
+    help="Enable vision capabilites by using screenshots for all agents.",
 )
 @click.option(
-    "--reasoning", is_flag=True, help="Enable planning with reasoning", default=False
+    "--reasoning/--no-reasoning", default=None, help="Enable planning with reasoning"
 )
 @click.option(
-    "--reflection",
-    is_flag=True,
-    help="Enable reflection step for higher reasoning",
-    default=False,
+    "--tracing/--no-tracing", default=None, help="Enable Arize Phoenix tracing"
 )
+@click.option("--debug/--no-debug", default=None, help="Enable verbose debug logging")
 @click.option(
-    "--tracing", is_flag=True, help="Enable Arize Phoenix tracing", default=False
-)
-@click.option(
-    "--debug", is_flag=True, help="Enable verbose debug logging", default=False
-)
-@click.option(
-    "--use-tcp",
-    is_flag=True,
+    "--tcp/--no-tcp",
+    default=None,
     help="Use TCP communication for device control",
-    default=False,
 )
 @click.option(
     "--save-trajectory",
     type=click.Choice(["none", "step", "action"]),
     help="Trajectory saving level: none (no saving), step (save per step), action (save per action)",
-    default="none",
+    default=None,
 )
-@click.option(
-    "--drag",
-    "allow_drag",
-    is_flag=True,
-    help="Enable drag tool",
-    default=False,
-)
-@click.option("--ios", is_flag=True, help="Run on iOS device", default=False)
+@click.option("--ios", type=bool, default=None, help="Run on iOS device")
 def run(
     command: str,
+    config: str | None,
     device: str | None,
-    provider: str,
-    model: str,
-    steps: int,
-    base_url: str,
-    api_base: str,
-    temperature: float,
-    vision: bool,
-    reasoning: bool,
-    reflection: bool,
-    tracing: bool,
-    debug: bool,
-    use_tcp: bool,
-    save_trajectory: str,
-    allow_drag: bool,
-    ios: bool,
+    provider: str | None,
+    model: str | None,
+    steps: int | None,
+    base_url: str | None,
+    api_base: str | None,
+    temperature: float | None,
+    vision: bool | None,
+    reasoning: bool | None,
+    tracing: bool | None,
+    debug: bool | None,
+    tcp: bool | None,
+    save_trajectory: str | None,
+    ios: bool | None,
 ):
     """Run a command on your Android device using natural language."""
-    # Call our standalone function
-    return run_command(
-        command,
-        device,
-        provider,
-        model,
-        steps,
-        base_url,
-        api_base,
-        vision,
-        reasoning,
-        reflection,
-        tracing,
-        debug,
-        use_tcp,
-        temperature=temperature,
-        save_trajectory=save_trajectory,
-        allow_drag=allow_drag,
-        ios=ios,
-    )
+
+    try:
+        success = run_command(
+            command=command,
+            config_path=config,
+            device=device,
+            provider=provider,
+            model=model,
+            steps=steps,
+            base_url=base_url,
+            api_base=api_base,
+            vision=vision,
+            reasoning=reasoning,
+            tracing=tracing,
+            debug=debug,
+            tcp=tcp,
+            temperature=temperature,
+            save_trajectory=save_trajectory,
+            ios=ios if ios is not None else False,
+        )
+    finally:
+        # Disable DroidRun keyboard after execution
+        # Note: Port forwards are managed automatically and persist until device disconnect
+        try:
+            if not (ios if ios is not None else False):
+                device_obj = adb.device(device)
+                if device_obj:
+                    device_obj.shell(
+                        "ime disable com.droidrun.portal/.DroidrunKeyboardIME"
+                    )
+        except Exception:
+            click.echo("Failed to disable DroidRun keyboard")
+
+    # Exit with appropriate code
+    sys.exit(0 if success else 1)
 
 
 @cli.command()
@@ -496,9 +493,9 @@ def setup(path: str | None, device: str | None, debug: bool):
                 console.print(f"[bold red]Installation failed:[/] {e}")
                 return
 
-            console.print(f"[bold green]Installation successful![/]")
+            console.print("[bold green]Installation successful![/]")
 
-            console.print(f"[bold blue]Step 2/2: Enabling accessibility service[/]")
+            console.print("[bold blue]Step 2/2: Enabling accessibility service[/]")
 
             try:
                 enable_portal_accessibility(device_obj)
@@ -546,35 +543,36 @@ def setup(path: str | None, device: str | None, debug: bool):
 @cli.command()
 @click.option("--device", "-d", help="Device serial number or IP address", default=None)
 @click.option(
-    "--use-tcp",
-    is_flag=True,
+    "--tcp/--no-tcp",
+    default=None,
     help="Use TCP communication for device control",
-    default=False,
 )
-@click.option(
-    "--debug", is_flag=True, help="Enable verbose debug logging", default=False
-)
-def ping(device: str | None, use_tcp: bool, debug: bool):
+@click.option("--debug/--no-debug", default=None, help="Enable verbose debug logging")
+def ping(device: str | None, tcp: bool | None, debug: bool | None):
     """Ping a device to check if it is ready and accessible."""
+    # Handle None defaults
+    debug_mode = debug if debug is not None else False
+    use_tcp_mode = tcp if tcp is not None else False
+
     try:
         device_obj = adb.device(device)
         if not device_obj:
             console.print(f"[bold red]Error:[/] Could not find device {device}")
             return
 
-        ping_portal(device_obj, debug)
+        ping_portal(device_obj, debug_mode)
 
-        if use_tcp:
-            ping_portal_tcp(device_obj, debug)
+        if use_tcp_mode:
+            ping_portal_tcp(device_obj, debug_mode)
         else:
-            ping_portal_content(device_obj, debug)
+            ping_portal_content(device_obj, debug_mode)
 
         console.print(
             "[bold green]Portal is installed and accessible. You're good to go![/]"
         )
     except Exception as e:
         console.print(f"[bold red]Error:[/] {e}")
-        if debug:
+        if debug_mode:
             import traceback
 
             traceback.print_exc()
@@ -584,8 +582,153 @@ def ping(device: str | None, use_tcp: bool, debug: bool):
 cli.add_command(macro_cli, name="macro")
 
 
+async def test(
+    command: str,
+    device: str | None = None,
+    steps: int | None = None,
+    vision: bool | None = None,
+    reasoning: bool | None = None,
+    tracing: bool | None = None,
+    debug: bool | None = None,
+    use_tcp: bool | None = None,
+    save_trajectory: str | None = None,
+    allow_drag: bool | None = None,
+    temperature: float | None = None,
+    ios: bool = False,
+):
+    config_manager = ConfigManager(path="config.yaml")
+    config = config_manager.config
+
+    # Initialize logging first (use config default if debug not specified)
+    debug_mode = debug if debug is not None else config.logging.debug
+    log_handler = configure_logging(command, debug_mode, config.logging.rich_text)
+    logger = logging.getLogger("droidrun")
+
+    log_handler.update_step("Initializing...")
+
+    with log_handler.render():
+        try:
+            logger.info(f"🚀 Starting: {command}")
+            print_telemetry_message()
+
+            # ================================================================
+            # STEP 1: Apply CLI overrides via direct mutation
+            # ================================================================
+
+            # Vision overrides
+            if vision is not None:
+                # --vision flag overrides all agents
+                config.agent.manager.vision = vision
+                config.agent.executor.vision = vision
+                config.agent.codeact.vision = vision
+                logger.debug(f"CLI override: vision={vision} (all agents)")
+
+            # Agent overrides
+            if steps is not None:
+                config.agent.max_steps = steps
+            if reasoning is not None:
+                config.agent.reasoning = reasoning
+
+            # Device overrides
+            if device is not None:
+                config.device.serial = device
+            if use_tcp is not None:
+                config.device.use_tcp = use_tcp
+
+            # Tools overrides
+            if allow_drag is not None:
+                config.tools.allow_drag = allow_drag
+
+            # Logging overrides
+            if debug is not None:
+                config.logging.debug = debug
+            if save_trajectory is not None:
+                config.logging.save_trajectory = save_trajectory
+
+            # Tracing overrides
+            if tracing is not None:
+                config.tracing.enabled = tracing
+
+            # Platform overrides
+            if ios:
+                config.device.platform = "ios"
+
+            # ================================================================
+            # STEP 2: Initialize DroidAgent with config
+            # ================================================================
+
+            log_handler.update_step("Initializing DroidAgent...")
+
+            mode = (
+                "planning with reasoning"
+                if config.agent.reasoning
+                else "direct execution"
+            )
+            logger.info(f"🤖 Agent mode: {mode}")
+            logger.info(
+                f"👁️  Vision settings: Manager={config.agent.manager.vision}, "
+                f"Executor={config.agent.executor.vision}, CodeAct={config.agent.codeact.vision}"
+            )
+
+            if config.tracing.enabled:
+                logger.info("🔍 Tracing enabled")
+
+            # Build DroidAgent kwargs for LLM loading
+            droid_agent_kwargs = {}
+            if temperature is not None:
+                droid_agent_kwargs["temperature"] = temperature
+
+            droid_agent = DroidAgent(
+                goal=command,
+                config=config,
+                timeout=1000,
+                **droid_agent_kwargs,
+            )
+
+            # ================================================================
+            # STEP 3: Run agent
+            # ================================================================
+
+            logger.info("▶️  Starting agent execution...")
+            logger.info("Press Ctrl+C to stop")
+            log_handler.update_step("Running agent...")
+
+            try:
+                handler = droid_agent.run()
+
+                async for event in handler.stream_events():
+                    log_handler.handle_event(event)
+                result = await handler  # noqa: F841
+
+            except KeyboardInterrupt:
+                log_handler.is_completed = True
+                log_handler.is_success = False
+                log_handler.current_step = "Stopped by user"
+                logger.info("⏹️ Stopped by user")
+
+            except Exception as e:
+                log_handler.is_completed = True
+                log_handler.is_success = False
+                log_handler.current_step = f"Error: {e}"
+                logger.error(f"💥 Error: {e}")
+                if config.logging.debug:
+                    import traceback
+
+                    logger.debug(traceback.format_exc())
+
+        except Exception as e:
+            log_handler.current_step = f"Error: {e}"
+            logger.error(f"💥 Setup error: {e}")
+            debug_mode = debug if debug is not None else config.logging.debug
+            if debug_mode:
+                import traceback
+
+                logger.debug(traceback.format_exc())
+
+
 if __name__ == "__main__":
-    command = "Open the settings app"
+    command = "check the last chat history i had on whatsapp"
+    command = "use open_app to open the settings"
     device = None
     provider = "GoogleGenAI"
     model = "models/gemini-2.5-flash"
@@ -593,33 +736,13 @@ if __name__ == "__main__":
     api_key = os.getenv("GOOGLE_API_KEY")
     steps = 15
     vision = True
-    reasoning = True
-    reflection = False
+    reasoning = False
     tracing = True
     debug = True
-    use_tcp = True
+    use_tcp = False
     base_url = None
     api_base = None
     ios = False
-    save_trajectory = "action"
+    save_trajectory = "none"
     allow_drag = False
-    run_command(
-        command=command,
-        device=device,
-        provider=provider,
-        model=model,
-        steps=steps,
-        temperature=temperature,
-        vision=vision,
-        reasoning=reasoning,
-        reflection=reflection,
-        tracing=tracing,
-        debug=debug,
-        use_tcp=use_tcp,
-        base_url=base_url,
-        api_base=api_base,
-        api_key=api_key,
-        allow_drag=allow_drag,
-        ios=ios,
-        save_trajectory=save_trajectory,
-    )
+    asyncio.run(test(command, reasoning=True))
