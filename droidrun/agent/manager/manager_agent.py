@@ -18,7 +18,11 @@ from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, 
 from pydantic import BaseModel
 
 from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
-from droidrun.agent.manager.events import ManagerInternalPlanEvent, ManagerThinkingEvent
+from droidrun.agent.manager.events import (
+    ManagerContextEvent,
+    ManagerPlanDetailsEvent,
+    ManagerResponseEvent,
+)
 from droidrun.agent.manager.prompts import parse_manager_response
 from droidrun.agent.utils.chat_utils import (
     remove_empty_messages,
@@ -394,7 +398,9 @@ class ManagerAgent(Workflow):
     # ========================================================================
 
     @step
-    async def prepare_input(self, ctx: Context, ev: StartEvent) -> ManagerThinkingEvent:
+    async def prepare_context(
+        self, ctx: Context, ev: StartEvent
+    ) -> ManagerContextEvent:
         """
         Gather context and prepare manager prompt.
 
@@ -402,9 +408,9 @@ class ManagerAgent(Workflow):
         1. Gets current device state (UI elements, screenshot)
         2. Detects text manipulation mode
         3. Builds message history entry with last action
-        4. Stores context for think() step
+        4. Stores context for get_response() step
         """
-        logger.info("💬 Preparing manager input...")
+        logger.info("💬 Preparing manager context...")
 
         # ====================================================================
         # Step 1: Get and format device state using unified formatter
@@ -505,24 +511,23 @@ class ManagerAgent(Workflow):
         logger.debug(
             f"  - Device state prepared (text_modify={has_text_to_modify}, screenshot={screenshot is not None})"
         )
-        event = ManagerThinkingEvent()
+        event = ManagerContextEvent()
         ctx.write_event_to_stream(event)
         return event
 
     @step
-    async def think(
-        self, ctx: Context, ev: ManagerThinkingEvent
-    ) -> ManagerInternalPlanEvent:
+    async def get_response(
+        self, ctx: Context, ev: ManagerContextEvent
+    ) -> ManagerResponseEvent:
         """
-        Manager reasons and creates plan.
+        Manager thinks and gets LLM response.
 
         This step:
         1. Builds system prompt with all context
         2. Builds messages from history with injected context
         3. Calls LLM
         4. Validates and retries if needed
-        5. Parses response
-        6. Updates state (memory, message history)
+        5. Returns raw validated response
         """
         logger.info("🧠 Manager thinking about the plan...")
 
@@ -560,13 +565,38 @@ class ManagerAgent(Workflow):
             ctx=ctx, initial_messages=messages, initial_response=output_planning
         )
 
+        logger.debug("✅ Manager finished thinking, sending response for processing")
+
+        # Emit event to stream and return for next step
+        event = ManagerResponseEvent(output_planning=output_planning)
+        ctx.write_event_to_stream(event)
+
+        return event
+
+    @step
+    async def process_response(
+        self, ctx: Context, ev: ManagerResponseEvent
+    ) -> ManagerPlanDetailsEvent:
+        """
+        Parse LLM response and update agent state.
+
+        This step:
+        1. Parses the raw LLM response
+        2. Updates shared state (memory, message history, planning fields)
+        3. Logs the results
+        4. Returns processed plan event
+        """
+        logger.info("⚙️ Processing manager response...")
+
+        output_planning = ev.output_planning
+
         # ====================================================================
-        # Step 5: Parse response
+        # Step 1: Parse response
         # ====================================================================
         parsed = parse_manager_response(output_planning)
 
         # ====================================================================
-        # Step 6: Update state
+        # Step 2: Update state
         # ====================================================================
         memory_update = parsed.get("memory", "").strip()
 
@@ -594,7 +624,7 @@ class ManagerAgent(Workflow):
             f"  - Manager answer: {parsed['answer'][:50] if parsed['answer'] else 'None'}"
         )
 
-        event = ManagerInternalPlanEvent(
+        event = ManagerPlanDetailsEvent(
             plan=parsed["plan"],
             current_subgoal=parsed["current_subgoal"],
             thought=parsed["thought"],
@@ -610,7 +640,7 @@ class ManagerAgent(Workflow):
         return event
 
     @step
-    async def finalize(self, ctx: Context, ev: ManagerInternalPlanEvent) -> StopEvent:
+    async def finalize(self, ctx: Context, ev: ManagerPlanDetailsEvent) -> StopEvent:
         """Return manager results to parent workflow."""
         logger.debug("✅ Manager planning complete")
 

@@ -13,9 +13,25 @@ from typing import Dict
 from llama_index.core.workflow.events import Event
 
 
-class ExecutorInternalActionEvent(Event):
+class ExecutorContextEvent(Event):
+    """Executor context prepared, ready for LLM call"""
+
+    pass
+
+
+class ExecutorResponseEvent(Event):
     """
-    Internal Executor action selection event with thought process.
+    Executor has received LLM response, ready for parsing.
+
+    This event carries the raw LLM output before parsing.
+    """
+
+    response_text: str
+
+
+class ExecutorActionEvent(Event):
+    """
+    Executor action selection event with thought process.
 
     This event is streamed to frontend/logging but NOT used for
     workflow coordination between ExecutorAgent and DroidAgent.
@@ -29,9 +45,9 @@ class ExecutorInternalActionEvent(Event):
     full_response: str = ""  # Full LLM response for development
 
 
-class ExecutorInternalResultEvent(Event):
+class ExecutorActionResultEvent(Event):
     """
-    Internal Executor result event with full debug information.
+    Executor action result event with full debug information.
 
     This event is streamed to frontend/logging but NOT used for
     workflow coordination between ExecutorAgent and DroidAgent.

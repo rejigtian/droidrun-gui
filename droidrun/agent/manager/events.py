@@ -11,15 +11,25 @@ For workflow coordination with DroidAgent, see droid/events.py
 from llama_index.core.workflow.events import Event
 
 
-class ManagerThinkingEvent(Event):
-    """Manager is thinking about the plan"""
+class ManagerContextEvent(Event):
+    """Manager context prepared, ready for LLM call"""
 
     pass
 
 
-class ManagerInternalPlanEvent(Event):
+class ManagerResponseEvent(Event):
     """
-    Internal Manager planning event with full state and metadata.
+    Manager has received LLM response, ready for parsing.
+
+    This event carries the raw validated LLM output before parsing.
+    """
+
+    output_planning: str
+
+
+class ManagerPlanDetailsEvent(Event):
+    """
+    Manager planning event with full state and metadata.
 
     This event is streamed to frontend/logging but NOT used for
     workflow coordination between ManagerAgent and DroidAgent.

@@ -19,8 +19,10 @@ from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
 
 from droidrun.agent.executor.events import (
-    ExecutorInternalActionEvent,
-    ExecutorInternalResultEvent,
+    ExecutorActionEvent,
+    ExecutorActionResultEvent,
+    ExecutorContextEvent,
+    ExecutorResponseEvent,
 )
 from droidrun.agent.executor.prompts import parse_executor_response
 from droidrun.agent.utils.inference import acall_with_retries
@@ -84,15 +86,17 @@ class ExecutorAgent(Workflow):
         logger.info("✅ ExecutorAgent initialized successfully.")
 
     @step
-    async def think(self, ctx: Context, ev: StartEvent) -> ExecutorInternalActionEvent:
+    async def prepare_context(
+        self, ctx: Context, ev: StartEvent
+    ) -> ExecutorContextEvent:
         """
-        Executor decides which action to take.
+        Prepare executor context and prompt.
 
         This step:
-        1. Calls LLM with executor prompt and context
-        2. Parses the response for action, thought, description
-        3. Validates action format (blocks answer actions!)
-        4. Returns action event
+        1. Extracts subgoal from event
+        2. Builds action history context
+        3. Builds system prompt with all variables
+        4. Stores messages for next step
         """
         # macro tools context
         self.tools_instance._set_context(ctx)
@@ -160,18 +164,68 @@ class ExecutorAgent(Workflow):
                 logger.warning("⚠️ Vision enabled but no screenshot available")
         messages = [ChatMessage(role="user", blocks=blocks)]
 
+        # Store messages and subgoal in shared state for next step
+        self.shared_state.executor_messages = messages
+        self.shared_state.executor_subgoal = subgoal
+
+        logger.debug("✅ Executor context prepared")
+
+        event = ExecutorContextEvent()
+        ctx.write_event_to_stream(event)
+
+        return event
+
+    @step
+    async def get_response(
+        self, ctx: Context, ev: ExecutorContextEvent
+    ) -> ExecutorResponseEvent:
+        """
+        Executor thinks and gets LLM response.
+
+        This step:
+        1. Calls LLM with prepared messages
+        2. Returns raw response for parsing
+        """
+        logger.info("🧠 Executor getting LLM response...")
+
+        messages = self.shared_state.executor_messages
+
         try:
             response = await acall_with_retries(self.llm, messages)
             response_text = str(response)
         except Exception as e:
             raise RuntimeError(f"Error calling LLM in executor: {e}") from e
 
+        logger.debug("✅ Executor finished thinking, sending response for parsing")
+
+        # Emit event to stream and return for next step
+        event = ExecutorResponseEvent(response_text=response_text)
+        ctx.write_event_to_stream(event)
+
+        return event
+
+    @step
+    async def process_response(
+        self, ctx: Context, ev: ExecutorResponseEvent
+    ) -> ExecutorActionEvent:
+        """
+        Parse LLM response and extract action.
+
+        This step:
+        1. Parses the raw LLM response
+        2. Extracts action, thought, and description
+        3. Returns action event for execution
+        """
+        logger.info("⚙️ Processing executor response...")
+
+        response_text = ev.response_text
+
         # Parse response
         try:
             parsed = parse_executor_response(response_text)
         except Exception as e:
             logger.error(f"❌ Failed to parse executor response: {e}")
-            return ExecutorInternalActionEvent(
+            return ExecutorActionEvent(
                 action_json=json.dumps({"action": "invalid"}),
                 thought=f"Failed to parse response: {str(e)}",
                 description="Invalid response format from LLM",
@@ -182,7 +236,7 @@ class ExecutorAgent(Workflow):
         logger.info(f"🎯 Action: {parsed['action']}")
         logger.debug(f"  - Description: {parsed['description']}")
 
-        event = ExecutorInternalActionEvent(
+        event = ExecutorActionEvent(
             action_json=parsed["action"],
             thought=parsed["thought"],
             description=parsed["description"],
@@ -196,8 +250,8 @@ class ExecutorAgent(Workflow):
 
     @step
     async def execute(
-        self, ctx: Context, ev: ExecutorInternalActionEvent
-    ) -> ExecutorInternalResultEvent:
+        self, ctx: Context, ev: ExecutorActionEvent
+    ) -> ExecutorActionResultEvent:
         """
         Execute the selected action using the tools instance.
 
@@ -210,7 +264,7 @@ class ExecutorAgent(Workflow):
             action_dict = json.loads(ev.action_json)
         except json.JSONDecodeError as e:
             logger.error(f"❌ Failed to parse action JSON: {e}")
-            return ExecutorInternalResultEvent(
+            return ExecutorActionResultEvent(
                 action={"action": "invalid"},
                 outcome=False,
                 error=f"Invalid action JSON: {str(e)}",
@@ -228,7 +282,7 @@ class ExecutorAgent(Workflow):
 
         logger.info(f"{'✅' if outcome else '❌'} Execution complete: {summary}")
 
-        result_event = ExecutorInternalResultEvent(
+        result_event = ExecutorActionResultEvent(
             action=action_dict,
             outcome=outcome,
             error=error,
@@ -459,9 +513,7 @@ class ExecutorAgent(Workflow):
             return False, error_msg, f"Failed: {action_type}"
 
     @step
-    async def finalize(
-        self, ctx: Context, ev: ExecutorInternalResultEvent
-    ) -> StopEvent:
+    async def finalize(self, ctx: Context, ev: ExecutorActionResultEvent) -> StopEvent:
         """Return executor results to parent workflow."""
         logger.debug("✅ Executor execution complete")
 
