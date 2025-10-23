@@ -56,7 +56,7 @@ from droidrun.config_manager.config_manager import AgentConfig, CodeActConfig, M
 AgentConfig(
     # Core settings
     max_steps=15,                    # Max execution steps
-    reasoning=False,                 # Enable Manager/Executor workflow
+    reasoning=True,                 # Enable Manager/Executor workflow
     after_sleep_action=1.0,          # Wait after actions (seconds)
     wait_for_stable_ui=0.3,          # Wait for UI to stabilize (seconds)
     prompts_dir="config/prompts",    # Prompt templates directory
@@ -73,17 +73,17 @@ AgentConfig(
 **CodeActConfig**
 ```python
 CodeActConfig(
-    vision=False,                    # Enable screenshots
+    vision=True,                    # Enable screenshots
     system_prompt="system.jinja2",   # Filename in prompts_dir/codeact/
     user_prompt="user.jinja2",       # Filename in prompts_dir/codeact/
-    safe_execution=False,            # Restrict imports/builtins
+    safe_execution=True,            # Restrict imports/builtins
 )
 ```
 
 **ManagerConfig**
 ```python
 ManagerConfig(
-    vision=False,                    # Enable screenshots
+    vision=True,                    # Enable screenshots
     system_prompt="system.jinja2",   # Filename in prompts_dir/manager/
 )
 ```
@@ -91,7 +91,7 @@ ManagerConfig(
 **ExecutorConfig**
 ```python
 ExecutorConfig(
-    vision=False,                    # Enable screenshots
+    vision=True,                    # Enable screenshots
     system_prompt="system.jinja2",   # Filename in prompts_dir/executor/
 )
 ```
@@ -141,7 +141,7 @@ DeviceConfig(
 from droidrun.config_manager.config_manager import LoggingConfig
 
 LoggingConfig(
-    debug=False,                   # Enable debug logs
+    debug=True,                   # Enable debug logs
     save_trajectory="none",        # "none" | "step" | "action"
     rich_text=False,               # Rich text formatting in logs
 )
@@ -155,7 +155,7 @@ LoggingConfig(
 from droidrun.config_manager.config_manager import TracingConfig
 
 TracingConfig(
-    enabled=False,  # Enable Arize Phoenix tracing
+    enabled=True,  # Enable Arize Phoenix tracing
 )
 ```
 
@@ -179,7 +179,7 @@ TelemetryConfig(
 from droidrun.config_manager.config_manager import ToolsConfig
 
 ToolsConfig(
-    allow_drag=False,  # Enable drag tool
+    allow_drag=True,  # Enable drag tool
 )
 ```
 
@@ -191,7 +191,7 @@ ToolsConfig(
 from droidrun.config_manager.config_manager import CredentialsConfig
 
 CredentialsConfig(
-    enabled=False,                   # Enable credential manager
+    enabled=True,                   # Enable credential manager
     file_path="credentials.yaml",    # Path to credentials file
 )
 ```
