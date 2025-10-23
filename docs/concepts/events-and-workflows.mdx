@@ -20,11 +20,11 @@ handler = agent.run()
 
 # Stream events in real-time
 async for event in handler.stream_events():
-    if isinstance(event, ManagerInternalPlanEvent):
+    if isinstance(event, ManagerPlanDetailsEvent):
         print(f"📋 Plan: {event.plan}")
         print(f"🎯 Current subgoal: {event.current_subgoal}")
 
-    elif isinstance(event, ExecutorInternalActionEvent):
+    elif isinstance(event, ExecutorActionEvent):
         print(f"⚡ Action: {event.description}")
         print(f"💭 Thought: {event.thought}")
 
@@ -45,24 +45,65 @@ print(f"📝 Reason: {result.reason}")
 
 ### Planning Events
 
-**ManagerInternalPlanEvent** - Emitted when Manager creates/updates a plan:
+**ManagerContextEvent** - Emitted after Manager prepares context:
 ```python
-class ManagerInternalPlanEvent(Event):
+class ManagerContextEvent(Event):
+    """Signals that Manager has prepared context and is ready for LLM call"""
+    pass  # No fields - this is just a signal event
+```
+
+**ManagerResponseEvent** - Emitted after Manager receives LLM response:
+```python
+class ManagerResponseEvent(Event):
+    output_planning: str  # Raw validated LLM response from Manager
+```
+
+**ManagerPlanDetailsEvent** - Emitted when Manager creates/updates a plan:
+```python
+class ManagerPlanDetailsEvent(Event):
     plan: str              # Full task plan with subgoals
     current_subgoal: str   # Current subgoal being executed
     thought: str           # Manager's reasoning
     manager_answer: str    # Direct answer (if task is complete)
+    memory_update: str     # Memory additions from this response
+    success: bool | None   # True/False if complete, None if in progress
     full_response: str     # Complete LLM response from Manager
 ```
 
 ### Execution Events
 
-**ExecutorInternalActionEvent** - Emitted when Executor selects an action:
+**ExecutorContextEvent** - Emitted after Executor prepares context:
 ```python
-class ExecutorInternalActionEvent(Event):
+class ExecutorContextEvent(Event):
+    """Signals that Executor has prepared context and is ready for LLM call"""
+    pass  # No fields - this is just a signal event
+```
+
+**ExecutorResponseEvent** - Emitted after Executor receives LLM response:
+```python
+class ExecutorResponseEvent(Event):
+    response_text: str  # Raw LLM response from Executor
+```
+
+**ExecutorActionEvent** - Emitted when Executor selects an action:
+```python
+class ExecutorActionEvent(Event):
     action_json: str    # JSON representation of selected action
     thought: str        # Executor's reasoning
     description: str    # Human-readable action description
+    full_response: str  # Complete LLM response from Executor
+```
+
+**ExecutorActionResultEvent** - Emitted after Executor action execution:
+```python
+class ExecutorActionResultEvent(Event):
+    action: Dict        # The executed action
+    outcome: bool       # Whether action succeeded
+    error: str          # Error message (if failed)
+    summary: str        # Human-readable summary of result
+    thought: str        # Executor's reasoning
+    action_json: str    # Raw action JSON
+    full_response: str  # Complete LLM response from Executor
 ```
 
 **CodeGenerationEvent** - Emitted when CodeAct generates code:
@@ -105,11 +146,11 @@ async def run_with_ui(goal: str):
     handler = agent.run()
 
     async for event in handler.stream_events():
-        if isinstance(event, ManagerInternalPlanEvent):
+        if isinstance(event, ManagerPlanDetailsEvent):
             ui.update_plan(event.plan)
             ui.update_current_step(event.current_subgoal)
 
-        elif isinstance(event, ExecutorInternalActionEvent):
+        elif isinstance(event, ExecutorActionEvent):
             ui.add_action_log(event.description, event.thought)
 
         elif isinstance(event, ScreenshotEvent):
@@ -134,7 +175,7 @@ async def monitor_execution(goal: str):
     action_count = 0
 
     async for event in handler.stream_events():
-        if isinstance(event, ExecutorInternalActionEvent):
+        if isinstance(event, ExecutorActionEvent):
             action_count += 1
             logger.info(f"Action {action_count}: {event.description}")
 
@@ -153,7 +194,7 @@ async def monitor_execution(goal: str):
 
 - Events are **streamed in real-time** as the agent executes
 - Not all events are emitted in every execution (depends on mode and actions)
-- **Reasoning mode** emits `ManagerInternalPlanEvent` and `ExecutorInternalActionEvent`
+- **Reasoning mode** emits `ManagerContextEvent`, `ManagerResponseEvent`, `ManagerPlanDetailsEvent`, `ExecutorContextEvent`, `ExecutorResponseEvent`, `ExecutorActionEvent`, and `ExecutorActionResultEvent`
 - **Direct mode** emits `CodeGenerationEvent` and `CodeExecutionResultEvent`
 - All events are **Pydantic models** with full type safety
 - The `handler` object is **async** - always use `await handler` to get the final result

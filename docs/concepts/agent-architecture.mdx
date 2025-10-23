@@ -51,14 +51,11 @@ Creates strategic plans and breaks tasks into subgoals.
 
 **Location**: `droidrun/agent/manager/manager_agent.py:46`
 
-```python
-class ManagerPlan(BaseModel):
-    current_subgoal: str  # Next subgoal for Executor
-    reasoning: str        # Why this subgoal
-    should_finalize: bool # Task complete?
-    script_block: str | None  # Python for ScripterAgent
-    full_plan: List[str]  # Complete plan
-```
+**Workflow Steps:**
+1. **prepare_context()** → `ManagerContextEvent` - Builds context and system prompt
+2. **get_response()** → `ManagerResponseEvent` - Gets LLM response
+3. **process_response()** → `ManagerPlanDetailsEvent` - Parses response into plan
+4. **finalize()** → `StopEvent` - Returns results to parent workflow
 
 **Configuration:**
 ```yaml
@@ -80,17 +77,12 @@ Executes atomic actions for each subgoal.
 
 **Location**: `droidrun/agent/executor/executor_agent.py`
 
-```python
-class ExecutorAction(BaseModel):
-    action: str        # "click", "type", "swipe", etc.
-    parameters: dict   # Action parameters
-    reasoning: str     # Why this action
-
-class ExecutorResult(BaseModel):
-    success: bool      # Action succeeded?
-    outcome: str       # What happened
-    error_message: str | None
-```
+**Workflow Steps:**
+1. **prepare_context()** → `ExecutorContextEvent` - Builds context and system prompt
+2. **get_response()** → `ExecutorResponseEvent` - Gets LLM response
+3. **process_response()** → `ExecutorActionEvent` - Parses response into action
+4. **execute()** → `ExecutorActionResultEvent` - Executes action on device
+5. **finalize()** → `StopEvent` - Returns results to parent workflow
 
 **Configuration:**
 ```yaml
@@ -210,9 +202,33 @@ StartEvent
   ↓
 ManagerInputEvent → run_manager()
   ↓
+  [ManagerAgent Workflow]
+  StartEvent → prepare_context()
+    ↓
+  ManagerContextEvent → get_response()
+    ↓
+  ManagerResponseEvent → process_response()
+    ↓
+  ManagerPlanDetailsEvent → finalize()
+    ↓
+  StopEvent
+  ↓
 ManagerPlanEvent → handle_manager_plan()
   ↓
 ExecutorInputEvent → run_executor()
+  ↓
+  [ExecutorAgent Workflow]
+  StartEvent → prepare_context()
+    ↓
+  ExecutorContextEvent → get_response()
+    ↓
+  ExecutorResponseEvent → process_response()
+    ↓
+  ExecutorActionEvent → execute()
+    ↓
+  ExecutorActionResultEvent → finalize()
+    ↓
+  StopEvent
   ↓
 ExecutorResultEvent → handle_executor_result()
   ↓

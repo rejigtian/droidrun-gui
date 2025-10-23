@@ -302,8 +302,15 @@ DroidAgent emits various events during execution:
 **Workflow Events:**
 - `StartEvent` - Workflow started
 - `ManagerInputEvent` - Manager planning phase started
+- `ManagerContextEvent` - Manager received context for planning
+- `ManagerResponseEvent` - Manager intermediate response
 - `ManagerPlanEvent` - Manager created a plan
+- `ManagerPlanDetailsEvent` - Manager plan details
 - `ExecutorInputEvent` - Executor action phase started
+- `ExecutorContextEvent` - Executor received context
+- `ExecutorResponseEvent` - Executor intermediate response
+- `ExecutorActionEvent` - Executor action details
+- `ExecutorActionResultEvent` - Executor action result details
 - `ExecutorResultEvent` - Executor completed an action
 - `ScripterExecutorInputEvent` - ScripterAgent started
 - `ScripterExecutorResultEvent` - ScripterAgent completed
