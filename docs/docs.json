@@ -47,8 +47,7 @@
           {
             "group": "Concepts",
             "pages": [
-              "/concepts/overview",
-              "/concepts/agent-architecture",
+              "/concepts/architecture",
               "/concepts/scripter-agent",
               "/concepts/shared-state",
               "/concepts/events-and-workflows",
