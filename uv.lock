@@ -896,7 +896,7 @@ requires-dist = [
     { name = "apkutils", specifier = "==2.0.0" },
     { name = "arize-phoenix", specifier = ">=12.3.0" },
     { name = "bandit", marker = "extra == 'dev'", specifier = ">=1.8.6" },
-    { name = "black", marker = "extra == 'dev'", specifier = ">=23.0.0" },
+    { name = "black", marker = "extra == 'dev'", specifier = "==25.9.0" },
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "llama-index", specifier = "==0.14.4" },
     { name = "llama-index-callbacks-arize-phoenix", specifier = ">=0.6.1" },
