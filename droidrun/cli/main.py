@@ -294,15 +294,16 @@ def _print_version(ctx, param, value):
     version = None
     try:
         version = importlib.metadata.version("droidrun")
-        #print("debug: step 1")
+        # print("debug: step 1")
     except Exception:
         pass
 
     if not version:
         try:
             from droidrun import __version__ as pkg_version
+
             version = pkg_version
-            #print("debug: step 2")
+            # print("debug: step 2")
         except Exception:
             pass
 
@@ -314,7 +315,7 @@ def _print_version(ctx, param, value):
                 with pyproject.open("rb") as f:
                     data = tomllib.load(f)
                     version = data.get("project", {}).get("version")
-            #print("debug: step 3")
+            # print("debug: step 3")
         except Exception:
             version = None
 
@@ -325,13 +326,14 @@ def _print_version(ctx, param, value):
 
 
 @click.group(cls=DroidRunCLI)
-
-@click.option("--version",
-              is_flag=True, 
-              callback=_print_version, 
-              expose_value=False, 
-              is_eager=True, 
-              help="Show droidrun version and exit")
+@click.option(
+    "--version",
+    is_flag=True,
+    callback=_print_version,
+    expose_value=False,
+    is_eager=True,
+    help="Show droidrun version and exit",
+)
 def cli():
     """DroidRun - Control your Android device through LLM agents."""
     pass
