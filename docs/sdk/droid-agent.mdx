@@ -374,15 +374,13 @@ tracing:
 from droidrun import DroidAgent, DeviceConfig
 from droidrun.config_manager.config_manager import DroidrunConfig
 
-# Initialize config
-config = DroidrunConfig()
-
+# Initialize config with device settings
 device_config = DeviceConfig(serial="emulator-5554", use_tcp=True)
+config = DroidrunConfig(device=device_config)
 
 agent = DroidAgent(
     goal="Open settings",
     config=config,
-    device_config=device_config
 )
 
 result = await agent.run()
