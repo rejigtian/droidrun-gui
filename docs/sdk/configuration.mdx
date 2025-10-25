@@ -648,30 +648,6 @@ droidrun run "Task" --config /path/to/config.yaml
 
 ---
 
-## Configuration Priority
-
-When multiple sources are provided, DroidAgent uses this priority:
-
-1. **Config object**
-   ```python
-   config = DroidrunConfig(agent=AgentConfig(max_steps=30))
-   agent = DroidAgent(goal="...", config=config)
-   ```
-
-2. **Defaults** (lowest priority)
-
-**Example:**
-```python
-config = DroidrunConfig(agent=AgentConfig(max_steps=20))
-
-agent = DroidAgent(
-    goal="...",
-    config=config,  # max_steps=20 from config
-)
-```
-
----
-
 ## Environment Variables
 
 Set API keys via environment variables:
