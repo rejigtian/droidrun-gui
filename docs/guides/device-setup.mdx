@@ -222,12 +222,13 @@ The Portal only communicates locally via ADB. No data is sent to external server
 
     ```python
     import asyncio
-    from droidrun import DeviceConfig, DroidAgent
+    from droidrun import DeviceConfig, DroidrunConfig, DroidAgent
     from adbutils import adb
 
     async def control_device(serial: str, command: str):
         device_config = DeviceConfig(serial=serial)
-        agent = DroidAgent(goal=command, device_config=tools)
+        config = DroidrunConfig(device=device_config)
+        agent = DroidAgent(goal=command, config=config)
         return await agent.run()
 
     async def main():

@@ -108,12 +108,7 @@ class DroidAgent(Workflow):
         goal: str,
         config: DroidrunConfig | None = None,
         llms: dict[str, LLM] | LLM | None = None,
-        agent_config: AgentConfig | None = None,
-        device_config: DeviceConfig | None = None,
         tools: "Tools | ToolsConfig | None" = None,
-        logging_config: LoggingConfig | None = None,
-        tracing_config: TracingConfig | None = None,
-        telemetry_config: TelemetryConfig | None = None,
         custom_tools: dict = None,
         credentials: "CredentialsConfig | dict | None" = None,
         variables: dict | None = None,
@@ -131,14 +126,9 @@ class DroidAgent(Workflow):
             config: Full config (required if llms not provided)
             llms: Optional dict of agent-specific LLMs or single LLM for all.
                   If not provided, LLMs will be loaded from config profiles.
-            agent_config: Agent config override (optional)
-            device_config: Device config override (optional)
             tools: Either a Tools instance (for custom/pre-configured tools),
                    ToolsConfig (for config-based creation), or None (use default).
                    Renamed from tools_config to support both instances and config.
-            logging_config: Logging config override (optional)
-            tracing_config: Tracing config override (optional)
-            telemetry_config: Telemetry config override (optional)
             custom_tools: Custom tool definitions
             credentials: Either CredentialsConfig (from config.credentials),
                         dict of credentials {"SECRET_ID": "value"}, or None
@@ -182,9 +172,7 @@ class DroidAgent(Workflow):
         tools_fallback = (
             tools if tools is not None else (base_config.tools if base_config else None)
         )
-        resolved_device_config = device_config or (
-            base_config.device if base_config else DeviceConfig()
-        )
+        resolved_device_config = base_config.device if base_config else DeviceConfig()
         tools_instance, tools_config_resolved = resolve_tools_instance(
             tools=tools_fallback,
             device_config=resolved_device_config,
@@ -194,15 +182,12 @@ class DroidAgent(Workflow):
 
         # Build final config with resolved tools config
         self.config = DroidrunConfig(
-            agent=agent_config or (base_config.agent if base_config else AgentConfig()),
+            agent=base_config.agent if base_config else AgentConfig(),
             device=resolved_device_config,
             tools=tools_config_resolved,
-            logging=logging_config
-            or (base_config.logging if base_config else LoggingConfig()),
-            tracing=tracing_config
-            or (base_config.tracing if base_config else TracingConfig()),
-            telemetry=telemetry_config
-            or (base_config.telemetry if base_config else TelemetryConfig()),
+            logging=base_config.logging if base_config else LoggingConfig(),
+            tracing=base_config.tracing if base_config else TracingConfig(),
+            telemetry=base_config.telemetry if base_config else TelemetryConfig(),
             llm_profiles=base_config.llm_profiles if base_config else {},
             credentials=base_config.credentials if base_config else CredentialsConfig(),
         )

@@ -405,8 +405,29 @@ def send_email(to: str, subject: str) -> str:
     """Send email."""
     return f"Sent to {to}"
 
+# Build configuration
+config = DroidrunConfig(
+    agent=AgentConfig(
+        max_steps=30,
+        reasoning=True,
+        after_sleep_action=1.5,
+        codeact=CodeActConfig(vision=True, safe_execution=True)
+    ),
+    device=DeviceConfig(
+        serial="emulator-5554",
+        platform="android",
+        use_tcp=False
+    ),
+    logging=LoggingConfig(
+        debug=True,
+        save_trajectory="action"
+    ),
+    tracing=TracingConfig(enabled=True),
+)
+
 agent = DroidAgent(
     goal="Complex task",
+    config=config,
 
     # LLMs
     llms={
@@ -414,30 +435,6 @@ agent = DroidAgent(
         "executor": Gemini(model="models/gemini-2.5-flash"),
         "codeact": Gemini(model="models/gemini-2.5-pro")
     },
-
-    # Agent behavior
-    agent_config=AgentConfig(
-        max_steps=30,
-        reasoning=True,
-        after_sleep_action=1.5,
-        codeact=CodeActConfig(vision=True, safe_execution=True)
-    ),
-
-    # Device
-    device_config=DeviceConfig(
-        serial="emulator-5554",
-        platform="android",
-        use_tcp=False
-    ),
-
-    # Logging
-    logging_config=LoggingConfig(
-        debug=True,
-        save_trajectory="action"
-    ),
-
-    # Tracing
-    tracing_config=TracingConfig(enabled=True),
 
     # Custom tools
     custom_tools={
@@ -655,17 +652,13 @@ droidrun run "Task" --config /path/to/config.yaml
 
 When multiple sources are provided, DroidAgent uses this priority:
 
-1. **Direct parameters** (highest priority)
+1. **Config object**
    ```python
-   agent = DroidAgent(goal="...", agent_config=AgentConfig(max_steps=30))
+   config = DroidrunConfig(agent=AgentConfig(max_steps=30))
+   agent = DroidAgent(goal="...", config=config)
    ```
 
-2. **Config object**
-   ```python
-   agent = DroidAgent(goal="...", config=my_config)
-   ```
-
-3. **Defaults** (lowest priority)
+2. **Defaults** (lowest priority)
 
 **Example:**
 ```python
@@ -674,7 +667,6 @@ config = DroidrunConfig(agent=AgentConfig(max_steps=20))
 agent = DroidAgent(
     goal="...",
     config=config,  # max_steps=20 from config
-    agent_config=AgentConfig(max_steps=30)  # Overrides to 30
 )
 ```
 
