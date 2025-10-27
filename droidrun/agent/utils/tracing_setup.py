@@ -7,6 +7,7 @@ This module provides a centralized way to configure tracing providers
 
 import logging
 import os
+from uuid import uuid4
 
 import llama_index.core
 
@@ -79,8 +80,13 @@ def _setup_langfuse_tracing(tracing_config: TracingConfig) -> None:
 
         from llama_index.core import set_global_handler
 
-        set_global_handler("langfuse")
-        logger.info("🔍 Langfuse tracing enabled globally")
+        session_id = str(uuid4())
+        set_global_handler(
+            "langfuse",
+            user_id=tracing_config.langfuse_user_id,
+            session_id=session_id
+        )
+        logger.info(f"🔍 Langfuse tracing enabled globally (session: {session_id})")
     except ImportError:
         logger.warning(
             "⚠️  Langfuse is not installed.\n"
