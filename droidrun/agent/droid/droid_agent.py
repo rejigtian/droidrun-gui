@@ -10,7 +10,6 @@ Architecture:
 import logging
 from typing import TYPE_CHECKING, Type, Awaitable
 
-import llama_index.core
 from pydantic import BaseModel
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
@@ -44,6 +43,7 @@ from droidrun.agent.utils.tools import (
     build_custom_tools,
     resolve_tools_instance,
 )
+from droidrun.agent.utils.tracing_setup import setup_tracing
 from droidrun.agent.utils.trajectory import Trajectory
 from droidrun.config_manager.config_manager import (
     AgentConfig,
@@ -62,7 +62,6 @@ from droidrun.telemetry import (
     capture,
     flush,
 )
-from droidrun.telemetry.phoenix import arize_phoenix_callback_handler
 
 if TYPE_CHECKING:
     from droidrun.tools import Tools
@@ -196,6 +195,8 @@ class DroidAgent(Workflow):
 
         self._configure_default_logging(debug=self.config.logging.debug)
 
+        setup_tracing(self.config.tracing)
+
         # Load LLMs if not provided
         if llms is None:
             if config is None:
@@ -215,19 +216,6 @@ class DroidAgent(Workflow):
             pass
         else:
             raise ValueError(f"Invalid LLM type: {type(llms)}")
-
-        if self.config.tracing.enabled:
-            try:
-                handler = arize_phoenix_callback_handler()
-                llama_index.core.global_handler = handler
-                logger.info("🔍 Arize Phoenix tracing enabled globally")
-            except ImportError:
-                logger.warning(
-                    "⚠️  Arize Phoenix is not installed.\n"
-                    "    To enable Phoenix integration, install with:\n"
-                    "    • If installed via tool: `uv tool install droidrun[phoenix]`"
-                    "    • If installed via pip: `uv pip install droidrun[phoenix]`\n"
-                )
 
         self.timeout = timeout
 

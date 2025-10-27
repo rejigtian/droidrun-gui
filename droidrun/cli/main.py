@@ -794,4 +794,4 @@ if __name__ == "__main__":
     ios = False
     save_trajectory = "none"
     allow_drag = False
-    asyncio.run(test(command, reasoning=True))
+    run_command(command, reasoning=True)

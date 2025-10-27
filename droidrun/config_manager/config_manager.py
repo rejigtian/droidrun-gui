@@ -151,6 +151,11 @@ class TracingConfig:
     """Tracing configuration."""
 
     enabled: bool = False
+    provider: str = "phoenix"  # "phoenix" or "langfuse"
+    langfuse_secret_key: str = ""  # Set as LANGFUSE_SECRET_KEY env var if not empty
+    langfuse_public_key: str = ""  # Set as LANGFUSE_PUBLIC_KEY env var if not empty
+    langfuse_host: str = ""  # Set as LANGFUSE_HOST env var if not empty
+    langfuse_user_id: str = "anonymous"
 
 
 @dataclass

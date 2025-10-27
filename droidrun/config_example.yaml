@@ -142,8 +142,14 @@ telemetry:
 
 # === Tracing Settings ===
 tracing:
-  # Enable Arize Phoenix tracing
+  # Enable tracing
   enabled: false
+  # Tracing provider: phoenix or langfuse
+  provider: phoenix
+  # Langfuse configuration (set as environment variables if not empty string)
+  langfuse_secret_key: ""  # LANGFUSE_SECRET_KEY
+  langfuse_public_key: ""  # LANGFUSE_PUBLIC_KEY
+  langfuse_host: ""        # LANGFUSE_HOST
 
 # === Logging Settings ===
 logging:
