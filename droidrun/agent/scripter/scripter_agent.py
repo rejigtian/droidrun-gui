@@ -21,6 +21,7 @@ from droidrun.agent.scripter.events import (
     ScripterInputEvent,
     ScripterThinkingEvent,
 )
+from droidrun.agent.usage import get_usage_from_response
 from droidrun.agent.utils import chat_utils
 from droidrun.agent.utils.executer import ExecuterState, SimpleCodeExecutor
 from droidrun.agent.utils.inference import acall_with_retries
@@ -192,6 +193,13 @@ class ScripterAgent(Workflow):
                 code_executions=self.step_counter,
             )
 
+        # Extract usage from response
+        try:
+            usage = get_usage_from_response(self.llm.class_name(), response)
+        except Exception as e:
+            logger.warning(f"Could not get llm usage from response: {e}")
+            usage = None
+
         # Add assistant response to history
         full_response = response.message.content
         self.message_history.append(
@@ -202,7 +210,7 @@ class ScripterAgent(Workflow):
         code, thoughts = chat_utils.extract_code_and_thought(full_response)
 
         event = ScripterThinkingEvent(
-            thoughts=thoughts, code=code, full_response=full_response
+            thoughts=thoughts, code=code, full_response=full_response, usage=usage
         )
         ctx.write_event_to_stream(event)
         return event

@@ -8,9 +8,11 @@ These are INTERNAL events used within ExecutorAgent for:
 For workflow coordination with DroidAgent, see droid/events.py
 """
 
-from typing import Dict
+from typing import Dict, Optional
 
 from llama_index.core.workflow.events import Event
+
+from droidrun.agent.usage import UsageResult
 
 
 class ExecutorContextEvent(Event):
@@ -28,6 +30,7 @@ class ExecutorResponseEvent(Event):
     """
 
     response_text: str
+    usage: Optional[UsageResult] = None
 
 
 class ExecutorActionEvent(Event):

@@ -8,7 +8,11 @@ These are INTERNAL events used within ManagerAgent for:
 For workflow coordination with DroidAgent, see droid/events.py
 """
 
+from typing import Optional
+
 from llama_index.core.workflow.events import Event
+
+from droidrun.agent.usage import UsageResult
 
 
 class ManagerContextEvent(Event):
@@ -25,6 +29,7 @@ class ManagerResponseEvent(Event):
     """
 
     output_planning: str
+    usage: Optional[UsageResult] = None
 
 
 class ManagerPlanDetailsEvent(Event):

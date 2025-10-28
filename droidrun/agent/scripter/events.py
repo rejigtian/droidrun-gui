@@ -6,6 +6,8 @@ from typing import List, Optional
 
 from llama_index.core.workflow import Event
 
+from droidrun.agent.usage import UsageResult
+
 
 class ScripterInputEvent(Event):
     """Input to LLM (chat history)."""
@@ -19,6 +21,7 @@ class ScripterThinkingEvent(Event):
     thoughts: str
     code: Optional[str] = None
     full_response: str = ""  # Full LLM response (for fallback when no code)
+    usage: Optional[UsageResult] = None
 
 
 class ScripterExecutionEvent(Event):
