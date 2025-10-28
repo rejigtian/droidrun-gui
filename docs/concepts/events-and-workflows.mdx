@@ -29,11 +29,14 @@ async for event in handler.stream_events():
         print(f"💭 Thought: {event.thought}")
 
     elif isinstance(event, ScreenshotEvent):
-        save_screenshot(event.screenshot, f"step_{event.step}.png")
+        save_screenshot(event.screenshot, "screenshot.png")
 
-    elif isinstance(event, CodeGenerationEvent):
-        print(f"🐍 Generated code (step {event.step_number}):")
-        print(event.code)
+    elif isinstance(event, TaskThinkingEvent):
+        print(f"🐍 Generated code:")
+        if event.code:
+            print(event.code)
+        if event.thoughts:
+            print(f"💭 Thoughts: {event.thoughts}")
 
 # Wait for final result
 result = await handler
@@ -106,17 +109,17 @@ class ExecutorActionResultEvent(Event):
     full_response: str  # Complete LLM response from Executor
 ```
 
-**CodeGenerationEvent** - Emitted when CodeAct generates code:
+**TaskThinkingEvent** - Emitted when CodeAct generates code:
 ```python
-class CodeGenerationEvent(Event):
-    code: str          # Generated Python code
-    step_number: int   # Current step in execution
+class TaskThinkingEvent(Event):
+    thoughts: Optional[str]  # LLM's reasoning process
+    code: Optional[str]      # Generated Python code
+    usage: Optional[UsageResult]  # Token usage information
 ```
 
-**CodeExecutionResultEvent** - Emitted after code execution:
+**TaskExecutionResultEvent** - Emitted after code execution:
 ```python
-class CodeExecutionResultEvent(Event):
-    success: bool    # Whether execution succeeded
+class TaskExecutionResultEvent(Event):
     output: str      # Execution output or error message
 ```
 
@@ -126,14 +129,12 @@ class CodeExecutionResultEvent(Event):
 ```python
 class ScreenshotEvent(Event):
     screenshot: bytes  # PNG image data
-    step: int         # Step number
 ```
 
-**AccessibilityTreeEvent** - Emitted when UI tree is captured:
+**RecordUIStateEvent** - Emitted when UI state is captured:
 ```python
-class AccessibilityTreeEvent(Event):
-    tree: str         # Accessibility tree dump
-    step: int         # Step number
+class RecordUIStateEvent(Event):
+    ui_state: list[Dict[str, Any]]  # Accessibility tree as structured data
 ```
 
 ## Common Patterns
@@ -179,9 +180,8 @@ async def monitor_execution(goal: str):
             action_count += 1
             logger.info(f"Action {action_count}: {event.description}")
 
-        elif isinstance(event, CodeExecutionResultEvent):
-            if not event.success:
-                logger.error(f"Code execution failed: {event.output}")
+        elif isinstance(event, TaskExecutionResultEvent):
+            logger.info(f"Code execution result: {event.output}")
 
     result = await handler
     duration = time.time() - start_time
@@ -195,7 +195,7 @@ async def monitor_execution(goal: str):
 - Events are **streamed in real-time** as the agent executes
 - Not all events are emitted in every execution (depends on mode and actions)
 - **Reasoning mode** emits `ManagerContextEvent`, `ManagerResponseEvent`, `ManagerPlanDetailsEvent`, `ExecutorContextEvent`, `ExecutorResponseEvent`, `ExecutorActionEvent`, and `ExecutorActionResultEvent`
-- **Direct mode** emits `CodeGenerationEvent` and `CodeExecutionResultEvent`
+- **Direct mode** emits `TaskThinkingEvent` and `TaskExecutionResultEvent`
 - All events are **Pydantic models** with full type safety
 - The `handler` object is **async** - always use `await handler` to get the final result
 
