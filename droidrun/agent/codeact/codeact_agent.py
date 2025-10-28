@@ -274,13 +274,29 @@ Now, describe the next step you will take to address the original goal: {goal}""
                 self.remembered_info, chat_history
             )
 
-        # Always capture screenshot for trajectory
-        screenshot = (self.tools.take_screenshot())[1]
-        ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
-        await ctx.store.set("screenshot", screenshot)
+        screenshot = None
+        if self.vision or (
+            hasattr(self.tools, "save_trajectories")
+            and self.tools.save_trajectories != "none"
+        ):
+            try:
+                result = self.tools.take_screenshot()
+                if isinstance(result, tuple):
+                    success, screenshot = result
+                    if not success:
+                        logger.warning("Screenshot capture failed")
+                        screenshot = None
+                else:
+                    screenshot = result
 
-        # Add screenshot to chat only if vision enabled
-        if self.vision and model != "DeepSeek":
+                if screenshot:
+                    ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
+                    await ctx.store.set("screenshot", screenshot)
+                    logger.debug("📸 Screenshot captured for CodeAct")
+            except Exception as e:
+                logger.warning(f"Failed to capture screenshot: {e}")
+
+        if self.vision and screenshot and model != "DeepSeek":
             chat_history = await chat_utils.add_screenshot_image_block(
                 screenshot, chat_history
             )

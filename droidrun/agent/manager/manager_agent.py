@@ -453,23 +453,26 @@ class ManagerAgent(Workflow):
         else:
             self.shared_state.app_card = ""
         # ====================================================================
-        # Step 2: Capture screenshot if vision enabled
+        # Step 2: Capture screenshot if needed for vision or trajectories
         # ====================================================================
         screenshot = None
-        if self.vision:
+        if self.vision or (
+            hasattr(self.tools_instance, "save_trajectories")
+            and self.tools_instance.save_trajectories != "none"
+        ):
             try:
                 result = self.tools_instance.take_screenshot()
                 if isinstance(result, tuple):
                     success, screenshot = result
                     if not success:
+                        logger.warning("Screenshot capture failed")
                         screenshot = None
-
                 else:
                     screenshot = result
 
                 if screenshot:
                     ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
-                logger.debug("📸 Screenshot captured for Manager")
+                    logger.debug("📸 Screenshot captured for Manager")
             except Exception as e:
                 logger.warning(f"Failed to capture screenshot: {e}")
                 screenshot = None
