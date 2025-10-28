@@ -33,7 +33,6 @@ def get_usage_from_response(provider: str, chat_rsp: ChatResponse) -> UsageResul
     if not rsp:
         raise ValueError("No raw response in chat response")
 
-    print(f"rsp: {rsp.__class__.__name__}")
 
     if provider == "Gemini" or provider == "GoogleGenAI" or provider == "GenAI":
         return UsageResult(
