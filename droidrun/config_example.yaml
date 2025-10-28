@@ -150,6 +150,8 @@ tracing:
   langfuse_secret_key: ""  # LANGFUSE_SECRET_KEY
   langfuse_public_key: ""  # LANGFUSE_PUBLIC_KEY
   langfuse_host: ""        # LANGFUSE_HOST
+  langfuse_user_id: "anonymous"  # User ID for tracing
+  langfuse_session_id: ""  # Session ID (empty = auto-generate UUID per process)
 
 # === Logging Settings ===
 logging:

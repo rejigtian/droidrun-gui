@@ -7,6 +7,7 @@ This module provides a centralized way to configure tracing providers
 
 import logging
 import os
+from typing import Optional
 from uuid import uuid4
 
 import llama_index.core
@@ -14,6 +15,9 @@ import llama_index.core
 from droidrun.config_manager.config_manager import TracingConfig
 
 logger = logging.getLogger("droidrun")
+
+# Module-level variable to store session_id across DroidAgent invocations
+_session_id: Optional[str] = None
 
 
 def setup_tracing(tracing_config: TracingConfig) -> None:
@@ -67,6 +71,8 @@ def _setup_langfuse_tracing(tracing_config: TracingConfig) -> None:
     Args:
         tracing_config: TracingConfig instance containing Langfuse credentials
     """
+    global _session_id
+
     try:
         # Set environment variables if provided in config
         if tracing_config.langfuse_secret_key:
@@ -75,22 +81,55 @@ def _setup_langfuse_tracing(tracing_config: TracingConfig) -> None:
             os.environ["LANGFUSE_PUBLIC_KEY"] = tracing_config.langfuse_public_key
         if tracing_config.langfuse_host:
             os.environ["LANGFUSE_HOST"] = tracing_config.langfuse_host
-        os.environ["LANGFUSE_FLUSH_AT"] = "5"
-        os.environ["LANGFUSE_FLUSH_INTERVAL"] = "1"
+        else:
+            # Default to US cloud if not specified
+            os.environ["LANGFUSE_HOST"] = "https://us.cloud.langfuse.com"
 
-        from llama_index.core import set_global_handler
+        # Initialize Langfuse client and verify connection
+        from langfuse import Langfuse
 
-        session_id = str(uuid4())
-        set_global_handler(
-            "langfuse",
-            user_id=tracing_config.langfuse_user_id,
-            session_id=session_id
+        langfuse = Langfuse()
+        if not langfuse.auth_check():
+            logger.error(
+                "❌ Langfuse authentication failed. Please check your credentials."
+            )
+            return
+
+        # Initialize OpenInference LlamaIndex instrumentation
+        from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
+
+        LlamaIndexInstrumentor().instrument()
+
+        # Generate or use configured session_id (persists across DroidAgent invocations)
+        if _session_id is None:
+            if tracing_config.langfuse_session_id:
+                # Use configured session_id
+                _session_id = tracing_config.langfuse_session_id
+            else:
+                # Auto-generate UUID
+                _session_id = str(uuid4())
+
+        # Set session_id and user_id globally for the process
+        from opentelemetry.context import attach, get_current, set_value
+        from openinference.semconv.trace import SpanAttributes
+
+        ctx = get_current()
+        ctx = set_value(SpanAttributes.SESSION_ID, _session_id, ctx)
+        if tracing_config.langfuse_user_id:
+            ctx = set_value(SpanAttributes.USER_ID, tracing_config.langfuse_user_id, ctx)
+        attach(ctx)
+
+        logger.info(
+            f"🔍 Langfuse tracing enabled via OpenInference instrumentation\n"
+            f"    Session ID: {_session_id}\n"
+            f"    User ID: {tracing_config.langfuse_user_id}\n"
+            f"    Host: {os.environ.get('LANGFUSE_HOST')}"
         )
-        logger.info(f"🔍 Langfuse tracing enabled globally (session: {session_id})")
-    except ImportError:
+    except ImportError as e:
         logger.warning(
-            "⚠️  Langfuse is not installed.\n"
+            "⚠️  Langfuse dependencies are not installed.\n"
             "    To enable Langfuse integration, install with:\n"
             "    • If installed via tool: `uv tool install droidrun[langfuse]`\n"
             "    • If installed via pip: `uv pip install droidrun[langfuse]`\n"
+            f"    Missing: {e.name if hasattr(e, 'name') else str(e)}\n"
         )
