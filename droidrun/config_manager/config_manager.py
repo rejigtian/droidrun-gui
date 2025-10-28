@@ -156,7 +156,9 @@ class TracingConfig:
     langfuse_public_key: str = ""  # Set as LANGFUSE_PUBLIC_KEY env var if not empty
     langfuse_host: str = ""  # Set as LANGFUSE_HOST env var if not empty
     langfuse_user_id: str = "anonymous"
-    langfuse_session_id: str = ""  # Empty = auto-generate UUID; set to custom value to persist across runs
+    langfuse_session_id: str = (
+        ""  # Empty = auto-generate UUID; set to custom value to persist across runs
+    )
 
 
 @dataclass

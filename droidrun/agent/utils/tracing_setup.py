@@ -116,7 +116,9 @@ def _setup_langfuse_tracing(tracing_config: TracingConfig) -> None:
         ctx = get_current()
         ctx = set_value(SpanAttributes.SESSION_ID, _session_id, ctx)
         if tracing_config.langfuse_user_id:
-            ctx = set_value(SpanAttributes.USER_ID, tracing_config.langfuse_user_id, ctx)
+            ctx = set_value(
+                SpanAttributes.USER_ID, tracing_config.langfuse_user_id, ctx
+            )
         attach(ctx)
 
         logger.info(
