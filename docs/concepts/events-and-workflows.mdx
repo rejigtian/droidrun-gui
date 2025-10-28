@@ -1,6 +1,6 @@
 ---
-title: 'Event Streaming'
-description: 'How to consume real-time events from DroidAgent execution.'
+title: "Event Streaming"
+description: "How to consume real-time events from DroidAgent execution."
 ---
 
 ## Overview
@@ -49,6 +49,7 @@ print(f"📝 Reason: {result.reason}")
 ### Planning Events
 
 **ManagerContextEvent** - Emitted after Manager prepares context:
+
 ```python
 class ManagerContextEvent(Event):
     """Signals that Manager has prepared context and is ready for LLM call"""
@@ -56,12 +57,15 @@ class ManagerContextEvent(Event):
 ```
 
 **ManagerResponseEvent** - Emitted after Manager receives LLM response:
+
 ```python
 class ManagerResponseEvent(Event):
-    output_planning: str  # Raw validated LLM response from Manager
+    output_planning: str             # Raw validated LLM response from Manager
+    usage: Optional[UsageResult]     # Token usage (requests, input/output tokens)
 ```
 
 **ManagerPlanDetailsEvent** - Emitted when Manager creates/updates a plan:
+
 ```python
 class ManagerPlanDetailsEvent(Event):
     plan: str              # Full task plan with subgoals
@@ -76,6 +80,7 @@ class ManagerPlanDetailsEvent(Event):
 ### Execution Events
 
 **ExecutorContextEvent** - Emitted after Executor prepares context:
+
 ```python
 class ExecutorContextEvent(Event):
     messages: list  # ChatMessage list for LLM
@@ -83,12 +88,15 @@ class ExecutorContextEvent(Event):
 ```
 
 **ExecutorResponseEvent** - Emitted after Executor receives LLM response:
+
 ```python
 class ExecutorResponseEvent(Event):
-    response_text: str  # Raw LLM response from Executor
+    response_text: str               # Raw LLM response from Executor
+    usage: Optional[UsageResult]     # Token usage (requests, input/output tokens)
 ```
 
 **ExecutorActionEvent** - Emitted when Executor selects an action:
+
 ```python
 class ExecutorActionEvent(Event):
     action_json: str    # JSON representation of selected action
@@ -98,6 +106,7 @@ class ExecutorActionEvent(Event):
 ```
 
 **ExecutorActionResultEvent** - Emitted after Executor action execution:
+
 ```python
 class ExecutorActionResultEvent(Event):
     action: Dict        # The executed action
@@ -109,32 +118,60 @@ class ExecutorActionResultEvent(Event):
     full_response: str  # Complete LLM response from Executor
 ```
 
-**TaskThinkingEvent** - Emitted when CodeAct generates code:
+**TaskThinkingEvent** - Emitted when CodeAct generates code (direct mode):
+
 ```python
 class TaskThinkingEvent(Event):
-    thoughts: Optional[str]  # LLM's reasoning process
-    code: Optional[str]      # Generated Python code
-    usage: Optional[UsageResult]  # Token usage information
+    thoughts: Optional[str]          # LLM's reasoning process
+    code: Optional[str]              # Generated Python code
+    usage: Optional[UsageResult]     # Token usage (requests, input/output tokens)
 ```
 
 **TaskExecutionResultEvent** - Emitted after code execution:
+
 ```python
 class TaskExecutionResultEvent(Event):
     output: str      # Execution output or error message
 ```
 
+### Script Execution Events
+
+**ScripterThinkingEvent** - Emitted when ScripterAgent generates code:
+
+```python
+class ScripterThinkingEvent(Event):
+    thoughts: str                    # LLM's reasoning process
+    code: Optional[str]              # Generated Python code
+    full_response: str               # Complete LLM response
+    usage: Optional[UsageResult]     # Token usage (requests, input/output tokens)
+```
+
 ### Visual Events
 
 **ScreenshotEvent** - Emitted when a screenshot is captured:
+
 ```python
 class ScreenshotEvent(Event):
     screenshot: bytes  # PNG image data
 ```
 
 **RecordUIStateEvent** - Emitted when UI state is captured:
+
 ```python
 class RecordUIStateEvent(Event):
     ui_state: list[Dict[str, Any]]  # Accessibility tree as structured data
+```
+
+### Usage Tracking
+
+**UsageResult** - Token usage information included in LLM response events:
+
+```python
+class UsageResult(BaseModel):
+    request_tokens: int   # Number of tokens in the prompt
+    response_tokens: int  # Number of tokens in the response
+    total_tokens: int     # Total tokens used (request + response)
+    requests: int         # Number of LLM requests made
 ```
 
 ## Common Patterns
@@ -159,6 +196,31 @@ async def run_with_ui(goal: str):
 
     result = await handler
     ui.show_completion(result.success, result.reason)
+```
+
+### Tracking Token Usage
+
+```python
+async def track_token_usage(goal: str):
+    agent = DroidAgent(goal=goal, config=config)
+    handler = agent.run()
+
+    total_tokens = 0
+    total_requests = 0
+
+    async for event in handler.stream_events():
+        # Check for events that contain usage information
+        if hasattr(event, 'usage') and event.usage:
+            total_tokens += event.usage.total_tokens
+            total_requests += event.usage.requests
+
+            print(f"LLM call - Input: {event.usage.request_tokens}, "
+                  f"Output: {event.usage.response_tokens}, "
+                  f"Total: {event.usage.total_tokens}")
+
+    result = await handler
+    print(f"\n📊 Total tokens used: {total_tokens}")
+    print(f"📊 Total LLM requests: {total_requests}")
 ```
 
 ### Logging and Monitoring
