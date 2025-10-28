@@ -11,6 +11,9 @@
   "icons": {
     "library": "lucide"
   },
+  "styles": [
+    "/custom.css"
+  ],
   "navigation": {
     "versions": [
       {
