@@ -107,9 +107,9 @@ class DroidAgent(Workflow):
         goal: str,
         config: DroidrunConfig | None = None,
         llms: dict[str, LLM] | LLM | None = None,
-        tools: "Tools | ToolsConfig | None" = None,
+        tools: "Tools | None" = None,
         custom_tools: dict = None,
-        credentials: "CredentialsConfig | dict | None" = None,
+        credentials: dict | None = None,
         variables: dict | None = None,
         output_model: Type[BaseModel] | None = None,
         prompts: dict[str, str] | None = None,
@@ -125,12 +125,9 @@ class DroidAgent(Workflow):
             config: Full config (required if llms not provided)
             llms: Optional dict of agent-specific LLMs or single LLM for all.
                   If not provided, LLMs will be loaded from config profiles.
-            tools: Either a Tools instance (for custom/pre-configured tools),
-                   ToolsConfig (for config-based creation), or None (use default).
-                   Renamed from tools_config to support both instances and config.
+            tools: Either a Tools instance (for custom/pre-configured tools) or None (use default from config).
             custom_tools: Custom tool definitions
-            credentials: Either CredentialsConfig (from config.credentials),
-                        dict of credentials {"SECRET_ID": "value"}, or None
+            credentials: Dict of credentials {"SECRET_ID": "value"} or None (will use config.credentials if available)
             variables: Optional dict of custom variables accessible throughout execution
             output_model: Optional Pydantic model for structured output extraction from final answer
             prompts: Optional dict of custom Jinja2 prompt templates to override defaults.

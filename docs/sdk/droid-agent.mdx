@@ -27,14 +27,9 @@ def __init__(
     goal: str,
     config: DroidrunConfig | None = None,
     llms: dict[str, LLM] | LLM | None = None,
-    agent_config: AgentConfig | None = None,
-    device_config: DeviceConfig | None = None,
-    tools: "Tools | ToolsConfig | None" = None,
-    logging_config: LoggingConfig | None = None,
-    tracing_config: TracingConfig | None = None,
-    telemetry_config: TelemetryConfig | None = None,
+    tools: "Tools | None" = None,
     custom_tools: dict | None = None,
-    credentials: "CredentialsConfig | dict | None" = None,
+    credentials: dict | None = None,
     variables: dict | None = None,
     output_model: Type[BaseModel] | None = None,
     prompts: dict[str, str] | None = None,
@@ -47,25 +42,14 @@ Initialize the DroidAgent wrapper.
 **Arguments**:
 
 - `goal` _str_ - User's goal or command to execute
-- `config` _DroidrunConfig | None_ - Full configuration object (required if llms not provided). Contains agent settings, LLM profiles, device config, and more. If provided, individual config overrides (agent_config, device_config, etc.) take precedence.
+- `config` _DroidrunConfig | None_ - Full configuration object (required if llms not provided). Contains agent settings, LLM profiles, device config, and more.
 - `llms` _dict[str, LLM] | LLM | None_ - Optional LLM configuration:
   - `dict[str, LLM]`: Agent-specific LLMs with keys: "manager", "executor", "codeact", "text_manipulator", "app_opener", "scripter", "structured_output"
   - `LLM`: Single LLM instance used for all agents
   - `None`: LLMs will be loaded from config.llm_profiles
-- `agent_config` _AgentConfig | None_ - Agent configuration override (max_steps, reasoning mode, vision settings, prompts). Overrides config.agent if provided.
-- `device_config` _DeviceConfig | None_ - Device configuration override (serial, platform, use_tcp). Overrides config.device if provided.
-- `tools` _Tools | ToolsConfig | None_ - Tools configuration:
-  - `Tools`: Pre-configured Tools instance (AdbTools or IOSTools)
-  - `ToolsConfig`: Configuration for creating tools (e.g., allow_drag)
-  - `None`: Tools will be created from config.tools and device_config
-- `logging_config` _LoggingConfig | None_ - Logging configuration override (debug, save_trajectory). Overrides config.logging if provided.
-- `tracing_config` _TracingConfig | None_ - Tracing configuration override (enabled). Overrides config.tracing if provided.
-- `telemetry_config` _TelemetryConfig | None_ - Telemetry configuration override (enabled). Overrides config.telemetry if provided.
+- `tools` _Tools | None_ - Pre-configured Tools instance (AdbTools or IOSTools). If None, tools will be created from config.
 - `custom_tools` _dict | None_ - Custom tool definitions. Format: `{"tool_name": {"signature": "...", "description": "...", "function": callable}}`. These are merged with auto-generated credential tools.
-- `credentials` _CredentialsConfig | dict | None_ - Credential configuration:
-  - `CredentialsConfig`: From config.credentials (enabled, file_path)
-  - `dict`: Direct credential mapping `{"SECRET_ID": "value"}`
-  - `None`: Uses config.credentials if available
+- `credentials` _dict | None_ - Direct credential mapping `{"SECRET_ID": "value"}`. If None, credentials will be loaded from config.credentials if available.
 - `variables` _dict | None_ - Custom variables accessible throughout execution. Available in shared_state.custom_variables.
 - `output_model` _Type[BaseModel] | None_ - Pydantic model for structured output extraction from final answer. If provided, the final answer will be parsed into this model.
 - `prompts` _dict[str, str] | None_ - Custom Jinja2 prompt templates to override defaults. Keys: "codeact_system", "codeact_user", "manager_system", "executor_system", "scripter_system". Values: Jinja2 template strings (NOT file paths).

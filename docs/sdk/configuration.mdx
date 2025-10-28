@@ -31,14 +31,9 @@ DroidAgent(
 |-----------|------|---------|-------------|
 | `config` | `DroidrunConfig \| None` | `None` | Full config object (loads LLMs from profiles if `llms` not provided) |
 | `llms` | `dict[str, LLM] \| LLM \| None` | `None` | LLM(s) - dict for per-agent, single LLM for all, or None to load from config |
-| `agent_config` | `AgentConfig \| None` | `None` | Agent behavior settings (overrides config.agent) |
-| `device_config` | `DeviceConfig \| None` | `None` | Device connection settings (overrides config.device) |
-| `tools` | `Tools \| ToolsConfig \| None` | `None` | Tools instance or config (overrides config.tools) |
-| `logging_config` | `LoggingConfig \| None` | `None` | Logging settings (overrides config.logging) |
-| `tracing_config` | `TracingConfig \| None` | `None` | Tracing settings (overrides config.tracing) |
-| `telemetry_config` | `TelemetryConfig \| None` | `None` | Telemetry settings (overrides config.telemetry) |
+| `tools` | `Tools \| None` | `None` | Tools instance (AdbTools/IOSTools) |
 | `custom_tools` | `dict \| None` | `None` | Custom tool definitions |
-| `credentials` | `CredentialsConfig \| dict \| None` | `None` | Credentials config or dict of secrets |
+| `credentials` | `dict \| None` | `None` | Dict of credential secrets |
 | `variables` | `dict \| None` | `None` | Custom variables accessible during execution |
 | `output_model` | `Type[BaseModel] \| None` | `None` | Pydantic model for structured output extraction |
 | `prompts` | `dict[str, str] \| None` | `None` | Custom Jinja2 prompt templates (NOT file paths) |
@@ -305,14 +300,18 @@ agent = DroidAgent(
 
 ### Config Format
 ```python
-from droidrun.config_manager.config_manager import CredentialsConfig
+from droidrun.config_manager.config_manager import DroidrunConfig, CredentialsConfig
 
-agent = DroidAgent(
-    goal="...",
+config = DroidrunConfig(
     credentials=CredentialsConfig(
         enabled=True,
         file_path="config/credentials.yaml"
     )
+)
+
+agent = DroidAgent(
+    goal="...",
+    config=config
 )
 ```
 
