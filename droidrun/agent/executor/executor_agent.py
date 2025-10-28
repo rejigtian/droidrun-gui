@@ -25,6 +25,7 @@ from droidrun.agent.executor.events import (
     ExecutorResponseEvent,
 )
 from droidrun.agent.executor.prompts import parse_executor_response
+from droidrun.agent.usage import get_usage_from_response
 from droidrun.agent.utils.inference import acall_with_retries
 from droidrun.agent.utils.prompt_resolver import PromptResolver
 from droidrun.agent.utils.tools import (
@@ -193,10 +194,17 @@ class ExecutorAgent(Workflow):
         except Exception as e:
             raise RuntimeError(f"Error calling LLM in executor: {e}") from e
 
+        # Extract usage from response
+        try:
+            usage = get_usage_from_response(self.llm.class_name(), response)
+        except Exception as e:
+            logger.warning(f"Could not get llm usage from response: {e}")
+            usage = None
+
         logger.debug("✅ Executor finished thinking, sending response for parsing")
 
         # Emit event to stream and return for next step
-        event = ExecutorResponseEvent(response_text=response_text)
+        event = ExecutorResponseEvent(response_text=response_text, usage=usage)
         ctx.write_event_to_stream(event)
 
         return event

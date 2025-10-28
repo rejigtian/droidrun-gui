@@ -24,6 +24,7 @@ from droidrun.agent.manager.events import (
     ManagerResponseEvent,
 )
 from droidrun.agent.manager.prompts import parse_manager_response
+from droidrun.agent.usage import get_usage_from_response
 from droidrun.agent.utils.chat_utils import (
     remove_empty_messages,
     convert_messages_to_chatmessages,
@@ -561,6 +562,13 @@ class ManagerAgent(Workflow):
             logger.error(f"LLM call failed: {e}")
             raise RuntimeError(f"Error calling LLM in manager: {e}") from e
 
+        # Extract usage from response
+        try:
+            usage = get_usage_from_response(self.llm.class_name(), response)
+        except Exception as e:
+            logger.warning(f"Could not get llm usage from response: {e}")
+            usage = None
+
         # ====================================================================
         # Step 4: Validate and retry if needed
         # ====================================================================
@@ -571,7 +579,7 @@ class ManagerAgent(Workflow):
         logger.debug("✅ Manager finished thinking, sending response for processing")
 
         # Emit event to stream and return for next step
-        event = ManagerResponseEvent(output_planning=output_planning)
+        event = ManagerResponseEvent(output_planning=output_planning, usage=usage)
         ctx.write_event_to_stream(event)
 
         return event

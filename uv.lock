@@ -868,6 +868,11 @@ dev = [
 google = [
     { name = "llama-index-llms-google-genai" },
 ]
+langfuse = [
+    { name = "langfuse" },
+    { name = "llama-index-instrumentation" },
+    { name = "openinference-instrumentation-llama-index" },
+]
 ollama = [
     { name = "llama-index-llms-ollama" },
 ]
@@ -898,8 +903,10 @@ requires-dist = [
     { name = "bandit", marker = "extra == 'dev'", specifier = ">=1.8.6" },
     { name = "black", marker = "extra == 'dev'", specifier = "==25.9.0" },
     { name = "httpx", specifier = ">=0.27.0" },
+    { name = "langfuse", marker = "extra == 'langfuse'", specifier = ">=2.0.0" },
     { name = "llama-index", specifier = "==0.14.4" },
     { name = "llama-index-callbacks-arize-phoenix", specifier = ">=0.6.1" },
+    { name = "llama-index-instrumentation", marker = "extra == 'langfuse'" },
     { name = "llama-index-llms-anthropic", marker = "extra == 'anthropic'", specifier = ">=0.8.6,<0.9.0" },
     { name = "llama-index-llms-deepseek", marker = "extra == 'deepseek'", specifier = ">=0.2.1" },
     { name = "llama-index-llms-google-genai", marker = "extra == 'google'", specifier = ">=0.3.1" },
@@ -909,13 +916,14 @@ requires-dist = [
     { name = "llama-index-llms-openrouter", marker = "extra == 'openrouter'", specifier = ">=0.4.2" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
     { name = "openai", marker = "extra == 'openai'", specifier = ">=1.99.1" },
+    { name = "openinference-instrumentation-llama-index", marker = "extra == 'langfuse'", specifier = ">=3.0.0" },
     { name = "posthog", specifier = ">=6.7.6" },
     { name = "pydantic", specifier = ">=2.11.10" },
     { name = "rich", specifier = ">=14.1.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.13.0" },
     { name = "safety", marker = "extra == 'dev'", specifier = ">=3.2.11" },
 ]
-provides-extras = ["anthropic", "openai", "google", "deepseek", "ollama", "dev", "openrouter"]
+provides-extras = ["anthropic", "openai", "google", "deepseek", "ollama", "dev", "openrouter", "langfuse"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1454,6 +1462,27 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/6d/86/08646239a313f895186ff0a4573452038eed8c86f54380b3ebac34d32fb2/jsonpath-ng-1.7.0.tar.gz", hash = "sha256:f6f5f7fd4e5ff79c785f1573b394043b39849fb2bb47bcead935d12b00beab3c", size = 37838, upload-time = "2024-10-11T15:41:42.404Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/35/5a/73ecb3d82f8615f32ccdadeb9356726d6cae3a4bbc840b437ceb95708063/jsonpath_ng-1.7.0-py3-none-any.whl", hash = "sha256:f3d7f9e848cba1b6da28c55b1c26ff915dc9e0b1ba7e752a53d6da8d5cbd00b6", size = 30105, upload-time = "2024-11-20T17:58:30.418Z" },
+]
+
+[[package]]
+name = "langfuse"
+version = "3.8.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "backoff" },
+    { name = "httpx" },
+    { name = "openai" },
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-exporter-otlp-proto-http" },
+    { name = "opentelemetry-sdk" },
+    { name = "packaging" },
+    { name = "pydantic" },
+    { name = "requests" },
+    { name = "wrapt" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ca/0b/81f9c6a982f79c112b7f10bfd6f3a4871e6fa3e4fe8d078b6112abfd3c08/langfuse-3.8.1.tar.gz", hash = "sha256:2464ae3f8386d80e1252a0e7406e3be4121e792a74f1b1c21d9950f658e5168d", size = 197401, upload-time = "2025-10-22T13:35:52.572Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b2/f9/538af0fc4219eb2484ba319483bce3383146f7a0923d5f39e464ad9a504b/langfuse-3.8.1-py3-none-any.whl", hash = "sha256:5b94b66ec0b0de388a8ea1f078b32c1666b5825b36eab863a21fdee78c53b3bb", size = 364580, upload-time = "2025-10-22T13:35:50.597Z" },
 ]
 
 [[package]]
