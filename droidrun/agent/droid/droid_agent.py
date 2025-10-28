@@ -444,8 +444,13 @@ class DroidAgent(Workflow):
         self.tools_instance._set_context(ctx)
 
         if not hasattr(self, "_tools_wrapped") and not self.config.agent.reasoning:
-            self.atomic_tools = wrap_async_tools(self.atomic_tools)
-            self.custom_tools = wrap_async_tools(self.custom_tools)
+            # Get the current running event loop to pass to wrapped tools
+            import asyncio
+
+            loop = asyncio.get_running_loop()
+
+            self.atomic_tools = wrap_async_tools(self.atomic_tools, loop=loop)
+            self.custom_tools = wrap_async_tools(self.custom_tools, loop=loop)
 
             self._tools_wrapped = True
             logger.debug("✅ Async tools wrapped for synchronous execution contexts")
