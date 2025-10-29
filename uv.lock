@@ -845,6 +845,7 @@ dependencies = [
     { name = "httpx" },
     { name = "llama-index" },
     { name = "llama-index-callbacks-arize-phoenix" },
+    { name = "llama-index-workflows" },
     { name = "posthog" },
     { name = "pydantic" },
     { name = "rich" },
@@ -914,6 +915,7 @@ requires-dist = [
     { name = "llama-index-llms-openai", marker = "extra == 'openai'", specifier = ">=0.5.6" },
     { name = "llama-index-llms-openai-like", marker = "extra == 'openai'", specifier = ">=0.5.1" },
     { name = "llama-index-llms-openrouter", marker = "extra == 'openrouter'", specifier = ">=0.4.2" },
+    { name = "llama-index-workflows", specifier = "==2.8.3" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
     { name = "openai", marker = "extra == 'openai'", specifier = ">=1.99.1" },
     { name = "openinference-instrumentation-llama-index", marker = "extra == 'langfuse'", specifier = ">=3.0.0" },
@@ -1765,16 +1767,16 @@ wheels = [
 
 [[package]]
 name = "llama-index-workflows"
-version = "2.6.0"
+version = "2.8.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "llama-index-instrumentation" },
     { name = "pydantic" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/71/ea/4a005a9d68764ef435e7b2f96cb79ecd6905b450709c51234e27ebc067a5/llama_index_workflows-2.6.0.tar.gz", hash = "sha256:210924a7783c7d3814f0db441145e005a82a96064a0bfc12814754f6aee59dcf", size = 1287514, upload-time = "2025-10-02T15:56:47.381Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/53/8e/1ad4e546ce8dc744c2170e522dc90ee471de871032374fc2f6b93bb69630/llama_index_workflows-2.8.3.tar.gz", hash = "sha256:442072b6d44b6c947e8dc2cbd3be1a8586a1e334c4c01ff0bd3e80139da52497", size = 4991631, upload-time = "2025-10-17T16:30:46.337Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f5/f0/77c7f80eeff79680cf35146028c255f24e5dae5de318111c40006d35b718/llama_index_workflows-2.6.0-py3-none-any.whl", hash = "sha256:f2a264f04ab00eacf0baca664f27285fb51fd359d4a9dea3951676c1cbd0ddba", size = 55573, upload-time = "2025-10-02T15:56:46.348Z" },
+    { url = "https://files.pythonhosted.org/packages/9c/e1/8d448481dde7605b85058f117d9220d2c6f675a90abc11fc1bd781f26087/llama_index_workflows-2.8.3-py3-none-any.whl", hash = "sha256:450c2b6f32ebbf8ff4d48069209e0c4621135674be95220ee5c015e833795f34", size = 61322, upload-time = "2025-10-17T16:30:44.799Z" },
 ]
 
 [[package]]
