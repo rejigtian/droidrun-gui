@@ -40,7 +40,7 @@ def get_usage_from_response(provider: str, chat_rsp: ChatResponse) -> UsageResul
             total_tokens=rsp["usage_metadata"]["total_token_count"],
             requests=1,
         )
-    elif provider == "OpenAI" or provider == "openai_llm":
+    elif provider == "OpenAI" or provider == "OpenAILike" or provider == "openai_llm":
         from openai.types import CompletionUsage as OpenAIUsage
 
         usage: OpenAIUsage = rsp.usage
