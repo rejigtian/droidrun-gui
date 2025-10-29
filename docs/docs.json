@@ -116,7 +116,8 @@
   },
   "logo": {
     "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
+    "dark": "/logo/dark.svg",
+    "href": "https://droidrun.ai"
   },
   "navbar": {
     "links": [
