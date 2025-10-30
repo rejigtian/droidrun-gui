@@ -100,14 +100,13 @@ def _setup_langfuse_tracing(tracing_config: TracingConfig) -> None:
 
         LlamaIndexInstrumentor().instrument()
 
-        # Generate or use configured session_id (persists across DroidAgent invocations)
-        if _session_id is None:
-            if tracing_config.langfuse_session_id:
-                # Use configured session_id
-                _session_id = tracing_config.langfuse_session_id
-            else:
-                # Auto-generate UUID
-                _session_id = str(uuid4())
+        # Generate or use configured session_id
+        if tracing_config.langfuse_session_id:
+            # Use configured session_id
+            _session_id = tracing_config.langfuse_session_id
+        else:
+            # Auto-generate UUID
+            _session_id = str(uuid4())
 
         # Set session_id and user_id globally for the process
         from opentelemetry.context import attach, get_current, set_value
