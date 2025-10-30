@@ -3,6 +3,9 @@ import logging
 
 logger = logging.getLogger("droidrun")
 
+# Context propagation for tracing across threads
+_exec_context = None
+
 
 def wrap_async_tools(tools_dict: dict, loop=None) -> dict:
     """
@@ -35,15 +38,16 @@ def wrap_async_tools(tools_dict: dict, loop=None) -> dict:
                 )
 
             def sync_wrapper(tool_instance, *args, _func=func, _loop=loop, **kwargs):
-                if _loop is None:
-                    # Fallback to asyncio.run() if no loop provided (legacy behavior)
-                    return asyncio.run(_func(tool_instance, *args, **kwargs))
-                else:
-                    # Schedule on the existing event loop from the thread
-                    future = asyncio.run_coroutine_threadsafe(
-                        _func(tool_instance, *args, **kwargs), _loop
-                    )
-                    return future.result()  # Block until complete
+                global _exec_context
+
+                def create_and_schedule():
+                    async def run_with_context():
+                        return await _func(tool_instance, *args, **kwargs)
+
+                    future = asyncio.run_coroutine_threadsafe(run_with_context(), _loop)
+                    return future.result()
+
+                return _exec_context.run(create_and_schedule)
 
             wrapped[tool_name] = {
                 **tool_spec,

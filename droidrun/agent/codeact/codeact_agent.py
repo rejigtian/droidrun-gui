@@ -163,7 +163,6 @@ class CodeActAgent(Workflow):
         safe_config = safe_execution_config
 
         self.executor = SimpleCodeExecutor(
-            loop=asyncio.get_event_loop(),
             locals={},
             tools=self.tool_list,
             globals={"__builtins__": __builtins__},

@@ -89,7 +89,6 @@ class ScripterAgent(Workflow):
 
         # Initialize SimpleCodeExecutor with state preservation
         self.executor = SimpleCodeExecutor(
-            loop=asyncio.get_event_loop(),
             locals={},
             tools=self.tool_list,
             globals={"__builtins__": __builtins__},
