@@ -6,7 +6,7 @@ import traceback
 from asyncio import AbstractEventLoop
 from typing import Any, Dict, Optional, Set
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from droidrun.config_manager.safe_execution import (
     create_safe_builtins,
@@ -19,10 +19,9 @@ logger = logging.getLogger("droidrun")
 class ExecuterState(BaseModel):
     """State object for the code executor."""
 
-    ui_state: Optional[Any] = None
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    class Config:
-        arbitrary_types_allowed = True
+    ui_state: Optional[Any] = None
 
 
 class SimpleCodeExecutor:
