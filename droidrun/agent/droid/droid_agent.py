@@ -786,11 +786,11 @@ class DroidAgent(Workflow):
         if not isinstance(ev, StopEvent):
             ctx.write_event_to_stream(ev)
 
-        if isinstance(ev, ScreenshotEvent):
-            self.trajectory.screenshots.append(ev.screenshot)
-        elif isinstance(ev, MacroEvent):
-            self.trajectory.macro.append(ev)
-        elif isinstance(ev, RecordUIStateEvent):
-            self.trajectory.ui_states.append(ev.ui_state)
-        else:
-            self.trajectory.events.append(ev)
+            if isinstance(ev, ScreenshotEvent):
+                self.trajectory.screenshots.append(ev.screenshot)
+            elif isinstance(ev, MacroEvent):
+                self.trajectory.macro.append(ev)
+            elif isinstance(ev, RecordUIStateEvent):
+                self.trajectory.ui_states.append(ev.ui_state)
+            else:
+                self.trajectory.events.append(ev)
