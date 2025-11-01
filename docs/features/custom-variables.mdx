@@ -13,7 +13,7 @@ Custom variables are accessible in:
 
 ```python
 from droidrun.agent.droid import DroidAgent
-from droidrun.config_manager.config_manager import DroidrunConfig
+from droidrun.config_manager import DroidrunConfig
 
 # Define custom prompts that render variables
 custom_prompts = {
@@ -66,7 +66,7 @@ When you pass `variables` to `DroidAgent`:
 
 ```python
 from droidrun.agent.droid import DroidAgent
-from droidrun.config_manager.config_manager import DroidrunConfig
+from droidrun.config_manager import DroidrunConfig
 
 # Define variables
 variables = {
@@ -121,7 +121,7 @@ Custom tools can directly access variables via the `shared_state` keyword argume
 
 ```python
 from droidrun.agent.droid import DroidAgent
-from droidrun.config_manager.config_manager import DroidrunConfig
+from droidrun.config_manager import DroidrunConfig
 
 def send_notification(title: str, *, tools=None, shared_state=None, **kwargs):
     """Send a notification using channel from custom variables.

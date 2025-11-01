@@ -59,7 +59,7 @@ Initialize the DroidAgent wrapper.
 
 ```python
 from droidrun import DroidAgent
-from droidrun.config_manager.config_manager import DroidrunConfig
+from droidrun.config_manager import DroidrunConfig
 
 # Initialize with default config
 config = DroidrunConfig()
@@ -78,7 +78,7 @@ result = await agent.run()
 
 ```python
 from droidrun import DroidAgent
-from droidrun.config_manager.config_manager import DroidrunConfig
+from droidrun.config_manager import DroidrunConfig
 
 # Load config from config.yaml
 config = DroidrunConfig.from_yaml("config.yaml")
@@ -97,7 +97,7 @@ result = await agent.run()
 
 ```python
 from droidrun import DroidAgent
-from droidrun.config_manager.config_manager import DroidrunConfig
+from droidrun.config_manager import DroidrunConfig
 from llama_index.llms.openai import OpenAI
 from llama_index.llms.anthropic import Anthropic
 
@@ -129,7 +129,7 @@ result = await agent.run()
 
 ```python
 from droidrun import DroidAgent
-from droidrun.config_manager.config_manager import DroidrunConfig
+from droidrun.config_manager import DroidrunConfig
 from llama_index.llms.openai import OpenAI
 
 # Initialize config
@@ -151,7 +151,7 @@ result = await agent.run()
 
 ```python
 from droidrun import DroidAgent
-from droidrun.config_manager.config_manager import DroidrunConfig
+from droidrun.config_manager import DroidrunConfig
 
 # Initialize config
 config = DroidrunConfig()
@@ -190,7 +190,7 @@ result = await agent.run()
 
 ```python
 from droidrun import DroidAgent
-from droidrun.config_manager.config_manager import DroidrunConfig
+from droidrun.config_manager import DroidrunConfig
 from pydantic import BaseModel, Field
 
 # Initialize config
@@ -240,7 +240,7 @@ Run the DroidAgent workflow.
 
 ```python
 from droidrun import DroidAgent
-from droidrun.config_manager.config_manager import DroidrunConfig
+from droidrun.config_manager import DroidrunConfig
 
 # Initialize config
 config = DroidrunConfig()
@@ -258,7 +258,7 @@ print(f"Steps: {result.steps}")
 
 ```python
 from droidrun import DroidAgent
-from droidrun.config_manager.config_manager import DroidrunConfig
+from droidrun.config_manager import DroidrunConfig
 
 # Initialize config
 config = DroidrunConfig()
@@ -356,7 +356,7 @@ tracing:
 
 ```python
 from droidrun import DroidAgent, DeviceConfig
-from droidrun.config_manager.config_manager import DroidrunConfig
+from droidrun.config_manager import DroidrunConfig
 
 # Initialize config with device settings
 device_config = DeviceConfig(serial="emulator-5554", use_tcp=True)
@@ -374,7 +374,7 @@ result = await agent.run()
 
 ```python
 from droidrun import DroidAgent
-from droidrun.config_manager.config_manager import DroidrunConfig
+from droidrun.config_manager import DroidrunConfig
 
 # Initialize config
 config = DroidrunConfig()
@@ -398,7 +398,7 @@ Variables are accessible in shared_state.custom_variables throughout execution a
 
 ```python
 from droidrun import DroidAgent
-from droidrun.config_manager.config_manager import DroidrunConfig
+from droidrun.config_manager import DroidrunConfig
 
 # Initialize config
 config = DroidrunConfig()

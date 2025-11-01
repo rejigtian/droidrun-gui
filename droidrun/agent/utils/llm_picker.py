@@ -132,7 +132,7 @@ def load_llms_from_profiles(
         Dict mapping profile names to initialized LLM instances
 
     Example:
-        >>> config = ConfigManager()
+        >>> config = DroidrunConfig.from_yaml("config.yaml")
         >>> llms = load_llms_from_profiles(config.llm_profiles)
         >>> manager_llm = llms['manager']
 

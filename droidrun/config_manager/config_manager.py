@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import os
-import threading
 from dataclasses import asdict, dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import yaml
 
@@ -332,318 +331,96 @@ class DroidrunConfig:
         )
 
     @classmethod
-    def from_yaml(cls, path: str) -> "DroidrunConfig":
+    def from_yaml(
+        cls,
+        path: str,
+        use_path_resolver: bool = True,
+        create_if_missing: bool = False,
+    ) -> "DroidrunConfig":
         """
         Create config from YAML file.
 
         Args:
-            path: Path to YAML config file (can be relative or absolute)
+            path: Path to YAML config file (relative or absolute).
+                 If use_path_resolver=True (default), PathResolver will check:
+                 - Absolute paths: used as-is
+                 - Relative paths: checks working dir first, then package dir
+            use_path_resolver: If True (default), resolve path using PathResolver.
+                              If False, use path as-is.
+            create_if_missing: If True, create config file from defaults if not found.
+                              If False (default), raise FileNotFoundError.
 
         Returns:
             DroidrunConfig instance
 
         Raises:
-            FileNotFoundError: If the YAML file doesn't exist
-            yaml.YAMLError: If the YAML is malformed
+            FileNotFoundError: If the YAML file doesn't exist and create_if_missing=False
 
         Example:
             >>> config = DroidrunConfig.from_yaml("config.yaml")
             >>> config = DroidrunConfig.from_yaml("/absolute/path/config.yaml")
+            >>> config = DroidrunConfig.from_yaml("config.yaml", create_if_missing=True)
         """
         import logging
 
         logger = logging.getLogger("droidrun")
 
-        if not os.path.exists(path):
-            raise FileNotFoundError(f"Config file not found: {path}")
+        # Resolve path if enabled
+        if use_path_resolver:
+            try:
+                resolved_path = PathResolver.resolve(path, must_exist=True)
+                final_path = str(resolved_path)
+            except FileNotFoundError:
+                if create_if_missing:
+                    # File doesn't exist, create it from defaults
+                    resolved_path = PathResolver.resolve(path, create_if_missing=True)
+                    final_path = str(resolved_path)
 
-        with open(path, "r", encoding="utf-8") as f:
+                    # Ensure parent directory exists
+                    os.makedirs(os.path.dirname(final_path) or ".", exist_ok=True)
+
+                    # Create default config
+                    default_config = cls()
+                    with open(final_path, "w", encoding="utf-8") as f:
+                        yaml.dump(
+                            default_config.to_dict(),
+                            f,
+                            sort_keys=False,
+                            default_flow_style=False,
+                        )
+                    logger.info(f"Created default config at: {final_path}")
+                    return default_config
+                else:
+                    raise
+        else:
+            final_path = path
+            if not os.path.exists(final_path):
+                if create_if_missing:
+                    # Create default config
+                    os.makedirs(os.path.dirname(final_path) or ".", exist_ok=True)
+                    default_config = cls()
+                    with open(final_path, "w", encoding="utf-8") as f:
+                        yaml.dump(
+                            default_config.to_dict(),
+                            f,
+                            sort_keys=False,
+                            default_flow_style=False,
+                        )
+                    logger.info(f"Created default config at: {final_path}")
+                    return default_config
+                else:
+                    raise FileNotFoundError(f"Config file not found: {final_path}")
+
+        with open(final_path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
             if data:
                 try:
                     return cls.from_dict(data)
                 except Exception as e:
                     logger.warning(
-                        f"Failed to parse config from {path}, using defaults: {e}"
+                        f"Failed to parse config from {final_path}, using defaults: {e}"
                     )
                     return cls()
             else:
-                logger.warning(f"Empty config file at {path}, using defaults")
+                logger.warning(f"Empty config file at {final_path}, using defaults")
                 return cls()
-
-
-# ---------- ConfigManager ----------
-class ConfigManager:
-    """
-    Thread-safe singleton ConfigManager with typed configuration schema.
-
-    Usage:
-        from droidrun.config_manager.config_manager import ConfigManager
-        from droidrun.agent.utils.llm_picker import load_llms_from_profiles
-
-        # Create config instance (singleton pattern)
-        config = ConfigManager()
-
-        # Access typed config objects
-        print(config.agent.max_steps)
-
-        # Load all LLMs from profiles
-        llms = load_llms_from_profiles(config.llm_profiles)
-        manager_llm = llms['manager']
-        executor_llm = llms['executor']
-        codeact_llm = llms['codeact']
-
-        # Load specific profiles with overrides
-        llms = load_llms_from_profiles(
-            config.llm_profiles,
-            profile_names=['manager', 'executor'],
-            manager={'temperature': 0.1}
-        )
-
-        # Modify and save
-        config.save()
-    """
-
-    _instance: Optional["ConfigManager"] = None
-    _instance_lock = threading.Lock()
-
-    def __new__(cls, path: Optional[str] = None):
-        # ensure singleton
-        with cls._instance_lock:
-            if cls._instance is None:
-                cls._instance = super().__new__(cls)
-                cls._instance._initialized = False
-        return cls._instance
-
-    def __init__(self, path: Optional[str] = None):
-        if getattr(self, "_initialized", False):
-            return
-
-        self._lock = threading.RLock()
-
-        # Resolution order:
-        # 1) Explicit path arg
-        # 2) DROIDRUN_CONFIG env var
-        # 3) Default "config.yaml" (checks working dir, then package dir)
-        if path:
-            self.path = PathResolver.resolve(path)
-        else:
-            env = os.environ.get("DROIDRUN_CONFIG")
-            if env:
-                self.path = PathResolver.resolve(env)
-            else:
-                # Default: checks CWD first, then package dir
-                self.path = PathResolver.resolve("config.yaml")
-
-        # Initialize with default config
-        self._config = DroidrunConfig()
-        self.validate_fn: Optional[Callable[[DroidrunConfig], None]] = None
-
-        self._ensure_file_exists()
-        self.load_config()
-
-        self._initialized = True
-
-    # ---------------- Typed property access ----------------
-    @property
-    def config(self) -> DroidrunConfig:
-        """
-        Access the internal DroidrunConfig object.
-
-        WARNING: Returns a mutable object. Direct modifications bypass thread safety.
-        For thread-safe access, use specific property accessors (agent, device, etc.)
-        or use as_dict() to get an immutable copy.
-        """
-        with self._lock:
-            return self._config
-
-    @property
-    def agent(self) -> AgentConfig:
-        """
-        Access agent configuration.
-
-        WARNING: Returns a mutable object. Modifications should be followed by save()
-        to persist changes. Thread safety is not guaranteed after the lock is released.
-        """
-        with self._lock:
-            return self._config.agent
-
-    @property
-    def device(self) -> DeviceConfig:
-        """Access device configuration."""
-        with self._lock:
-            return self._config.device
-
-    @property
-    def telemetry(self) -> TelemetryConfig:
-        """Access telemetry configuration."""
-        with self._lock:
-            return self._config.telemetry
-
-    @property
-    def tracing(self) -> TracingConfig:
-        """Access tracing configuration."""
-        with self._lock:
-            return self._config.tracing
-
-    @property
-    def logging(self) -> LoggingConfig:
-        """Access logging configuration."""
-        with self._lock:
-            return self._config.logging
-
-    @property
-    def tools(self) -> ToolsConfig:
-        """Access tools configuration."""
-        with self._lock:
-            return self._config.tools
-
-    @property
-    def credentials(self) -> CredentialsConfig:
-        """Access credentials configuration."""
-        with self._lock:
-            return self._config.credentials
-
-    @property
-    def llm_profiles(self) -> Dict[str, LLMProfile]:
-        """
-        Access LLM profiles.
-
-        WARNING: Returns a mutable dictionary. Modifications affect the live config.
-        Use get_llm_profile() for read-only access or as_dict() for immutable copy.
-        """
-        with self._lock:
-            return self._config.llm_profiles
-
-    # ---------------- LLM Profile Helpers ----------------
-    def get_llm_profile(self, profile_name: str) -> LLMProfile:
-        """
-        Get an LLM profile by name.
-
-        Args:
-            profile_name: Name of the profile (fast, mid, smart, custom, etc.)
-
-        Returns:
-            LLMProfile object
-
-        Raises:
-            KeyError: If profile_name doesn't exist
-        """
-        with self._lock:
-            if profile_name not in self._config.llm_profiles:
-                raise KeyError(
-                    f"LLM profile '{profile_name}' not found. "
-                    f"Available profiles: {list(self._config.llm_profiles.keys())}"
-                )
-
-            return self._config.llm_profiles[profile_name]
-
-    # ---------------- I/O ----------------
-    def _ensure_file_exists(self) -> None:
-        """Create default config file if it doesn't exist."""
-        parent = self.path.parent
-        parent.mkdir(parents=True, exist_ok=True)
-        if not self.path.exists():
-            # Generate config programmatically from DroidrunConfig defaults
-            default_config = DroidrunConfig()
-            with open(self.path, "w", encoding="utf-8") as f:
-                yaml.dump(
-                    default_config.to_dict(),
-                    f,
-                    sort_keys=False,
-                    default_flow_style=False,
-                )
-
-    def load_config(self) -> None:
-        """
-        Load YAML from file into memory. Runs validator if registered.
-
-        On parse failure, falls back to default config with a warning.
-        This may mask configuration errors - check logs for warnings.
-        """
-        with self._lock:
-            if not self.path.exists():
-                # create starter file and set default config
-                self._ensure_file_exists()
-                self._config = DroidrunConfig()
-                return
-
-            self._config = DroidrunConfig.from_yaml(str(self.path))
-            self._run_validation()
-
-    def save(self) -> None:
-        """Persist current in-memory config to YAML file."""
-        with self._lock:
-            with open(self.path, "w", encoding="utf-8") as f:
-                yaml.dump(
-                    self._config.to_dict(), f, sort_keys=False, default_flow_style=False
-                )
-
-    def reload(self) -> None:
-        """Reload config from disk (useful when edited externally or via UI)."""
-        self.load_config()
-
-    # ---------------- Validation ----------------
-    def register_validator(self, fn: Callable[[DroidrunConfig], None]) -> None:
-        """
-        Register a validation function that takes the config object and raises
-        an exception if invalid. The validator is run immediately on registration.
-        """
-        with self._lock:
-            self.validate_fn = fn
-            self._run_validation()
-
-    def _run_validation(self) -> None:
-        if self.validate_fn is None:
-            return
-        try:
-            self.validate_fn(self._config)
-        except Exception as exc:
-            raise Exception(f"Validation failed: {exc}") from exc
-
-    def as_dict(self) -> Dict[str, Any]:
-        """Return a deep copy of the config dict to avoid accidental mutation."""
-        with self._lock:
-            import copy
-
-            return copy.deepcopy(self._config.to_dict())
-
-    # Implemented for for config webiu so we can have dropdown prompt selection. but canceled webui plan.
-    def list_available_prompts(self, agent_type: str) -> List[str]:
-        """
-        List all available prompt files for a given agent type.
-
-        Args:
-            agent_type: One of "codeact", "manager", "executor"
-
-        Returns:
-            List of prompt filenames available in the agent's prompts directory
-
-        Example:
-            >>> config.list_available_prompts("manager")
-            ['system.jinja2', 'experimental.jinja2', 'minimal.jinja2']
-        """
-        agent_type = agent_type.lower()
-        if agent_type not in ["codeact", "manager", "executor", "scripter"]:
-            raise ValueError(
-                f"Invalid agent_type: {agent_type}. Must be one of: codeact, manager, executor, scripter"
-            )
-
-        # Resolve prompts directory
-        prompts_path = f"{self.agent.prompts_dir}/{agent_type}"
-        prompts_dir = PathResolver.resolve(prompts_path)
-
-        if not prompts_dir.exists():
-            return []
-
-        # List all .md files in the directory
-        return sorted([f.name for f in prompts_dir.glob("*.jinja2")])
-
-    # useful for tests to reset singleton state
-    @classmethod
-    def _reset_instance_for_testing(cls) -> None:
-        with cls._instance_lock:
-            cls._instance = None
-
-    def __repr__(self) -> str:
-        return f"<ConfigManager path={self.path!s}>"
