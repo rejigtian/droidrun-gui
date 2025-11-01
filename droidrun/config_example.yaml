@@ -159,6 +159,8 @@ logging:
   debug: false
   # Trajectory saving level (none, step, action)
   save_trajectory: none
+  # Path for trajectory files (absolute or relative to cwd)
+  trajectory_path: trajectories
 
   rich_text: false
 

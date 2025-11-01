@@ -17,6 +17,7 @@ from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, 
 from workflows.events import Event
 from workflows.handler import WorkflowHandler
 from droidrun.agent.codeact import CodeActAgent
+from droidrun.agent.codeact.events import TaskExecutionResultEvent
 from droidrun.agent.common.events import MacroEvent, RecordUIStateEvent, ScreenshotEvent
 from droidrun.agent.droid.events import (
     CodeActExecuteEvent,
@@ -236,7 +237,10 @@ class DroidAgent(Workflow):
             self.scripter_llm = llms
             self.structured_output_llm = llms
 
-        self.trajectory = Trajectory(goal=self.shared_state.instruction)
+        self.trajectory = Trajectory(
+            goal=self.shared_state.instruction,
+            base_path=self.config.logging.trajectory_path,
+        )
 
         self.atomic_tools = ATOMIC_ACTION_SIGNATURES.copy()
 
@@ -374,6 +378,13 @@ class DroidAgent(Workflow):
             async for nested_ev in handler.stream_events():
                 self.handle_stream_event(nested_ev, ctx)
 
+                if isinstance(nested_ev, TaskExecutionResultEvent):
+                    if self.config.logging.save_trajectory != "none":
+                        self.shared_state.step_number += 1
+                        await self.trajectory.save_trajectory_incremental(
+                            stage=f"codeact_step_{self.shared_state.step_number}"
+                        )
+
             result = await handler
 
             if "success" in result and result["success"]:
@@ -442,6 +453,9 @@ class DroidAgent(Workflow):
         ctx.write_event_to_stream(ev)
 
         self.tools_instance._set_context(ctx)
+
+        if self.config.logging.save_trajectory != "none":
+            await self.trajectory.save_trajectory_incremental(stage="init")
 
         if not hasattr(self, "_tools_wrapped") and not self.config.agent.reasoning:
             # Get the current running event loop to pass to wrapped tools
@@ -630,6 +644,11 @@ class DroidAgent(Workflow):
             f"🔄 Step {self.shared_state.step_number}/{self.config.agent.max_steps} complete, looping to Manager"
         )
 
+        if self.config.logging.save_trajectory != "none":
+            await self.trajectory.save_trajectory_incremental(
+                stage=f"step_{self.shared_state.step_number}"
+            )
+
         event = ManagerInputEvent()
         ctx.write_event_to_stream(event)
         return event
@@ -708,6 +727,11 @@ class DroidAgent(Workflow):
             f"🔄 Step {self.shared_state.step_number}/{self.config.agent.max_steps} complete, looping to Manager"
         )
 
+        if self.config.logging.save_trajectory != "none":
+            await self.trajectory.save_trajectory_incremental(
+                stage=f"step_{self.shared_state.step_number}"
+            )
+
         # Loop back to Manager (script result in shared_state)
         event = ManagerInputEvent()
         ctx.write_event_to_stream(event)
@@ -775,8 +799,9 @@ class DroidAgent(Workflow):
 
                     logger.error(traceback.format_exc())
 
-        if self.trajectory and self.config.logging.save_trajectory != "none":
-            self.trajectory.save_trajectory()
+        if self.config.logging.save_trajectory != "none":
+            await self.trajectory.save_trajectory_incremental(stage="final")
+            logger.info(f"📁 Trajectory saved: {self.trajectory.trajectory_folder}")
 
         self.tools_instance._set_context(None)
 

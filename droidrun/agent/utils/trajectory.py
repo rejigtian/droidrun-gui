@@ -5,6 +5,7 @@ This module provides helper functions for working with agent trajectories,
 including saving, loading, and analyzing them.
 """
 
+import asyncio
 import io
 import json
 import logging
@@ -13,10 +14,9 @@ import time
 import uuid
 from typing import Any, Dict, List
 
+import aiofiles
 from llama_index.core.workflow import Event
 from PIL import Image
-
-from droidrun.config_manager.path_resolver import PathResolver
 
 logger = logging.getLogger("droidrun")
 
@@ -63,17 +63,38 @@ def make_serializable(obj):
 
 
 class Trajectory:
-    def __init__(self, goal: str = None):
-        """Initializes an empty trajectory class.
+    def __init__(self, goal: str = None, base_path: str = "trajectories"):
+        """Initialize trajectory with incremental saving.
 
         Args:
             goal: The goal/prompt that this trajectory is trying to achieve
+            base_path: Directory for saving (absolute or relative to cwd)
         """
         self.events: List[Event] = []
         self.screenshots: List[bytes] = []
         self.ui_states: List[Dict[str, Any]] = []
         self.macro: List[Event] = []
         self.goal = goal or "DroidRun automation sequence"
+
+        self.base_path = self._resolve_path(base_path)
+        self.trajectory_folder = self._create_trajectory_folder()
+
+        logger.info(f"📁 Trajectory folder: {self.trajectory_folder}")
+
+    def _resolve_path(self, config_path: str):
+        """Convert config path to absolute Path."""
+        from pathlib import Path
+
+        path = Path(config_path)
+        return path if path.is_absolute() else Path.cwd() / path
+
+    def _create_trajectory_folder(self):
+        """Create unique trajectory folder."""
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        unique_id = str(uuid.uuid4())[:8]
+        folder = self.base_path / f"{timestamp}_{unique_id}"
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder
 
     def set_goal(self, goal: str) -> None:
         """Update the goal/description for this trajectory.
@@ -83,28 +104,27 @@ class Trajectory:
         """
         self.goal = goal
 
-    def create_screenshot_gif(self, output_path: str, duration: int = 1000) -> str:
-        """
-        Create a GIF from a list of screenshots.
-
-        Args:
-            output_path: Base path for the GIF (without extension)
-            duration: Duration for each frame in milliseconds
-
-        Returns:
-            Path to the created GIF file, or None if no screenshots available
-        """
+    async def create_screenshot_gif(
+        self, output_path: str, duration: int = 1000
+    ) -> str:
+        """Create GIF from screenshots, skipping invalid frames."""
         if len(self.screenshots) == 0:
             logger.info("📷 No screenshots available for GIF creation")
             return None
 
         images = []
-        for screenshot in self.screenshots:
-            img_data = screenshot
-            img = Image.open(io.BytesIO(img_data))
-            images.append(img)
+        for idx, screenshot in enumerate(self.screenshots):
+            try:
+                img = Image.open(io.BytesIO(screenshot))
+                images.append(img)
+            except Exception as e:
+                logger.warning(f"Skipping invalid screenshot {idx}: {e}")
+                continue
 
-        # Save as GIF
+        if not images:
+            logger.warning("No valid screenshots for GIF creation")
+            return None
+
         gif_path = os.path.join(output_path, "trajectory.gif")
         images[0].save(
             gif_path, save_all=True, append_images=images[1:], duration=duration, loop=0
@@ -128,46 +148,12 @@ class Trajectory:
 
         return serializable_events
 
-    def save_trajectory(
-        self,
-        directory: str = "trajectories",
-    ) -> str:
-        """
-        Save trajectory steps to a JSON file and create a GIF of screenshots if available.
-        Also saves the macro sequence as a separate file for replay.
-        Creates a dedicated folder for each trajectory containing all related files.
-
-        Args:
-            directory: Base directory to save the trajectory files (relative or absolute)
-
-        Returns:
-            Path to the trajectory folder
-        """
-        # Resolve directory (prefer working dir for output)
-        base_dir = PathResolver.resolve(directory, create_if_missing=True)
-        base_dir.mkdir(parents=True, exist_ok=True)
-
-        timestamp = time.strftime("%Y%m%d_%H%M%S")
-        unique_id = str(uuid.uuid4())[:8]
-        trajectory_folder = base_dir / f"{timestamp}_{unique_id}"
-        trajectory_folder.mkdir(parents=True, exist_ok=True)
-
+    async def save_trajectory_incremental(self, stage: str = "") -> None:
+        """Save current trajectory state incrementally."""
         serializable_events = []
         for event in self.events:
-            # Debug: Check if tokens attribute exists
-            if hasattr(event, "tokens"):
-                logger.debug(
-                    f"Event {event.__class__.__name__} has tokens: {event.tokens}"
-                )
-            else:
-                logger.debug(
-                    f"Event {event.__class__.__name__} does NOT have tokens attribute"
-                )
-
-            # Start with the basic event structure
             event_dict = {"type": event.__class__.__name__}
 
-            # Add all attributes from __dict__
             for k, v in event.__dict__.items():
                 if not k.startswith("_"):
                     try:
@@ -176,77 +162,63 @@ class Trajectory:
                         logger.warning(f"Failed to serialize attribute {k}: {e}")
                         event_dict[k] = str(v)
 
-            # Explicitly check for and add tokens attribute if it exists
             if hasattr(event, "tokens") and "tokens" not in event_dict:
-                logger.debug(
-                    f"Manually adding tokens attribute for {event.__class__.__name__}"
-                )
                 event_dict["tokens"] = make_serializable(event.tokens)
-
-            # Debug: Check if tokens is in the serialized event
-            if "tokens" in event_dict:
-                logger.debug(
-                    f"Serialized event contains tokens: {event_dict['tokens']}"
-                )
-            else:
-                logger.debug("Serialized event does NOT contain tokens")
 
             serializable_events.append(event_dict)
 
-        trajectory_json_path = trajectory_folder / "trajectory.json"
-        with open(trajectory_json_path, "w") as f:
-            json.dump(serializable_events, f, indent=2)
+        trajectory_json_path = self.trajectory_folder / "trajectory.json"
+        async with aiofiles.open(trajectory_json_path, "w") as f:
+            await f.write(json.dumps(serializable_events, indent=2))
 
-        # Save macro sequence as a separate file for replay
         if self.macro:
-            macro_data = []
-            for macro_event in self.macro:
-                macro_dict = {
-                    "type": macro_event.__class__.__name__,
-                    **{
-                        k: make_serializable(v)
-                        for k, v in macro_event.__dict__.items()
-                        if not k.startswith("_")
-                    },
-                }
-                macro_data.append(macro_dict)
-
-            macro_json_path = trajectory_folder / "macro.json"
-            with open(macro_json_path, "w") as f:
-                json.dump(
+            macro_data = {
+                "version": "1.0",
+                "description": self.goal,
+                "timestamp": time.strftime("%Y%m%d_%H%M%S"),
+                "total_actions": len(self.macro),
+                "actions": [
                     {
-                        "version": "1.0",
-                        "description": self.goal,
-                        "timestamp": timestamp,
-                        "total_actions": len(macro_data),
-                        "actions": macro_data,
-                    },
-                    f,
-                    indent=2,
-                )
+                        "type": macro_event.__class__.__name__,
+                        **{
+                            k: make_serializable(v)
+                            for k, v in macro_event.__dict__.items()
+                            if not k.startswith("_")
+                        },
+                    }
+                    for macro_event in self.macro
+                ],
+            }
 
-            logger.info(
-                f"💾 Saved macro sequence with {len(macro_data)} actions to {macro_json_path}"
-            )
-        screenshots_folder = trajectory_folder / "screenshots"
-        screenshots_folder.mkdir(parents=True, exist_ok=True)
+            macro_json_path = self.trajectory_folder / "macro.json"
+            async with aiofiles.open(macro_json_path, "w") as f:
+                await f.write(json.dumps(macro_data, indent=2))
 
-        gif_path = self.create_screenshot_gif(str(screenshots_folder))
-        if gif_path:
-            logger.info(f"🎬 Saved screenshot GIF to {gif_path}")
+        if self.screenshots:
+            screenshots_folder = self.trajectory_folder / "screenshots"
+            screenshots_folder.mkdir(exist_ok=True)
 
-        logger.info(f"📁 Trajectory saved to folder: {trajectory_folder}")
+            for idx, screenshot_bytes in enumerate(self.screenshots):
+                screenshot_path = screenshots_folder / f"{idx:04d}.png"
+                if not screenshot_path.exists():
+                    async with aiofiles.open(screenshot_path, "wb") as f:
+                        await f.write(screenshot_bytes)
 
-        if len(self.ui_states) != len(self.screenshots):
-            logger.warning("UI states and screenshots are not the same length!")
+            await self.create_screenshot_gif(str(screenshots_folder))
 
-        ui_states_folder = trajectory_folder / "ui_states"
-        ui_states_folder.mkdir(parents=True, exist_ok=True)
-        for idx, ui_state in enumerate(self.ui_states):
-            ui_states_path = ui_states_folder / f"{idx}.json"
-            with open(ui_states_path, "w", encoding="utf-8") as f:
-                json.dump(ui_state, f, ensure_ascii=False, indent=2)
-        return str(trajectory_folder)
+        if self.ui_states:
+            ui_states_folder = self.trajectory_folder / "ui_states"
+            ui_states_folder.mkdir(exist_ok=True)
+
+            for idx, ui_state in enumerate(self.ui_states):
+                ui_state_path = ui_states_folder / f"{idx:04d}.json"
+                if not ui_state_path.exists():
+                    async with aiofiles.open(ui_state_path, "w", encoding="utf-8") as f:
+                        await f.write(
+                            json.dumps(ui_state, ensure_ascii=False, indent=2)
+                        )
+
+        logger.debug(f"💾 Incremental save at '{stage}'")
 
     @staticmethod
     def load_trajectory_folder(trajectory_folder: str) -> Dict[str, Any]:
