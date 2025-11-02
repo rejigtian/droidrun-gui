@@ -142,7 +142,18 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
                     'use_tcp': device.use_tcp,
                 }
 
-            # 4. Active LLMs (only active ones based on reasoning mode)
+            # 4. Output model (structured output)
+            if self.agent.output_model:
+                metadata['output_model'] = self.agent.output_model.__name__
+
+            # 5. DroidRun version
+            metadata['droidrun_version'] = __version__
+
+            # 6. After action sleep
+            if self.agent.config.agent.after_sleep_action:
+                metadata['after_action_sleep'] = self.agent.config.agent.after_sleep_action
+
+            # 7. Active LLMs (only active ones based on reasoning mode) - LAST
             active_llms = []
             if self.agent.config.agent.reasoning:
                 # Reasoning mode uses manager, executor, scripter
@@ -181,17 +192,6 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
                     active_llms.append(llm_info)
 
             metadata['llms'] = active_llms
-
-            # 5. Output model (structured output)
-            if self.agent.output_model:
-                metadata['output_model'] = self.agent.output_model.__name__
-
-            # 6. DroidRun version
-            metadata['droidrun_version'] = __version__
-
-            # 7. After action sleep
-            if self.agent.config.agent.after_sleep_action:
-                metadata['after_action_sleep'] = self.agent.config.agent.after_sleep_action
 
             return metadata
 
@@ -467,11 +467,11 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
 
         try:
             # Inject metadata into agent spans
-            if span.name == "DroidAgent.start_handler":
+            if span.name == "DroidAgent.run":
                 self._inject_metadata_to_start_handler(span)
-            elif span.name == "ExecutorAgent.prepare_context":
+            elif span.name == "ExecutorAgent.run":
                 self._inject_executor_metadata(span)
-            elif span.name == "ManagerAgent.prepare_context":
+            elif span.name == "ManagerAgent.run":
                 self._inject_manager_metadata(span)
             # Format LLM chat spans
             elif span.name.endswith(".achat") or span.name.endswith(".chat"):
