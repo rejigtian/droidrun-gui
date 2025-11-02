@@ -66,7 +66,7 @@ def _setup_phoenix_tracing() -> None:
 
 def _setup_langfuse_tracing(tracing_config: TracingConfig) -> None:
     """
-    Set up Langfuse tracing.
+    Set up Langfuse tracing with custom span processor.
 
     Args:
         tracing_config: TracingConfig instance containing Langfuse credentials
@@ -74,7 +74,7 @@ def _setup_langfuse_tracing(tracing_config: TracingConfig) -> None:
     global _session_id
 
     try:
-        # Set environment variables if provided in config
+        # Set environment variables
         if tracing_config.langfuse_secret_key:
             os.environ["LANGFUSE_SECRET_KEY"] = tracing_config.langfuse_secret_key
         if tracing_config.langfuse_public_key:
@@ -82,33 +82,79 @@ def _setup_langfuse_tracing(tracing_config: TracingConfig) -> None:
         if tracing_config.langfuse_host:
             os.environ["LANGFUSE_HOST"] = tracing_config.langfuse_host
         else:
-            # Default to US cloud if not specified
             os.environ["LANGFUSE_HOST"] = "https://us.cloud.langfuse.com"
 
-        # Initialize Langfuse client and verify connection
+        # Verify credentials
         from langfuse import Langfuse
 
         langfuse = Langfuse()
-        if not langfuse.auth_check():
-            logger.error(
-                "❌ Langfuse authentication failed. Please check your credentials."
-            )
+        try:
+            if not langfuse.auth_check():
+                logger.error(
+                    "❌ Langfuse authentication failed. Please check your credentials."
+                )
+                return
+        except Exception as e:
+            logger.error(f"Error checking Langfuse authentication: {e}\nLikely a network issue or credentials are incorrect")
             return
 
-        # Initialize OpenInference LlamaIndex instrumentation
+        # STEP 1: Set up tracer provider (before any LlamaIndex imports!)
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry import trace
+
+        # Check if there's already a tracer provider (from Phoenix or previous setup)
+        existing_provider = trace.get_tracer_provider()
+        if hasattr(existing_provider, 'add_span_processor'):
+            # Use existing provider
+            tracer_provider = existing_provider
+            logger.info("🔍 Using existing TracerProvider")
+        else:
+            # Create new provider
+            tracer_provider = TracerProvider()
+            trace.set_tracer_provider(tracer_provider)
+            logger.info("🔍 Created new TracerProvider")
+
+        # STEP 2: Instrument LlamaIndex FIRST (before any LlamaIndex imports!)
         from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 
-        LlamaIndexInstrumentor().instrument()
+        instrumentor = LlamaIndexInstrumentor()
+        if not instrumentor.is_instrumented_by_opentelemetry:
+            instrumentor.instrument()
+            logger.info("🔍 Instrumented LlamaIndex")
+        else:
+            logger.info("🔍 LlamaIndex already instrumented")
 
-        # Generate or use configured session_id
+        # STEP 3: Patch the encoder (now that instrumentation is active)
+        from pydantic import BaseModel as PydanticV2BaseModel
+        from openinference.instrumentation.llama_index import _handler
+
+        _original_encoder = _handler._encoder
+
+        def _fixed_encoder(obj):
+            """Fixed encoder that properly handles Pydantic v2 models."""
+            if isinstance(obj, PydanticV2BaseModel):
+                return obj.model_dump()
+            return _original_encoder(obj)
+
+        _handler._encoder = _fixed_encoder
+
+        # STEP 4: Add our custom processor (after instrumentation is set up)
+        from droidrun.telemetry.langfuse_processor import LangfuseSpanProcessor
+
+        span_processor = LangfuseSpanProcessor(
+            public_key=os.environ["LANGFUSE_PUBLIC_KEY"],
+            secret_key=os.environ["LANGFUSE_SECRET_KEY"],
+            base_url=os.environ["LANGFUSE_HOST"],
+        )
+        tracer_provider.add_span_processor(span_processor)
+
+        # STEP 5: Generate session_id
         if tracing_config.langfuse_session_id:
-            # Use configured session_id
             _session_id = tracing_config.langfuse_session_id
         else:
-            # Auto-generate UUID
             _session_id = str(uuid4())
 
-        # Set session_id and user_id globally for the process
+        # STEP 6: Set session and user context
         from opentelemetry.context import attach, get_current, set_value
         from openinference.semconv.trace import SpanAttributes
 
@@ -120,12 +166,8 @@ def _setup_langfuse_tracing(tracing_config: TracingConfig) -> None:
             )
         attach(ctx)
 
-        logger.info(
-            f"🔍 Langfuse tracing enabled via OpenInference instrumentation\n"
-            f"    Session ID: {_session_id}\n"
-            f"    User ID: {tracing_config.langfuse_user_id}\n"
-            f"    Host: {os.environ.get('LANGFUSE_HOST')}"
-        )
+        logger.info(f"🔍 Langfuse tracing enabled | Session: {_session_id}")
+
     except ImportError as e:
         logger.warning(
             "⚠️  Langfuse dependencies are not installed.\n"

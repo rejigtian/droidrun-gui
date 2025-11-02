@@ -768,7 +768,7 @@ async def test(
 
 
 if __name__ == "__main__":
-    command = "check the last chat history i had on whatsapp"
+    command = "open settings and go to battery section"
     command = "use open_app to open the settings"
     device = None
     provider = "GoogleGenAI"
@@ -786,4 +786,4 @@ if __name__ == "__main__":
     ios = False
     save_trajectory = "none"
     allow_drag = False
-    run_command(command, reasoning=True)
+    run_command(command, device="emulator-5554")
