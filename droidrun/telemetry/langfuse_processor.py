@@ -276,13 +276,18 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
 
         try:
             if span.name.endswith(".achat") or span.name.endswith(".chat"):
-                self._format_span_for_langfuse(span)
+                self._format_chat(span)
+            elif span.name.endswith(".complete") or span.name.endswith(".acomplete"):
+                self._format_complete(span)
         except Exception as e:
             logger.error(f"Error formatting span for Langfuse: {e}")
 
         super(BaseLangfuseSpanProcessor, self).on_end(span)
-
-    def _format_span_for_langfuse(self, span: ReadableSpan) -> None:
+    def _format_complete(self, span: ReadableSpan) -> None:
+        span._attributes["input.value"] = span._attributes["llm.prompts"][0]
+        del span._attributes["llm.prompts"]
+        pass
+    def _format_chat(self, span: ReadableSpan) -> None:
         """
         Apply custom formatting to transform blocks and set Langfuse attributes.
 
