@@ -358,6 +358,74 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
 
         super().shutdown()
 
+    def _inject_executor_metadata(self, span: ReadableSpan) -> None:
+        """Inject ExecutorAgent metadata into prepare_context span's input.value."""
+        if not self.agent:
+            return
+
+        try:
+            # Extract subgoal from span attributes
+            if not hasattr(span, '_attributes') or span._attributes is None:
+                return
+
+            attrs = span._attributes
+
+            # Try to get subgoal from input.value if it exists
+            subgoal = "Unknown"
+            if "input.value" in attrs:
+                try:
+                    input_data = json.loads(attrs["input.value"])
+                    subgoal = input_data.get("subgoal", "Unknown")
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
+            metadata = {
+                "subgoal": subgoal
+            }
+
+            # Serialize and inject
+            metadata_json = json.dumps(metadata, indent=2)
+            span._attributes["input.value"] = metadata_json
+
+        except Exception as e:
+            logger.warning(f"Failed to inject metadata into ExecutorAgent span: {e}")
+
+    def _inject_manager_metadata(self, span: ReadableSpan) -> None:
+        """Inject ManagerAgent metadata into prepare_context span's input.value."""
+        if not self.agent:
+            return
+
+        try:
+            if not hasattr(span, '_attributes') or span._attributes is None:
+                return
+
+            # Calculate memory size and message history count
+            memory_size = 0
+            if self.agent.shared_state.memory:
+                memory_size = len(self.agent.shared_state.memory)
+
+            message_history_count = len(self.agent.shared_state.message_history) + 1  # +1 for system prompt
+
+            metadata = {
+                "memory_size": memory_size,
+                "message_history_count": message_history_count
+            }
+
+            # Serialize and inject
+            metadata_json = json.dumps(metadata, indent=2)
+            span._attributes["input.value"] = metadata_json
+
+            # Add error recovery as tag
+            tags = []
+            if self.agent.shared_state.error_flag_plan:
+                tags.append("error_recovery")
+
+            if tags:
+                span._attributes["langfuse.trace.tags"] = tags
+
+        except Exception as e:
+            logger.warning(f"Failed to inject metadata into ManagerAgent span: {e}")
+
     def _inject_metadata_to_start_handler(self, span: ReadableSpan) -> None:
         """Inject DroidAgent metadata into start_handler span's input.value."""
         if not self.agent:
@@ -376,6 +444,14 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
                 # Inject into input.value
                 span._attributes["input.value"] = metadata_json
 
+                # Add reasoning mode as tag
+                tags = []
+                if metadata.get('reasoning'):
+                    tags.append("reasoning")
+                else:
+                    tags.append("fast")
+
+                span._attributes["langfuse.trace.tags"] = tags
 
         except Exception as e:
             logger.warning(f"Failed to inject metadata into start_handler span: {e}")
@@ -390,9 +466,13 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
             return
 
         try:
-            # Inject metadata into start_handler span
+            # Inject metadata into agent spans
             if span.name == "DroidAgent.start_handler":
                 self._inject_metadata_to_start_handler(span)
+            elif span.name == "ExecutorAgent.prepare_context":
+                self._inject_executor_metadata(span)
+            elif span.name == "ManagerAgent.prepare_context":
+                self._inject_manager_metadata(span)
             # Format LLM chat spans
             elif span.name.endswith(".achat") or span.name.endswith(".chat"):
                 self._format_chat(span)
