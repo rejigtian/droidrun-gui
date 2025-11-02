@@ -147,7 +147,7 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
                 metadata['output_model'] = self.agent.output_model.__name__
 
             # 5. DroidRun version
-            metadata['droidrun_version'] = __version__
+            metadata['langfuse.release'] = "v" +__version__
 
             # 6. After action sleep
             if self.agent.config.agent.after_sleep_action:
