@@ -194,7 +194,7 @@ class DroidAgent(Workflow):
 
         self._configure_default_logging(debug=self.config.logging.debug)
 
-        setup_tracing(self.config.tracing)
+        setup_tracing(self.config.tracing, agent=self)
 
         # Load LLMs if not provided
         if llms is None:

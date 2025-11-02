@@ -25,14 +25,17 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, Future
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 
 import requests
 from opentelemetry.sdk.trace import ReadableSpan
 
 from langfuse._client.span_processor import LangfuseSpanProcessor as BaseLangfuseSpanProcessor
-from langfuse._client.utils import span_formatter
 
+from droidrun import __version__
+
+if TYPE_CHECKING:
+    from droidrun import DroidAgent
 # Configuration constants
 MAX_IMAGE_SIZE_KB = 10000  # 10MB max per image
 MAX_UPLOAD_WORKERS = 50  # Maximum concurrent upload threads
@@ -63,8 +66,14 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
         flush_interval: Optional[float] = None,
         blocked_instrumentation_scopes: Optional[List[str]] = None,
         additional_headers: Optional[dict] = None,
+
+        agent: Optional["DroidAgent"] = None,
     ):
-        """Initialize the span processor with media upload support."""
+        """Initialize the span processor with media upload support.
+
+        Args:
+            agent: Optional DroidAgent instance for accessing agent context during span processing.
+        """
         super().__init__(
             public_key=public_key,
             secret_key=secret_key,
@@ -75,6 +84,9 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
             blocked_instrumentation_scopes=blocked_instrumentation_scopes,
             additional_headers=additional_headers,
         )
+
+        # Store agent instance for context access
+        self.agent = agent
 
         # Store credentials for media API calls
         self._base_url = base_url
@@ -89,7 +101,6 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
                 "Content-Type": "application/json",
             }
         )
-        
         adapter = requests.adapters.HTTPAdapter(
             pool_connections=3, # Increase this if hosting on server with multiple users
             pool_maxsize=10, # Increase this if hosting on server with multiple users (task api)
@@ -105,6 +116,88 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
 
         self._pending_uploads: List[Future] = []
         self._pending_lock = threading.Lock()
+
+    # Agent metadata extraction
+    def _extract_agent_metadata(self) -> Optional[dict]:
+        """Extract metadata from DroidAgent for first span injection."""
+        if not self.agent:
+            return None
+
+        try:
+            metadata = {}
+
+            # 1. Goal
+            if self.agent.shared_state.instruction:
+                metadata['goal'] = self.agent.shared_state.instruction
+
+            # 2. Reasoning mode
+            metadata['reasoning'] = self.agent.config.agent.reasoning
+
+            # 3. Device info
+            if self.agent.config.device:
+                device = self.agent.config.device
+                metadata['device'] = {
+                    'platform': device.platform,
+                    'serial': device.serial,
+                    'use_tcp': device.use_tcp,
+                }
+
+            # 4. Active LLMs (only active ones based on reasoning mode)
+            active_llms = []
+            if self.agent.config.agent.reasoning:
+                # Reasoning mode uses manager, executor, scripter
+                llm_attrs = ['manager_llm', 'executor_llm']
+                if self.agent.config.agent.scripter.enabled:
+                    llm_attrs.append('scripter_llm')
+            else:
+                # Direct mode uses codeact
+                llm_attrs = ['codeact_llm']
+
+            # Add helper LLMs
+            llm_attrs.extend(['text_manipulator_llm', 'app_opener_llm'])
+
+            # Add structured_output if output_model is present
+            if self.agent.output_model:
+                llm_attrs.append('structured_output_llm')
+
+            for llm_attr in llm_attrs:
+                llm = getattr(self.agent, llm_attr)
+                if llm:
+                    llm_info = {
+                        'role': llm_attr.replace('_llm', ''),
+                        'provider': llm.class_name() if hasattr(llm, 'class_name') else 'unknown',
+                    }
+
+                    # Extract model name
+                    if hasattr(llm, 'model'):
+                        llm_info['model'] = llm.model
+                    elif hasattr(llm, 'metadata') and hasattr(llm.metadata, 'model_name'):
+                        llm_info['model'] = llm.metadata.model_name
+
+                    # Extract temperature
+                    if hasattr(llm, 'temperature'):
+                        llm_info['temperature'] = llm.temperature
+
+                    active_llms.append(llm_info)
+
+            metadata['llms'] = active_llms
+
+            # 5. Output model (structured output)
+            if self.agent.output_model:
+                metadata['output_model'] = self.agent.output_model.__name__
+
+            # 6. DroidRun version
+            metadata['droidrun_version'] = __version__
+
+            # 7. After action sleep
+            if self.agent.config.agent.after_sleep_action:
+                metadata['after_action_sleep'] = self.agent.config.agent.after_sleep_action
+
+            return metadata
+
+        except Exception as e:
+            logger.warning(f"Failed to extract agent metadata: {e}")
+            return None
 
     # Media API
     def _submit_upload(self, job: dict):
@@ -265,9 +358,31 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
 
         super().shutdown()
 
+    def _inject_metadata_to_start_handler(self, span: ReadableSpan) -> None:
+        """Inject DroidAgent metadata into start_handler span's input.value."""
+        if not self.agent:
+            return
+
+        try:
+            metadata = self._extract_agent_metadata()
+            if not metadata:
+                return
+
+            # Inject metadata into span attributes
+            if hasattr(span, '_attributes') and span._attributes is not None:
+                # Serialize metadata to JSON
+                metadata_json = json.dumps(metadata, indent=2)
+
+                # Inject into input.value
+                span._attributes["input.value"] = metadata_json
+
+
+        except Exception as e:
+            logger.warning(f"Failed to inject metadata into start_handler span: {e}")
+
     # Span processing
     def on_end(self, span: ReadableSpan) -> None:
-        """Override on_end to apply custom formatting before export."""
+        """Override on_end to apply custom formatting and inject metadata."""
         if self._is_langfuse_span(span) and not self._is_langfuse_project_span(span):
             return
 
@@ -275,12 +390,16 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
             return
 
         try:
-            if span.name.endswith(".achat") or span.name.endswith(".chat"):
+            # Inject metadata into start_handler span
+            if span.name == "DroidAgent.start_handler":
+                self._inject_metadata_to_start_handler(span)
+            # Format LLM chat spans
+            elif span.name.endswith(".achat") or span.name.endswith(".chat"):
                 self._format_chat(span)
             elif span.name.endswith(".complete") or span.name.endswith(".acomplete"):
                 self._format_complete(span)
         except Exception as e:
-            logger.error(f"Error formatting span for Langfuse: {e}")
+            logger.error(f"Error processing span for Langfuse: {e}")
 
         super(BaseLangfuseSpanProcessor, self).on_end(span)
     def _format_complete(self, span: ReadableSpan) -> None:

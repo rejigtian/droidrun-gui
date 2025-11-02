@@ -20,12 +20,13 @@ logger = logging.getLogger("droidrun")
 _session_id: Optional[str] = None
 
 
-def setup_tracing(tracing_config: TracingConfig) -> None:
+def setup_tracing(tracing_config: TracingConfig, agent: Optional[object] = None) -> None:
     """
     Set up tracing based on the provided TracingConfig.
 
     Args:
         tracing_config: TracingConfig instance containing tracing settings
+        agent: Optional DroidAgent instance to pass to span processor
 
     Raises:
         ImportError: If the specified tracing provider is not installed
@@ -38,7 +39,7 @@ def setup_tracing(tracing_config: TracingConfig) -> None:
     if provider == "phoenix":
         _setup_phoenix_tracing()
     elif provider == "langfuse":
-        _setup_langfuse_tracing(tracing_config)
+        _setup_langfuse_tracing(tracing_config, agent)
     else:
         logger.warning(
             f"⚠️  Unknown tracing provider: {provider}. "
@@ -64,12 +65,13 @@ def _setup_phoenix_tracing() -> None:
         )
 
 
-def _setup_langfuse_tracing(tracing_config: TracingConfig) -> None:
+def _setup_langfuse_tracing(tracing_config: TracingConfig, agent: Optional[object] = None) -> None:
     """
     Set up Langfuse tracing with custom span processor.
 
     Args:
         tracing_config: TracingConfig instance containing Langfuse credentials
+        agent: Optional DroidAgent instance to pass to span processor
     """
     global _session_id
 
@@ -145,6 +147,7 @@ def _setup_langfuse_tracing(tracing_config: TracingConfig) -> None:
             public_key=os.environ["LANGFUSE_PUBLIC_KEY"],
             secret_key=os.environ["LANGFUSE_SECRET_KEY"],
             base_url=os.environ["LANGFUSE_HOST"],
+            agent=agent,
         )
         tracer_provider.add_span_processor(span_processor)
 
