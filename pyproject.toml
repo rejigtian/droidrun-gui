@@ -69,6 +69,8 @@ dev = [
     "mypy>=1.0.0",
     "bandit>=1.8.6",
     "safety>=3.2.11",
+    "droidrun[langfuse]",
+    "droidrun[google]",
 ]
 openrouter = [
     "llama-index-llms-openrouter>=0.4.2",
