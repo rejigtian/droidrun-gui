@@ -16,6 +16,8 @@ import tomllib
 from pathlib import Path
 from adbutils import adb
 from rich.console import Console
+from rich.panel import Panel
+from rich.text import Text
 
 from droidrun import ResultEvent, DroidAgent
 from droidrun.cli.logs import LogHandler
@@ -124,11 +126,11 @@ async def run_command(
             logger.info(f"🚀 Starting: {command}")
 
             # Print cloud link in a box
-            from rich.panel import Panel
-            from rich.text import Text
             cloud_text = Text()
             cloud_text.append("✨ Try DroidRun Cloud: ", style="bold cyan")
-            cloud_text.append("https://cloud.droidrun.ai/sign-in", style="bold blue underline")
+            cloud_text.append(
+                "https://cloud.droidrun.ai/sign-in", style="bold blue underline"
+            )
             cloud_panel = Panel(
                 cloud_text,
                 border_style="cyan",
@@ -666,11 +668,11 @@ async def test(
             logger.info(f"🚀 Starting: {command}")
 
             # Print cloud link in a box
-            from rich.panel import Panel
-            from rich.text import Text
             cloud_text = Text()
             cloud_text.append("✨ Try DroidRun Cloud: ", style="bold cyan")
-            cloud_text.append("https://cloud.droidrun.ai/sign-in", style="bold blue underline")
+            cloud_text.append(
+                "https://cloud.droidrun.ai/sign-in", style="bold blue underline"
+            )
             cloud_panel = Panel(
                 cloud_text,
                 border_style="cyan",
