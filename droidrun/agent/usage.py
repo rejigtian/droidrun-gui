@@ -42,7 +42,8 @@ def get_usage_from_response(provider: str, chat_rsp: ChatResponse) -> UsageResul
             response_tokens=rsp["usage_metadata"]["candidates_token_count"],
             total_tokens=rsp["usage_metadata"]["total_token_count"],
             thinking_tokens=rsp["usage_metadata"].get("thoughts_token_count", 0),
-            tool_tokens=rsp["usage_metadata"].get("tool_use_prompt_token_count", 0)+rsp["usage_metadata"].get("tool_use_prompt_tokens_details", 0),
+            tool_tokens=rsp["usage_metadata"].get("tool_use_prompt_token_count", 0)
+            + rsp["usage_metadata"].get("tool_use_prompt_tokens_details", 0),
             requests=1,
         )
     elif provider == "OpenAI" or provider == "OpenAILike" or provider == "openai_llm":
@@ -101,8 +102,8 @@ class TokenCountingHandler(BaseCallbackHandler):
         self.request_tokens: int = 0
         self.response_tokens: int = 0
         self.total_tokens: int = 0
-        self.thinking_tokens : int = 0
-        self.tool_tokens :int = 0
+        self.thinking_tokens: int = 0
+        self.tool_tokens: int = 0
         self.requests: int = 0
 
     @classmethod

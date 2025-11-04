@@ -768,7 +768,7 @@ async def test(
 
 
 if __name__ == "__main__":
-    
+
     command = " open the settings"
     device = None
     provider = "DeepSeek"
@@ -787,4 +787,11 @@ if __name__ == "__main__":
     ios = False
     save_trajectory = "none"
     allow_drag = False
-    run_command(command, reasoning=True,tracing= True,debug= True,provider=provider,model=model)
+    run_command(
+        command,
+        reasoning=True,
+        tracing=True,
+        debug=True,
+        provider=provider,
+        model=model,
+    )
