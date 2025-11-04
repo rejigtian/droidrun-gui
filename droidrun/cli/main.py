@@ -128,7 +128,7 @@ async def run_command(
         )
         console.print(cloud_panel)
     else:
-        console.print("✨ Try DroidRun Cloud: https://cloud.droidrun.ai/sign-in")
+        console.print("\n✨ Try DroidRun Cloud: https://cloud.droidrun.ai/sign-in\n")
 
     # Initialize logging first (use config default if debug not specified)
     debug_mode = debug if debug is not None else config.logging.debug
