@@ -862,7 +862,11 @@ deepseek = [
 dev = [
     { name = "bandit" },
     { name = "black" },
+    { name = "langfuse" },
+    { name = "llama-index-instrumentation" },
+    { name = "llama-index-llms-google-genai" },
     { name = "mypy" },
+    { name = "openinference-instrumentation-llama-index" },
     { name = "ruff" },
     { name = "safety" },
 ]
@@ -903,6 +907,8 @@ requires-dist = [
     { name = "arize-phoenix", specifier = ">=12.3.0" },
     { name = "bandit", marker = "extra == 'dev'", specifier = ">=1.8.6" },
     { name = "black", marker = "extra == 'dev'", specifier = "==25.9.0" },
+    { name = "droidrun", extras = ["google"], marker = "extra == 'dev'" },
+    { name = "droidrun", extras = ["langfuse"], marker = "extra == 'dev'" },
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "langfuse", marker = "extra == 'langfuse'", specifier = ">=2.0.0" },
     { name = "llama-index", specifier = "==0.14.4" },
