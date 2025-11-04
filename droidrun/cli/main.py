@@ -114,6 +114,22 @@ async def run_command(
     config_path = config_path or "config.yaml"
     config = DroidrunConfig.from_yaml(config_path)
 
+    # Print cloud link in a box
+    if config.logging.rich_text:
+        cloud_text = Text()
+        cloud_text.append("✨ Try DroidRun Cloud: ", style="bold cyan")
+        cloud_text.append(
+            "https://cloud.droidrun.ai/sign-in", style="bold blue underline"
+        )
+        cloud_panel = Panel(
+            cloud_text,
+            border_style="cyan",
+            padding=(0, 1),
+        )
+        console.print(cloud_panel)
+    else:
+        console.print("✨ Try DroidRun Cloud: https://cloud.droidrun.ai/sign-in")
+
     # Initialize logging first (use config default if debug not specified)
     debug_mode = debug if debug is not None else config.logging.debug
     log_handler = configure_logging(command, debug_mode, config.logging.rich_text)
@@ -124,19 +140,6 @@ async def run_command(
     with log_handler.render():
         try:
             logger.info(f"🚀 Starting: {command}")
-
-            # Print cloud link in a box
-            cloud_text = Text()
-            cloud_text.append("✨ Try DroidRun Cloud: ", style="bold cyan")
-            cloud_text.append(
-                "https://cloud.droidrun.ai/sign-in", style="bold blue underline"
-            )
-            cloud_panel = Panel(
-                cloud_text,
-                border_style="cyan",
-                padding=(0, 1),
-            )
-            console.print(cloud_panel)
 
             print_telemetry_message()
 
