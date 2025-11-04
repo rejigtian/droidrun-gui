@@ -256,12 +256,10 @@ Now, describe the next step you will take to address the original goal: {goal}""
         ctx.write_event_to_stream(ev)
 
         if self.shared_state.step_number + 1 > self.max_steps:
-            ev = TaskEndEvent(
+            return TaskEndEvent(
                 success=False,
                 reason=f"Reached max step count of {self.max_steps} steps",
             )
-            ctx.write_event_to_stream(ev)
-            return ev
 
         logger.info(f"🧠 Step {self.shared_state.step_number + 1}: Thinking...")
 
@@ -423,15 +421,11 @@ Now, describe the next step you will take to address the original goal: {goal}""
                 logger.info(f"  - Success: {success}")
                 logger.info(f"  - Reason: {reason}")
 
-                event = TaskEndEvent(success=success, reason=reason)
-                ctx.write_event_to_stream(event)
-                return event
+                return TaskEndEvent(success=success, reason=reason)
 
             self.remembered_info = self.tools.memory
 
-            event = TaskExecutionResultEvent(output=str(result))
-            ctx.write_event_to_stream(event)
-            return event
+            return TaskExecutionResultEvent(output=str(result))
 
         except Exception as e:
             logger.error(f"💥 Action failed: {e}")
