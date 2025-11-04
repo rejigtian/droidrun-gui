@@ -6,6 +6,7 @@ with live updates for agent execution progress, event streaming, and status disp
 """
 
 import logging
+import time
 from typing import List
 
 from rich.console import Console

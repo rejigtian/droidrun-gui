@@ -377,21 +377,18 @@ class DroidAgent(Workflow):
             result = await handler
 
             if "success" in result and result["success"]:
-                event = CodeActResultEvent(
+                return CodeActResultEvent(
                     success=True,
                     reason=result["reason"],
                     instruction=ev.instruction,
                 )
-                ctx.write_event_to_stream(event)
-                return event
+
             else:
-                event = CodeActResultEvent(
+                return CodeActResultEvent(
                     success=False,
                     reason=result["reason"],
                     instruction=ev.instruction,
                 )
-                ctx.write_event_to_stream(event)
-                return event
 
         except Exception as e:
             logger.error(f"Error during task execution: {e}")
@@ -399,32 +396,27 @@ class DroidAgent(Workflow):
                 import traceback
 
                 logger.error(traceback.format_exc())
-            event = CodeActResultEvent(
+            return CodeActResultEvent(
                 success=False, reason=f"Error: {str(e)}", instruction=ev.instruction
             )
-            ctx.write_event_to_stream(event)
-            return event
 
     @step
     async def handle_codeact_execute(
         self, ctx: Context, ev: CodeActResultEvent
     ) -> FinalizeEvent:
         try:
-            event = FinalizeEvent(success=ev.success, reason=ev.reason)
-            ctx.write_event_to_stream(event)
-            return event
+            return FinalizeEvent(success=ev.success, reason=ev.reason)
+
         except Exception as e:
             logger.error(f"❌ Error during DroidAgent execution: {e}")
             if self.config.logging.debug:
                 import traceback
 
                 logger.error(traceback.format_exc())
-            event = FinalizeEvent(
+            return FinalizeEvent(
                 success=False,
                 reason=str(e),
             )
-            ctx.write_event_to_stream(event)
-            return event
 
     @step
     async def start_handler(
@@ -484,12 +476,10 @@ class DroidAgent(Workflow):
         """
         if self.shared_state.step_number >= self.config.agent.max_steps:
             logger.warning(f"⚠️ Reached maximum steps ({self.config.agent.max_steps})")
-            event = FinalizeEvent(
+            return FinalizeEvent(
                 success=False,
                 reason=f"Reached maximum steps ({self.config.agent.max_steps})",
             )
-            ctx.write_event_to_stream(event)
-            return event
 
         logger.info(
             f"📋 Running Manager for planning... (step {self.shared_state.step_number}/{self.config.agent.max_steps})"
@@ -533,9 +523,7 @@ class DroidAgent(Workflow):
             )
             self.shared_state.progress_status = f"Answer: {ev.manager_answer}"
 
-            event = FinalizeEvent(success=success, reason=ev.manager_answer)
-            ctx.write_event_to_stream(event)
-            return event
+            return FinalizeEvent(success=success, reason=ev.manager_answer)
 
         # Check for <script> tag in current_subgoal, then extract from full plan
         if "<script>" in ev.current_subgoal:
