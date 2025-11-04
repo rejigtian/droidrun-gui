@@ -768,22 +768,23 @@ async def test(
 
 
 if __name__ == "__main__":
-    command = "check the last chat history i had on whatsapp"
-    command = "use open_app to open the settings"
+    
+    command = " open the settings"
     device = None
-    provider = "GoogleGenAI"
-    model = "models/gemini-2.5-flash"
+    provider = "DeepSeek"
+    model = "deepseek-reasoner"
     temperature = 0
-    api_key = os.getenv("GOOGLE_API_KEY")
+    api_key = os.getenv("DEEPSEEK_API_KEY")
     steps = 15
     vision = True
     reasoning = False
     tracing = True
+
     debug = True
     use_tcp = False
-    base_url = None
+    base_url = "http://localhost:11434"
     api_base = None
     ios = False
     save_trajectory = "none"
     allow_drag = False
-    run_command(command, reasoning=True)
+    run_command(command, reasoning=True,tracing= True,debug= True,provider=provider,model=model)
