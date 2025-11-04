@@ -19,7 +19,7 @@ from rich.console import Console
 
 from droidrun import ResultEvent, DroidAgent
 from droidrun.cli.logs import LogHandler
-from droidrun.config_manager import ConfigManager
+from droidrun.config_manager import DroidrunConfig
 from droidrun.macro.cli import macro_cli
 from droidrun.portal import (
     PORTAL_PACKAGE_NAME,
@@ -40,24 +40,17 @@ os.environ["GRPC_ENABLE_FORK_SUPPORT"] = "false"
 
 console = Console()
 
-# Ensure config.yaml exists (check working dir, then package dir)
-try:
-    config_path = PathResolver.resolve("config.yaml")
-    console.print(f"[blue]Using existing config: {config_path}[/]")
-except FileNotFoundError:
-    # Config not found, try to create from example
-    try:
-        example_path = PathResolver.resolve("config_example.yaml")
-        config_path = PathResolver.resolve("config.yaml", create_if_missing=True)
+# Ensure config.yaml exists in package dir
+package_config_path = PathResolver.get_project_root() / "config.yaml"
+if not package_config_path.exists():
+    # Config not found, copy config_example.yaml to package dir
+    import shutil
 
-        import shutil
-
-        shutil.copy2(example_path, config_path)
-        console.print(f"[blue]Created config.yaml from example at: {config_path}[/]")
-    except FileNotFoundError:
-        console.print(
-            "[yellow]Warning: config_example.yaml not found, config.yaml not created[/]"
-        )
+    example_path = PathResolver.get_project_root() / "config_example.yaml"
+    shutil.copy2(example_path, package_config_path)
+    console.print(f"[blue]Created config.yaml in package at: {package_config_path}[/]")
+else:
+    console.print(f"[blue]Using config from package: {package_config_path}[/]")
 
 
 def configure_logging(goal: str, debug: bool, rich_text: bool = True):
@@ -116,8 +109,8 @@ async def run_command(
         bool: True if the task completed successfully, False otherwise.
     """
     # Load config and apply CLI overrides via direct mutation
-    config_manager = ConfigManager(config_path)
-    config = config_manager.config
+    config_path = config_path or "config.yaml"
+    config = DroidrunConfig.from_yaml(config_path)
 
     # Initialize logging first (use config default if debug not specified)
     debug_mode = debug if debug is not None else config.logging.debug
@@ -645,8 +638,7 @@ async def test(
     temperature: float | None = None,
     ios: bool = False,
 ):
-    config_manager = ConfigManager(path="config.yaml")
-    config = config_manager.config
+    config = DroidrunConfig.from_yaml("config.yaml")
 
     # Initialize logging first (use config default if debug not specified)
     debug_mode = debug if debug is not None else config.logging.debug

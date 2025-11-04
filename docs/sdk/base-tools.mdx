@@ -350,7 +350,7 @@ Tools instances are passed to agents and provide the atomic actions for device c
 ```python
 from droidrun import DroidAgent
 from droidrun.tools import AdbTools
-from droidrun.config_manager.config_manager import DroidrunConfig
+from droidrun.config_manager import DroidrunConfig
 
 # Create tools instance
 tools = AdbTools(serial="emulator-5554")

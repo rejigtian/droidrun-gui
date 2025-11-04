@@ -59,7 +59,7 @@ tracing:
 
 ```python
 from droidrun import DroidAgent
-from droidrun.config_manager.config_manager import DroidrunConfig
+from droidrun.config_manager import DroidrunConfig
 
 config = DroidrunConfig()
 config.tracing.enabled = True
@@ -129,7 +129,7 @@ logging:
 
 ```python
 from droidrun import DroidAgent
-from droidrun.config_manager.config_manager import DroidrunConfig
+from droidrun.config_manager import DroidrunConfig
 
 config = DroidrunConfig()
 config.logging.save_trajectory = "action"

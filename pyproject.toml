@@ -1,12 +1,12 @@
 [project]
 name = "droidrun"
-version = "0.4.1"
+version = "0.4.2"
 description = "A framework for controlling Android devices through LLM agents"
 authors = [{ name = "Niels Schmidt", email = "niels.schmidt@droidrun.ai" }]
 dependencies = [
-    "adbutils>=2.10.2",
+    "adbutils>=2.11.0",
     # dependency of adbutils[apk]
-    "apkutils==2.0.0",
+    "apkutils>=2.0.2",
     "llama-index==0.14.4",
     "posthog>=6.7.6",
     "pydantic>=2.11.10",
@@ -69,6 +69,8 @@ dev = [
     "mypy>=1.0.0",
     "bandit>=1.8.6",
     "safety>=3.2.11",
+    "droidrun[langfuse]",
+    "droidrun[google]",
 ]
 openrouter = [
     "llama-index-llms-openrouter>=0.4.2",
