@@ -260,8 +260,6 @@ Now, describe the next step you will take to address the original goal: {goal}""
                 success=False,
                 reason=f"Reached max step count of {self.max_steps} steps",
             )
-            
-            
 
         logger.info(f"🧠 Step {self.shared_state.step_number + 1}: Thinking...")
 
@@ -424,12 +422,10 @@ Now, describe the next step you will take to address the original goal: {goal}""
                 logger.info(f"  - Reason: {reason}")
 
                 return TaskEndEvent(success=success, reason=reason)
-                
 
             self.remembered_info = self.tools.memory
 
             return TaskExecutionResultEvent(output=str(result))
-            
 
         except Exception as e:
             logger.error(f"💥 Action failed: {e}")

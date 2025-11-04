@@ -75,8 +75,6 @@ class LogHandler(logging.Handler):
             self.console = Console()
             self.logs: List[str] = []
 
-        
-
     def emit(self, record):
         msg = self.format(record)
         lines = msg.splitlines()

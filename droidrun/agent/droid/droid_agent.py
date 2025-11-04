@@ -382,7 +382,7 @@ class DroidAgent(Workflow):
                     reason=result["reason"],
                     instruction=ev.instruction,
                 )
-                
+
             else:
                 return CodeActResultEvent(
                     success=False,
@@ -399,7 +399,6 @@ class DroidAgent(Workflow):
             return CodeActResultEvent(
                 success=False, reason=f"Error: {str(e)}", instruction=ev.instruction
             )
-            
 
     @step
     async def handle_codeact_execute(
@@ -407,8 +406,7 @@ class DroidAgent(Workflow):
     ) -> FinalizeEvent:
         try:
             return FinalizeEvent(success=ev.success, reason=ev.reason)
-            
-            
+
         except Exception as e:
             logger.error(f"❌ Error during DroidAgent execution: {e}")
             if self.config.logging.debug:
@@ -419,8 +417,6 @@ class DroidAgent(Workflow):
                 success=False,
                 reason=str(e),
             )
-            
-            
 
     @step
     async def start_handler(
@@ -484,8 +480,6 @@ class DroidAgent(Workflow):
                 success=False,
                 reason=f"Reached maximum steps ({self.config.agent.max_steps})",
             )
-            
-            
 
         logger.info(
             f"📋 Running Manager for planning... (step {self.shared_state.step_number}/{self.config.agent.max_steps})"
@@ -530,7 +524,6 @@ class DroidAgent(Workflow):
             self.shared_state.progress_status = f"Answer: {ev.manager_answer}"
 
             return FinalizeEvent(success=success, reason=ev.manager_answer)
-            
 
         # Check for <script> tag in current_subgoal, then extract from full plan
         if "<script>" in ev.current_subgoal:
