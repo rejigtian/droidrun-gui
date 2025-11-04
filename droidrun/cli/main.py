@@ -122,6 +122,20 @@ async def run_command(
     with log_handler.render():
         try:
             logger.info(f"🚀 Starting: {command}")
+
+            # Print cloud link in a box
+            from rich.panel import Panel
+            from rich.text import Text
+            cloud_text = Text()
+            cloud_text.append("✨ Try DroidRun Cloud: ", style="bold cyan")
+            cloud_text.append("https://cloud.droidrun.ai/sign-in", style="bold blue underline")
+            cloud_panel = Panel(
+                cloud_text,
+                border_style="cyan",
+                padding=(0, 1),
+            )
+            console.print(cloud_panel)
+
             print_telemetry_message()
 
             # ================================================================
@@ -650,6 +664,20 @@ async def test(
     with log_handler.render():
         try:
             logger.info(f"🚀 Starting: {command}")
+
+            # Print cloud link in a box
+            from rich.panel import Panel
+            from rich.text import Text
+            cloud_text = Text()
+            cloud_text.append("✨ Try DroidRun Cloud: ", style="bold cyan")
+            cloud_text.append("https://cloud.droidrun.ai/sign-in", style="bold blue underline")
+            cloud_panel = Panel(
+                cloud_text,
+                border_style="cyan",
+                padding=(0, 1),
+            )
+            console.print(cloud_panel)
+
             print_telemetry_message()
 
             # ================================================================
