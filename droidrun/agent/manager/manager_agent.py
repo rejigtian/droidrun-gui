@@ -64,7 +64,7 @@ class ManagerAgent(Workflow):
     def __init__(
         self,
         llm: LLM,
-        tools_instance: "Tools",
+        tools_instance: "Tools | None",
         shared_state: "DroidAgentState",
         agent_config: "AgentConfig",
         custom_tools: dict = None,
@@ -159,7 +159,7 @@ class ManagerAgent(Workflow):
     # Helper Methods
     # ========================================================================
 
-    def _build_system_prompt(self, has_text_to_modify: bool) -> str:
+    async def _build_system_prompt(self, has_text_to_modify: bool) -> str:
         """Build system prompt with all context."""
 
         # Prepare error history as structured data (if needed)
@@ -194,7 +194,7 @@ class ManagerAgent(Workflow):
         # Let Jinja2 handle all formatting and conditionals
         variables = {
             "instruction": self.shared_state.instruction,
-            "device_date": self.tools_instance.get_date(),
+            "device_date": await self.tools_instance.get_date(),
             "app_card": self.shared_state.app_card,
             "important_notes": "",  # TODO: implement
             "error_history": error_history,
@@ -416,7 +416,7 @@ class ManagerAgent(Workflow):
         # ====================================================================
         # Step 1: Get and format device state using unified formatter
         # ====================================================================
-        raw_state = self.tools_instance.get_state()
+        raw_state = await self.tools_instance.get_state()
         formatted_text, focused_text, a11y_tree, phone_state = format_device_state(
             raw_state
         )
@@ -462,7 +462,7 @@ class ManagerAgent(Workflow):
             and self.tools_instance.save_trajectories != "none"
         ):
             try:
-                result = self.tools_instance.take_screenshot()
+                result = await self.tools_instance.take_screenshot()
                 if isinstance(result, tuple):
                     success, screenshot = result
                     if not success:
@@ -541,7 +541,7 @@ class ManagerAgent(Workflow):
         # ====================================================================
         # Step 1: Build system prompt (app card already loaded in prepare_context)
         # ====================================================================
-        system_prompt = self._build_system_prompt(has_text_to_modify)
+        system_prompt = await self._build_system_prompt(has_text_to_modify)
 
         # ====================================================================
         # Step 2: Build messages with context
