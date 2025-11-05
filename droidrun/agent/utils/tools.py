@@ -1,4 +1,4 @@
-import time
+import asyncio
 from typing import TYPE_CHECKING, List
 
 if TYPE_CHECKING:
@@ -104,7 +104,7 @@ async def resolve_tools_instance(
     return tools_instance, tools_cfg
 
 
-def click(index: int, *, tools: "Tools" = None, **kwargs) -> str:
+async def click(index: int, *, tools: "Tools" = None, **kwargs) -> str:
     """
     Click the element with the given index.
 
@@ -117,10 +117,10 @@ def click(index: int, *, tools: "Tools" = None, **kwargs) -> str:
     """
     if tools is None:
         raise ValueError("tools parameter is required")
-    return tools.tap_by_index(index)
+    return await tools.tap_by_index(index)
 
 
-def long_press(index: int, *, tools: "Tools" = None, **kwargs) -> bool:
+async def long_press(index: int, *, tools: "Tools" = None, **kwargs) -> bool:
     """
     Long press the element with the given index.
 
@@ -134,10 +134,10 @@ def long_press(index: int, *, tools: "Tools" = None, **kwargs) -> bool:
     if tools is None:
         raise ValueError("tools parameter is required")
     x, y = tools._extract_element_coordinates_by_index(index)
-    return tools.swipe(x, y, x, y, 1000)
+    return await tools.swipe(x, y, x, y, 1000)
 
 
-def type(text: str, index: int, *, tools: "Tools" = None, **kwargs) -> str:
+async def type(text: str, index: int, *, tools: "Tools" = None, **kwargs) -> str:
     """
     Type the given text into the element with the given index.
 
@@ -151,10 +151,10 @@ def type(text: str, index: int, *, tools: "Tools" = None, **kwargs) -> str:
     """
     if tools is None:
         raise ValueError("tools parameter is required")
-    return tools.input_text(text, index)
+    return await tools.input_text(text, index)
 
 
-def system_button(button: str, *, tools: "Tools" = None, **kwargs) -> str:
+async def system_button(button: str, *, tools: "Tools" = None, **kwargs) -> str:
     """
     Press a system button (back, home, or enter).
 
@@ -182,10 +182,10 @@ def system_button(button: str, *, tools: "Tools" = None, **kwargs) -> str:
         )
 
     keycode = button_map[button_lower]
-    return tools.press_key(keycode)
+    return await tools.press_key(keycode)
 
 
-def swipe(
+async def swipe(
     coordinate: List[int],
     coordinate2: List[int],
     duration: float = 1.0,
@@ -221,7 +221,7 @@ def swipe(
     # Convert seconds to milliseconds
     duration_ms = int(duration * 1000)
 
-    return tools.swipe(start_x, start_y, end_x, end_y, duration_ms=duration_ms)
+    return await tools.swipe(start_x, start_y, end_x, end_y, duration_ms=duration_ms)
 
 
 async def open_app(text: str, *, tools: "Tools" = None, **kwargs) -> str:
@@ -252,11 +252,11 @@ async def open_app(text: str, *, tools: "Tools" = None, **kwargs) -> str:
 
     # Run workflow to open an app
     result = await workflow.run(app_description=text)
-    time.sleep(1)
+    await asyncio.sleep(1)
     return result
 
 
-def wait(duration: float = 1.0, *, tools: "Tools" = None, **kwargs) -> str:
+async def wait(duration: float = 1.0, *, tools: "Tools" = None, **kwargs) -> str:
     """
     Wait for a specified duration in seconds.
 
@@ -278,7 +278,7 @@ def wait(duration: float = 1.0, *, tools: "Tools" = None, **kwargs) -> str:
         )
         tools._ctx.write_event_to_stream(wait_event)
 
-    time.sleep(duration)
+    await asyncio.sleep(duration)
     return f"Waited for {duration} seconds"
 
 
@@ -298,7 +298,7 @@ def remember(information: str, *, tools: "Tools" = None, **kwargs) -> str:
     return tools.remember(information)
 
 
-def complete(
+async def complete(
     success: bool, reason: str = "", *, tools: "Tools" = None, **kwargs
 ) -> None:
     """
@@ -314,7 +314,7 @@ def complete(
     """
     if tools is None:
         raise ValueError("tools parameter is required")
-    tools.complete(success, reason)
+    await tools.complete(success, reason)
 
 
 # =============================================================================
@@ -417,7 +417,7 @@ def build_custom_tool_descriptions(custom_tools: dict) -> str:
 # =============================================================================
 
 
-def type_secret(secret_id: str, index: int, *, tools: "Tools" = None, **kwargs) -> str:
+async def type_secret(secret_id: str, index: int, *, tools: "Tools" = None, **kwargs) -> str:
     """
     Type a secret credential into an input field without exposing the value.
 
@@ -444,7 +444,7 @@ def type_secret(secret_id: str, index: int, *, tools: "Tools" = None, **kwargs) 
         secret_value = tools.credential_manager.get_credential(secret_id)
 
         # Type using existing input_text method
-        tools.input_text(secret_value, index)
+        await tools.input_text(secret_value, index)
 
         # Return sanitized message (NEVER log/return actual secret)
         return f"Successfully typed secret '{secret_id}' into element {index}"

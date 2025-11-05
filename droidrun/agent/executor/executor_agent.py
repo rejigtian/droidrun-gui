@@ -433,7 +433,7 @@ class ExecutorAgent(Workflow):
                         "Failed: wait requires duration",
                     )
 
-                result = wait(duration)
+                result = await wait(duration)
                 return True, "None", f"Waited for {duration} seconds"
 
             elif action_type == "open_app":

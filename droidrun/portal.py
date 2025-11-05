@@ -225,7 +225,8 @@ async def ping_portal_tcp(device: AdbDevice, debug: bool = False):
         Exception: If Portal is not reachable via TCP or port forwarding fails
     """
     try:
-        AdbTools(serial=device.serial, use_tcp=True)
+        tools = AdbTools(serial=device.serial, use_tcp=True)
+        await tools.connect()
     except Exception as e:
         raise Exception("Failed to setup TCP forwarding") from e
 

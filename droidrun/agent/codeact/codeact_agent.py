@@ -2,7 +2,6 @@ import asyncio
 import json
 import logging
 import re
-import time
 import warnings
 from typing import TYPE_CHECKING, List, Optional, Type, Union
 
@@ -514,10 +513,10 @@ Now, describe the next step you will take to address the original goal: {goal}""
                 if match:
                     seconds = int(match.group(1)) + 1
                     logger.error(f"Rate limit error. Retrying in {seconds} seconds...")
-                    time.sleep(seconds)
+                    await asyncio.sleep(seconds)
                 else:
                     logger.error("Rate limit error. Retrying in 5 seconds...")
-                    time.sleep(40)
+                    await asyncio.sleep(40)
                 logger.debug("🔍 Retrying call to LLM...")
                 response = await self.llm.achat(messages=messages_to_send)
             elif self.llm.class_name() == "Anthropic_LLM" and "overloaded_error" in str(
@@ -531,7 +530,7 @@ Now, describe the next step you will take to address the original goal: {goal}""
                 logger.error(
                     f"Anthropic overload error. Retrying in {seconds} seconds... (attempt {self._anthropic_retry_count})"
                 )
-                time.sleep(seconds)
+                await asyncio.sleep(seconds)
                 logger.debug("🔍 Retrying call to LLM...")
                 response = await self.llm.achat(messages=messages_to_send)
                 self._anthropic_retry_count = 0  # Reset on success

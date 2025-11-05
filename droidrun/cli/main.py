@@ -450,7 +450,7 @@ async def run(
             if not (ios if ios is not None else False):
                 device_obj = await adb.device(device)
                 if device_obj:
-                    device_obj.shell(
+                    await device_obj.shell(
                         "ime disable com.droidrun.portal/.DroidrunKeyboardIME"
                     )
         except Exception:
@@ -811,4 +811,4 @@ if __name__ == "__main__":
     ios = False
     save_trajectory = "none"
     allow_drag = False
-    run_command(command, device="emulator-5554")
+    asyncio.run(run_command(command, device="emulator-5554"))

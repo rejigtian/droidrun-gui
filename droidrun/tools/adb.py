@@ -365,7 +365,7 @@ class AdbTools(Tools):
                 self._ctx.write_event_to_stream(swipe_event)
 
             await self.device.swipe(start_x, start_y, end_x, end_y, float(duration_ms / 1000))
-            time.sleep(duration_ms / 1000)
+            await asyncio.sleep(duration_ms / 1000)
             print(
                 f"Swiped from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration_ms} milliseconds"
             )
@@ -409,7 +409,7 @@ class AdbTools(Tools):
                 )
                 self._ctx.write_event_to_stream(drag_event)
 
-            time.sleep(duration)
+            await asyncio.sleep(duration)
             logger.debug(
                 f"Dragged from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration} seconds"
             )
@@ -767,14 +767,14 @@ class AdbTools(Tools):
                 "message": f"Error getting combined state: {str(e)}",
             }
 
-    def ping(self) -> Dict[str, Any]:
+    async def ping(self) -> Dict[str, Any]:
         """
         Test the Portal connection.
 
         Returns:
             Dictionary with ping result
         """
-        return self.portal.ping()
+        return await self.portal.ping()
 
 
 def _shell_test_cli(serial: str, command: str) -> tuple[str, float]:

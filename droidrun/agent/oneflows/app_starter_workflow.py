@@ -46,7 +46,7 @@ class AppStarter(Workflow):
         app_description = ev.app_description
 
         # Get list of installed apps
-        apps = self.tools.get_apps(include_system=True)
+        apps = await self.tools.get_apps(include_system=True)
 
         # Format apps list for LLM
         apps_list = "\n".join(
