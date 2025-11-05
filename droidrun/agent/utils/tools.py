@@ -34,9 +34,7 @@ async def create_tools_from_config(device_config: "DeviceConfig") -> "Tools":
             if not devices:
                 raise ValueError("No connected Android devices found.")
             device_serial = devices[0].serial
-        tools = AdbTools(serial=device_serial)
-        await tools.connect()
-        return tools
+        return AdbTools(serial=device_serial)
     else:
         # iOS: require explicit device URL
         if device_serial is None:
@@ -44,7 +42,7 @@ async def create_tools_from_config(device_config: "DeviceConfig") -> "Tools":
         return IOSTools(url=device_serial)
 
 
-def resolve_tools_instance(
+async def resolve_tools_instance(
     tools: "Tools | ToolsConfig | None",
     device_config: "DeviceConfig",
     tools_config_fallback: "ToolsConfig | None" = None,
@@ -91,12 +89,12 @@ def resolve_tools_instance(
 
     # Case 2: ToolsConfig provided
     elif tools is not None and isinstance(tools, ToolsConfig):
-        tools_instance = create_tools_from_config(device_config)
+        tools_instance = await create_tools_from_config(device_config)
         tools_cfg = tools
 
     # Case 3: None provided
     else:
-        tools_instance = create_tools_from_config(device_config)
+        tools_instance = await create_tools_from_config(device_config)
         tools_cfg = tools_config_fallback if tools_config_fallback else ToolsConfig()
 
     # Attach credential manager if provided
@@ -538,11 +536,7 @@ async def test_open_app(mock_tools, text: str) -> str:
     return await open_app(mock_tools, text)
 
 
-if __name__ == "__main__":
-    """
-    Simple test for the tool functions.
-    Tests the atomic action wrapper functions.
-    """
+async def _test_main():
     import asyncio
     from typing import List
 
@@ -551,34 +545,30 @@ if __name__ == "__main__":
     from droidrun.tools.adb import AdbTools
 
     llm = GoogleGenAI(model="gemini-2.5-pro", temperature=0.0)
-    # Create mock tools instance
     mock_tools = AdbTools(app_opener_llm=llm, text_manipulator_llm=llm)
-    # print("=== Testing click ===")
-    # result = click(mock_tools, 0)
-    mock_tools.get_state()
+    await mock_tools.get_state()
     print("\n=== Testing long_press ===")
-    result = long_press(mock_tools, 5)
+    result = long_press(tools=mock_tools, index=5)
     print(f"Result: {result}")
     input("Press Enter to continue...")
     print("\n=== Testing type ===")
-    result = type(mock_tools, "Hello World", -1)
+    result = type(tools=mock_tools, text="Hello World", index=-1)
     print(f"Result: {result}")
     input("Press Enter to continue...")
 
     print("\n=== Testing system_button ===")
-    result = system_button(mock_tools, "back")
+    result = system_button(tools=mock_tools, button="back")
     print(f"Result: {result}")
     input("Press Enter to continue...")
 
     print("\n=== Testing swipe ===")
-    result = swipe(mock_tools, [500, 0], [500, 1000])
+    result = swipe(tools=mock_tools, coordinate=[500, 0], coordinate2=[500, 1000])
     print(f"Result: {result}")
     input("Press Enter to continue...")
 
     print("\n=== Testing open_app ===")
-    # This one is more complex and requires real LLM setup, so just show the structure
     try:
-        result = asyncio.run(test_open_app(mock_tools, "Calculator"))
+        result = await test_open_app(mock_tools, "Calculator")
         print(f"Result: {result}")
         input("Press Enter to continue...")
     except Exception as e:
@@ -586,3 +576,8 @@ if __name__ == "__main__":
         input("Press Enter to continue...")
 
     print("\n=== All tests completed ===")
+
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(_test_main())

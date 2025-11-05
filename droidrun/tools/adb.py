@@ -820,14 +820,14 @@ def _shell_test():
     print(f"[CLI] Shell execution took {elapsed:.3f} seconds: phone_state")
 
 
-def _list_packages():
+async def _list_packages():
     tools = AdbTools()
-    print(tools.list_packages())
+    print(await tools.list_packages())
 
 
-def _start_app():
+async def _start_app():
     tools = AdbTools()
-    tools.start_app("com.android.settings", ".Settings")
+    await tools.start_app("com.android.settings", ".Settings")
 
 
 def _shell_test_cli(serial: str, command: str) -> tuple[str, float]:
@@ -850,20 +850,18 @@ def _shell_test_cli(serial: str, command: str) -> tuple[str, float]:
     return output, elapsed
 
 
-def _shell_test():
-    device = adb.device("emulator-5554")
-    # Native Python adb client
+async def _shell_test():
+    device = await adb.device("emulator-5554")
     start = time.time()
-    res = device.shell("echo 'Hello, World!'")
+    res = await device.shell("echo 'Hello, World!'")
     end = time.time()
     print(f"[Native] Shell execution took {end - start:.3f} seconds: {res}")
 
     start = time.time()
-    res = device.shell("content query --uri content://com.droidrun.portal/state")
+    res = await device.shell("content query --uri content://com.droidrun.portal/state")
     end = time.time()
     print(f"[Native] Shell execution took {end - start:.3f} seconds: phone_state")
 
-    # CLI version
     output, elapsed = _shell_test_cli("emulator-5554", "echo 'Hello, World!'")
     print(f"[CLI] Shell execution took {elapsed:.3f} seconds: {output}")
 
@@ -873,15 +871,6 @@ def _shell_test():
     print(f"[CLI] Shell execution took {elapsed:.3f} seconds: phone_state")
 
 
-def _list_packages():
-    tools = AdbTools()
-    print(tools.list_packages())
-
-
-def _start_app():
-    tools = AdbTools()
-    tools.start_app("com.android.settings", ".Settings")
-
-
 if __name__ == "__main__":
-    _start_app()
+    import asyncio
+    asyncio.run(_start_app())

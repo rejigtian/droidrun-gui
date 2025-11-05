@@ -277,7 +277,7 @@ Now, describe the next step you will take to address the original goal: {goal}""
             and self.tools.save_trajectories != "none"
         ):
             try:
-                result = self.tools.take_screenshot()
+                result = await self.tools.take_screenshot()
                 if isinstance(result, tuple):
                     success, screenshot = result
                     if not success:
@@ -301,7 +301,7 @@ Now, describe the next step you will take to address the original goal: {goal}""
         # Get and format device state using unified formatter
         try:
             # Get raw state from device
-            raw_state = self.tools.get_state()
+            raw_state = await self.tools.get_state()
 
             # Format using unified function (returns 4 values)
             formatted_text, focused_text, a11y_tree, phone_state = format_device_state(

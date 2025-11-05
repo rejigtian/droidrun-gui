@@ -7,7 +7,8 @@ import logging
 from typing import Optional
 
 import click
-from adbutils import adb
+from click import coro
+from async_adbutils import adb
 from rich.console import Console
 from rich.table import Table
 
@@ -79,19 +80,38 @@ def replay(
     # Convert start_from from 1-based to 0-based
     start_from_zero = max(0, start_from - 1)
 
-    if device is None:
-        logger.info("🔍 Finding connected device...")
-        devices = adb.list()
-        if not devices:
-            raise ValueError("No connected devices found.")
-        device = devices[0].serial
-        logger.info(f"📱 Using device: {device}")
-    else:
-        logger.info(f"📱 Using device: {device}")
+    async def get_device():
+        if device is None:
+            logger.info("🔍 Finding connected device...")
+            devices = await adb.list()
+            if not devices:
+                raise ValueError("No connected devices found.")
+            dev = devices[0].serial
+            logger.info(f"📱 Using device: {dev}")
+            return dev
+        else:
+            logger.info(f"📱 Using device: {device}")
+            return device
 
     asyncio.run(
-        _replay_async(path, device, delay, start_from_zero, max_steps, dry_run, logger)
+        _replay_with_device(
+            path, device, delay, start_from_zero, max_steps, dry_run, logger, get_device
+        )
     )
+
+
+async def _replay_with_device(
+    path: str,
+    device: str,
+    delay: float,
+    start_from: int,
+    max_steps: Optional[int],
+    dry_run: bool,
+    logger: logging.Logger,
+    get_device,
+):
+    device = await get_device()
+    await _replay_async(path, device, delay, start_from, max_steps, dry_run, logger)
 
 
 async def _replay_async(

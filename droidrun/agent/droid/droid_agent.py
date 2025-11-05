@@ -147,7 +147,6 @@ class DroidAgent(Workflow):
             runtype=self.runtype,
         )
         self.output_model = output_model
-        base_config = config
 
         # Initialize prompt resolver for custom prompts
         self.prompt_resolver = PromptResolver(custom_prompts=prompts)
@@ -161,34 +160,28 @@ class DroidAgent(Workflow):
         credentials_source = (
             credentials
             if credentials is not None
-            else (base_config.credentials if base_config else None)
+            else (config.credentials if config else None)
         )
-        credential_manager = load_credential_manager(credentials_source)
+        self.credential_manager = load_credential_manager(credentials_source)
 
-        # Resolve tools instance (supports Tools instance, ToolsConfig, or None)
-        # Use tools param or fallback to base_config.tools
-        tools_fallback = (
-            tools if tools is not None else (base_config.tools if base_config else None)
+        self.tools_param = tools
+        self.tools_fallback = (
+            tools if tools is not None else (config.tools if config else None)
         )
-        resolved_device_config = base_config.device if base_config else DeviceConfig()
-        tools_instance, tools_config_resolved = resolve_tools_instance(
-            tools=tools_fallback,
-            device_config=resolved_device_config,
-            tools_config_fallback=base_config.tools if base_config else None,
-            credential_manager=credential_manager,
-        )
+        self.resolved_device_config = config.device if config else DeviceConfig()
 
-        # Build final config with resolved tools config
         self.config = DroidrunConfig(
-            agent=base_config.agent if base_config else AgentConfig(),
-            device=resolved_device_config,
-            tools=tools_config_resolved,
-            logging=base_config.logging if base_config else LoggingConfig(),
-            tracing=base_config.tracing if base_config else TracingConfig(),
-            telemetry=base_config.telemetry if base_config else TelemetryConfig(),
-            llm_profiles=base_config.llm_profiles if base_config else {},
-            credentials=base_config.credentials if base_config else CredentialsConfig(),
+            agent=config.agent if config else AgentConfig(),
+            device=self.resolved_device_config,
+            tools=config.tools if config else ToolsConfig(),
+            logging=config.logging if config else LoggingConfig(),
+            tracing=config.tracing if config else TracingConfig(),
+            telemetry=config.telemetry if config else TelemetryConfig(),
+            llm_profiles=config.llm_profiles if config else {},
+            credentials=config.credentials if config else CredentialsConfig(),
         )
+
+        self.tools_instance = None
 
         super().__init__(*args, timeout=timeout, **kwargs)
 
@@ -247,49 +240,36 @@ class DroidAgent(Workflow):
         self.atomic_tools = ATOMIC_ACTION_SIGNATURES.copy()
 
         # Build custom tools (credentials + open_app + user custom tools)
-        auto_custom_tools = build_custom_tools(credential_manager)
+        auto_custom_tools = build_custom_tools(self.credential_manager)
         self.custom_tools = {**auto_custom_tools, **(custom_tools or {})}
 
         logger.info("🤖 Initializing DroidAgent...")
         logger.info(f"💾 Trajectory saving: {self.config.logging.save_trajectory}")
 
-        self.tools_instance = tools_instance
-        self.tools_instance.save_trajectories = self.config.logging.save_trajectory
-        # Set LLMs on tools instance for helper tools
-        self.tools_instance.app_opener_llm = self.app_opener_llm
-        self.tools_instance.text_manipulator_llm = self.text_manipulator_llm
-
-        # TODO: Pass shared_state to tools_instance to allow custom tools to access
-        # custom_variables and other shared state. Currently tools only have access
-        # to context via _set_context(). Consider: self.tools_instance.shared_state = self.shared_state
-
         if self.config.agent.reasoning:
             logger.info("📝 Initializing Manager and Executor Agents...")
             self.manager_agent = ManagerAgent(
                 llm=self.manager_llm,
-                tools_instance=tools_instance,
+                tools_instance=None,
                 shared_state=self.shared_state,
                 agent_config=self.config.agent,
                 custom_tools=self.custom_tools,
                 output_model=self.output_model,
                 prompt_resolver=self.prompt_resolver,
-                timeout=timeout,
+                timeout=self.timeout,
             )
             self.executor_agent = ExecutorAgent(
                 llm=self.executor_llm,
-                tools_instance=tools_instance,
+                tools_instance=None,
                 shared_state=self.shared_state,
                 agent_config=self.config.agent,
                 custom_tools=self.custom_tools,
                 prompt_resolver=self.prompt_resolver,
-                timeout=timeout,
+                timeout=self.timeout,
             )
-            self.planner_agent = None
         else:
-            logger.debug("🚫 Reasoning disabled - executing directly with CodeActAgent")
             self.manager_agent = None
             self.executor_agent = None
-            self.planner_agent = None
 
         atomic_tools = list(ATOMIC_ACTION_SIGNATURES.keys())
 
@@ -436,18 +416,31 @@ class DroidAgent(Workflow):
     async def start_handler(
         self, ctx: Context, ev: StartEvent
     ) -> CodeActExecuteEvent | ManagerInputEvent:
-        """
-        Main execution loop that coordinates between planning and execution.
-
-        Returns:
-            Event to trigger next step based on reasoning mode
-        """
         logger.info(
             f"🚀 Running DroidAgent to achieve goal: {self.shared_state.instruction}"
         )
         ctx.write_event_to_stream(ev)
 
         await self.trajectory_writer.start()
+
+        if self.tools_instance is None:
+            tools_instance, tools_config_resolved = await resolve_tools_instance(
+                tools=self.tools_fallback,
+                device_config=self.resolved_device_config,
+                tools_config_fallback=self.config.tools,
+                credential_manager=self.credential_manager,
+            )
+
+            self.tools_instance = tools_instance
+            self.config.tools = tools_config_resolved
+
+            self.tools_instance.save_trajectories = self.config.logging.save_trajectory
+            self.tools_instance.app_opener_llm = self.app_opener_llm
+            self.tools_instance.text_manipulator_llm = self.text_manipulator_llm
+
+            if self.config.agent.reasoning:
+                self.manager_agent.tools_instance = self.tools_instance
+                self.executor_agent.tools_instance = self.tools_instance
 
         self.tools_instance._set_context(ctx)
 

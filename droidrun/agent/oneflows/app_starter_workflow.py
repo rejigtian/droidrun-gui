@@ -84,8 +84,7 @@ Choose the most appropriate app based on the description. Return the package nam
                 result=f"Error parsing LLM response: {e}. Response: {response_text}"
             )
 
-        # Open the selected app using the package name
-        result = self.tools.start_app(package_name)
+        result = await self.tools.start_app(package_name)
 
         return StopEvent(result=result)
 
