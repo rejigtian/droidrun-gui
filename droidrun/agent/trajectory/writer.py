@@ -112,23 +112,28 @@ class GifWriteJob(WriteJob):
     duration: int = 1000
 
     async def execute(self) -> None:
-        images = []
-        for idx, screenshot in enumerate(self.screenshots):
-            try:
-                img = Image.open(io.BytesIO(screenshot))
-                images.append(img)
-            except Exception as e:
-                logger.warning(f"Skipping invalid screenshot {idx}: {e}")
-                continue
+        def _create_gif():
+            """CPU-bound GIF creation - runs in thread pool."""
+            images = []
+            for idx, screenshot in enumerate(self.screenshots):
+                try:
+                    img = Image.open(io.BytesIO(screenshot))
+                    images.append(img)
+                except Exception as e:
+                    logger.warning(f"Skipping invalid screenshot {idx}: {e}")
+                    continue
 
-        if images:
-            images[0].save(
-                str(self.target_path),
-                save_all=True,
-                append_images=images[1:],
-                duration=self.duration,
-                loop=0,
-            )
+            if images:
+                images[0].save(
+                    str(self.target_path),
+                    save_all=True,
+                    append_images=images[1:],
+                    duration=self.duration,
+                    loop=0,
+                )
+
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, _create_gif)
 
 
 @dataclass(frozen=True)
