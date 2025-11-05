@@ -122,3 +122,15 @@ class ScripterExecutorResultEvent(Event):
     message: str  # Response from response() function
     success: bool
     code_executions: int
+
+class TextManipulatorInputEvent(Event):
+    """Trigger TextManipulatorAgent workflow for text manipulation"""
+
+    task: str
+    overall_plan: str
+    hitorical_plan: str
+
+class TextManipulatorResultEvent(Event):
+    task: str
+    text_to_type: str
+    code_ran: str

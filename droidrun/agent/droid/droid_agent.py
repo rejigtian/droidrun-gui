@@ -30,10 +30,13 @@ from droidrun.agent.droid.events import (
     ResultEvent,
     ScripterExecutorInputEvent,
     ScripterExecutorResultEvent,
+    TextManipulatorInputEvent,
+    TextManipulatorResultEvent,
 )
 from droidrun.agent.droid.state import DroidAgentState
 from droidrun.agent.executor import ExecutorAgent
 from droidrun.agent.manager import ManagerAgent
+from droidrun.agent.oneflows.text_manipulator import run_text_manipulation_agent
 from droidrun.agent.scripter import ScripterAgent
 from droidrun.agent.oneflows.structured_output_agent import StructuredOutputAgent
 from droidrun.agent.trajectory import TrajectoryWriter
@@ -557,13 +560,101 @@ class DroidAgent(Workflow):
                 logger.warning(
                     "⚠️ Found <script> in subgoal but not properly closed in plan, treating as regular subgoal"
                 )
+        if "TEXT_TASK" in ev.current_subgoal:
+            return TextManipulatorInputEvent(task=ev.current_subgoal.replace("TEXT_TASK:", "").replace("TEXT_TASK", "").strip())
 
         # Continue to Executor with current subgoal
         logger.info(f"▶️  Proceeding to Executor with subgoal: {ev.current_subgoal}")
         event = ExecutorInputEvent(current_subgoal=ev.current_subgoal)
         ctx.write_event_to_stream(event)
         return event
+    
+    @step
+    async def run_text_manipulator(
+        self, ctx: Context, ev: TextManipulatorInputEvent
+    ) -> TextManipulatorResultEvent:
+        logger.info(f"🔍 Running TextManipulatorAgent for task: {ev.task}")
 
+        if not self.shared_state.focused_text:
+            logger.warning("⚠️ No focused text available, using empty string")
+            current_text = ""
+        else:
+            current_text = self.shared_state.focused_text
+
+        try:
+            text_to_type, code_ran = await run_text_manipulation_agent(
+                instruction=self.shared_state.instruction,
+                current_subgoal=ev.task,
+                current_text=current_text,
+                overall_plan=self.shared_state.plan,
+                llm=self.text_manipulator_llm,
+            )
+
+            return TextManipulatorResultEvent(
+                task=ev.task,
+                text_to_type=text_to_type,
+                code_ran=code_ran
+            )
+
+        except Exception as e:
+            logger.error(f"❌ TextManipulator agent failed: {e}")
+            if self.config.logging.debug:
+                import traceback
+                logger.error(traceback.format_exc())
+
+            return TextManipulatorResultEvent(
+                task=ev.task,
+                text_to_type="",
+                code_ran=""
+            )
+    @step
+    async def handle_text_manipulator_result(
+        self, ctx: Context, ev: TextManipulatorResultEvent
+    ) -> ManagerInputEvent:
+        if not ev.text_to_type or not ev.text_to_type.strip():
+            logger.warning("⚠️ TextManipulator returned empty text, treating as no-op")
+            self.shared_state.last_summary = "Text manipulation returned empty result"
+            self.shared_state.action_outcomes.append(False)
+        else:
+            try:
+                result = await self.tools_instance.input_text(ev.text_to_type, clear=True)
+
+                if not result or "error" in result.lower() or "failed" in result.lower():
+                    logger.warning(f"⚠️ Text input may have failed: {result}")
+                    self.shared_state.last_summary = f"Text manipulation attempted but may have failed: {result}"
+                    self.shared_state.action_outcomes.append(False)
+                else:
+                    logger.info(f"✅ Text manipulator successfully typed {len(ev.text_to_type)} characters")
+                    self.shared_state.last_summary = f"Text manipulation successful: typed {len(ev.text_to_type)} characters"
+                    self.shared_state.action_outcomes.append(True)
+            except Exception as e:
+                logger.error(f"❌ Error during text input: {e}")
+                self.shared_state.last_summary = f"Text manipulation error: {str(e)}"
+                self.shared_state.action_outcomes.append(False)
+
+        text_manipulation_record = {
+            "task": ev.task,
+            "code_ran": ev.code_ran,
+            "text_length": len(ev.text_to_type) if ev.text_to_type else 0,
+            "success": self.shared_state.action_outcomes[-1] if self.shared_state.action_outcomes else False,
+        }
+
+        self.shared_state.text_manipulation_history.append(text_manipulation_record)
+        self.shared_state.last_text_manipulation_success = text_manipulation_record["success"]
+
+        self.shared_state.step_number += 1
+        logger.info(
+            f"🔄 Step {self.shared_state.step_number}/{self.config.agent.max_steps} complete, looping to Manager"
+        )
+
+        if self.config.logging.save_trajectory != "none":
+            self.trajectory_writer.write(
+                self.trajectory, stage=f"step_{self.shared_state.step_number}"
+            )
+
+        event = ManagerInputEvent()
+        ctx.write_event_to_stream(event)
+        return event
     @step
     async def run_executor(
         self, ctx: Context, ev: ExecutorInputEvent
