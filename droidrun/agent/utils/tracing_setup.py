@@ -16,18 +16,30 @@ from droidrun.config_manager.config_manager import TracingConfig
 
 logger = logging.getLogger("droidrun")
 
-_session_id: Optional[str] = None
+_default_session_id: str = str(uuid4())
+_session_id: str = _default_session_id
 _tracing_initialized: bool = False
 _tracing_provider: Optional[str] = None
+_user_id: str = "anonymous"
 
 
 def setup_tracing(tracing_config: TracingConfig, agent: Optional[object] = None) -> None:
-    global _tracing_initialized, _tracing_provider
+    global _tracing_initialized, _tracing_provider, _session_id, _user_id
 
     if not tracing_config.enabled:
         return
 
     provider = tracing_config.provider.lower()
+
+    if tracing_config.langfuse_session_id:
+        _session_id = tracing_config.langfuse_session_id
+    else:
+        _session_id = _default_session_id
+
+    if tracing_config.langfuse_user_id:
+        _user_id = tracing_config.langfuse_user_id
+    else:
+        _user_id = "anonymous"
 
     if _tracing_initialized:
         logger.info(f"🔍 Tracing already initialized with {_tracing_provider}, skipping setup")
@@ -41,6 +53,7 @@ def setup_tracing(tracing_config: TracingConfig, agent: Optional[object] = None)
         _setup_langfuse_tracing(tracing_config, agent)
         _tracing_initialized = True
         _tracing_provider = "langfuse"
+        logger.info(f"🔍 Langfuse tracing enabled | Session: {_session_id}")
     else:
         logger.warning(
             f"⚠️  Unknown tracing provider: {provider}. "
@@ -74,7 +87,6 @@ def _setup_langfuse_tracing(tracing_config: TracingConfig, agent: Optional[objec
         tracing_config: TracingConfig instance containing Langfuse credentials
         agent: Optional DroidAgent instance to pass to span processor
     """
-    global _session_id
 
     try:
         # Set environment variables
@@ -152,26 +164,6 @@ def _setup_langfuse_tracing(tracing_config: TracingConfig, agent: Optional[objec
         )
         tracer_provider.add_span_processor(span_processor)
 
-        # STEP 5: Generate session_id
-        if tracing_config.langfuse_session_id:
-            _session_id = tracing_config.langfuse_session_id
-        else:
-            _session_id = str(uuid4())
-
-        # STEP 6: Set session and user context
-        from opentelemetry.context import attach, get_current, set_value
-        from openinference.semconv.trace import SpanAttributes
-
-        ctx = get_current()
-        ctx = set_value(SpanAttributes.SESSION_ID, _session_id, ctx)
-        if tracing_config.langfuse_user_id:
-            ctx = set_value(
-                SpanAttributes.USER_ID, tracing_config.langfuse_user_id, ctx
-            )
-        attach(ctx)
-
-        logger.info(f"🔍 Langfuse tracing enabled | Session: {_session_id}")
-
     except ImportError as e:
         logger.warning(
             "⚠️  Langfuse dependencies are not installed.\n"
@@ -180,3 +172,13 @@ def _setup_langfuse_tracing(tracing_config: TracingConfig, agent: Optional[objec
             "    • If installed via pip: `uv pip install droidrun[langfuse]`\n"
             f"    Missing: {e.name if hasattr(e, 'name') else str(e)}\n"
         )
+
+
+def apply_session_context() -> None:
+    from opentelemetry.context import attach, get_current, set_value
+    from openinference.semconv.trace import SpanAttributes
+
+    ctx = get_current()
+    ctx = set_value(SpanAttributes.SESSION_ID, _session_id, ctx)
+    ctx = set_value(SpanAttributes.USER_ID, _user_id, ctx)
+    attach(ctx)

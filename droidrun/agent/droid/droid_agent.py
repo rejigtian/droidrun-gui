@@ -64,6 +64,7 @@ from droidrun.telemetry import (
     capture,
     flush,
 )
+from droidrun.agent.utils.tracing_setup import apply_session_context
 
 if TYPE_CHECKING:
     from droidrun.tools import Tools
@@ -416,6 +417,7 @@ class DroidAgent(Workflow):
     async def start_handler(
         self, ctx: Context, ev: StartEvent
     ) -> CodeActExecuteEvent | ManagerInputEvent:
+        apply_session_context()
         logger.info(
             f"🚀 Running DroidAgent to achieve goal: {self.shared_state.instruction}"
         )
