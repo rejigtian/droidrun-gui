@@ -8,7 +8,7 @@ if TYPE_CHECKING:
 from droidrun.agent.oneflows.app_starter_workflow import AppStarter
 
 
-def create_tools_from_config(device_config: "DeviceConfig") -> "Tools":
+async def create_tools_from_config(device_config: "DeviceConfig") -> "Tools":
     """
     Create Tools instance from DeviceConfig.
 
@@ -21,7 +21,7 @@ def create_tools_from_config(device_config: "DeviceConfig") -> "Tools":
     Raises:
         ValueError: If no device found or invalid platform
     """
-    from adbutils import adb
+    from async_adbutils import adb
     from droidrun.tools import AdbTools, IOSTools
 
     is_ios = device_config.platform.lower() == "ios"
@@ -30,15 +30,13 @@ def create_tools_from_config(device_config: "DeviceConfig") -> "Tools":
     if not is_ios:
         # Android: auto-detect if not specified
         if device_serial is None:
-            devices = adb.list()
+            devices = await adb.list()
             if not devices:
                 raise ValueError("No connected Android devices found.")
             device_serial = devices[0].serial
-
-        return AdbTools(
-            serial=device_serial,
-            use_tcp=device_config.use_tcp,
-        )
+        tools = AdbTools(serial=device_serial)
+        await tools.connect()
+        return tools
     else:
         # iOS: require explicit device URL
         if device_serial is None:

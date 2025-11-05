@@ -6,15 +6,16 @@ on Android devices. It also provides utilities for checking accessibility servic
 status and managing device communication modes (TCP and content provider).
 """
 
+import asyncio
 import contextlib
 import os
 import tempfile
 
 import requests
-from adbutils import AdbDevice, adb
 from rich.console import Console
 
 from droidrun.tools import AdbTools
+from async_adbutils import AdbDevice, adb
 
 REPO = "droidrun/droidrun-portal"
 ASSET_NAME = "droidrun-portal"
@@ -125,7 +126,7 @@ def download_portal_apk(debug: bool = False):
             os.unlink(tmp.name)
 
 
-def enable_portal_accessibility(
+async def enable_portal_accessibility(
     device: AdbDevice, service_name: str = A11Y_SERVICE_NAME
 ):
     """
@@ -139,11 +140,11 @@ def enable_portal_accessibility(
         This may fail on some devices due to security restrictions.
         Manual enablement may be required.
     """
-    device.shell(f"settings put secure enabled_accessibility_services {service_name}")
-    device.shell("settings put secure accessibility_enabled 1")
+    await device.shell(f"settings put secure enabled_accessibility_services {service_name}")
+    await device.shell("settings put secure accessibility_enabled 1")
 
 
-def check_portal_accessibility(
+async def check_portal_accessibility(
     device: AdbDevice, service_name: str = A11Y_SERVICE_NAME, debug: bool = False
 ) -> bool:
     """
@@ -157,13 +158,13 @@ def check_portal_accessibility(
     Returns:
         True if the accessibility service is enabled, False otherwise
     """
-    a11y_services = device.shell("settings get secure enabled_accessibility_services")
+    a11y_services = await device.shell("settings get secure enabled_accessibility_services")
     if service_name not in a11y_services:
         if debug:
             print(a11y_services)
         return False
 
-    a11y_enabled = device.shell("settings get secure accessibility_enabled")
+    a11y_enabled = await device.shell("settings get secure accessibility_enabled")
     if a11y_enabled != "1":
         if debug:
             print(a11y_enabled)
@@ -172,12 +173,12 @@ def check_portal_accessibility(
     return True
 
 
-def ping_portal(device: AdbDevice, debug: bool = False):
+async def ping_portal(device: AdbDevice, debug: bool = False):
     """
     Ping the Droidrun Portal to check if it is installed and accessible.
     """
     try:
-        packages = device.list_packages()
+        packages = await device.list_packages()
     except Exception as e:
         raise Exception("Failed to list packages") from e
 
@@ -186,14 +187,14 @@ def ping_portal(device: AdbDevice, debug: bool = False):
             print(packages)
         raise Exception("Portal is not installed on the device")
 
-    if not check_portal_accessibility(device, debug=debug):
-        device.shell("am start -a android.settings.ACCESSIBILITY_SETTINGS")
+    if not await check_portal_accessibility(device, debug=debug):
+        await device.shell("am start -a android.settings.ACCESSIBILITY_SETTINGS")
         raise Exception(
             "Droidrun Portal is not enabled as an accessibility service on the device"
         )
 
 
-def ping_portal_content(device: AdbDevice, debug: bool = False):
+async def ping_portal_content(device: AdbDevice, debug: bool = False):
     """
     Test Portal accessibility via content provider.
 
@@ -205,14 +206,14 @@ def ping_portal_content(device: AdbDevice, debug: bool = False):
         Exception: If Portal is not reachable via content provider
     """
     try:
-        state = device.shell("content query --uri content://com.droidrun.portal/state")
+        state = await device.shell("content query --uri content://com.droidrun.portal/state")
         if "Row: 0 result=" not in state:
             raise Exception("Failed to get state from Droidrun Portal")
     except Exception as e:
         raise Exception("Droidrun Portal is not reachable") from e
 
 
-def ping_portal_tcp(device: AdbDevice, debug: bool = False):
+async def ping_portal_tcp(device: AdbDevice, debug: bool = False):
     """
     Test Portal accessibility via TCP mode.
 
@@ -229,18 +230,18 @@ def ping_portal_tcp(device: AdbDevice, debug: bool = False):
         raise Exception("Failed to setup TCP forwarding") from e
 
 
-def set_overlay_offset(device: AdbDevice, offset: int):
+async def set_overlay_offset(device: AdbDevice, offset: int):
     """
     Set the overlay offset using the /overlay_offset portal content provider endpoint.
     """
     try:
         cmd = f'content insert --uri "content://com.droidrun.portal/overlay_offset" --bind offset:i:{offset}'
-        device.shell(cmd)
+        await device.shell(cmd)
     except Exception as e:
         raise Exception("Error setting overlay offset") from e
 
 
-def toggle_overlay(device: AdbDevice, visible: bool):
+async def toggle_overlay(device: AdbDevice, visible: bool):
     """toggle the overlay visibility.
 
     Args:
@@ -251,14 +252,14 @@ def toggle_overlay(device: AdbDevice, visible: bool):
         Exception: If the overlay toggle fails
     """
     try:
-        device.shell(
+        await device.shell(
             f"am broadcast -a com.droidrun.portal.TOGGLE_OVERLAY --ez overlay_visible {'true' if visible else 'false'}"
         )
     except Exception as e:
         raise Exception("Failed to toggle overlay") from e
 
 
-def setup_keyboard(device: AdbDevice):
+async def setup_keyboard(device: AdbDevice):
     """
     Set up the DroidRun keyboard as the default input method.
     Simple setup that just switches to DroidRun keyboard without saving/restoring.
@@ -267,13 +268,13 @@ def setup_keyboard(device: AdbDevice):
         Exception: If the keyboard setup fails
     """
     try:
-        device.shell("ime enable com.droidrun.portal/.DroidrunKeyboardIME")
-        device.shell("ime set com.droidrun.portal/.DroidrunKeyboardIME")
+        await device.shell("ime enable com.droidrun.portal/.DroidrunKeyboardIME")
+        await device.shell("ime set com.droidrun.portal/.DroidrunKeyboardIME")
     except Exception as e:
         raise Exception("Error setting up keyboard") from e
 
 
-def disable_keyboard(
+async def disable_keyboard(
     device: AdbDevice, target_ime: str = "com.droidrun.portal/.DroidrunKeyboardIME"
 ):
     """
@@ -287,16 +288,16 @@ def disable_keyboard(
         bool: True if disabled successfully, False otherwise
     """
     try:
-        device.shell(f"ime disable {target_ime}")
+        await device.shell(f"ime disable {target_ime}")
         return True
     except Exception as e:
         raise Exception("Error disabling keyboard") from e
 
 
-def test():
-    device = adb.device()
-    ping_portal(device, debug=False)
+async def test():
+    device = await adb.device()
+    await ping_portal(device, debug=False)
 
 
 if __name__ == "__main__":
-    test()
+    asyncio.run(test())

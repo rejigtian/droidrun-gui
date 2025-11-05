@@ -67,7 +67,7 @@ class MacroPlayer:
         """
         return Trajectory.load_macro_sequence(trajectory_folder)
 
-    def replay_action(self, action: Dict[str, Any]) -> bool:
+    async def replay_action(self, action: Dict[str, Any]) -> bool:
         """
         Replay a single action.
 
@@ -84,7 +84,7 @@ class MacroPlayer:
             if action_type == "start_app":
                 package = action.get("package")
                 activity = action.get("activity", None)
-                tools.start_app(package, activity)
+                await tools.start_app(package, activity)
                 return True
 
             elif action_type == "tap":
@@ -93,7 +93,7 @@ class MacroPlayer:
                 element_text = action.get("element_text", "")
 
                 logger.info(f"🫰 Tapping at ({x}, {y}) - Element: '{element_text}'")
-                result = tools.tap_by_coordinates(x, y)
+                result = await tools.tap_by_coordinates(x, y)
                 logger.debug(f"   Result: {result}")
                 return True
 
@@ -107,7 +107,7 @@ class MacroPlayer:
                 logger.info(
                     f"👆 Swiping from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration_ms} milliseconds"
                 )
-                result = tools.swipe(start_x, start_y, end_x, end_y, duration_ms)
+                result = await tools.swipe(start_x, start_y, end_x, end_y, duration_ms)
                 logger.debug(f"   Result: {result}")
                 # Additional wait after swipe for UI to settle
                 time.sleep(2)
@@ -123,7 +123,7 @@ class MacroPlayer:
                 logger.info(
                     f"👆 Dragging from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration_ms} milliseconds"
                 )
-                result = tools.drag(
+                result = await tools.drag(
                     start_x, start_y, end_x, end_y, duration_ms / 1000.0
                 )
                 logger.debug(f"   Result: {result}")
@@ -133,7 +133,7 @@ class MacroPlayer:
                 text = action.get("text", "")
 
                 logger.info(f"⌨️  Inputting text: '{text}'")
-                result = tools.input_text(text)
+                result = await tools.input_text(text)
                 logger.debug(f"   Result: {result}")
                 return True
 
@@ -142,13 +142,13 @@ class MacroPlayer:
                 key_name = action.get("key_name", "UNKNOWN")
 
                 logger.info(f"🔘 Pressing key: {key_name} (keycode: {keycode})")
-                result = tools.press_key(keycode)
+                result = await tools.press_key(keycode)
                 logger.debug(f"   Result: {result}")
                 return True
 
             elif action_type == "back":
                 logger.info("⬅️  Pressing back button")
-                result = tools.back()
+                result = await tools.back()
                 logger.debug(f"   Result: {result}")
                 return True
 
@@ -216,7 +216,7 @@ class MacroPlayer:
                 logger.info(f"   Description: {description_text}")
 
             # Execute the action
-            success = self.replay_action(action)
+            success = await self.replay_action(action)
 
             if success:
                 success_count += 1
