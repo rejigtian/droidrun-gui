@@ -16,30 +16,31 @@ from droidrun.config_manager.config_manager import TracingConfig
 
 logger = logging.getLogger("droidrun")
 
-# Module-level variable to store session_id across DroidAgent invocations
 _session_id: Optional[str] = None
+_tracing_initialized: bool = False
+_tracing_provider: Optional[str] = None
 
 
 def setup_tracing(tracing_config: TracingConfig, agent: Optional[object] = None) -> None:
-    """
-    Set up tracing based on the provided TracingConfig.
+    global _tracing_initialized, _tracing_provider
 
-    Args:
-        tracing_config: TracingConfig instance containing tracing settings
-        agent: Optional DroidAgent instance to pass to span processor
-
-    Raises:
-        ImportError: If the specified tracing provider is not installed
-    """
     if not tracing_config.enabled:
         return
 
     provider = tracing_config.provider.lower()
 
+    if _tracing_initialized:
+        logger.info(f"🔍 Tracing already initialized with {_tracing_provider}, skipping setup")
+        return
+
     if provider == "phoenix":
         _setup_phoenix_tracing()
+        _tracing_initialized = True
+        _tracing_provider = "phoenix"
     elif provider == "langfuse":
         _setup_langfuse_tracing(tracing_config, agent)
+        _tracing_initialized = True
+        _tracing_provider = "langfuse"
     else:
         logger.warning(
             f"⚠️  Unknown tracing provider: {provider}. "
