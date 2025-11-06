@@ -194,10 +194,6 @@ class CodeActAgent(Workflow):
         # macro tools context
         self.tools._set_context(ctx)
 
-        import asyncio
-        loop = asyncio.get_running_loop()
-        self.executor._event_loop = loop
-
         logger.info("💬 Preparing chat for task execution...")
 
         self.chat_memory: Memory = await ctx.store.get(

@@ -149,8 +149,11 @@ class SimpleCodeExecutor:
                 async def run_with_context():
                     return await func(*args, **kwargs)
 
-                loop = self._event_loop or asyncio.get_running_loop()
-                future = asyncio.run_coroutine_threadsafe(run_with_context(), loop)
+                if self._event_loop is None:
+                    raise RuntimeError(
+                        "Event loop not set on executor. Call executor._event_loop = loop before execution."
+                    )
+                future = asyncio.run_coroutine_threadsafe(run_with_context(), self._event_loop)
                 return future.result()
 
             ctx = self.get_current_context()
@@ -202,6 +205,9 @@ class SimpleCodeExecutor:
         loop = asyncio.get_running_loop()
         ui_state = state.ui_state
         ctx = contextvars.copy_context()
+
+        if self._event_loop is None:
+            self._event_loop = loop
 
         try:
             output = await asyncio.wait_for(
