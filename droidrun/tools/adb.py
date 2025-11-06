@@ -7,9 +7,7 @@ import os
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
-from adbutils import adb
 from llama_index.core.workflow import Context
-
 from droidrun.agent.common.events import (
     DragActionEvent,
     InputTextActionEvent,
@@ -21,6 +19,8 @@ from droidrun.agent.common.events import (
 from droidrun.tools.tools import Tools
 
 from droidrun.tools.portal_client import PortalClient
+from async_adbutils import adb
+import asyncio
 
 logger = logging.getLogger("droidrun")
 PORTAL_DEFAULT_TCP_PORT = 8080
@@ -48,21 +48,20 @@ class AdbTools(Tools):
             text_manipulator_llm: LLM instance for text manipulation (optional)
             credential_manager: CredentialManager instance for secret handling (optional)
         """
-        self.device = adb.device(serial=serial)
-
-        self.portal = PortalClient(self.device, prefer_tcp=use_tcp)
+        self._serial = serial
+        self._use_tcp = use_tcp
+        self.device = None
+        self.portal = None
+        self._connected = False
 
         self._ctx = None
         # Instance‐level cache for clickable elements (index-based tapping)
         self.clickable_elements_cache: List[Dict[str, Any]] = []
-        self.last_screenshot = None
         self.reason = None
         self.success = None
         self.finished = False
         # Memory storage for remembering important information
         self.memory: List[str] = []
-        # Store all screenshots with timestamps
-        self.screenshots: List[Dict[str, Any]] = []
         # Trajectory saving level
         self.save_trajectories = "none"
 
@@ -73,21 +72,43 @@ class AdbTools(Tools):
         # Credential manager for secret handling
         self.credential_manager = credential_manager
 
+    async def connect(self) -> None:
+        """
+        Establish connection to device and portal.
+        """
+        if self._connected:
+            return
+
+        # Connect to device
+        self.device = await adb.device(serial=self._serial)
+
+        # Initialize portal client
+        self.portal = PortalClient(self.device, prefer_tcp=self._use_tcp)
+        await self.portal.connect()
+
         # Set up keyboard
         from droidrun.portal import setup_keyboard
 
-        setup_keyboard(self.device)
+        await setup_keyboard(self.device)
 
-    def get_date(self) -> str:
+        self._connected = True
+
+    async def _ensure_connected(self) -> None:
+        """Check if connected, raise error if not."""
+        if not self._connected:
+            await self.connect()
+
+    async def get_date(self) -> str:
         """
         Get the current date and time on device.
         """
-        return self.device.shell("date").strip()
+        await self._ensure_connected()
+        result = await self.device.shell("date")
+        return result.strip()
 
     def _set_context(self, ctx: Context):
         self._ctx = ctx
 
-    @Tools.ui_action
     def _extract_element_coordinates_by_index(self, index: int) -> Tuple[int, int]:
         """
         Extract center coordinates from an element by its index.
@@ -166,7 +187,8 @@ class AdbTools(Tools):
 
         return x, y
 
-    def tap_by_index(self, index: int) -> str:
+    @Tools.ui_action
+    async def tap_by_index(self, index: int) -> str:
         """
         Tap on a UI element by its index.
 
@@ -179,12 +201,13 @@ class AdbTools(Tools):
         Returns:
             Result message
         """
+        await self._ensure_connected()
         try:
             # Extract coordinates using the helper function
             x, y = self._extract_element_coordinates_by_index(index)
 
             # Get the device and tap at the coordinates
-            self.device.click(x, y)
+            await self.device.click(x, y)
             print(f"Tapped element with index {index} at coordinates ({x}, {y})")
 
             # Emit coordinate action event for trajectory recording
@@ -267,7 +290,7 @@ class AdbTools(Tools):
             return f"Error: {str(e)}"
 
     # Rename the old tap function to tap_by_coordinates for backward compatibility
-    def tap_by_coordinates(self, x: int, y: int) -> bool:
+    async def tap_by_coordinates(self, x: int, y: int) -> bool:
         """
         Tap on the device screen at specific coordinates.
 
@@ -278,9 +301,10 @@ class AdbTools(Tools):
         Returns:
             Bool indicating success or failure
         """
+        await self._ensure_connected()
         try:
             logger.debug(f"Tapping at coordinates ({x}, {y})")
-            self.device.click(x, y)
+            await self.device.click(x, y)
             logger.debug(f"Tapped at coordinates ({x}, {y})")
             return True
         except ValueError as e:
@@ -288,7 +312,7 @@ class AdbTools(Tools):
             return False
 
     # Replace the old tap function with the new one
-    def tap(self, index: int) -> str:
+    async def tap(self, index: int) -> str:
         """
         Tap on a UI element by its index.
 
@@ -301,10 +325,11 @@ class AdbTools(Tools):
         Returns:
             Result message
         """
-        return self.tap_by_index(index)
+        await self._ensure_connected()
+        return await self.tap_by_index(index)
 
     @Tools.ui_action
-    def swipe(
+    async def swipe(
         self,
         start_x: int,
         start_y: int,
@@ -324,6 +349,7 @@ class AdbTools(Tools):
         Returns:
             Bool indicating success or failure
         """
+        await self._ensure_connected()
         try:
             if self._ctx:
                 swipe_event = SwipeActionEvent(
@@ -337,8 +363,10 @@ class AdbTools(Tools):
                 )
                 self._ctx.write_event_to_stream(swipe_event)
 
-            self.device.swipe(start_x, start_y, end_x, end_y, float(duration_ms / 1000))
-            time.sleep(duration_ms / 1000)
+            await self.device.swipe(
+                start_x, start_y, end_x, end_y, float(duration_ms / 1000)
+            )
+            await asyncio.sleep(duration_ms / 1000)
             print(
                 f"Swiped from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration_ms} milliseconds"
             )
@@ -348,7 +376,7 @@ class AdbTools(Tools):
             return False
 
     @Tools.ui_action
-    def drag(
+    async def drag(
         self, start_x: int, start_y: int, end_x: int, end_y: int, duration: float = 3
     ) -> bool:
         """
@@ -362,11 +390,13 @@ class AdbTools(Tools):
         Returns:
             Bool indicating success or failure
         """
+        await self._ensure_connected()
         try:
+            raise NotImplementedError("Drag is not implemented yet")
             logger.debug(
                 f"Dragging from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration} seconds"
             )
-            self.device.drag(start_x, start_y, end_x, end_y, duration)
+            await self.device.drag(start_x, start_y, end_x, end_y, duration)
 
             if self._ctx:
                 drag_event = DragActionEvent(
@@ -380,7 +410,7 @@ class AdbTools(Tools):
                 )
                 self._ctx.write_event_to_stream(drag_event)
 
-            time.sleep(duration)
+            await asyncio.sleep(duration)
             logger.debug(
                 f"Dragged from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration} seconds"
             )
@@ -390,7 +420,7 @@ class AdbTools(Tools):
             return False
 
     @Tools.ui_action
-    def input_text(self, text: str, index: int = -1, clear: bool = False) -> str:
+    async def input_text(self, text: str, index: int = -1, clear: bool = False) -> str:
         """
         Input text on the device.
         Always make sure that the Focused Element is not None before inputting text.
@@ -403,12 +433,13 @@ class AdbTools(Tools):
         Returns:
             Result message
         """
+        await self._ensure_connected()
         try:
             if index != -1:
-                self.tap_by_index(index)
+                await self.tap_by_index(index)
 
             # Use PortalClient for text input (automatic TCP/content provider selection)
-            success = self.portal.input_text(text, clear)
+            success = await self.portal.input_text(text, clear)
 
             if self._ctx:
                 input_event = InputTextActionEvent(
@@ -430,14 +461,15 @@ class AdbTools(Tools):
             return f"Error sending text input: {str(e)}"
 
     @Tools.ui_action
-    def back(self) -> str:
+    async def back(self) -> str:
         """
         Go back on the current view.
         This presses the Android back button.
         """
+        await self._ensure_connected()
         try:
             print("Pressing key BACK")
-            self.device.keyevent(4)
+            await self.device.keyevent(4)
 
             if self._ctx:
                 key_event = KeyPressActionEvent(
@@ -453,7 +485,7 @@ class AdbTools(Tools):
             return f"Error: {str(e)}"
 
     @Tools.ui_action
-    def press_key(self, keycode: int) -> str:
+    async def press_key(self, keycode: int) -> str:
         """
         Press a key on the Android device.
 
@@ -466,6 +498,7 @@ class AdbTools(Tools):
         Args:
             keycode: Android keycode to press
         """
+        await self._ensure_connected()
         try:
             key_names = {
                 66: "ENTER",
@@ -484,14 +517,14 @@ class AdbTools(Tools):
                 )
                 self._ctx.write_event_to_stream(key_event)
 
-            self.device.keyevent(keycode)
+            await self.device.keyevent(keycode)
             print(f"Pressed key {key_name}")
             return f"Pressed key {key_name}"
         except ValueError as e:
             return f"Error: {str(e)}"
 
     @Tools.ui_action
-    def start_app(self, package: str, activity: str | None = None) -> str:
+    async def start_app(self, package: str, activity: str | None = None) -> str:
         """
         Start an app on the device.
 
@@ -499,10 +532,11 @@ class AdbTools(Tools):
             package: Package name (e.g., "com.android.settings")
             activity: Optional activity name
         """
+        await self._ensure_connected()
         try:
             print(f"Starting app {package} with activity {activity}")
             if not activity:
-                dumpsys_output = self.device.shell(
+                dumpsys_output = await self.device.shell(
                     f"cmd package resolve-activity --brief {package}"
                 )
                 activity = dumpsys_output.splitlines()[1].split("/")[1]
@@ -518,13 +552,13 @@ class AdbTools(Tools):
 
             print(f"Activity: {activity}")
 
-            self.device.app_start(package, activity)
+            await self.device.app_start(package, activity)
             print(f"App started: {package} with activity {activity}")
             return f"App started: {package} with activity {activity}"
         except Exception as e:
             return f"Error: {str(e)}"
 
-    def install_app(
+    async def install_app(
         self, apk_path: str, reinstall: bool = False, grant_permissions: bool = True
     ) -> str:
         """
@@ -535,6 +569,7 @@ class AdbTools(Tools):
             reinstall: Whether to reinstall if app exists
             grant_permissions: Whether to grant all permissions
         """
+        await self._ensure_connected()
         try:
             if not os.path.exists(apk_path):
                 return f"Error: APK file not found at {apk_path}"
@@ -542,7 +577,7 @@ class AdbTools(Tools):
             logger.debug(
                 f"Installing app: {apk_path} with reinstall: {reinstall} and grant_permissions: {grant_permissions}"
             )
-            result = self.device.install(
+            result = await self.device.install(
                 apk_path,
                 nolaunch=True,
                 uninstall=reinstall,
@@ -554,7 +589,7 @@ class AdbTools(Tools):
         except ValueError as e:
             return f"Error: {str(e)}"
 
-    def take_screenshot(self, hide_overlay: bool = True) -> Tuple[str, bytes]:
+    async def take_screenshot(self, hide_overlay: bool = True) -> Tuple[str, bytes]:
         """
         Take a screenshot of the device.
         This function captures the current screen and returns the screenshot data.
@@ -566,25 +601,18 @@ class AdbTools(Tools):
         Returns:
             Tuple of (format, image_bytes) where format is "PNG" and image_bytes is the screenshot data
         """
+        await self._ensure_connected()
         try:
             logger.debug("Taking screenshot")
 
-            image_bytes = self.portal.take_screenshot(hide_overlay)
+            image_bytes = await self.portal.take_screenshot(hide_overlay)
 
-            # Store screenshot with timestamp
-            self.screenshots.append(
-                {
-                    "timestamp": time.time(),
-                    "image_data": image_bytes,
-                    "format": "PNG",
-                }
-            )
             return "PNG", image_bytes
 
         except Exception as e:
             raise ValueError(f"Error taking screenshot: {str(e)}") from e
 
-    def list_packages(self, include_system_apps: bool = False) -> List[str]:
+    async def list_packages(self, include_system_apps: bool = False) -> List[str]:
         """
         List installed packages on the device.
 
@@ -592,15 +620,18 @@ class AdbTools(Tools):
             include_system_apps: Whether to include system apps (default: False)
 
         Returns:
-            List of package names
+            List of package names (sorted)
         """
+        await self._ensure_connected()
         try:
             logger.debug("Listing packages")
-            return self.device.list_packages(["-3"] if not include_system_apps else [])
+            filter_list = [] if include_system_apps else ["-3"]
+            packages = await self.device.list_packages(filter_list)
+            return packages
         except ValueError as e:
             raise ValueError(f"Error listing packages: {str(e)}") from e
 
-    def get_apps(self, include_system: bool = True) -> List[Dict[str, str]]:
+    async def get_apps(self, include_system: bool = True) -> List[Dict[str, str]]:
         """
         Get installed apps with package name and label in human readable format.
 
@@ -610,10 +641,11 @@ class AdbTools(Tools):
         Returns:
             List of dictionaries containing 'package' and 'label' keys
         """
-        return self.portal.get_apps(include_system)
+        await self._ensure_connected()
+        return await self.portal.get_apps(include_system)
 
     @Tools.ui_action
-    def complete(self, success: bool, reason: str = ""):
+    async def complete(self, success: bool, reason: str = ""):
         """
         Mark the task as finished.
 
@@ -668,18 +700,19 @@ class AdbTools(Tools):
         """
         return self.memory.copy()
 
-    def get_state(self) -> Dict[str, Any]:
+    async def get_state(self) -> Dict[str, Any]:
         """
         Get both the a11y tree and phone state in a single call using the combined /state endpoint.
 
         Returns:
             Dictionary containing both 'a11y_tree' and 'phone_state' data
         """
+        await self._ensure_connected()
         try:
             logger.debug("Getting state")
 
             # Use PortalClient for state (automatic TCP/content provider selection)
-            combined_data = self.portal.get_state()
+            combined_data = await self.portal.get_state()
 
             # Handle error responses
             if "error" in combined_data:
@@ -727,14 +760,14 @@ class AdbTools(Tools):
                 "message": f"Error getting combined state: {str(e)}",
             }
 
-    def ping(self) -> Dict[str, Any]:
+    async def ping(self) -> Dict[str, Any]:
         """
         Test the Portal connection.
 
         Returns:
             Dictionary with ping result
         """
-        return self.portal.ping()
+        return await self.portal.ping()
 
 
 def _shell_test_cli(serial: str, command: str) -> tuple[str, float]:
@@ -780,14 +813,14 @@ def _shell_test():
     print(f"[CLI] Shell execution took {elapsed:.3f} seconds: phone_state")
 
 
-def _list_packages():
+async def _list_packages():
     tools = AdbTools()
-    print(tools.list_packages())
+    print(await tools.list_packages())
 
 
-def _start_app():
+async def _start_app():
     tools = AdbTools()
-    tools.start_app("com.android.settings", ".Settings")
+    await tools.start_app("com.android.settings", ".Settings")
 
 
 def _shell_test_cli(serial: str, command: str) -> tuple[str, float]:
@@ -810,20 +843,18 @@ def _shell_test_cli(serial: str, command: str) -> tuple[str, float]:
     return output, elapsed
 
 
-def _shell_test():
-    device = adb.device("emulator-5554")
-    # Native Python adb client
+async def _shell_test():
+    device = await adb.device("emulator-5554")
     start = time.time()
-    res = device.shell("echo 'Hello, World!'")
+    res = await device.shell("echo 'Hello, World!'")
     end = time.time()
     print(f"[Native] Shell execution took {end - start:.3f} seconds: {res}")
 
     start = time.time()
-    res = device.shell("content query --uri content://com.droidrun.portal/state")
+    res = await device.shell("content query --uri content://com.droidrun.portal/state")
     end = time.time()
     print(f"[Native] Shell execution took {end - start:.3f} seconds: phone_state")
 
-    # CLI version
     output, elapsed = _shell_test_cli("emulator-5554", "echo 'Hello, World!'")
     print(f"[CLI] Shell execution took {elapsed:.3f} seconds: {output}")
 
@@ -831,17 +862,7 @@ def _shell_test():
         "emulator-5554", "content query --uri content://com.droidrun.portal/state"
     )
     print(f"[CLI] Shell execution took {elapsed:.3f} seconds: phone_state")
-
-
-def _list_packages():
-    tools = AdbTools()
-    print(tools.list_packages())
-
-
-def _start_app():
-    tools = AdbTools()
-    tools.start_app("com.android.settings", ".Settings")
 
 
 if __name__ == "__main__":
-    _start_app()
+    asyncio.run(_start_app())

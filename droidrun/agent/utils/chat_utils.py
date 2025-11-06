@@ -101,38 +101,44 @@ async def add_memory_block(
 
 def extract_code_and_thought(response_text: str) -> Tuple[Optional[str], str]:
     """
-    Extracts code from Markdown blocks (```python ... ```) and the surrounding text (thought),
-    handling indented code blocks.
+    Extracts code from Markdown blocks (```python ... ```) and the surrounding text (thought).
+    Finds the first and last ``` markers and extracts everything between them.
 
     Returns:
         Tuple[Optional[code_string], thought_string]
     """
     logger.debug("✂️ Extracting code and thought from response...")
-    code_pattern = r"^\s*```python\s*\n(.*?)\n^\s*```\s*?$"
-    code_matches = list(
-        re.finditer(code_pattern, response_text, re.DOTALL | re.MULTILINE)
-    )
 
-    if not code_matches:
+    first_backticks = response_text.find("```")
+    if first_backticks == -1:
         logger.debug("  - No code block found. Entire response is thought.")
         return None, response_text.strip()
 
-    extracted_code_parts = []
-    for match in code_matches:
-        code_content = match.group(1)
-        extracted_code_parts.append(code_content)
+    last_backticks = response_text.rfind("```")
+    if first_backticks == last_backticks:
+        logger.debug(
+            "  - Only one code block marker found. Entire response is thought."
+        )
+        return None, response_text.strip()
 
-    extracted_code = "\n\n".join(extracted_code_parts)
+    code_block = response_text[first_backticks : last_backticks + 3]
 
-    thought_parts = []
-    last_end = 0
-    for match in code_matches:
-        start, end = match.span(0)
-        thought_parts.append(response_text[last_end:start])
-        last_end = end
-    thought_parts.append(response_text[last_end:])
+    if code_block.startswith("```python"):
+        code_content = code_block[9:]
+    elif code_block.startswith("```py"):
+        code_content = code_block[5:]
+    else:
+        code_content = code_block[3:]
 
-    thought_text = "".join(thought_parts).strip()
+    if code_content.endswith("```"):
+        code_content = code_content[:-3]
+
+    extracted_code = code_content.strip()
+
+    thought_before = response_text[:first_backticks].strip()
+    thought_after = response_text[last_backticks + 3 :].strip()
+    thought_text = (thought_before + " " + thought_after).strip()
+
     thought_preview = (
         (thought_text[:100] + "...") if len(thought_text) > 100 else thought_text
     )

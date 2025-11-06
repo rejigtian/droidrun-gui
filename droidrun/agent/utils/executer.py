@@ -3,6 +3,7 @@ import contextlib
 import contextvars
 import io
 import logging
+import threading
 import traceback
 from asyncio import AbstractEventLoop
 from typing import Any, Dict, Optional, Set
@@ -46,6 +47,7 @@ class SimpleCodeExecutor:
         blocked_modules: Optional[Set[str]] = None,
         allowed_builtins: Optional[Set[str]] = None,
         blocked_builtins: Optional[Set[str]] = None,
+        event_loop=None,
     ):
         """
         Initialize the code executor.
@@ -60,6 +62,7 @@ class SimpleCodeExecutor:
             blocked_modules: Set of blocked modules (takes precedence)
             allowed_builtins: Set of allowed builtins (None = allow all, empty = use defaults)
             blocked_builtins: Set of blocked builtins (takes precedence)
+            event_loop: Event loop for async tool execution
         """
         if locals is None:
             locals = {}
@@ -69,6 +72,8 @@ class SimpleCodeExecutor:
             tools = {}
 
         self.safe_mode = safe_mode
+        self._thread_local = threading.local()
+        self._event_loop = event_loop
 
         # Setup builtins based on safe mode
         if safe_mode:
@@ -102,10 +107,12 @@ class SimpleCodeExecutor:
             logger.debug(
                 f"🔧 Initializing SimpleCodeExecutor with tools: {list(tools.keys())}"
             )
-            globals.update(tools)
+            wrapped_tools = self._wrap_tools_dict(tools)
+            globals.update(wrapped_tools)
         elif isinstance(tools, list):
             logger.debug(f"🔧 Initializing SimpleCodeExecutor with {len(tools)} tools")
-            for tool in tools:
+            wrapped_tools = self._wrap_tools_list(tools)
+            for tool in wrapped_tools:
                 globals[tool.__name__] = tool
         else:
             raise ValueError("Tools must be a dictionary or a list of functions.")
@@ -121,6 +128,48 @@ class SimpleCodeExecutor:
                 **{k: v for k, v in self.globals.items() if k not in self.locals},
             }
 
+    def _wrap_tools_dict(self, tools_dict: dict) -> dict:
+        """Wrap async tools in dict format."""
+        wrapped = {}
+        for name, func in tools_dict.items():
+            wrapped[name] = self._wrap_single_tool(func)
+        return wrapped
+
+    def _wrap_tools_list(self, tools_list: list) -> list:
+        """Wrap async tools in list format."""
+        return [self._wrap_single_tool(tool) for tool in tools_list]
+
+    def _wrap_single_tool(self, func):
+        """Wrap a single tool function if async."""
+        if not asyncio.iscoroutinefunction(func):
+            return func
+
+        def sync_wrapper(*args, **kwargs):
+            def create_and_schedule():
+                async def run_with_context():
+                    return await func(*args, **kwargs)
+
+                if self._event_loop is None:
+                    raise RuntimeError(
+                        "Event loop not set on executor. Call executor._event_loop = loop before execution."
+                    )
+                future = asyncio.run_coroutine_threadsafe(
+                    run_with_context(), self._event_loop
+                )
+                return future.result()
+
+            ctx = self.get_current_context()
+            if ctx is not None:
+                return ctx.run(create_and_schedule)
+            else:
+                return create_and_schedule()
+
+        return sync_wrapper
+
+    def get_current_context(self) -> Optional[contextvars.Context]:
+        """Get context for current execution."""
+        return getattr(self._thread_local, "context", None)
+
     def _execute_in_thread(
         self, code: str, ui_state: Any, ctx: contextvars.Context = None
     ) -> str:
@@ -128,9 +177,7 @@ class SimpleCodeExecutor:
         self.globals["ui_state"] = ui_state
 
         if ctx is not None:
-            from droidrun.agent.utils import async_utils
-
-            async_utils._exec_context = ctx
+            self._thread_local.context = ctx
 
         stdout = io.StringIO()
         stderr = io.StringIO()
@@ -149,9 +196,7 @@ class SimpleCodeExecutor:
             output += traceback.format_exc()
         finally:
             if ctx is not None:
-                from droidrun.agent.utils import async_utils
-
-                async_utils._exec_context = None
+                self._thread_local.context = None
 
         return output
 
@@ -162,6 +207,9 @@ class SimpleCodeExecutor:
         loop = asyncio.get_running_loop()
         ui_state = state.ui_state
         ctx = contextvars.copy_context()
+
+        if self._event_loop is None:
+            self._event_loop = loop
 
         try:
             output = await asyncio.wait_for(

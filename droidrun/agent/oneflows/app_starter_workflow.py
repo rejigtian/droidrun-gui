@@ -46,7 +46,7 @@ class AppStarter(Workflow):
         app_description = ev.app_description
 
         # Get list of installed apps
-        apps = self.tools.get_apps(include_system=True)
+        apps = await self.tools.get_apps(include_system=True)
 
         # Format apps list for LLM
         apps_list = "\n".join(
@@ -84,8 +84,7 @@ Choose the most appropriate app based on the description. Return the package nam
                 result=f"Error parsing LLM response: {e}. Response: {response_text}"
             )
 
-        # Open the selected app using the package name
-        result = self.tools.start_app(package_name)
+        result = await self.tools.start_app(package_name)
 
         return StopEvent(result=result)
 

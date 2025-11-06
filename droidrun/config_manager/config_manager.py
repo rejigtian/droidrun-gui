@@ -166,6 +166,7 @@ class LoggingConfig:
 
     debug: bool = False
     save_trajectory: str = "none"
+    trajectory_path: str = "trajectories"
     rich_text: bool = False
 
 

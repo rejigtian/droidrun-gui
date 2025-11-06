@@ -110,6 +110,7 @@ class ScripterAgent(Workflow):
                 if safe_config and safe_mode
                 else None
             ),
+            event_loop=None,
         )
 
         logger.info("✅ ScripterAgent initialized successfully.")
@@ -133,7 +134,7 @@ class ScripterAgent(Workflow):
         logger.info("💬 Preparing script chat...")
 
         # Load system prompt
-        system_prompt_text = PromptLoader.load_prompt(
+        system_prompt_text = await PromptLoader.load_prompt(
             self.agent_config.get_scripter_system_prompt_path(),
             {
                 "task": self.task,

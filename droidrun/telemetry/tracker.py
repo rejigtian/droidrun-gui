@@ -5,6 +5,7 @@ This module handles opt-in telemetry collection to help improve DroidRun.
 All data is anonymized and can be disabled by setting DROIDRUN_TELEMETRY_ENABLED=false.
 """
 
+import asyncio
 import logging
 import os
 from pathlib import Path
@@ -138,18 +139,11 @@ def capture(event: TelemetryEvent, user_id: str | None = None):
         logger.error(f"Error capturing event: {e}")
 
 
-def flush():
-    """
-    Flush pending telemetry events to PostHog.
-
-    Should be called before application exit to ensure all events are sent.
-    This function is a no-op if telemetry is disabled.
-    """
+async def flush():
     try:
         if not is_telemetry_enabled():
-            logger.debug("Telemetry disabled, skipping flush")
             return
-        posthog.flush()
-        logger.debug("Flushed telemetry data")
+
+        await asyncio.to_thread(posthog.flush, timeout=10)
     except Exception as e:
-        logger.error(f"Error flushing telemetry data: {e}")
+        logger.error(f"Error flushing data: {e}")

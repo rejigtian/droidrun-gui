@@ -1,4 +1,4 @@
-import time
+import asyncio
 from typing import TYPE_CHECKING, List
 
 if TYPE_CHECKING:
@@ -8,7 +8,7 @@ if TYPE_CHECKING:
 from droidrun.agent.oneflows.app_starter_workflow import AppStarter
 
 
-def create_tools_from_config(device_config: "DeviceConfig") -> "Tools":
+async def create_tools_from_config(device_config: "DeviceConfig") -> "Tools":
     """
     Create Tools instance from DeviceConfig.
 
@@ -21,7 +21,7 @@ def create_tools_from_config(device_config: "DeviceConfig") -> "Tools":
     Raises:
         ValueError: If no device found or invalid platform
     """
-    from adbutils import adb
+    from async_adbutils import adb
     from droidrun.tools import AdbTools, IOSTools
 
     is_ios = device_config.platform.lower() == "ios"
@@ -30,15 +30,11 @@ def create_tools_from_config(device_config: "DeviceConfig") -> "Tools":
     if not is_ios:
         # Android: auto-detect if not specified
         if device_serial is None:
-            devices = adb.list()
+            devices = await adb.list()
             if not devices:
                 raise ValueError("No connected Android devices found.")
             device_serial = devices[0].serial
-
-        return AdbTools(
-            serial=device_serial,
-            use_tcp=device_config.use_tcp,
-        )
+        return AdbTools(serial=device_serial)
     else:
         # iOS: require explicit device URL
         if device_serial is None:
@@ -46,7 +42,7 @@ def create_tools_from_config(device_config: "DeviceConfig") -> "Tools":
         return IOSTools(url=device_serial)
 
 
-def resolve_tools_instance(
+async def resolve_tools_instance(
     tools: "Tools | ToolsConfig | None",
     device_config: "DeviceConfig",
     tools_config_fallback: "ToolsConfig | None" = None,
@@ -93,12 +89,12 @@ def resolve_tools_instance(
 
     # Case 2: ToolsConfig provided
     elif tools is not None and isinstance(tools, ToolsConfig):
-        tools_instance = create_tools_from_config(device_config)
+        tools_instance = await create_tools_from_config(device_config)
         tools_cfg = tools
 
     # Case 3: None provided
     else:
-        tools_instance = create_tools_from_config(device_config)
+        tools_instance = await create_tools_from_config(device_config)
         tools_cfg = tools_config_fallback if tools_config_fallback else ToolsConfig()
 
     # Attach credential manager if provided
@@ -108,7 +104,7 @@ def resolve_tools_instance(
     return tools_instance, tools_cfg
 
 
-def click(index: int, *, tools: "Tools" = None, **kwargs) -> str:
+async def click(index: int, *, tools: "Tools" = None, **kwargs) -> str:
     """
     Click the element with the given index.
 
@@ -121,10 +117,10 @@ def click(index: int, *, tools: "Tools" = None, **kwargs) -> str:
     """
     if tools is None:
         raise ValueError("tools parameter is required")
-    return tools.tap_by_index(index)
+    return await tools.tap_by_index(index)
 
 
-def long_press(index: int, *, tools: "Tools" = None, **kwargs) -> bool:
+async def long_press(index: int, *, tools: "Tools" = None, **kwargs) -> bool:
     """
     Long press the element with the given index.
 
@@ -138,10 +134,10 @@ def long_press(index: int, *, tools: "Tools" = None, **kwargs) -> bool:
     if tools is None:
         raise ValueError("tools parameter is required")
     x, y = tools._extract_element_coordinates_by_index(index)
-    return tools.swipe(x, y, x, y, 1000)
+    return await tools.swipe(x, y, x, y, 1000)
 
 
-def type(text: str, index: int, *, tools: "Tools" = None, **kwargs) -> str:
+async def type(text: str, index: int, *, tools: "Tools" = None, **kwargs) -> str:
     """
     Type the given text into the element with the given index.
 
@@ -155,10 +151,10 @@ def type(text: str, index: int, *, tools: "Tools" = None, **kwargs) -> str:
     """
     if tools is None:
         raise ValueError("tools parameter is required")
-    return tools.input_text(text, index)
+    return await tools.input_text(text, index)
 
 
-def system_button(button: str, *, tools: "Tools" = None, **kwargs) -> str:
+async def system_button(button: str, *, tools: "Tools" = None, **kwargs) -> str:
     """
     Press a system button (back, home, or enter).
 
@@ -186,10 +182,10 @@ def system_button(button: str, *, tools: "Tools" = None, **kwargs) -> str:
         )
 
     keycode = button_map[button_lower]
-    return tools.press_key(keycode)
+    return await tools.press_key(keycode)
 
 
-def swipe(
+async def swipe(
     coordinate: List[int],
     coordinate2: List[int],
     duration: float = 1.0,
@@ -225,7 +221,7 @@ def swipe(
     # Convert seconds to milliseconds
     duration_ms = int(duration * 1000)
 
-    return tools.swipe(start_x, start_y, end_x, end_y, duration_ms=duration_ms)
+    return await tools.swipe(start_x, start_y, end_x, end_y, duration_ms=duration_ms)
 
 
 async def open_app(text: str, *, tools: "Tools" = None, **kwargs) -> str:
@@ -256,11 +252,11 @@ async def open_app(text: str, *, tools: "Tools" = None, **kwargs) -> str:
 
     # Run workflow to open an app
     result = await workflow.run(app_description=text)
-    time.sleep(1)
+    await asyncio.sleep(1)
     return result
 
 
-def wait(duration: float = 1.0, *, tools: "Tools" = None, **kwargs) -> str:
+async def wait(duration: float = 1.0, *, tools: "Tools" = None, **kwargs) -> str:
     """
     Wait for a specified duration in seconds.
 
@@ -282,7 +278,7 @@ def wait(duration: float = 1.0, *, tools: "Tools" = None, **kwargs) -> str:
         )
         tools._ctx.write_event_to_stream(wait_event)
 
-    time.sleep(duration)
+    await asyncio.sleep(duration)
     return f"Waited for {duration} seconds"
 
 
@@ -302,7 +298,7 @@ def remember(information: str, *, tools: "Tools" = None, **kwargs) -> str:
     return tools.remember(information)
 
 
-def complete(
+async def complete(
     success: bool, reason: str = "", *, tools: "Tools" = None, **kwargs
 ) -> None:
     """
@@ -318,7 +314,7 @@ def complete(
     """
     if tools is None:
         raise ValueError("tools parameter is required")
-    tools.complete(success, reason)
+    await tools.complete(success, reason)
 
 
 # =============================================================================
@@ -421,7 +417,9 @@ def build_custom_tool_descriptions(custom_tools: dict) -> str:
 # =============================================================================
 
 
-def type_secret(secret_id: str, index: int, *, tools: "Tools" = None, **kwargs) -> str:
+async def type_secret(
+    secret_id: str, index: int, *, tools: "Tools" = None, **kwargs
+) -> str:
     """
     Type a secret credential into an input field without exposing the value.
 
@@ -448,7 +446,7 @@ def type_secret(secret_id: str, index: int, *, tools: "Tools" = None, **kwargs) 
         secret_value = tools.credential_manager.get_credential(secret_id)
 
         # Type using existing input_text method
-        tools.input_text(secret_value, index)
+        await tools.input_text(secret_value, index)
 
         # Return sanitized message (NEVER log/return actual secret)
         return f"Successfully typed secret '{secret_id}' into element {index}"
@@ -540,11 +538,7 @@ async def test_open_app(mock_tools, text: str) -> str:
     return await open_app(mock_tools, text)
 
 
-if __name__ == "__main__":
-    """
-    Simple test for the tool functions.
-    Tests the atomic action wrapper functions.
-    """
+async def _test_main():
     import asyncio
     from typing import List
 
@@ -553,34 +547,30 @@ if __name__ == "__main__":
     from droidrun.tools.adb import AdbTools
 
     llm = GoogleGenAI(model="gemini-2.5-pro", temperature=0.0)
-    # Create mock tools instance
     mock_tools = AdbTools(app_opener_llm=llm, text_manipulator_llm=llm)
-    # print("=== Testing click ===")
-    # result = click(mock_tools, 0)
-    mock_tools.get_state()
+    await mock_tools.get_state()
     print("\n=== Testing long_press ===")
-    result = long_press(mock_tools, 5)
+    result = long_press(tools=mock_tools, index=5)
     print(f"Result: {result}")
     input("Press Enter to continue...")
     print("\n=== Testing type ===")
-    result = type(mock_tools, "Hello World", -1)
+    result = type(tools=mock_tools, text="Hello World", index=-1)
     print(f"Result: {result}")
     input("Press Enter to continue...")
 
     print("\n=== Testing system_button ===")
-    result = system_button(mock_tools, "back")
+    result = system_button(tools=mock_tools, button="back")
     print(f"Result: {result}")
     input("Press Enter to continue...")
 
     print("\n=== Testing swipe ===")
-    result = swipe(mock_tools, [500, 0], [500, 1000])
+    result = swipe(tools=mock_tools, coordinate=[500, 0], coordinate2=[500, 1000])
     print(f"Result: {result}")
     input("Press Enter to continue...")
 
     print("\n=== Testing open_app ===")
-    # This one is more complex and requires real LLM setup, so just show the structure
     try:
-        result = asyncio.run(test_open_app(mock_tools, "Calculator"))
+        result = await test_open_app(mock_tools, "Calculator")
         print(f"Result: {result}")
         input("Press Enter to continue...")
     except Exception as e:
@@ -588,3 +578,9 @@ if __name__ == "__main__":
         input("Press Enter to continue...")
 
     print("\n=== All tests completed ===")
+
+
+if __name__ == "__main__":
+    import asyncio
+
+    asyncio.run(_test_main())
