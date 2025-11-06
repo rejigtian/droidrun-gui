@@ -169,7 +169,6 @@ class SimpleCodeExecutor:
         self, code: str, ui_state: Any, ctx: contextvars.Context = None
     ) -> str:
         """Execute code in thread with context propagation."""
-        print("I AM IN THE THREAADDDDDDDDDDDDDDDD")
         self.globals["ui_state"] = ui_state
 
         if ctx is not None:

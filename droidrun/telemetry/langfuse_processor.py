@@ -25,10 +25,11 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, Future
 from datetime import datetime, timezone
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING, Union
 
 import requests
-from opentelemetry.sdk.trace import ReadableSpan
+from opentelemetry.context import Context
+from opentelemetry.sdk.trace import ReadableSpan, Span
 
 from langfuse._client.span_processor import LangfuseSpanProcessor as BaseLangfuseSpanProcessor
 
@@ -360,7 +361,20 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
 
         super().shutdown()
 
-    def _inject_executor_metadata(self, span: ReadableSpan) -> None:
+    def on_start(self, span: Span, parent_context: Optional[Context] = None) -> None:
+        super().on_start(span, parent_context)
+
+        try:
+            if span.name == "DroidAgent.run":
+                self._inject_metadata_to_start_handler(span)
+            elif span.name == "ExecutorAgent.run":
+                self._inject_executor_metadata(span)
+            elif span.name == "ManagerAgent.run":
+                self._inject_manager_metadata(span)
+        except Exception as e:
+            logger.error(f"Error injecting metadata in on_start: {e}")
+
+    def _inject_executor_metadata(self, span: Union[Span, ReadableSpan]) -> None:
         """Inject ExecutorAgent metadata into prepare_context span's input.value."""
         if not self.agent:
             return
@@ -392,7 +406,7 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
         except Exception as e:
             logger.warning(f"Failed to inject metadata into ExecutorAgent span: {e}")
 
-    def _inject_manager_metadata(self, span: ReadableSpan) -> None:
+    def _inject_manager_metadata(self, span: Union[Span, ReadableSpan]) -> None:
         """Inject ManagerAgent metadata into prepare_context span's input.value."""
         if not self.agent:
             return
@@ -428,7 +442,7 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
         except Exception as e:
             logger.warning(f"Failed to inject metadata into ManagerAgent span: {e}")
 
-    def _inject_metadata_to_start_handler(self, span: ReadableSpan) -> None:
+    def _inject_metadata_to_start_handler(self, span: Union[Span, ReadableSpan]) -> None:
         """Inject DroidAgent metadata into start_handler span's input.value."""
         if not self.agent:
             return
@@ -460,7 +474,6 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
 
     # Span processing
     def on_end(self, span: ReadableSpan) -> None:
-        """Override on_end to apply custom formatting and inject metadata."""
         if self._is_langfuse_span(span) and not self._is_langfuse_project_span(span):
             return
 
@@ -468,15 +481,7 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
             return
 
         try:
-            # Inject metadata into agent spans
-            if span.name == "DroidAgent.run":
-                self._inject_metadata_to_start_handler(span)
-            elif span.name == "ExecutorAgent.run":
-                self._inject_executor_metadata(span)
-            elif span.name == "ManagerAgent.run":
-                self._inject_manager_metadata(span)
-            # Format LLM chat spans
-            elif span.name.endswith(".achat") or span.name.endswith(".chat"):
+            if span.name.endswith(".achat") or span.name.endswith(".chat"):
                 self._format_chat(span)
             elif span.name.endswith(".complete") or span.name.endswith(".acomplete"):
                 self._format_complete(span)
