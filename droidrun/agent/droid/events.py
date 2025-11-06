@@ -127,8 +127,6 @@ class TextManipulatorInputEvent(Event):
     """Trigger TextManipulatorAgent workflow for text manipulation"""
 
     task: str
-    overall_plan: str
-    hitorical_plan: str
 
 class TextManipulatorResultEvent(Event):
     task: str
