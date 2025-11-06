@@ -417,7 +417,9 @@ def build_custom_tool_descriptions(custom_tools: dict) -> str:
 # =============================================================================
 
 
-async def type_secret(secret_id: str, index: int, *, tools: "Tools" = None, **kwargs) -> str:
+async def type_secret(
+    secret_id: str, index: int, *, tools: "Tools" = None, **kwargs
+) -> str:
     """
     Type a secret credential into an input field without exposing the value.
 
@@ -580,4 +582,5 @@ async def _test_main():
 
 if __name__ == "__main__":
     import asyncio
+
     asyncio.run(_test_main())

@@ -578,7 +578,9 @@ async def setup(path: str | None, device: str | None, debug: bool):
                     "[yellow]Opening accessibility settings for manual configuration...[/]"
                 )
 
-                await device_obj.shell("am start -a android.settings.ACCESSIBILITY_SETTINGS")
+                await device_obj.shell(
+                    "am start -a android.settings.ACCESSIBILITY_SETTINGS"
+                )
 
                 console.print(
                     "\n[yellow]Please complete the following steps on your device:[/]"

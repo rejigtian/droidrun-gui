@@ -32,17 +32,23 @@ import requests
 from opentelemetry.context import Context
 from opentelemetry.sdk.trace import ReadableSpan, Span
 
-from langfuse._client.span_processor import LangfuseSpanProcessor as BaseLangfuseSpanProcessor
+from langfuse._client.span_processor import (
+    LangfuseSpanProcessor as BaseLangfuseSpanProcessor,
+)
 
 from droidrun import __version__
 
 if TYPE_CHECKING:
     from droidrun import DroidAgent
 
-_current_agent: ContextVar[Optional["DroidAgent"]] = ContextVar("_current_agent", default=None)
+_current_agent: ContextVar[Optional["DroidAgent"]] = ContextVar(
+    "_current_agent", default=None
+)
+
 
 def set_current_agent(agent: "DroidAgent") -> None:
     _current_agent.set(agent)
+
 
 MAX_IMAGE_SIZE_KB = 10000
 MAX_UPLOAD_WORKERS = 50  # Maximum concurrent upload threads
@@ -73,7 +79,6 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
         flush_interval: Optional[float] = None,
         blocked_instrumentation_scopes: Optional[List[str]] = None,
         additional_headers: Optional[dict] = None,
-
         agent: Optional["DroidAgent"] = None,
     ):
         """Initialize the span processor with media upload support.
@@ -106,8 +111,8 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
             }
         )
         adapter = requests.adapters.HTTPAdapter(
-            pool_connections=3, # Increase this if hosting on server with multiple users
-            pool_maxsize=10, # Increase this if hosting on server with multiple users (task api)
+            pool_connections=3,  # Increase this if hosting on server with multiple users
+            pool_maxsize=10,  # Increase this if hosting on server with multiple users (task api)
             max_retries=3,
         )
         self._http_session.mount("http://", adapter)
@@ -133,63 +138,71 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
             input_data = {}
 
             if self.agent.shared_state.instruction:
-                input_data['goal'] = self.agent.shared_state.instruction
+                input_data["goal"] = self.agent.shared_state.instruction
 
-            input_data['reasoning'] = self.agent.config.agent.reasoning
+            input_data["reasoning"] = self.agent.config.agent.reasoning
 
             if self.agent.config.device:
                 device = self.agent.config.device
-                input_data['device'] = {
-                    'platform': device.platform,
-                    'serial': device.serial,
-                    'use_tcp': device.use_tcp,
+                input_data["device"] = {
+                    "platform": device.platform,
+                    "serial": device.serial,
+                    "use_tcp": device.use_tcp,
                 }
 
             if self.agent.output_model:
-                input_data['output_model'] = self.agent.output_model.__name__
+                input_data["output_model"] = self.agent.output_model.__name__
 
-            input_data['droidrun_version'] = "v" + __version__
+            input_data["droidrun_version"] = "v" + __version__
 
             if self.agent.config.agent.after_sleep_action:
-                input_data['after_action_sleep'] = self.agent.config.agent.after_sleep_action
+                input_data["after_action_sleep"] = (
+                    self.agent.config.agent.after_sleep_action
+                )
             active_llms = []
             if self.agent.config.agent.reasoning:
                 # Reasoning mode uses manager, executor, scripter
-                llm_attrs = ['manager_llm', 'executor_llm']
+                llm_attrs = ["manager_llm", "executor_llm"]
                 if self.agent.config.agent.scripter.enabled:
-                    llm_attrs.append('scripter_llm')
+                    llm_attrs.append("scripter_llm")
             else:
                 # Direct mode uses codeact
-                llm_attrs = ['codeact_llm']
+                llm_attrs = ["codeact_llm"]
 
             # Add helper LLMs
-            llm_attrs.extend(['text_manipulator_llm', 'app_opener_llm'])
+            llm_attrs.extend(["text_manipulator_llm", "app_opener_llm"])
 
             # Add structured_output if output_model is present
             if self.agent.output_model:
-                llm_attrs.append('structured_output_llm')
+                llm_attrs.append("structured_output_llm")
 
             for llm_attr in llm_attrs:
                 llm = getattr(self.agent, llm_attr)
                 if llm:
                     llm_info = {
-                        'role': llm_attr.replace('_llm', ''),
-                        'provider': llm.class_name() if hasattr(llm, 'class_name') else 'unknown',
+                        "role": llm_attr.replace("_llm", ""),
+                        "provider": (
+                            llm.class_name()
+                            if hasattr(llm, "class_name")
+                            else "unknown"
+                        ),
                     }
 
                     # Extract model name
-                    if hasattr(llm, 'model'):
-                        llm_info['model'] = llm.model
-                    elif hasattr(llm, 'metadata') and hasattr(llm.metadata, 'model_name'):
-                        llm_info['model'] = llm.metadata.model_name
+                    if hasattr(llm, "model"):
+                        llm_info["model"] = llm.model
+                    elif hasattr(llm, "metadata") and hasattr(
+                        llm.metadata, "model_name"
+                    ):
+                        llm_info["model"] = llm.metadata.model_name
 
                     # Extract temperature
-                    if hasattr(llm, 'temperature'):
-                        llm_info['temperature'] = llm.temperature
+                    if hasattr(llm, "temperature"):
+                        llm_info["temperature"] = llm.temperature
 
                     active_llms.append(llm_info)
 
-            input_data['llms'] = active_llms
+            input_data["llms"] = active_llms
 
             return input_data
 
@@ -370,18 +383,26 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
                 span._attributes["langfuse.release"] = "v" + __version__
                 input_data = self._extract_agent_input()
                 if input_data:
-                    span._attributes["langfuse.observation.input"] = json.dumps(input_data)
-                    tags = ["reasoning"] if input_data.get('reasoning') else ["fast"]
+                    span._attributes["langfuse.observation.input"] = json.dumps(
+                        input_data
+                    )
+                    tags = ["reasoning"] if input_data.get("reasoning") else ["fast"]
                     span._attributes["langfuse.trace.tags"] = tags
 
             elif span.name == "ManagerAgent.run":
-                memory_size = len(self.agent.shared_state.memory) if self.agent.shared_state.memory else 0
+                memory_size = (
+                    len(self.agent.shared_state.memory)
+                    if self.agent.shared_state.memory
+                    else 0
+                )
                 message_history_count = len(self.agent.shared_state.message_history) + 1
 
-                span._attributes["langfuse.observation.input"] = json.dumps({
-                    "memory_size": memory_size,
-                    "message_history_count": message_history_count
-                })
+                span._attributes["langfuse.observation.input"] = json.dumps(
+                    {
+                        "memory_size": memory_size,
+                        "message_history_count": message_history_count,
+                    }
+                )
 
                 if self.agent.shared_state.error_flag_plan:
                     span._attributes["langfuse.trace.tags"] = ["error_recovery"]
@@ -413,10 +434,12 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
             logger.error(f"Error processing span for Langfuse: {e}")
 
         super(BaseLangfuseSpanProcessor, self).on_end(span)
+
     def _format_complete(self, span: ReadableSpan) -> None:
         span._attributes["input.value"] = span._attributes["llm.prompts"][0]
         del span._attributes["llm.prompts"]
         pass
+
     def _format_chat(self, span: ReadableSpan) -> None:
         """
         Apply custom formatting to transform blocks and set Langfuse attributes.
@@ -459,7 +482,6 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
         except (json.JSONDecodeError, ValueError):
             pass
 
-
         attrs[f"langfuse.observation.{field}"] = value
 
     def _has_blocks_to_transform(self, data: dict) -> bool:
@@ -471,10 +493,7 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
         if not isinstance(messages, list):
             return False
 
-        return any(
-            isinstance(msg, dict) and "blocks" in msg
-            for msg in messages
-        )
+        return any(isinstance(msg, dict) and "blocks" in msg for msg in messages)
 
     def _transform_and_set_field(
         self, attrs: dict, trace_id: str, field: str, data: dict
@@ -498,9 +517,7 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
         processed = self._convert_message_array(data["messages"], trace_id, field)
         return json.dumps({"messages": json.loads(processed)})
 
-    def _convert_message_array(
-        self, messages: list, trace_id: str, field: str
-    ) -> str:
+    def _convert_message_array(self, messages: list, trace_id: str, field: str) -> str:
         """Convert message array from blocks format to content format."""
         restructured_messages = []
 
@@ -512,7 +529,11 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
                 restructured_messages.append(msg)
                 continue
 
-            if "json" in msg and isinstance(msg["json"], dict) and "blocks" in msg["json"]:
+            if (
+                "json" in msg
+                and isinstance(msg["json"], dict)
+                and "blocks" in msg["json"]
+            ):
                 msg = msg.copy()
                 msg.update(msg["json"])
                 del msg["json"]
@@ -572,9 +593,7 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
                     content_blocks.append({"type": "text", "text": block["text"]})
 
             elif block_type == "image":
-                image_block = self._upload_image_to_storage(
-                    block, trace_id, field
-                )
+                image_block = self._upload_image_to_storage(block, trace_id, field)
                 if image_block:
                     content_blocks.append(image_block)
 
@@ -653,7 +672,9 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
             return {"type": "image_url", "image_url": {"url": block["url"]}}
 
         if "path" in block and block["path"] is not None:
-            logger.warning(f"Using file path for image - may not work on server: {block['path']}")
+            logger.warning(
+                f"Using file path for image - may not work on server: {block['path']}"
+            )
             return {
                 "type": "image_url",
                 "image_url": {"url": f"file://{block['path']}"},

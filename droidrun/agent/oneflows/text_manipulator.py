@@ -31,7 +31,9 @@ from llama_index.core.llms.llm import LLM
 
 from droidrun.agent.utils.inference import acall_with_retries
 from llama_index_instrumentation import get_dispatcher
+
 dispatcher = get_dispatcher()
+
 
 @dispatcher.span
 async def run_text_manipulation_agent(

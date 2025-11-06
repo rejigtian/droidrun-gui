@@ -512,7 +512,12 @@ class DroidAgent(Workflow):
     @step
     async def handle_manager_plan(
         self, ctx: Context, ev: ManagerPlanEvent
-    ) -> ExecutorInputEvent | ScripterExecutorInputEvent | FinalizeEvent | TextManipulatorInputEvent:
+    ) -> (
+        ExecutorInputEvent
+        | ScripterExecutorInputEvent
+        | FinalizeEvent
+        | TextManipulatorInputEvent
+    ):
         """
         Process Manager output and decide next step.
 
@@ -548,14 +553,18 @@ class DroidAgent(Workflow):
                     "⚠️ Found <script> in subgoal but not properly closed in plan, treating as regular subgoal"
                 )
         if "TEXT_TASK" in ev.current_subgoal:
-            return TextManipulatorInputEvent(task=ev.current_subgoal.replace("TEXT_TASK:", "").replace("TEXT_TASK", "").strip())
+            return TextManipulatorInputEvent(
+                task=ev.current_subgoal.replace("TEXT_TASK:", "")
+                .replace("TEXT_TASK", "")
+                .strip()
+            )
 
         # Continue to Executor with current subgoal
         logger.info(f"▶️  Proceeding to Executor with subgoal: {ev.current_subgoal}")
         event = ExecutorInputEvent(current_subgoal=ev.current_subgoal)
         ctx.write_event_to_stream(event)
         return event
-    
+
     @step
     async def run_text_manipulator(
         self, ctx: Context, ev: TextManipulatorInputEvent
@@ -578,22 +587,20 @@ class DroidAgent(Workflow):
             )
 
             return TextManipulatorResultEvent(
-                task=ev.task,
-                text_to_type=text_to_type,
-                code_ran=code_ran
+                task=ev.task, text_to_type=text_to_type, code_ran=code_ran
             )
 
         except Exception as e:
             logger.error(f"❌ TextManipulator agent failed: {e}")
             if self.config.logging.debug:
                 import traceback
+
                 logger.error(traceback.format_exc())
 
             return TextManipulatorResultEvent(
-                task=ev.task,
-                text_to_type="",
-                code_ran=""
+                task=ev.task, text_to_type="", code_ran=""
             )
+
     @step
     async def handle_text_manipulator_result(
         self, ctx: Context, ev: TextManipulatorResultEvent
@@ -604,14 +611,24 @@ class DroidAgent(Workflow):
             self.shared_state.action_outcomes.append(False)
         else:
             try:
-                result = await self.tools_instance.input_text(ev.text_to_type, clear=True)
+                result = await self.tools_instance.input_text(
+                    ev.text_to_type, clear=True
+                )
 
-                if not result or "error" in result.lower() or "failed" in result.lower():
+                if (
+                    not result
+                    or "error" in result.lower()
+                    or "failed" in result.lower()
+                ):
                     logger.warning(f"⚠️ Text input may have failed: {result}")
-                    self.shared_state.last_summary = f"Text manipulation attempted but may have failed: {result}"
+                    self.shared_state.last_summary = (
+                        f"Text manipulation attempted but may have failed: {result}"
+                    )
                     self.shared_state.action_outcomes.append(False)
                 else:
-                    logger.info(f"✅ Text manipulator successfully typed {len(ev.text_to_type)} characters")
+                    logger.info(
+                        f"✅ Text manipulator successfully typed {len(ev.text_to_type)} characters"
+                    )
                     self.shared_state.last_summary = f"Text manipulation successful: typed {len(ev.text_to_type)} characters"
                     self.shared_state.action_outcomes.append(True)
             except Exception as e:
@@ -623,11 +640,17 @@ class DroidAgent(Workflow):
             "task": ev.task,
             "code_ran": ev.code_ran,
             "text_length": len(ev.text_to_type) if ev.text_to_type else 0,
-            "success": self.shared_state.action_outcomes[-1] if self.shared_state.action_outcomes else False,
+            "success": (
+                self.shared_state.action_outcomes[-1]
+                if self.shared_state.action_outcomes
+                else False
+            ),
         }
 
         self.shared_state.text_manipulation_history.append(text_manipulation_record)
-        self.shared_state.last_text_manipulation_success = text_manipulation_record["success"]
+        self.shared_state.last_text_manipulation_success = text_manipulation_record[
+            "success"
+        ]
 
         self.shared_state.step_number += 1
         logger.info(
@@ -642,6 +665,7 @@ class DroidAgent(Workflow):
         event = ManagerInputEvent()
         ctx.write_event_to_stream(event)
         return event
+
     @step
     async def run_executor(
         self, ctx: Context, ev: ExecutorInputEvent

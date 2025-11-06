@@ -153,7 +153,9 @@ class SimpleCodeExecutor:
                     raise RuntimeError(
                         "Event loop not set on executor. Call executor._event_loop = loop before execution."
                     )
-                future = asyncio.run_coroutine_threadsafe(run_with_context(), self._event_loop)
+                future = asyncio.run_coroutine_threadsafe(
+                    run_with_context(), self._event_loop
+                )
                 return future.result()
 
             ctx = self.get_current_context()

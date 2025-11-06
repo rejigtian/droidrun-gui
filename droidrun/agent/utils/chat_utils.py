@@ -116,10 +116,12 @@ def extract_code_and_thought(response_text: str) -> Tuple[Optional[str], str]:
 
     last_backticks = response_text.rfind("```")
     if first_backticks == last_backticks:
-        logger.debug("  - Only one code block marker found. Entire response is thought.")
+        logger.debug(
+            "  - Only one code block marker found. Entire response is thought."
+        )
         return None, response_text.strip()
 
-    code_block = response_text[first_backticks:last_backticks + 3]
+    code_block = response_text[first_backticks : last_backticks + 3]
 
     if code_block.startswith("```python"):
         code_content = code_block[9:]
@@ -134,7 +136,7 @@ def extract_code_and_thought(response_text: str) -> Tuple[Optional[str], str]:
     extracted_code = code_content.strip()
 
     thought_before = response_text[:first_backticks].strip()
-    thought_after = response_text[last_backticks + 3:].strip()
+    thought_after = response_text[last_backticks + 3 :].strip()
     thought_text = (thought_before + " " + thought_after).strip()
 
     thought_preview = (

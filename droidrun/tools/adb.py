@@ -88,6 +88,7 @@ class AdbTools(Tools):
 
         # Set up keyboard
         from droidrun.portal import setup_keyboard
+
         await setup_keyboard(self.device)
 
         self._connected = True
@@ -107,7 +108,6 @@ class AdbTools(Tools):
 
     def _set_context(self, ctx: Context):
         self._ctx = ctx
-
 
     def _extract_element_coordinates_by_index(self, index: int) -> Tuple[int, int]:
         """
@@ -186,7 +186,7 @@ class AdbTools(Tools):
         y = (top + bottom) // 2
 
         return x, y
-        
+
     @Tools.ui_action
     async def tap_by_index(self, index: int) -> str:
         """
@@ -363,7 +363,9 @@ class AdbTools(Tools):
                 )
                 self._ctx.write_event_to_stream(swipe_event)
 
-            await self.device.swipe(start_x, start_y, end_x, end_y, float(duration_ms / 1000))
+            await self.device.swipe(
+                start_x, start_y, end_x, end_y, float(duration_ms / 1000)
+            )
             await asyncio.sleep(duration_ms / 1000)
             print(
                 f"Swiped from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration_ms} milliseconds"

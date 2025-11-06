@@ -80,7 +80,6 @@ class Trajectory:
 
         return serializable_events
 
-
     @staticmethod
     def load_trajectory_folder(trajectory_folder: str) -> Dict[str, Any]:
         """

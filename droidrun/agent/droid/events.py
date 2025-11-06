@@ -123,10 +123,12 @@ class ScripterExecutorResultEvent(Event):
     success: bool
     code_executions: int
 
+
 class TextManipulatorInputEvent(Event):
     """Trigger TextManipulatorAgent workflow for text manipulation"""
 
     task: str
+
 
 class TextManipulatorResultEvent(Event):
     task: str

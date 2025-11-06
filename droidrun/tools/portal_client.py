@@ -439,7 +439,9 @@ class PortalClient:
         if self.tcp_available:
             try:
                 async with httpx.AsyncClient() as client:
-                    response = await client.get(f"{self.tcp_base_url}/ping", timeout=5.0)
+                    response = await client.get(
+                        f"{self.tcp_base_url}/ping", timeout=5.0
+                    )
                     if response.status_code == 200:
                         try:
                             tcp_response = response.json() if response.content else {}

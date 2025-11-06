@@ -140,7 +140,9 @@ async def enable_portal_accessibility(
         This may fail on some devices due to security restrictions.
         Manual enablement may be required.
     """
-    await device.shell(f"settings put secure enabled_accessibility_services {service_name}")
+    await device.shell(
+        f"settings put secure enabled_accessibility_services {service_name}"
+    )
     await device.shell("settings put secure accessibility_enabled 1")
 
 
@@ -158,7 +160,9 @@ async def check_portal_accessibility(
     Returns:
         True if the accessibility service is enabled, False otherwise
     """
-    a11y_services = await device.shell("settings get secure enabled_accessibility_services")
+    a11y_services = await device.shell(
+        "settings get secure enabled_accessibility_services"
+    )
     if service_name not in a11y_services:
         if debug:
             print(a11y_services)
@@ -206,7 +210,9 @@ async def ping_portal_content(device: AdbDevice, debug: bool = False):
         Exception: If Portal is not reachable via content provider
     """
     try:
-        state = await device.shell("content query --uri content://com.droidrun.portal/state")
+        state = await device.shell(
+            "content query --uri content://com.droidrun.portal/state"
+        )
         if "Row: 0 result=" not in state:
             raise Exception("Failed to get state from Droidrun Portal")
     except Exception as e:

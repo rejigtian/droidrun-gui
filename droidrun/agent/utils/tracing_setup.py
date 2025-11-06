@@ -23,7 +23,9 @@ _tracing_provider: Optional[str] = None
 _user_id: str = "anonymous"
 
 
-def setup_tracing(tracing_config: TracingConfig, agent: Optional[object] = None) -> None:
+def setup_tracing(
+    tracing_config: TracingConfig, agent: Optional[object] = None
+) -> None:
     global _tracing_initialized, _tracing_provider, _session_id, _user_id
 
     if not tracing_config.enabled:
@@ -42,9 +44,12 @@ def setup_tracing(tracing_config: TracingConfig, agent: Optional[object] = None)
         _user_id = "anonymous"
 
     if _tracing_initialized:
-        logger.info(f"🔍 Tracing already initialized with {_tracing_provider}, skipping setup")
+        logger.info(
+            f"🔍 Tracing already initialized with {_tracing_provider}, skipping setup"
+        )
         if provider == "langfuse" and agent:
             from droidrun.telemetry.langfuse_processor import set_current_agent
+
             set_current_agent(agent)
         return
 
@@ -82,7 +87,9 @@ def _setup_phoenix_tracing() -> None:
         )
 
 
-def _setup_langfuse_tracing(tracing_config: TracingConfig, agent: Optional[object] = None) -> None:
+def _setup_langfuse_tracing(
+    tracing_config: TracingConfig, agent: Optional[object] = None
+) -> None:
     """
     Set up Langfuse tracing with custom span processor.
 
@@ -113,7 +120,9 @@ def _setup_langfuse_tracing(tracing_config: TracingConfig, agent: Optional[objec
                 )
                 return
         except Exception as e:
-            logger.error(f"Error checking Langfuse authentication: {e}\nLikely a network issue or credentials are incorrect")
+            logger.error(
+                f"Error checking Langfuse authentication: {e}\nLikely a network issue or credentials are incorrect"
+            )
             return
 
         # STEP 1: Set up tracer provider (before any LlamaIndex imports!)
@@ -122,7 +131,7 @@ def _setup_langfuse_tracing(tracing_config: TracingConfig, agent: Optional[objec
 
         # Check if there's already a tracer provider (from Phoenix or previous setup)
         existing_provider = trace.get_tracer_provider()
-        if hasattr(existing_provider, 'add_span_processor'):
+        if hasattr(existing_provider, "add_span_processor"):
             # Use existing provider
             tracer_provider = existing_provider
             logger.info("🔍 Using existing TracerProvider")
@@ -157,7 +166,10 @@ def _setup_langfuse_tracing(tracing_config: TracingConfig, agent: Optional[objec
         _handler._encoder = _fixed_encoder
 
         # STEP 4: Add our custom processor (after instrumentation is set up)
-        from droidrun.telemetry.langfuse_processor import LangfuseSpanProcessor, set_current_agent
+        from droidrun.telemetry.langfuse_processor import (
+            LangfuseSpanProcessor,
+            set_current_agent,
+        )
 
         if agent:
             set_current_agent(agent)

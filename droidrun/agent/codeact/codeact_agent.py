@@ -96,12 +96,20 @@ class CodeActAgent(Workflow):
         for action_name, signature in merged_signatures.items():
             func = signature["function"]
             if inspect.iscoroutinefunction(func):
-                async def async_wrapper(*args, f=func, ti=tools_instance, ss=shared_state, **kwargs):
+
+                async def async_wrapper(
+                    *args, f=func, ti=tools_instance, ss=shared_state, **kwargs
+                ):
                     return await f(*args, tools=ti, shared_state=ss, **kwargs)
+
                 self.tool_list[action_name] = async_wrapper
             else:
-                def sync_wrapper(*args, f=func, ti=tools_instance, ss=shared_state, **kwargs):
+
+                def sync_wrapper(
+                    *args, f=func, ti=tools_instance, ss=shared_state, **kwargs
+                ):
                     return f(*args, tools=ti, shared_state=ss, **kwargs)
+
                 self.tool_list[action_name] = sync_wrapper
 
         self.tool_list["remember"] = tools_instance.remember
@@ -183,7 +191,11 @@ class CodeActAgent(Workflow):
                     {
                         "tool_descriptions": self.tool_descriptions,
                         "available_secrets": self._available_secrets,
-                        "variables": self.shared_state.custom_variables if self.shared_state else {},
+                        "variables": (
+                            self.shared_state.custom_variables
+                            if self.shared_state
+                            else {}
+                        ),
                         "output_schema": self._output_schema,
                     },
                 )
@@ -193,7 +205,11 @@ class CodeActAgent(Workflow):
                     {
                         "tool_descriptions": self.tool_descriptions,
                         "available_secrets": self._available_secrets,
-                        "variables": self.shared_state.custom_variables if self.shared_state else {},
+                        "variables": (
+                            self.shared_state.custom_variables
+                            if self.shared_state
+                            else {}
+                        ),
                         "output_schema": self._output_schema,
                     },
                 )

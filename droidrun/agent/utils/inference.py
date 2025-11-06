@@ -5,7 +5,6 @@ from concurrent.futures import TimeoutError as FuturesTimeoutError
 from typing import Any, Optional
 
 
-
 async def acall_with_retries(
     llm, messages: list, retries: int = 3, timeout: float = 500, delay: float = 1.0
 ) -> Any:
