@@ -146,7 +146,7 @@ class UIStateWriteJob(WriteJob):
     serialized_state: str
 
     async def execute(self) -> None:
-        if not self.target_path.exists():
+        if not (await ospath.exists(self.target_path)):
             async with aiofiles.open(self.target_path, "w", encoding="utf-8") as f:
                 await f.write(self.serialized_state)
 

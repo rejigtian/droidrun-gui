@@ -129,34 +129,12 @@ class CodeActAgent(Workflow):
                 tools_instance.credential_manager.list_available_secrets()
             )
 
-        # Prepare output structure schema if provided
-        output_schema = None
+        self._output_schema = None
         if self.output_model is not None:
-            output_schema = self.output_model.model_json_schema()
+            self._output_schema = self.output_model.model_json_schema()
 
-        # Load prompts from custom or config
-        custom_system_prompt = self.prompt_resolver.get_prompt("codeact_system")
-        if custom_system_prompt:
-            system_prompt_text = PromptLoader.render_template(
-                custom_system_prompt,
-                {
-                    "tool_descriptions": self.tool_descriptions,
-                    "available_secrets": available_secrets,
-                    "variables": shared_state.custom_variables if shared_state else {},
-                    "output_schema": output_schema,
-                },
-            )
-        else:
-            system_prompt_text = PromptLoader.load_prompt(
-                agent_config.get_codeact_system_prompt_path(),
-                {
-                    "tool_descriptions": self.tool_descriptions,
-                    "available_secrets": available_secrets,
-                    "variables": shared_state.custom_variables if shared_state else {},
-                    "output_schema": output_schema,
-                },
-            )
-        self.system_prompt = ChatMessage(role="system", content=system_prompt_text)
+        self._available_secrets = available_secrets
+        self.system_prompt = None
 
         # Get safety settings
         safe_mode = self.config.safe_execution
@@ -196,6 +174,31 @@ class CodeActAgent(Workflow):
 
         logger.info("💬 Preparing chat for task execution...")
 
+        # Load system prompt on first call (lazy loading)
+        if self.system_prompt is None:
+            custom_system_prompt = self.prompt_resolver.get_prompt("codeact_system")
+            if custom_system_prompt:
+                system_prompt_text = PromptLoader.render_template(
+                    custom_system_prompt,
+                    {
+                        "tool_descriptions": self.tool_descriptions,
+                        "available_secrets": self._available_secrets,
+                        "variables": self.shared_state.custom_variables if self.shared_state else {},
+                        "output_schema": self._output_schema,
+                    },
+                )
+            else:
+                system_prompt_text = await PromptLoader.load_prompt(
+                    self.agent_config.get_codeact_system_prompt_path(),
+                    {
+                        "tool_descriptions": self.tool_descriptions,
+                        "available_secrets": self._available_secrets,
+                        "variables": self.shared_state.custom_variables if self.shared_state else {},
+                        "output_schema": self._output_schema,
+                    },
+                )
+            self.system_prompt = ChatMessage(role="system", content=system_prompt_text)
+
         self.chat_memory: Memory = await ctx.store.get(
             "chat_memory", default=Memory.from_defaults()
         )
@@ -222,7 +225,7 @@ class CodeActAgent(Workflow):
                 },
             )
         else:
-            user_prompt_text = PromptLoader.load_prompt(
+            user_prompt_text = await PromptLoader.load_prompt(
                 self.agent_config.get_codeact_user_prompt_path(),
                 {
                     "goal": goal,

@@ -150,7 +150,7 @@ class ExecutorAgent(Workflow):
                 custom_executor_prompt, variables
             )
         else:
-            system_prompt = PromptLoader.load_prompt(
+            system_prompt = await PromptLoader.load_prompt(
                 self.agent_config.get_executor_system_prompt_path(),
                 variables,
             )

@@ -213,7 +213,7 @@ class ManagerAgent(Workflow):
         if custom_manager_prompt:
             return PromptLoader.render_template(custom_manager_prompt, variables)
         else:
-            return PromptLoader.load_prompt(
+            return await PromptLoader.load_prompt(
                 self.agent_config.get_manager_system_prompt_path(),
                 variables,
             )

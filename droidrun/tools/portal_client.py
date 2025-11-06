@@ -378,11 +378,9 @@ class PortalClient:
 
     async def _take_screenshot_adb(self) -> bytes:
         """Take screenshot via ADB screencap (fallback)."""
-        img = await self.device.screenshot()
-        buf = io.BytesIO()
-        img.save(buf, format="PNG")
+        data = await self.device.screenshot_bytes()
         logger.debug("Screenshot taken via ADB")
-        return buf.getvalue()
+        return data
 
     async def get_apps(self, include_system: bool = True) -> List[Dict[str, str]]:
         """
