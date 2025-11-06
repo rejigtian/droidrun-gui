@@ -332,7 +332,7 @@ class ExecutorAgent(Workflow):
                         "Failed: click requires index",
                     )
 
-                result = click(index, tools=self.tools_instance)
+                result = await click(index, tools=self.tools_instance)
                 return True, "None", f"Clicked element at index {index}"
 
             elif action_type == "long_press":
@@ -344,7 +344,7 @@ class ExecutorAgent(Workflow):
                         "Failed: long_press requires index",
                     )
 
-                success = long_press(index, tools=self.tools_instance)
+                success = await long_press(index, tools=self.tools_instance)
                 if success:
                     return True, "None", f"Long pressed element at index {index}"
                 else:
@@ -365,7 +365,7 @@ class ExecutorAgent(Workflow):
                         "Failed: type requires text",
                     )
 
-                result = type(text, index, tools=self.tools_instance)
+                result = await type(text, index, tools=self.tools_instance)
                 return True, "None", f"Typed '{text}' into element at index {index}"
 
             elif action_type == "system_button":
@@ -377,7 +377,7 @@ class ExecutorAgent(Workflow):
                         "Failed: system_button requires button",
                     )
 
-                result = system_button(button, tools=self.tools_instance)
+                result = await system_button(button, tools=self.tools_instance)
                 if "Error" in result:
                     return False, result, f"Failed to press {button} button"
                 return True, "None", f"Pressed {button} button"
@@ -408,7 +408,7 @@ class ExecutorAgent(Workflow):
                         "Failed: coordinate2 must be [x, y]",
                     )
 
-                success = swipe(
+                success = await swipe(
                     coordinate, coordinate2, duration, tools=self.tools_instance
                 )
                 if success:

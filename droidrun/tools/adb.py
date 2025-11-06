@@ -20,6 +20,7 @@ from droidrun.tools.tools import Tools
 
 from droidrun.tools.portal_client import PortalClient
 from async_adbutils import adb
+import asyncio
 
 logger = logging.getLogger("droidrun")
 PORTAL_DEFAULT_TCP_PORT = 8080
@@ -872,5 +873,4 @@ async def _shell_test():
 
 
 if __name__ == "__main__":
-    import asyncio
     asyncio.run(_start_app())

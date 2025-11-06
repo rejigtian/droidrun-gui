@@ -11,6 +11,8 @@ from typing import List, Optional
 import aiofiles
 from PIL import Image
 
+from aiofiles import ospath
+
 logger = logging.getLogger("droidrun")
 
 
@@ -98,7 +100,7 @@ class ScreenshotWriteJob(WriteJob):
     screenshot_bytes: bytes
 
     async def execute(self) -> None:
-        if not self.target_path.exists():
+        if not (await ospath.exists(self.target_path)):
             async with aiofiles.open(self.target_path, "wb") as f:
                 await f.write(self.screenshot_bytes)
 
@@ -194,6 +196,10 @@ class WriterWorker:
 
         if self.worker_task:
             self.worker_task.cancel()
+            try:
+                await self.worker_task
+            except asyncio.CancelledError:
+                pass
 
     async def _work_loop(self) -> None:
         while self.running:
