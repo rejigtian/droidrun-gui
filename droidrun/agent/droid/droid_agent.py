@@ -820,7 +820,7 @@ class DroidAgent(Workflow):
             ),
             self.user_id,
         )
-        flush()
+        await flush()
 
         # Base result with answer
         result = ResultEvent(
