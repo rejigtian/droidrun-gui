@@ -111,7 +111,7 @@ class AdbTools(Tools):
     def _set_context(self, ctx: Context):
         self._ctx = ctx
 
-    @Tools.ui_action
+
     def _extract_element_coordinates_by_index(self, index: int) -> Tuple[int, int]:
         """
         Extract center coordinates from an element by its index.
@@ -189,7 +189,8 @@ class AdbTools(Tools):
         y = (top + bottom) // 2
 
         return x, y
-
+        
+    @Tools.ui_action
     async def tap_by_index(self, index: int) -> str:
         """
         Tap on a UI element by its index.

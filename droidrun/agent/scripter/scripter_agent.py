@@ -110,6 +110,7 @@ class ScripterAgent(Workflow):
                 if safe_config and safe_mode
                 else None
             ),
+            event_loop=None,
         )
 
         logger.info("✅ ScripterAgent initialized successfully.")

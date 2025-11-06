@@ -11,7 +11,7 @@ from pydantic import BaseModel
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     from llama_index.core.base.llms.types import ChatMessage, ChatResponse
-
+import inspect
 from llama_index.core.llms.llm import LLM
 from llama_index.core.memory import Memory
 from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
@@ -95,13 +95,14 @@ class CodeActAgent(Workflow):
         self.tool_list = {}
         for action_name, signature in merged_signatures.items():
             func = signature["function"]
-
-            # Pass tools and shared_state as keyword arguments for flexible signatures
-            self.tool_list[action_name] = (
-                lambda *args, f=func, ti=tools_instance, ss=shared_state, **kwargs: f(
-                    *args, tools=ti, shared_state=ss, **kwargs
-                )
-            )
+            if inspect.iscoroutinefunction(func):
+                async def async_wrapper(*args, f=func, ti=tools_instance, ss=shared_state, **kwargs):
+                    return await f(*args, tools=ti, shared_state=ss, **kwargs)
+                self.tool_list[action_name] = async_wrapper
+            else:
+                def sync_wrapper(*args, f=func, ti=tools_instance, ss=shared_state, **kwargs):
+                    return f(*args, tools=ti, shared_state=ss, **kwargs)
+                self.tool_list[action_name] = sync_wrapper
 
         self.tool_list["remember"] = tools_instance.remember
         self.tool_list["complete"] = tools_instance.complete
@@ -182,6 +183,7 @@ class CodeActAgent(Workflow):
                 if safe_config and safe_mode
                 else None
             ),
+            event_loop=None,
         )
 
         logger.info("✅ CodeActAgent initialized successfully.")
@@ -191,6 +193,10 @@ class CodeActAgent(Workflow):
         """Prepare chat history from user input."""
         # macro tools context
         self.tools._set_context(ctx)
+
+        import asyncio
+        loop = asyncio.get_running_loop()
+        self.executor._event_loop = loop
 
         logger.info("💬 Preparing chat for task execution...")
 

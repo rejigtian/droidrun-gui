@@ -40,7 +40,6 @@ from droidrun.agent.oneflows.text_manipulator import run_text_manipulation_agent
 from droidrun.agent.scripter import ScripterAgent
 from droidrun.agent.oneflows.structured_output_agent import StructuredOutputAgent
 from droidrun.agent.trajectory import TrajectoryWriter
-from droidrun.agent.utils.async_utils import wrap_async_tools
 from droidrun.agent.utils.llm_loader import load_agent_llms, validate_llm_dict
 from droidrun.agent.utils.prompt_resolver import PromptResolver
 from droidrun.agent.utils.tools import (
@@ -452,18 +451,6 @@ class DroidAgent(Workflow):
         if self.config.logging.save_trajectory != "none":
             self.trajectory_writer.write(self.trajectory, stage="init")
 
-        if not hasattr(self, "_tools_wrapped") and not self.config.agent.reasoning:
-            # Get the current running event loop to pass to wrapped tools
-            import asyncio
-
-            loop = asyncio.get_running_loop()
-
-            self.atomic_tools = wrap_async_tools(self.atomic_tools, loop=loop)
-            self.custom_tools = wrap_async_tools(self.custom_tools, loop=loop)
-
-            self._tools_wrapped = True
-            logger.debug("✅ Async tools wrapped for synchronous execution contexts")
-
         if not self.config.agent.reasoning:
             logger.info(
                 f"🔄 Direct execution mode - executing goal: {self.shared_state.instruction}"
@@ -525,7 +512,7 @@ class DroidAgent(Workflow):
     @step
     async def handle_manager_plan(
         self, ctx: Context, ev: ManagerPlanEvent
-    ) -> ExecutorInputEvent | ScripterExecutorInputEvent | FinalizeEvent:
+    ) -> ExecutorInputEvent | ScripterExecutorInputEvent | FinalizeEvent | TextManipulatorInputEvent:
         """
         Process Manager output and decide next step.
 

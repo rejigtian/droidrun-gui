@@ -7,7 +7,6 @@ import logging
 from typing import Optional
 
 import click
-from click import coro
 from async_adbutils import adb
 from rich.console import Console
 from rich.table import Table

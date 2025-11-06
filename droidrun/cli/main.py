@@ -793,8 +793,8 @@ async def test(
 
 
 if __name__ == "__main__":
-    command = "open settings and go to battery section"
-    command = "use open_app to open the settings"
+    command = "open youtube and play a song by shakira"
+    command = "use open_app to open the settings and search for the battery and enter the first result"
     device = None
     provider = "GoogleGenAI"
     model = "models/gemini-2.5-flash"
@@ -811,4 +811,4 @@ if __name__ == "__main__":
     ios = False
     save_trajectory = "none"
     allow_drag = False
-    asyncio.run(run_command(command, device="emulator-5554"))
+    asyncio.run(run_command(command, device="emulator-5556", reasoning=False))
