@@ -57,14 +57,11 @@ class AdbTools(Tools):
         self._ctx = None
         # Instance‐level cache for clickable elements (index-based tapping)
         self.clickable_elements_cache: List[Dict[str, Any]] = []
-        self.last_screenshot = None
         self.reason = None
         self.success = None
         self.finished = False
         # Memory storage for remembering important information
         self.memory: List[str] = []
-        # Store all screenshots with timestamps
-        self.screenshots: List[Dict[str, Any]] = []
         # Trajectory saving level
         self.save_trajectories = "none"
 
@@ -608,14 +605,6 @@ class AdbTools(Tools):
 
             image_bytes = await self.portal.take_screenshot(hide_overlay)
 
-            # Store screenshot with timestamp
-            self.screenshots.append(
-                {
-                    "timestamp": time.time(),
-                    "image_data": image_bytes,
-                    "format": "PNG",
-                }
-            )
             return "PNG", image_bytes
 
         except Exception as e:

@@ -1,5 +1,4 @@
 import asyncio
-import io
 import json
 import logging
 import time
@@ -100,39 +99,52 @@ class ScreenshotWriteJob(WriteJob):
     screenshot_bytes: bytes
 
     async def execute(self) -> None:
-        if not (await ospath.exists(self.target_path)):
-            async with aiofiles.open(self.target_path, "wb") as f:
-                await f.write(self.screenshot_bytes)
+        async with aiofiles.open(self.target_path, "wb") as f:
+            await f.write(self.screenshot_bytes)
 
 
 @dataclass(frozen=True)
 class GifWriteJob(WriteJob):
-    """Creates animated GIF from screenshots."""
+    """Creates animated GIF from screenshots on disk."""
 
     target_path: Path
-    screenshots: List[bytes]
+    screenshots_folder: Path
+    screenshot_count: int
     duration: int = 1000
 
     async def execute(self) -> None:
         def _create_gif():
-            """CPU-bound GIF creation - runs in thread pool."""
             images = []
-            for idx, screenshot in enumerate(self.screenshots):
+
+            for idx in range(self.screenshot_count):
+                screenshot_path = self.screenshots_folder / f"{idx:04d}.png"
+                if not screenshot_path.exists():
+                    logger.warning(f"Screenshot {idx:04d}.png not found, skipping")
+                    continue
+
                 try:
-                    img = Image.open(io.BytesIO(screenshot))
-                    images.append(img)
+                    img = Image.open(screenshot_path)
+                    images.append(img.copy())
+                    img.close()
                 except Exception as e:
-                    logger.warning(f"Skipping invalid screenshot {idx}: {e}")
+                    logger.warning(f"Failed to load screenshot {idx}: {e}")
                     continue
 
             if images:
-                images[0].save(
-                    str(self.target_path),
-                    save_all=True,
-                    append_images=images[1:],
-                    duration=self.duration,
-                    loop=0,
-                )
+                try:
+                    images[0].save(
+                        str(self.target_path),
+                        save_all=True,
+                        append_images=images[1:],
+                        duration=self.duration,
+                        loop=0,
+                    )
+                finally:
+                    for img in images:
+                        try:
+                            img.close()
+                        except Exception:
+                            pass
 
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, _create_gif)
@@ -274,10 +286,9 @@ class TrajectoryWriter:
 
         trajectory_id = trajectory.trajectory_folder.name
 
-        # Snapshot data to prevent race conditions during async writes
         events_snapshot = list(trajectory.events)
         macro_snapshot = list(trajectory.macro) if trajectory.macro else []
-        screenshots_snapshot = list(trajectory.screenshots)
+        screenshot_queue_snapshot = list(trajectory.screenshot_queue)
         ui_states_snapshot = list(trajectory.ui_states)
 
         jobs = []
@@ -295,7 +306,7 @@ class TrajectoryWriter:
             jobs.append(macro_job)
 
         screenshot_jobs = self._create_screenshot_jobs(
-            screenshots_snapshot, trajectory, trajectory_id, stage
+            screenshot_queue_snapshot, trajectory, trajectory_id, stage
         )
         jobs.extend(screenshot_jobs)
 
@@ -306,6 +317,10 @@ class TrajectoryWriter:
 
         for job in jobs:
             self.worker.submit(job)
+
+        if screenshot_queue_snapshot:
+            trajectory.screenshot_queue.clear()
+            logger.debug(f"Cleared {len(screenshot_queue_snapshot)} screenshots from queue")
 
     def write_final(self, trajectory) -> None:
         """Write final trajectory data including GIF creation.
@@ -381,14 +396,17 @@ class TrajectoryWriter:
         )
 
     def _create_screenshot_jobs(
-        self, screenshots_snapshot, trajectory, trajectory_id, stage
+        self, screenshot_queue_snapshot, trajectory, trajectory_id, stage
     ) -> List[ScreenshotWriteJob]:
         jobs = []
         screenshots_folder = trajectory.trajectory_folder / "screenshots"
         screenshots_folder.mkdir(exist_ok=True)
 
-        for idx, screenshot_bytes in enumerate(screenshots_snapshot):
-            screenshot_path = screenshots_folder / f"{idx:04d}.png"
+        start_idx = trajectory.screenshot_count - len(screenshot_queue_snapshot)
+
+        for offset, screenshot_bytes in enumerate(screenshot_queue_snapshot):
+            screenshot_idx = start_idx + offset
+            screenshot_path = screenshots_folder / f"{screenshot_idx:04d}.png"
             jobs.append(
                 ScreenshotWriteJob(
                     trajectory_id=trajectory_id,
@@ -403,7 +421,7 @@ class TrajectoryWriter:
     def _create_gif_job(
         self, trajectory, trajectory_id, stage
     ) -> Optional[GifWriteJob]:
-        if not trajectory.screenshots:
+        if trajectory.screenshot_count == 0:
             return None
 
         screenshots_folder = trajectory.trajectory_folder / "screenshots"
@@ -413,7 +431,8 @@ class TrajectoryWriter:
             trajectory_id=trajectory_id,
             stage=stage,
             target_path=screenshots_folder / "trajectory.gif",
-            screenshots=list(trajectory.screenshots),
+            screenshots_folder=screenshots_folder,
+            screenshot_count=trajectory.screenshot_count,
         )
 
     def _create_ui_state_jobs(

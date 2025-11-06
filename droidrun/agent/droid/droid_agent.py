@@ -879,7 +879,8 @@ class DroidAgent(Workflow):
             ctx.write_event_to_stream(ev)
 
             if isinstance(ev, ScreenshotEvent):
-                self.trajectory.screenshots.append(ev.screenshot)
+                self.trajectory.screenshot_queue.append(ev.screenshot)
+                self.trajectory.screenshot_count += 1
             elif isinstance(ev, MacroEvent):
                 self.trajectory.macro.append(ev)
             elif isinstance(ev, RecordUIStateEvent):
