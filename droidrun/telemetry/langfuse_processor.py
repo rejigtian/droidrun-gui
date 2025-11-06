@@ -24,8 +24,9 @@ import logging
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, Future
+from contextvars import ContextVar
 from datetime import datetime, timezone
-from typing import List, Optional, TYPE_CHECKING, Union
+from typing import List, Optional, TYPE_CHECKING
 
 import requests
 from opentelemetry.context import Context
@@ -37,8 +38,13 @@ from droidrun import __version__
 
 if TYPE_CHECKING:
     from droidrun import DroidAgent
-# Configuration constants
-MAX_IMAGE_SIZE_KB = 10000  # 10MB max per image
+
+_current_agent: ContextVar[Optional["DroidAgent"]] = ContextVar("_current_agent", default=None)
+
+def set_current_agent(agent: "DroidAgent") -> None:
+    _current_agent.set(agent)
+
+MAX_IMAGE_SIZE_KB = 10000
 MAX_UPLOAD_WORKERS = 50  # Maximum concurrent upload threads
 SHUTDOWN_TIMEOUT = 30  # Seconds to wait for pending uploads on shutdown
 
@@ -86,9 +92,6 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
             additional_headers=additional_headers,
         )
 
-        # Store agent instance for context access
-        self.agent = agent
-
         # Store credentials for media API calls
         self._base_url = base_url
         auth_string = f"{public_key}:{secret_key}"
@@ -118,45 +121,37 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
         self._pending_uploads: List[Future] = []
         self._pending_lock = threading.Lock()
 
-    # Agent metadata extraction
-    def _extract_agent_metadata(self) -> Optional[dict]:
-        """Extract metadata from DroidAgent for first span injection."""
+    @property
+    def agent(self) -> Optional["DroidAgent"]:
+        return _current_agent.get()
+
+    def _extract_agent_input(self) -> Optional[dict]:
         if not self.agent:
             return None
 
         try:
-            metadata = {}
+            input_data = {}
 
-            # 1. Goal
             if self.agent.shared_state.instruction:
-                metadata['goal'] = self.agent.shared_state.instruction
+                input_data['goal'] = self.agent.shared_state.instruction
 
-            # 2. Reasoning mode
-            metadata['reasoning'] = self.agent.config.agent.reasoning
+            input_data['reasoning'] = self.agent.config.agent.reasoning
 
-            # 3. Device info
             if self.agent.config.device:
                 device = self.agent.config.device
-                metadata['device'] = {
+                input_data['device'] = {
                     'platform': device.platform,
                     'serial': device.serial,
                     'use_tcp': device.use_tcp,
                 }
 
-            # 4. Output model (structured output)
             if self.agent.output_model:
-                metadata['output_model'] = self.agent.output_model.__name__
+                input_data['output_model'] = self.agent.output_model.__name__
 
-            # 5. DroidRun version
-            metadata['langfuse.release'] = "v" +__version__
-            metadata['droidrun_version'] = "v" + __version__
+            input_data['droidrun_version'] = "v" + __version__
 
-
-            # 6. After action sleep
             if self.agent.config.agent.after_sleep_action:
-                metadata['after_action_sleep'] = self.agent.config.agent.after_sleep_action
-
-            # 7. Active LLMs (only active ones based on reasoning mode) - LAST
+                input_data['after_action_sleep'] = self.agent.config.agent.after_sleep_action
             active_llms = []
             if self.agent.config.agent.reasoning:
                 # Reasoning mode uses manager, executor, scripter
@@ -194,12 +189,12 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
 
                     active_llms.append(llm_info)
 
-            metadata['llms'] = active_llms
+            input_data['llms'] = active_llms
 
-            return metadata
+            return input_data
 
         except Exception as e:
-            logger.warning(f"Failed to extract agent metadata: {e}")
+            logger.warning(f"Failed to extract agent input: {e}")
             return None
 
     # Media API
@@ -364,113 +359,39 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
     def on_start(self, span: Span, parent_context: Optional[Context] = None) -> None:
         super().on_start(span, parent_context)
 
+        if not self.agent:
+            return
+
         try:
+            if "input.value" in span._attributes:
+                del span._attributes["input.value"]
+
             if span.name == "DroidAgent.run":
-                self._inject_metadata_to_start_handler(span)
-            elif span.name == "ExecutorAgent.run":
-                self._inject_executor_metadata(span)
+                span._attributes["langfuse.release"] = "v" + __version__
+                input_data = self._extract_agent_input()
+                if input_data:
+                    span._attributes["langfuse.observation.input"] = json.dumps(input_data)
+                    tags = ["reasoning"] if input_data.get('reasoning') else ["fast"]
+                    span._attributes["langfuse.trace.tags"] = tags
+
             elif span.name == "ManagerAgent.run":
-                self._inject_manager_metadata(span)
+                memory_size = len(self.agent.shared_state.memory) if self.agent.shared_state.memory else 0
+                message_history_count = len(self.agent.shared_state.message_history) + 1
+
+                span._attributes["langfuse.observation.input"] = json.dumps({
+                    "memory_size": memory_size,
+                    "message_history_count": message_history_count
+                })
+
+                if self.agent.shared_state.error_flag_plan:
+                    span._attributes["langfuse.trace.tags"] = ["error_recovery"]
+
+            elif span.name == "ExecutorAgent.run":
+                subgoal = self.agent.shared_state.current_subgoal or "Unknown"
+                span._attributes["langfuse.observation.input"] = subgoal
+
         except Exception as e:
             logger.error(f"Error injecting metadata in on_start: {e}")
-
-    def _inject_executor_metadata(self, span: Union[Span, ReadableSpan]) -> None:
-        """Inject ExecutorAgent metadata into prepare_context span's input.value."""
-        if not self.agent:
-            return
-
-        try:
-            # Extract subgoal from span attributes
-            if not hasattr(span, '_attributes') or span._attributes is None:
-                return
-
-            attrs = span._attributes
-
-            # Try to get subgoal from input.value if it exists
-            subgoal = "Unknown"
-            if "input.value" in attrs:
-                try:
-                    input_data = json.loads(attrs["input.value"])
-                    subgoal = input_data.get("subgoal", "Unknown")
-                except (json.JSONDecodeError, TypeError):
-                    pass
-
-            metadata = {
-                "subgoal": subgoal
-            }
-
-            # Serialize and inject
-            metadata_json = json.dumps(metadata, indent=2)
-            span._attributes["input.value"] = metadata_json
-
-        except Exception as e:
-            logger.warning(f"Failed to inject metadata into ExecutorAgent span: {e}")
-
-    def _inject_manager_metadata(self, span: Union[Span, ReadableSpan]) -> None:
-        """Inject ManagerAgent metadata into prepare_context span's input.value."""
-        if not self.agent:
-            return
-
-        try:
-            if not hasattr(span, '_attributes') or span._attributes is None:
-                return
-
-            # Calculate memory size and message history count
-            memory_size = 0
-            if self.agent.shared_state.memory:
-                memory_size = len(self.agent.shared_state.memory)
-
-            message_history_count = len(self.agent.shared_state.message_history) + 1  # +1 for system prompt
-
-            metadata = {
-                "memory_size": memory_size,
-                "message_history_count": message_history_count
-            }
-
-            # Serialize and inject
-            metadata_json = json.dumps(metadata, indent=2)
-            span._attributes["input.value"] = metadata_json
-
-            # Add error recovery as tag
-            tags = []
-            if self.agent.shared_state.error_flag_plan:
-                tags.append("error_recovery")
-
-            if tags:
-                span._attributes["langfuse.trace.tags"] = tags
-
-        except Exception as e:
-            logger.warning(f"Failed to inject metadata into ManagerAgent span: {e}")
-
-    def _inject_metadata_to_start_handler(self, span: Union[Span, ReadableSpan]) -> None:
-        """Inject DroidAgent metadata into start_handler span's input.value."""
-        if not self.agent:
-            return
-
-        try:
-            metadata = self._extract_agent_metadata()
-            if not metadata:
-                return
-
-            # Inject metadata into span attributes
-            if hasattr(span, '_attributes') and span._attributes is not None:
-                # Serialize metadata to JSON
-                metadata_json = json.dumps(metadata, indent=2)
-
-                # Inject into input.value
-                span._attributes["input.value"] = metadata_json
-
-                # Add reasoning mode as tag
-                tags = []
-                if metadata.get('reasoning'):
-                    tags.append("reasoning")
-                else:
-                    tags.append("fast")
-
-                span._attributes["langfuse.trace.tags"] = tags
-
-        except Exception as e:
-            logger.warning(f"Failed to inject metadata into start_handler span: {e}")
 
     # Span processing
     def on_end(self, span: ReadableSpan) -> None:
@@ -481,7 +402,10 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
             return
 
         try:
-            if span.name.endswith(".achat") or span.name.endswith(".chat"):
+            if span.name in ("DroidAgent.run", "ManagerAgent.run", "ExecutorAgent.run"):
+                if "input.value" in span._attributes:
+                    del span._attributes["input.value"]
+            elif span.name.endswith(".achat") or span.name.endswith(".chat"):
                 self._format_chat(span)
             elif span.name.endswith(".complete") or span.name.endswith(".acomplete"):
                 self._format_complete(span)

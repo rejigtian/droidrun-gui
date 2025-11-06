@@ -43,6 +43,9 @@ def setup_tracing(tracing_config: TracingConfig, agent: Optional[object] = None)
 
     if _tracing_initialized:
         logger.info(f"🔍 Tracing already initialized with {_tracing_provider}, skipping setup")
+        if provider == "langfuse" and agent:
+            from droidrun.telemetry.langfuse_processor import set_current_agent
+            set_current_agent(agent)
         return
 
     if provider == "phoenix":
@@ -154,13 +157,15 @@ def _setup_langfuse_tracing(tracing_config: TracingConfig, agent: Optional[objec
         _handler._encoder = _fixed_encoder
 
         # STEP 4: Add our custom processor (after instrumentation is set up)
-        from droidrun.telemetry.langfuse_processor import LangfuseSpanProcessor
+        from droidrun.telemetry.langfuse_processor import LangfuseSpanProcessor, set_current_agent
+
+        if agent:
+            set_current_agent(agent)
 
         span_processor = LangfuseSpanProcessor(
             public_key=os.environ["LANGFUSE_PUBLIC_KEY"],
             secret_key=os.environ["LANGFUSE_SECRET_KEY"],
             base_url=os.environ["LANGFUSE_HOST"],
-            agent=agent,
         )
         tracer_provider.add_span_processor(span_processor)
 
