@@ -2,7 +2,6 @@ import asyncio
 import json
 import logging
 import re
-import time
 import warnings
 from typing import TYPE_CHECKING, List, Optional, Type, Union
 
@@ -12,7 +11,7 @@ from pydantic import BaseModel
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     from llama_index.core.base.llms.types import ChatMessage, ChatResponse
-
+import inspect
 from llama_index.core.llms.llm import LLM
 from llama_index.core.memory import Memory
 from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
@@ -96,13 +95,22 @@ class CodeActAgent(Workflow):
         self.tool_list = {}
         for action_name, signature in merged_signatures.items():
             func = signature["function"]
+            if inspect.iscoroutinefunction(func):
 
-            # Pass tools and shared_state as keyword arguments for flexible signatures
-            self.tool_list[action_name] = (
-                lambda *args, f=func, ti=tools_instance, ss=shared_state, **kwargs: f(
-                    *args, tools=ti, shared_state=ss, **kwargs
-                )
-            )
+                async def async_wrapper(
+                    *args, f=func, ti=tools_instance, ss=shared_state, **kwargs
+                ):
+                    return await f(*args, tools=ti, shared_state=ss, **kwargs)
+
+                self.tool_list[action_name] = async_wrapper
+            else:
+
+                def sync_wrapper(
+                    *args, f=func, ti=tools_instance, ss=shared_state, **kwargs
+                ):
+                    return f(*args, tools=ti, shared_state=ss, **kwargs)
+
+                self.tool_list[action_name] = sync_wrapper
 
         self.tool_list["remember"] = tools_instance.remember
         self.tool_list["complete"] = tools_instance.complete
@@ -129,34 +137,12 @@ class CodeActAgent(Workflow):
                 tools_instance.credential_manager.list_available_secrets()
             )
 
-        # Prepare output structure schema if provided
-        output_schema = None
+        self._output_schema = None
         if self.output_model is not None:
-            output_schema = self.output_model.model_json_schema()
+            self._output_schema = self.output_model.model_json_schema()
 
-        # Load prompts from custom or config
-        custom_system_prompt = self.prompt_resolver.get_prompt("codeact_system")
-        if custom_system_prompt:
-            system_prompt_text = PromptLoader.render_template(
-                custom_system_prompt,
-                {
-                    "tool_descriptions": self.tool_descriptions,
-                    "available_secrets": available_secrets,
-                    "variables": shared_state.custom_variables if shared_state else {},
-                    "output_schema": output_schema,
-                },
-            )
-        else:
-            system_prompt_text = PromptLoader.load_prompt(
-                agent_config.get_codeact_system_prompt_path(),
-                {
-                    "tool_descriptions": self.tool_descriptions,
-                    "available_secrets": available_secrets,
-                    "variables": shared_state.custom_variables if shared_state else {},
-                    "output_schema": output_schema,
-                },
-            )
-        self.system_prompt = ChatMessage(role="system", content=system_prompt_text)
+        self._available_secrets = available_secrets
+        self.system_prompt = None
 
         # Get safety settings
         safe_mode = self.config.safe_execution
@@ -183,6 +169,7 @@ class CodeActAgent(Workflow):
                 if safe_config and safe_mode
                 else None
             ),
+            event_loop=None,
         )
 
         logger.info("✅ CodeActAgent initialized successfully.")
@@ -194,6 +181,39 @@ class CodeActAgent(Workflow):
         self.tools._set_context(ctx)
 
         logger.info("💬 Preparing chat for task execution...")
+
+        # Load system prompt on first call (lazy loading)
+        if self.system_prompt is None:
+            custom_system_prompt = self.prompt_resolver.get_prompt("codeact_system")
+            if custom_system_prompt:
+                system_prompt_text = PromptLoader.render_template(
+                    custom_system_prompt,
+                    {
+                        "tool_descriptions": self.tool_descriptions,
+                        "available_secrets": self._available_secrets,
+                        "variables": (
+                            self.shared_state.custom_variables
+                            if self.shared_state
+                            else {}
+                        ),
+                        "output_schema": self._output_schema,
+                    },
+                )
+            else:
+                system_prompt_text = await PromptLoader.load_prompt(
+                    self.agent_config.get_codeact_system_prompt_path(),
+                    {
+                        "tool_descriptions": self.tool_descriptions,
+                        "available_secrets": self._available_secrets,
+                        "variables": (
+                            self.shared_state.custom_variables
+                            if self.shared_state
+                            else {}
+                        ),
+                        "output_schema": self._output_schema,
+                    },
+                )
+            self.system_prompt = ChatMessage(role="system", content=system_prompt_text)
 
         self.chat_memory: Memory = await ctx.store.get(
             "chat_memory", default=Memory.from_defaults()
@@ -221,7 +241,7 @@ class CodeActAgent(Workflow):
                 },
             )
         else:
-            user_prompt_text = PromptLoader.load_prompt(
+            user_prompt_text = await PromptLoader.load_prompt(
                 self.agent_config.get_codeact_user_prompt_path(),
                 {
                     "goal": goal,
@@ -256,12 +276,10 @@ Now, describe the next step you will take to address the original goal: {goal}""
         ctx.write_event_to_stream(ev)
 
         if self.shared_state.step_number + 1 > self.max_steps:
-            ev = TaskEndEvent(
+            return TaskEndEvent(
                 success=False,
                 reason=f"Reached max step count of {self.max_steps} steps",
             )
-            ctx.write_event_to_stream(ev)
-            return ev
 
         logger.info(f"🧠 Step {self.shared_state.step_number + 1}: Thinking...")
 
@@ -279,7 +297,7 @@ Now, describe the next step you will take to address the original goal: {goal}""
             and self.tools.save_trajectories != "none"
         ):
             try:
-                result = self.tools.take_screenshot()
+                result = await self.tools.take_screenshot()
                 if isinstance(result, tuple):
                     success, screenshot = result
                     if not success:
@@ -303,7 +321,7 @@ Now, describe the next step you will take to address the original goal: {goal}""
         # Get and format device state using unified formatter
         try:
             # Get raw state from device
-            raw_state = self.tools.get_state()
+            raw_state = await self.tools.get_state()
 
             # Format using unified function (returns 4 values)
             formatted_text, focused_text, a11y_tree, phone_state = format_device_state(
@@ -423,15 +441,11 @@ Now, describe the next step you will take to address the original goal: {goal}""
                 logger.info(f"  - Success: {success}")
                 logger.info(f"  - Reason: {reason}")
 
-                event = TaskEndEvent(success=success, reason=reason)
-                ctx.write_event_to_stream(event)
-                return event
+                return TaskEndEvent(success=success, reason=reason)
 
             self.remembered_info = self.tools.memory
 
-            event = TaskExecutionResultEvent(output=str(result))
-            ctx.write_event_to_stream(event)
-            return event
+            return TaskExecutionResultEvent(output=str(result))
 
         except Exception as e:
             logger.error(f"💥 Action failed: {e}")
@@ -520,10 +534,10 @@ Now, describe the next step you will take to address the original goal: {goal}""
                 if match:
                     seconds = int(match.group(1)) + 1
                     logger.error(f"Rate limit error. Retrying in {seconds} seconds...")
-                    time.sleep(seconds)
+                    await asyncio.sleep(seconds)
                 else:
                     logger.error("Rate limit error. Retrying in 5 seconds...")
-                    time.sleep(40)
+                    await asyncio.sleep(40)
                 logger.debug("🔍 Retrying call to LLM...")
                 response = await self.llm.achat(messages=messages_to_send)
             elif self.llm.class_name() == "Anthropic_LLM" and "overloaded_error" in str(
@@ -537,7 +551,7 @@ Now, describe the next step you will take to address the original goal: {goal}""
                 logger.error(
                     f"Anthropic overload error. Retrying in {seconds} seconds... (attempt {self._anthropic_retry_count})"
                 )
-                time.sleep(seconds)
+                await asyncio.sleep(seconds)
                 logger.debug("🔍 Retrying call to LLM...")
                 response = await self.llm.achat(messages=messages_to_send)
                 self._anthropic_retry_count = 0  # Reset on success

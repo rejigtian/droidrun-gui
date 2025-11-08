@@ -14,8 +14,10 @@ import click
 import importlib.metadata
 import tomllib
 from pathlib import Path
-from adbutils import adb
+from async_adbutils import adb
 from rich.console import Console
+from rich.panel import Panel
+from rich.text import Text
 
 from droidrun import ResultEvent, DroidAgent
 from droidrun.cli.logs import LogHandler
@@ -79,7 +81,6 @@ def coro(f):
     return wrapper
 
 
-@coro
 async def run_command(
     command: str,
     config_path: str | None = None,
@@ -112,6 +113,22 @@ async def run_command(
     config_path = config_path or "config.yaml"
     config = DroidrunConfig.from_yaml(config_path)
 
+    # Print cloud link in a box
+    if config.logging.rich_text:
+        cloud_text = Text()
+        cloud_text.append("✨ Try DroidRun Cloud: ", style="bold cyan")
+        cloud_text.append(
+            "https://cloud.droidrun.ai/sign-in", style="bold blue underline"
+        )
+        cloud_panel = Panel(
+            cloud_text,
+            border_style="cyan",
+            padding=(0, 1),
+        )
+        console.print(cloud_panel)
+    else:
+        console.print("\n✨ Try DroidRun Cloud: https://cloud.droidrun.ai/sign-in\n")
+
     # Initialize logging first (use config default if debug not specified)
     debug_mode = debug if debug is not None else config.logging.debug
     log_handler = configure_logging(command, debug_mode, config.logging.rich_text)
@@ -122,6 +139,7 @@ async def run_command(
     with log_handler.render():
         try:
             logger.info(f"🚀 Starting: {command}")
+
             print_telemetry_message()
 
             # ================================================================
@@ -385,7 +403,8 @@ def cli():
     default=None,
 )
 @click.option("--ios", type=bool, default=None, help="Run on iOS device")
-def run(
+@coro
+async def run(
     command: str,
     config: str | None,
     device: str | None,
@@ -406,7 +425,7 @@ def run(
     """Run a command on your Android device using natural language."""
 
     try:
-        success = run_command(
+        success = await run_command(
             command=command,
             config_path=config,
             device=device,
@@ -429,9 +448,9 @@ def run(
         # Note: Port forwards are managed automatically and persist until device disconnect
         try:
             if not (ios if ios is not None else False):
-                device_obj = adb.device(device)
+                device_obj = await adb.device(device)
                 if device_obj:
-                    device_obj.shell(
+                    await device_obj.shell(
                         "ime disable com.droidrun.portal/.DroidrunKeyboardIME"
                     )
         except Exception:
@@ -442,10 +461,11 @@ def run(
 
 
 @cli.command()
-def devices():
+@coro
+async def devices():
     """List connected Android devices."""
     try:
-        devices = adb.list()
+        devices = await adb.list()
         if not devices:
             console.print("[yellow]No devices connected.[/]")
             return
@@ -459,10 +479,11 @@ def devices():
 
 @cli.command()
 @click.argument("serial")
-def connect(serial: str):
+@coro
+async def connect(serial: str):
     """Connect to a device over TCP/IP."""
     try:
-        device = adb.connect(serial)
+        device = await adb.connect(serial)
         if device.count("already connected"):
             console.print(f"[green]Successfully connected to {serial}[/]")
         else:
@@ -473,10 +494,11 @@ def connect(serial: str):
 
 @cli.command()
 @click.argument("serial")
-def disconnect(serial: str):
+@coro
+async def disconnect(serial: str):
     """Disconnect from a device."""
     try:
-        success = adb.disconnect(serial, raise_error=True)
+        success = await adb.disconnect(serial, raise_error=True)
         if success:
             console.print(f"[green]Successfully disconnected from {serial}[/]")
         else:
@@ -495,11 +517,12 @@ def disconnect(serial: str):
 @click.option(
     "--debug", is_flag=True, help="Enable verbose debug logging", default=False
 )
-def setup(path: str | None, device: str | None, debug: bool):
+@coro
+async def setup(path: str | None, device: str | None, debug: bool):
     """Install and enable the DroidRun Portal on a device."""
     try:
         if not device:
-            devices = adb.list()
+            devices = await adb.list()
             if not devices:
                 console.print("[yellow]No devices connected.[/]")
                 return
@@ -507,7 +530,7 @@ def setup(path: str | None, device: str | None, debug: bool):
             device = devices[0].serial
             console.print(f"[blue]Using device:[/] {device}")
 
-        device_obj = adb.device(device)
+        device_obj = await adb.device(device)
         if not device_obj:
             console.print(
                 f"[bold red]Error:[/] Could not get device object for {device}"
@@ -528,7 +551,7 @@ def setup(path: str | None, device: str | None, debug: bool):
 
             console.print(f"[bold blue]Step 1/2: Installing APK:[/] {apk_path}")
             try:
-                device_obj.install(
+                await device_obj.install(
                     apk_path, uninstall=True, flags=["-g"], silent=not debug
                 )
             except Exception as e:
@@ -540,7 +563,7 @@ def setup(path: str | None, device: str | None, debug: bool):
             console.print("[bold blue]Step 2/2: Enabling accessibility service[/]")
 
             try:
-                enable_portal_accessibility(device_obj)
+                await enable_portal_accessibility(device_obj)
 
                 console.print("[green]Accessibility service enabled successfully![/]")
                 console.print(
@@ -555,7 +578,9 @@ def setup(path: str | None, device: str | None, debug: bool):
                     "[yellow]Opening accessibility settings for manual configuration...[/]"
                 )
 
-                device_obj.shell("am start -a android.settings.ACCESSIBILITY_SETTINGS")
+                await device_obj.shell(
+                    "am start -a android.settings.ACCESSIBILITY_SETTINGS"
+                )
 
                 console.print(
                     "\n[yellow]Please complete the following steps on your device:[/]"
@@ -590,24 +615,25 @@ def setup(path: str | None, device: str | None, debug: bool):
     help="Use TCP communication for device control",
 )
 @click.option("--debug/--no-debug", default=None, help="Enable verbose debug logging")
-def ping(device: str | None, tcp: bool | None, debug: bool | None):
+@coro
+async def ping(device: str | None, tcp: bool | None, debug: bool | None):
     """Ping a device to check if it is ready and accessible."""
     # Handle None defaults
     debug_mode = debug if debug is not None else False
     use_tcp_mode = tcp if tcp is not None else False
 
     try:
-        device_obj = adb.device(device)
+        device_obj = await adb.device(device)
         if not device_obj:
             console.print(f"[bold red]Error:[/] Could not find device {device}")
             return
 
-        ping_portal(device_obj, debug_mode)
+        await ping_portal(device_obj, debug_mode)
 
         if use_tcp_mode:
-            ping_portal_tcp(device_obj, debug_mode)
+            await ping_portal_tcp(device_obj, debug_mode)
         else:
-            ping_portal_content(device_obj, debug_mode)
+            await ping_portal_content(device_obj, debug_mode)
 
         console.print(
             "[bold green]Portal is installed and accessible. You're good to go![/]"
@@ -650,6 +676,7 @@ async def test(
     with log_handler.render():
         try:
             logger.info(f"🚀 Starting: {command}")
+
             print_telemetry_message()
 
             # ================================================================

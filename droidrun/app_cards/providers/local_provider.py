@@ -83,7 +83,7 @@ class LocalAppCardProvider(AppCardProvider):
             # Async file read
             import asyncio
 
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             content = await loop.run_in_executor(None, app_card_path.read_text, "utf-8")
 
             # Cache and return

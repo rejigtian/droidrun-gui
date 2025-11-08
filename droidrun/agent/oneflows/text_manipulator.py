@@ -29,17 +29,18 @@ import traceback
 from llama_index.core.llms import ChatMessage
 from llama_index.core.llms.llm import LLM
 
-from droidrun.agent.utils.inference import call_with_retries
-from droidrun.telemetry.phoenix import clean_span
+from droidrun.agent.utils.inference import acall_with_retries
+from llama_index_instrumentation import get_dispatcher
+
+dispatcher = get_dispatcher()
 
 
-@clean_span("text_manipulator")
-def run_text_manipulation_agent(
+@dispatcher.span
+async def run_text_manipulation_agent(
     instruction: str,
     current_subgoal: str,
     current_text: str,
     overall_plan,
-    hitorical_plan,
     llm: LLM,
     max_retries: int = 4,
 ) -> tuple[str, str]:
@@ -50,7 +51,6 @@ def run_text_manipulation_agent(
         current_subgoal: Current subgoal to accomplish
         current_text: The current content of the focused text field
         overall_plan: Overall plan context
-        hitorical_plan: Historical progress
         llm: LLM instance to use for text manipulation
         max_retries: Maximum number of retry attempts if code execution fails
 
@@ -81,9 +81,6 @@ def run_text_manipulation_agent(
 <overall_plan>
 {overall_plan}
 </overall_plan>
-<progress_status>
-{hitorical_plan}
-</progress_status>
 <current_subgoal>
 {current_subgoal}
 </current_subgoal>
@@ -118,7 +115,6 @@ def run_text_manipulation_agent(
             role="system",
             content=system_prompt.format(
                 overall_plan=overall_plan,
-                hitorical_plan=hitorical_plan,
                 current_subgoal=current_subgoal,
                 instruction=instruction,
                 current_text=current_text,
@@ -129,7 +125,7 @@ def run_text_manipulation_agent(
 
     for attempt in range(max_retries + 1):  # +1 for initial attempt
         # Call the LLM with current messages
-        response_message = call_with_retries(llm, messages).message
+        response_message = (await acall_with_retries(llm, messages)).message
         content = response_message.content
         messages.append(response_message)
 

@@ -13,11 +13,12 @@ Features:
 from pathlib import Path
 from typing import Any, Dict
 
+import aiofiles
 from jinja2 import Environment
 
 
 class PromptLoader:
-    """Simple Jinja2 template renderer - loads from absolute file paths."""
+    """Jinja2 template renderer - loads from absolute file paths using aiofiles."""
 
     _env = None  # Cached Jinja2 environment
 
@@ -34,7 +35,7 @@ class PromptLoader:
         return cls._env
 
     @staticmethod
-    def load_prompt(file_path: str, variables: Dict[str, Any] = None) -> str:
+    async def load_prompt(file_path: str, variables: Dict[str, Any] = None) -> str:
         """
         Load and render Jinja2 template from absolute file path.
 
@@ -60,7 +61,8 @@ class PromptLoader:
             raise FileNotFoundError(f"Prompt file not found: {file_path}")
 
         # Read template content
-        template_content = path.read_text(encoding="utf-8")
+        async with aiofiles.open(path, mode="r", encoding="utf-8") as f:
+            template_content = await f.read()
 
         # Use render_template for actual rendering
         return PromptLoader.render_template(template_content, variables)

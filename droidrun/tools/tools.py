@@ -21,9 +21,9 @@ class Tools(ABC):
         """
 
         @wraps(func)
-        def wrapper(*args, **kwargs):
+        async def wrapper(*args, **kwargs):
             self = args[0]
-            result = func(*args, **kwargs)
+            result = await func(*args, **kwargs)
 
             # Check if save_trajectories attribute exists and is set to "action"
             if (
@@ -37,29 +37,29 @@ class Tools(ABC):
                 step_ui_states = caller_globals.get("step_ui_states")
 
                 if step_screenshots is not None:
-                    step_screenshots.append(self.take_screenshot()[1])
+                    step_screenshots.append((await self.take_screenshot())[1])
                 if step_ui_states is not None:
-                    step_ui_states.append(self.get_state())
+                    step_ui_states.append(await self.get_state())
             return result
 
         return wrapper
 
     @abstractmethod
-    def get_state(self) -> Dict[str, Any]:
+    async def get_state(self) -> Dict[str, Any]:
         """
         Get the current state of the tool.
         """
         pass
 
     @abstractmethod
-    def get_date(self) -> str:
+    async def get_date(self) -> str:
         """
         Get the current date on device.
         """
         pass
 
     @abstractmethod
-    def tap_by_index(self, index: int) -> str:
+    async def tap_by_index(self, index: int) -> str:
         """
         Tap the element at the given index.
         """
@@ -70,7 +70,7 @@ class Tools(ABC):
     #    pass
 
     @abstractmethod
-    def swipe(
+    async def swipe(
         self, start_x: int, start_y: int, end_x: int, end_y: int, duration_ms: int = 300
     ) -> bool:
         """
@@ -79,7 +79,7 @@ class Tools(ABC):
         pass
 
     @abstractmethod
-    def drag(
+    async def drag(
         self,
         start_x: int,
         start_y: int,
@@ -93,49 +93,49 @@ class Tools(ABC):
         pass
 
     @abstractmethod
-    def input_text(self, text: str, index: int = -1, clear: bool = False) -> str:
+    async def input_text(self, text: str, index: int = -1, clear: bool = False) -> str:
         """
         Input the given text into a focused input field.
         """
         pass
 
     @abstractmethod
-    def back(self) -> str:
+    async def back(self) -> str:
         """
         Press the back button.
         """
         pass
 
     @abstractmethod
-    def press_key(self, keycode: int) -> str:
+    async def press_key(self, keycode: int) -> str:
         """
         Enter the given keycode.
         """
         pass
 
     @abstractmethod
-    def start_app(self, package: str, activity: str = "") -> str:
+    async def start_app(self, package: str, activity: str = "") -> str:
         """
         Start the given app.
         """
         pass
 
     @abstractmethod
-    def take_screenshot(self) -> Tuple[str, bytes]:
+    async def take_screenshot(self) -> Tuple[str, bytes]:
         """
         Take a screenshot of the device.
         """
         pass
 
     @abstractmethod
-    def list_packages(self, include_system_apps: bool = False) -> List[str]:
+    async def list_packages(self, include_system_apps: bool = False) -> List[str]:
         """
         List all packages on the device.
         """
         pass
 
     @abstractmethod
-    def get_apps(self, include_system_apps: bool = True) -> List[Dict[str, Any]]:
+    async def get_apps(self, include_system_apps: bool = True) -> List[Dict[str, Any]]:
         """
         List all apps on the device.
         """
@@ -149,14 +149,14 @@ class Tools(ABC):
         pass
 
     @abstractmethod
-    def get_memory(self) -> List[str]:
+    async def get_memory(self) -> List[str]:
         """
         Get the memory of the tool.
         """
         pass
 
     @abstractmethod
-    def complete(self, success: bool, reason: str = "") -> None:
+    async def complete(self, success: bool, reason: str = "") -> None:
         """
         Complete the tool. This is used to indicate that the tool has completed its task.
         """

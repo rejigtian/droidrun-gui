@@ -29,8 +29,8 @@ jobs:
 
   publish-to-testpypi:
     name: Publish Python 🐍 distribution 📦 to TestPyPI
-    # Only runs on dev branch
-    if: github.ref == 'refs/heads/dev'
+    # Only runs on tags
+    if: startsWith(github.ref, 'refs/tags/v')
     needs:
     - build
     runs-on: ubuntu-latest

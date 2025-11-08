@@ -72,7 +72,9 @@ class DroidAgentState(BaseModel):
     last_scripter_message: str = ""
     last_scripter_success: bool = True
 
-    # Output
+    text_manipulation_history: List[Dict] = Field(default_factory=list)
+    last_text_manipulation_success: bool = False
+
     output_dir: str = ""
 
     # Custom variables (user-defined)
