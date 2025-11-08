@@ -767,9 +767,8 @@ async def test(
                 logger.debug(traceback.format_exc())
 
 
-if __name__ == "__main__":
 
-   if __name__ == "__main__":
+if __name__ == "__main__":
     command = "open youtube and play a song by shakira"
     command = "use open_app to open the settings and search for the battery and enter the first result"
     device = None
