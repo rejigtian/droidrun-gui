@@ -769,29 +769,23 @@ async def test(
 
 if __name__ == "__main__":
 
-    command = " open the settings"
+   if __name__ == "__main__":
+    command = "open youtube and play a song by shakira"
+    command = "use open_app to open the settings and search for the battery and enter the first result"
     device = None
-    provider = "DeepSeek"
-    model = "deepseek-reasoner"
+    provider = "GoogleGenAI"
+    model = "models/gemini-2.5-flash"
     temperature = 0
-    api_key = os.getenv("DEEPSEEK_API_KEY")
+    api_key = os.getenv("GOOGLE_API_KEY")
     steps = 15
     vision = True
     reasoning = False
     tracing = True
-
     debug = True
     use_tcp = False
-    base_url =  None
+    base_url = None
     api_base = None
     ios = False
     save_trajectory = "none"
     allow_drag = False
-    run_command(
-        command,
-        reasoning=True,
-        tracing=True,
-        debug=True,
-        provider=provider,
-        model=model,
-    )
+    asyncio.run(run_command(command, device="emulator-5556", reasoning=False))
