@@ -782,7 +782,7 @@ if __name__ == "__main__":
 
     debug = True
     use_tcp = False
-    base_url = "http://localhost:11434"
+    base_url =  None
     api_base = None
     ios = False
     save_trajectory = "none"

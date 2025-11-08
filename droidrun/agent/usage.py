@@ -11,12 +11,9 @@ from pydantic import BaseModel
 logger = logging.getLogger("droidrun")
 SUPPORTED_PROVIDERS = [
     "Gemini",
-    "GoogleGenAI",
     "GenAI",
-    "OpenAI",
     "openai_llm",
-    "Anthropic",
-    "Ollama",
+    "Anthropic_LLM",
     "Ollama_llm",
     "DeepSeek",
 ]
@@ -36,7 +33,7 @@ def get_usage_from_response(provider: str, chat_rsp: ChatResponse) -> UsageResul
     if not rsp:
         raise ValueError("No raw response in chat response")
 
-    if provider == "GoogleGenAI" or provider == "GenAI" or provider == "Gemini":
+    if provider == "GenAI" or provider == "Gemini":
         return UsageResult(
             request_tokens=rsp["usage_metadata"]["prompt_token_count"],
             response_tokens=rsp["usage_metadata"]["candidates_token_count"],
@@ -46,7 +43,7 @@ def get_usage_from_response(provider: str, chat_rsp: ChatResponse) -> UsageResul
             + rsp["usage_metadata"].get("tool_use_prompt_tokens_details", 0),
             requests=1,
         )
-    elif provider == "OpenAI" or provider == "OpenAILike" or provider == "openai_llm":
+    elif provider == "openai_llm":
         from openai.types import CompletionUsage as OpenAIUsage
 
         usage: OpenAIUsage = rsp.usage
@@ -57,7 +54,7 @@ def get_usage_from_response(provider: str, chat_rsp: ChatResponse) -> UsageResul
             total_tokens=usage.total_tokens - usage.thinking_tokens,
             requests=1,
         )
-    elif provider == "Anthropic_LLM" or provider == "Anthropic":
+    elif provider == "Anthropic_LLM" :
         from anthropic.types import Usage as AnthropicUsage
 
         usage: AnthropicUsage = rsp["usage"]
@@ -67,7 +64,7 @@ def get_usage_from_response(provider: str, chat_rsp: ChatResponse) -> UsageResul
             total_tokens=usage.input_tokens + usage.output_tokens,
             requests=1,
         )
-    elif provider == "Ollama" or provider == "Ollama_llm":
+    elif provider == "Ollama_llm":
         # Ollama response format uses different field names
         prompt_eval_count = rsp.get("prompt_eval_count", 0)
         eval_count = rsp.get("eval_count", 0)
