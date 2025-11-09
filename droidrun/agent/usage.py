@@ -54,7 +54,7 @@ def get_usage_from_response(provider: str, chat_rsp: ChatResponse) -> UsageResul
             total_tokens=usage.total_tokens - usage.thinking_tokens,
             requests=1,
         )
-    elif provider == "Anthropic_LLM" :
+    elif provider == "Anthropic_LLM":
         from anthropic.types import Usage as AnthropicUsage
 
         usage: AnthropicUsage = rsp["usage"]

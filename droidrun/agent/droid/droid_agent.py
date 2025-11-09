@@ -890,7 +890,9 @@ class DroidAgent(Workflow):
                     logger.error(traceback.format_exc())
 
         if self.config.logging.save_trajectory != "none":
-            self.trajectory_writer.write_final(self.trajectory,self.config.logging.trajectory_gifs)
+            self.trajectory_writer.write_final(
+                self.trajectory, self.config.logging.trajectory_gifs
+            )
             await self.trajectory_writer.stop()
             logger.info(f"📁 Trajectory saved: {self.trajectory.trajectory_folder}")
 

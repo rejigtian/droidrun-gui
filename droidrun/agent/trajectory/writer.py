@@ -324,7 +324,7 @@ class TrajectoryWriter:
                 f"Cleared {len(screenshot_queue_snapshot)} screenshots from queue"
             )
 
-    def write_final(self, trajectory,trajectory_gifs) -> None:
+    def write_final(self, trajectory, trajectory_gifs) -> None:
         """Write final trajectory data including GIF creation.
 
         Args:
