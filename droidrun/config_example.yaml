@@ -161,7 +161,8 @@ logging:
   save_trajectory: none
   # Path for trajectory files (absolute or relative to cwd)
   trajectory_path: trajectories
-
+  # Trajectory video/gif settings (False, true)
+  trajectory_gifs: true
   rich_text: false
 
 # === Safe Execution Settings ===
