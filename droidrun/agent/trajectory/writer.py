@@ -331,13 +331,12 @@ class TrajectoryWriter:
             trajectory: Trajectory instance to finalize
         """
         self.write(trajectory, stage="final")
-
         # GIF is only created at finalize (all screenshots available)
         if trajectory_gifs is True:
-         trajectory_id = trajectory.trajectory_folder.name
-         gif_job = self._create_gif_job(trajectory, trajectory_id, "final")
-         if gif_job:
-             self.worker.submit(gif_job)
+            trajectory_id = trajectory.trajectory_folder.name
+            gif_job = self._create_gif_job(trajectory, trajectory_id, "final")
+            if gif_job:
+                self.worker.submit(gif_job)
 
     def _create_events_job(
         self, events_snapshot, trajectory, trajectory_id, stage
