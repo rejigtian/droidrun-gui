@@ -324,7 +324,7 @@ class TrajectoryWriter:
                 f"Cleared {len(screenshot_queue_snapshot)} screenshots from queue"
             )
 
-    def write_final(self, trajectory) -> None:
+    def write_final(self, trajectory,trajectory_gifs) -> None:
         """Write final trajectory data including GIF creation.
 
         Args:
@@ -333,10 +333,11 @@ class TrajectoryWriter:
         self.write(trajectory, stage="final")
 
         # GIF is only created at finalize (all screenshots available)
-        trajectory_id = trajectory.trajectory_folder.name
-        gif_job = self._create_gif_job(trajectory, trajectory_id, "final")
-        if gif_job:
-            self.worker.submit(gif_job)
+        if trajectory_gifs is True:
+         trajectory_id = trajectory.trajectory_folder.name
+         gif_job = self._create_gif_job(trajectory, trajectory_id, "final")
+         if gif_job:
+             self.worker.submit(gif_job)
 
     def _create_events_job(
         self, events_snapshot, trajectory, trajectory_id, stage
