@@ -4,7 +4,7 @@ version = "0.4.4"
 description = "A framework for controlling Android devices through LLM agents"
 authors = [{ name = "Niels Schmidt", email = "niels.schmidt@droidrun.ai" }]
 dependencies = [
-    "async_adbutils @ git+https://github.com/droidrun/async_adbutils.git",
+    "async_adbutils",
     "llama-index==0.14.4",
     "posthog>=6.7.6",
     "pydantic>=2.11.10",
