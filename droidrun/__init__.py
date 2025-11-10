@@ -2,7 +2,7 @@
 Droidrun - A framework for controlling Android devices through LLM agents.
 """
 
-__version__ = "0.4.4dev"
+__version__ = "0.4.4"
 
 # Import main classes for easier access
 from droidrun.agent.droid import DroidAgent
