@@ -6,10 +6,15 @@ description: 'Complete DroidAgent configuration guide - all parameters, minimal 
 ## Quick Start
 
 ```python
-from droidrun import DroidAgent
+from droidrun import DroidAgent, DroidrunConfig
 
 # Minimal (uses defaults)
 agent = DroidAgent(goal="Open settings")
+result = await agent.run()
+
+# Load from config.yaml
+config = DroidrunConfig.from_yaml("config.yaml")
+agent = DroidAgent(goal="Open settings", config=config)
 result = await agent.run()
 ```
 
@@ -46,7 +51,7 @@ DroidAgent(
 ### AgentConfig
 
 ```python
-from droidrun.config_manager import AgentConfig, CodeActConfig, ManagerConfig, ExecutorConfig, ScripterConfig, AppCardConfig
+from droidrun import AgentConfig, CodeActConfig, ManagerConfig, ExecutorConfig, ScripterConfig, AppCardConfig
 
 AgentConfig(
     # Core settings
@@ -119,7 +124,7 @@ AppCardConfig(
 ### DeviceConfig
 
 ```python
-from droidrun.config_manager import DeviceConfig
+from droidrun import DeviceConfig
 
 DeviceConfig(
     serial=None,          # Device serial/IP (None = auto-detect)
@@ -133,11 +138,12 @@ DeviceConfig(
 ### LoggingConfig
 
 ```python
-from droidrun.config_manager import LoggingConfig
+from droidrun import LoggingConfig
 
 LoggingConfig(
     debug=True,                   # Enable debug logs
     save_trajectory="none",        # "none" | "step" | "action"
+    trajectory_path="trajectories", # Directory for trajectory files
     rich_text=False,               # Rich text formatting in logs
 )
 ```
@@ -147,10 +153,18 @@ LoggingConfig(
 ### TracingConfig
 
 ```python
-from droidrun.config_manager import TracingConfig
+from droidrun import TracingConfig
 
 TracingConfig(
-    enabled=True,  # Enable Arize Phoenix tracing
+    enabled=True,                      # Enable tracing
+    provider="phoenix",                 # "phoenix" or "langfuse"
+
+    # Langfuse settings (only used if provider="langfuse")
+    langfuse_secret_key="",             # LANGFUSE_SECRET_KEY env var
+    langfuse_public_key="",             # LANGFUSE_PUBLIC_KEY env var
+    langfuse_host="",                   # LANGFUSE_HOST env var (e.g., "https://cloud.langfuse.com")
+    langfuse_user_id="anonymous",       # User ID for Langfuse tracing
+    langfuse_session_id="",             # Empty = auto-generate UUID; custom value to persist across runs
 )
 ```
 
@@ -159,7 +173,7 @@ TracingConfig(
 ### TelemetryConfig
 
 ```python
-from droidrun.config_manager import TelemetryConfig
+from droidrun import TelemetryConfig
 
 TelemetryConfig(
     enabled=True,  # Enable anonymous telemetry
@@ -171,7 +185,7 @@ TelemetryConfig(
 ### ToolsConfig
 
 ```python
-from droidrun.config_manager import ToolsConfig
+from droidrun import ToolsConfig
 
 ToolsConfig(
     allow_drag=True,  # Enable drag tool
@@ -183,7 +197,7 @@ ToolsConfig(
 ### CredentialsConfig
 
 ```python
-from droidrun.config_manager import CredentialsConfig
+from droidrun import CredentialsConfig
 
 CredentialsConfig(
     enabled=True,                   # Enable credential manager
@@ -196,7 +210,7 @@ CredentialsConfig(
 ### SafeExecutionConfig
 
 ```python
-from droidrun.config_manager import SafeExecutionConfig
+from droidrun import SafeExecutionConfig
 
 SafeExecutionConfig(
     # Imports
@@ -266,7 +280,7 @@ agent = DroidAgent(
 ## Custom Tools
 
 ```python
-def my_tool(param: str) -> str:
+def my_tool(param: str, **kwargs) -> str:
     """Tool description."""
     return f"Result: {param}"
 
@@ -274,8 +288,8 @@ agent = DroidAgent(
     goal="...",
     custom_tools={
         "my_tool": {
-            "signature": "my_tool(param: str) -> str",
-            "description": "Tool description",
+            "arguments": ["param"],
+            "description": "Tool description with usage example",
             "function": my_tool
         }
     }
@@ -300,7 +314,7 @@ agent = DroidAgent(
 
 ### Config Format
 ```python
-from droidrun.config_manager import DroidrunConfig, CredentialsConfig
+from droidrun import DroidrunConfig, CredentialsConfig
 
 config = DroidrunConfig(
     credentials=CredentialsConfig(
@@ -386,8 +400,8 @@ agent = DroidAgent(
 ## Complete Example
 
 ```python
-from droidrun import DroidAgent
-from droidrun.config_manager import (
+from droidrun import (
+    DroidAgent, DroidrunConfig,
     AgentConfig, CodeActConfig, DeviceConfig, LoggingConfig, TracingConfig
 )
 from llama_index.llms.openai import OpenAI
@@ -400,7 +414,7 @@ class Output(BaseModel):
     value: int
 
 # Custom tool
-def send_email(to: str, subject: str) -> str:
+def send_email(to: str, subject: str, **kwargs) -> str:
     """Send email."""
     return f"Sent to {to}"
 
@@ -438,8 +452,8 @@ agent = DroidAgent(
     # Custom tools
     custom_tools={
         "send_email": {
-            "signature": "send_email(to: str, subject: str) -> str",
-            "description": "Send email",
+            "arguments": ["to", "subject"],
+            "description": "Send email to recipient with subject",
             "function": send_email
         }
     },
@@ -555,10 +569,17 @@ telemetry:
 
 tracing:
   enabled: false
+  provider: phoenix  # "phoenix" or "langfuse"
+  langfuse_secret_key: ""
+  langfuse_public_key: ""
+  langfuse_host: ""
+  langfuse_user_id: anonymous
+  langfuse_session_id: ""
 
 logging:
   debug: false
   save_trajectory: none
+  trajectory_path: trajectories
   rich_text: false
 
 safe_execution:

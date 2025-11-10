@@ -23,8 +23,7 @@ Simple custom tool without device access:
 
 ```python
 import asyncio
-from droidrun import DroidAgent
-from droidrun.config_manager import DroidrunConfig
+from droidrun import DroidAgent, DroidrunConfig
 
 def calculate_tax(amount: float, rate: float, **kwargs) -> str:
     """Calculate tax for a given amount."""

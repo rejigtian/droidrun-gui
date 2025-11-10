@@ -1,6 +1,6 @@
-# Contributing to DroidRun
+# Contributing to Droidrun
 
-Thank you for your interest in contributing to DroidRun! This document provides guidelines and instructions for contributing to the project.
+Thank you for your interest in contributing to Droidrun! This document provides guidelines and instructions for contributing to the project.
 
 ## Getting Started
 
@@ -79,13 +79,8 @@ Before submitting any code, please run the following security checks:
 
 2. **Safety**: A tool to check your installed dependencies for known security vulnerabilities.
    ```bash
-   safety check
+   safety scan
    ```
-
-You can also run both checks using the provided script:
-```bash
-python -m droidrun.tools.security_check
-```
 
 ## Pull Request Process
 
@@ -105,7 +100,7 @@ If you have questions about contributing:
 2. Ask in our Discord server
 3. Open a new GitHub issue for complex questions
 
-Thank you for contributing to DroidRun! 🚀
+Thank you for contributing to Droidrun! 🚀
 
 ## Language
 

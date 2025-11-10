@@ -2,6 +2,7 @@ from droidrun.config_manager.config_manager import (
     AgentConfig,
     AppCardConfig,
     CodeActConfig,
+    CredentialsConfig,
     DeviceConfig,
     DroidrunConfig,
     ExecutorConfig,
@@ -39,6 +40,7 @@ __all__ = [
     "TracingConfig",
     "LoggingConfig",
     "ToolsConfig",
+    "CredentialsConfig",
     "SafeExecutionConfig",
     # Utility classes
     "PathResolver",

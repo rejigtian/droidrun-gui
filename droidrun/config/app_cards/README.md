@@ -58,7 +58,7 @@ App cards support three path types:
 
 1. **Relative to app_cards directory** (most common):
    ```json
-   {"com.google.gm": "gmail.md"}
+   {"com.google.android.gm": "gmail.md"}
    ```
    Resolves to: `config/app_cards/gmail.md` (in package)
 

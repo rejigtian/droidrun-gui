@@ -3,15 +3,12 @@ title: 'Structured Output'
 description: 'Extract structured data from device interactions using Pydantic models'
 ---
 
----
-
 ## Quick Start
 
 ```python
 import asyncio
 from pydantic import BaseModel, Field
-from droidrun import DroidAgent
-from droidrun.config_manager import DroidrunConfig
+from droidrun import DroidAgent, DroidrunConfig
 
 # 1. Define output structure
 class ContactInfo(BaseModel):

@@ -1,11 +1,11 @@
 ---
 title: 'Tracing'
-description: 'Configure Phoenix tracing, and trajectory recording'
+description: 'Configure Phoenix/Langfuse tracing and trajectory recording'
 ---
 
-Droidrun provides two monitoring capabilities:
+Droidrun provides multiple monitoring capabilities:
 
-1. **Arize Phoenix Tracing** - Real-time LLM and agent execution tracing
+1. **LLM Tracing** - Real-time execution tracing via Arize Phoenix or Langfuse
 2. **Trajectory Recording** - Local screenshots and UI state for debugging
 
 ## Quick Reference
@@ -20,9 +20,18 @@ droidrun run "task" --save-trajectory step
 
 ---
 
-## Arize Phoenix Tracing
+## LLM Tracing
 
-Phoenix provides real-time tracing of LLM calls, agent execution, and tool invocations. Use it to debug agent behavior, monitor token usage, and analyze execution flow.
+Droidrun supports two tracing providers for real-time monitoring of LLM calls, agent execution, and tool invocations:
+
+- **Arize Phoenix** (default) - Open-source observability platform
+- **Langfuse** - LLM engineering platform with cloud and self-hosted options
+
+Use tracing to debug agent behavior, monitor token usage, and analyze execution flow.
+
+---
+
+### Arize Phoenix Tracing
 
 ### Setup
 
@@ -58,8 +67,7 @@ tracing:
 **Via code:**
 
 ```python
-from droidrun import DroidAgent
-from droidrun.config_manager import DroidrunConfig
+from droidrun import DroidAgent, DroidrunConfig
 
 config = DroidrunConfig()
 config.tracing.enabled = True
@@ -78,7 +86,7 @@ Navigate to `http://localhost:6006` to see:
 
 For more on using Phoenix, see the [Arize Phoenix documentation](https://docs.arize.com/phoenix).
 
-### Configuration
+**Phoenix Configuration**
 
 Set environment variables to customize Phoenix:
 
@@ -93,6 +101,68 @@ export phoenix_project_name=my_droidrun_project
 <Note>
 Environment variable names are lowercase: `phoenix_url` and `phoenix_project_name`.
 </Note>
+
+---
+
+### Langfuse Tracing
+
+Langfuse provides LLM observability with features like session tracking, user analytics, and cost monitoring.
+
+**Setup**
+
+**1. Get Langfuse credentials:**
+- **Cloud**: Sign up at [cloud.langfuse.com](https://cloud.langfuse.com)
+- **Self-hosted**: Deploy using [Langfuse docs](https://langfuse.com/docs/deployment/self-host)
+
+**2. Configure Droidrun:**
+
+**Via environment variables:**
+```sh
+export LANGFUSE_SECRET_KEY=sk-lf-...
+export LANGFUSE_PUBLIC_KEY=pk-lf-...
+export LANGFUSE_HOST=https://cloud.langfuse.com
+```
+
+**Via config.yaml:**
+```yaml
+tracing:
+  enabled: true
+  provider: langfuse
+  langfuse_secret_key: sk-lf-...
+  langfuse_public_key: pk-lf-...
+  langfuse_host: https://cloud.langfuse.com
+  langfuse_user_id: user@example.com  # Optional: track by user
+  langfuse_session_id: ""              # Optional: custom session ID
+```
+
+**Via code:**
+```python
+from droidrun import DroidAgent, DroidrunConfig, TracingConfig
+
+config = DroidrunConfig(
+    tracing=TracingConfig(
+        enabled=True,
+        provider="langfuse",
+        langfuse_secret_key="sk-lf-...",
+        langfuse_public_key="pk-lf-...",
+        langfuse_host="https://cloud.langfuse.com",
+        langfuse_user_id="user@example.com",
+    )
+)
+
+agent = DroidAgent(goal="Open settings", config=config)
+await agent.run()
+```
+
+**3. View traces:**
+
+Navigate to your Langfuse dashboard to see:
+- LLM calls with prompts, completions, and token usage
+- Agent execution traces and nested workflows
+- Session-based analytics and cost tracking
+- User-level metrics (if `langfuse_user_id` is set)
+
+For more on using Langfuse, see the [Langfuse documentation](https://langfuse.com/docs).
 
 ---
 
@@ -128,8 +198,7 @@ logging:
 **Via code:**
 
 ```python
-from droidrun import DroidAgent
-from droidrun.config_manager import DroidrunConfig
+from droidrun import DroidAgent, DroidrunConfig
 
 config = DroidrunConfig()
 config.logging.save_trajectory = "action"

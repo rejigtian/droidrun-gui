@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to the DroidRun project will be documented in this file.
+All notable changes to the Droidrun project will be documented in this file.
 
 ## [0.2.0] - 2025-05-21
 
