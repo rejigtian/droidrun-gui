@@ -7,7 +7,7 @@
 <div align="center">
 
 [![Docs](https://img.shields.io/badge/Docs-📕-0D9373?style=for-the-badge)](https://docs.droidrun.ai)
-[![Cloud](https://img.shields.io/badge/Cloud-☁️-0D9373?style=for-the-badge)](http://cloud.droidrun.ai)
+[![Cloud](https://img.shields.io/badge/Cloud-☁️-0D9373?style=for-the-badge)](https://cloud.droidrun.ai/sign-in?waitlist=true)
 
 
 [![GitHub stars](https://img.shields.io/github/stars/droidrun/droidrun?style=social)](https://github.com/droidrun/droidrun/stargazers)
