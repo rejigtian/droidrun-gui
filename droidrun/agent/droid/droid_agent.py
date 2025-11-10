@@ -896,10 +896,14 @@ class DroidAgent(Workflow):
                 if isinstance(screenshot_result, tuple):
                     success, screenshot = screenshot_result
                     if success and screenshot:
-                        ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
+                        ctx.write_event_to_stream(
+                            ScreenshotEvent(screenshot=screenshot)
+                        )
                         logger.debug("📸 Final screenshot captured")
                 elif screenshot_result:
-                    ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot_result))
+                    ctx.write_event_to_stream(
+                        ScreenshotEvent(screenshot=screenshot_result)
+                    )
                     logger.debug("📸 Final screenshot captured")
             except Exception as e:
                 logger.warning(f"Failed to capture final screenshot: {e}")
