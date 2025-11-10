@@ -48,6 +48,7 @@
                   "/guides/overview",
                   "/guides/device-setup",
                   "/guides/cli",
+                  "/guides/docker",
                   "/guides/migration-v3-to-v4"
                 ]
               },
