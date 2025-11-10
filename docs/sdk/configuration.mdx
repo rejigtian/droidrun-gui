@@ -144,6 +144,7 @@ LoggingConfig(
     debug=True,                   # Enable debug logs
     save_trajectory="none",        # "none" | "step" | "action"
     trajectory_path="trajectories", # Directory for trajectory files
+    trajectory_gifs=False,         # Save trajectory as animated GIFs
     rich_text=False,               # Rich text formatting in logs
 )
 ```
@@ -433,7 +434,8 @@ config = DroidrunConfig(
     ),
     logging=LoggingConfig(
         debug=True,
-        save_trajectory="action"
+        save_trajectory="action",
+        trajectory_gifs=True
     ),
     tracing=TracingConfig(enabled=True),
 )
@@ -580,6 +582,7 @@ logging:
   debug: false
   save_trajectory: none
   trajectory_path: trajectories
+  trajectory_gifs: false
   rich_text: false
 
 safe_execution:

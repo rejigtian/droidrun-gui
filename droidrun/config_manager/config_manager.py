@@ -168,6 +168,7 @@ class LoggingConfig:
     save_trajectory: str = "none"
     trajectory_path: str = "trajectories"
     rich_text: bool = False
+    trajectory_gifs: bool = True
 
 
 @dataclass

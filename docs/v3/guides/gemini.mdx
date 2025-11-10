@@ -51,16 +51,16 @@ async def main():
     # Set up the Gemini LLM
     llm = GoogleGenAI(
         api_key="YOUR_GEMINI_API_KEY",  # Replace with your Gemini API key
-        model="gemini-2.5-flash",  # or "gemini-2.5-pro" for enhanced reasoning
+        model="gemini-2.5-flash",       # or "gemini-2.5-pro" for enhanced reasoning
     )
 
     # Create the DroidAgent
     agent = DroidAgent(
         goal="Open Settings and check battery level",
-        llm=llm,
+        llms=llm,
         tools=tools,
-        vision=True,         # Set to True for vision models, False for text-only
-        reasoning=False,      # Optional: enable planning/reasoning
+        # vision=True,        # Optional: enable if using multimodal models
+        # reasoning=False,    # Optional: enable planning/reasoning
     )
 
     # Run the agent
