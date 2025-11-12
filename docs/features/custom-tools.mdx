@@ -345,7 +345,7 @@ def send_authenticated_request(
         if not tools or not hasattr(tools, 'credential_manager'):
             return "Error: Credential manager not available"
 
-        api_key = tools.credential_manager.get_credential("API_KEY")
+        api_key = tools.credential_manager.resolve_key("API_KEY")
 
         # Check if we've made too many requests
         if shared_state and shared_state.step_number > 15:

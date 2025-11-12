@@ -8,7 +8,7 @@ Architecture:
 """
 
 import logging
-from typing import TYPE_CHECKING, Type, Awaitable
+from typing import TYPE_CHECKING, Type, Awaitable, Union
 
 from pydantic import BaseModel
 from llama_index.core.llms.llm import LLM
@@ -59,7 +59,7 @@ from droidrun.config_manager.config_manager import (
     ToolsConfig,
     TracingConfig,
 )
-from droidrun.credential_manager import load_credential_manager
+from droidrun.credential_manager import FileCredentialManager, CredentialManager
 from droidrun.telemetry import (
     DroidAgentFinalizeEvent,
     DroidAgentInitEvent,
@@ -114,7 +114,7 @@ class DroidAgent(Workflow):
         llms: dict[str, LLM] | LLM | None = None,
         tools: "Tools | None" = None,
         custom_tools: dict = None,
-        credentials: dict | None = None,
+        credentials: Union[dict, "CredentialManager", None] = None,
         variables: dict | None = None,
         output_model: Type[BaseModel] | None = None,
         prompts: dict[str, str] | None = None,
@@ -132,7 +132,7 @@ class DroidAgent(Workflow):
                   If not provided, LLMs will be loaded from config profiles.
             tools: Either a Tools instance (for custom/pre-configured tools) or None (use default from config).
             custom_tools: Custom tool definitions
-            credentials: Dict of credentials {"SECRET_ID": "value"} or None (will use config.credentials if available)
+            credentials: Dict {"SECRET_ID": "value"}, CredentialManager instance, or None (will use config.credentials if available)
             variables: Optional dict of custom variables accessible throughout execution
             output_model: Optional Pydantic model for structured output extraction from final answer
             prompts: Optional dict of custom Jinja2 prompt templates to override defaults.
@@ -165,7 +165,16 @@ class DroidAgent(Workflow):
             if credentials is not None
             else (config.credentials if config else None)
         )
-        self.credential_manager = load_credential_manager(credentials_source)
+
+        # If already a CredentialManager instance, use it. Otherwise wrap in FileCredentialManager
+        if isinstance(credentials_source, CredentialManager):
+            self.credential_manager = credentials_source
+        elif credentials_source is not None:
+            cm = FileCredentialManager(credentials_source)
+            # Only assign if it actually loaded secrets (handles disabled case)
+            self.credential_manager = cm if cm.secrets else None
+        else:
+            self.credential_manager = None
 
         self.tools_param = tools
         self.tools_fallback = (

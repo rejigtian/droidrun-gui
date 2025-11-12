@@ -443,7 +443,7 @@ async def type_secret(
 
     try:
         # Get secret value from credential manager
-        secret_value = tools.credential_manager.get_credential(secret_id)
+        secret_value = tools.credential_manager.resolve_key(secret_id)
 
         # Type using existing input_text method
         await tools.input_text(secret_value, index)
