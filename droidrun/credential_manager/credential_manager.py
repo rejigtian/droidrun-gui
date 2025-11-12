@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 
 class CredentialNotFoundError(KeyError):
     """Raised when a credential key is not found."""
+
     pass
 
 
