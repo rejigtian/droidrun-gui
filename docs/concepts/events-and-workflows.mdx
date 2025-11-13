@@ -46,133 +46,262 @@ print(f"📝 Reason: {result.reason}")
 
 ## Event Types
 
-### Planning Events
-
-**ManagerContextEvent** - Emitted after Manager prepares context:
+<AccordionGroup>
+  <Accordion title="Workflow Coordination Events">
+Used for workflow coordination between DroidAgent and its child agents.
 
 ```python
-class ManagerContextEvent(Event):
-    """Signals that Manager has prepared context and is ready for LLM call"""
-    pass  # No fields - this is just a signal event
+# Main workflow
+class CodeActExecuteEvent(Event):
+    instruction: str
+
+class CodeActResultEvent(Event):
+    success: bool
+    reason: str
+    instruction: str
+
+class FinalizeEvent(Event):
+    success: bool
+    reason: str
+
+class ResultEvent(StopEvent):
+    success: bool
+    reason: str
+    steps: int
+    structured_output: BaseModel | None
+
+# Manager/Executor coordination
+class ManagerInputEvent(Event): pass
+class ManagerPlanEvent(Event):
+    plan: str
+    current_subgoal: str
+    thought: str
+    manager_answer: str
+    success: bool | None
+
+class ExecutorInputEvent(Event):
+    current_subgoal: str
+
+class ExecutorResultEvent(Event):
+    action: Dict
+    outcome: bool
+    error: str
+    summary: str
+    full_response: str
+
+# Scripter coordination
+class ScripterExecutorInputEvent(Event):
+    task: str
+
+class ScripterExecutorResultEvent(Event):
+    task: str
+    message: str
+    success: bool
+    code_executions: int
+
+# Text manipulation
+class TextManipulatorInputEvent(Event):
+    task: str
+
+class TextManipulatorResultEvent(Event):
+    task: str
+    text_to_type: str
+    code_ran: str
 ```
+  </Accordion>
 
-**ManagerResponseEvent** - Emitted after Manager receives LLM response:
+  <Accordion title="Manager Events (Internal)">
+Internal to ManagerAgent, streamed to frontend/logging.
 
 ```python
+class ManagerContextEvent(Event): pass
+
 class ManagerResponseEvent(Event):
-    output_planning: str             # Raw validated LLM response from Manager
-    usage: Optional[UsageResult]     # Token usage (requests, input/output tokens)
-```
+    output_planning: str
+    usage: Optional[UsageResult]
 
-**ManagerPlanDetailsEvent** - Emitted when Manager creates/updates a plan:
-
-```python
 class ManagerPlanDetailsEvent(Event):
-    plan: str              # Full task plan with subgoals
-    current_subgoal: str   # Current subgoal being executed
-    thought: str           # Manager's reasoning
-    manager_answer: str    # Direct answer (if task is complete)
-    memory_update: str     # Memory additions from this response
-    success: bool | None   # True/False if complete, None if in progress
-    full_response: str     # Complete LLM response from Manager
+    plan: str
+    current_subgoal: str
+    thought: str
+    manager_answer: str
+    memory_update: str
+    success: bool | None
+    full_response: str
 ```
+  </Accordion>
 
-### Execution Events
-
-**ExecutorContextEvent** - Emitted after Executor prepares context:
+  <Accordion title="Executor Events (Internal)">
+Internal to ExecutorAgent, streamed to frontend/logging.
 
 ```python
 class ExecutorContextEvent(Event):
-    messages: list  # ChatMessage list for LLM
-    subgoal: str    # Current subgoal being executed
-```
+    messages: list
+    subgoal: str
 
-**ExecutorResponseEvent** - Emitted after Executor receives LLM response:
-
-```python
 class ExecutorResponseEvent(Event):
-    response_text: str               # Raw LLM response from Executor
-    usage: Optional[UsageResult]     # Token usage (requests, input/output tokens)
-```
+    response_text: str
+    usage: Optional[UsageResult]
 
-**ExecutorActionEvent** - Emitted when Executor selects an action:
-
-```python
 class ExecutorActionEvent(Event):
-    action_json: str    # JSON representation of selected action
-    thought: str        # Executor's reasoning
-    description: str    # Human-readable action description
-    full_response: str  # Complete LLM response from Executor
-```
+    action_json: str
+    thought: str
+    description: str
+    full_response: str
 
-**ExecutorActionResultEvent** - Emitted after Executor action execution:
-
-```python
 class ExecutorActionResultEvent(Event):
-    action: Dict        # The executed action
-    outcome: bool       # Whether action succeeded
-    error: str          # Error message (if failed)
-    summary: str        # Human-readable summary of result
-    thought: str        # Executor's reasoning
-    action_json: str    # Raw action JSON
-    full_response: str  # Complete LLM response from Executor
+    action: Dict
+    outcome: bool
+    error: str
+    summary: str
+    thought: str
+    action_json: str
+    full_response: str
 ```
+  </Accordion>
 
-**TaskThinkingEvent** - Emitted when CodeAct generates code (direct mode):
+  <Accordion title="CodeAct Events (Internal)">
+Internal to CodeActAgent, used in direct execution mode.
 
 ```python
+class TaskInputEvent(Event):
+    input: list[ChatMessage]
+
 class TaskThinkingEvent(Event):
-    thoughts: Optional[str]          # LLM's reasoning process
-    code: Optional[str]              # Generated Python code
-    usage: Optional[UsageResult]     # Token usage (requests, input/output tokens)
-```
+    thoughts: Optional[str]
+    code: Optional[str]
+    usage: Optional[UsageResult]
 
-**TaskExecutionResultEvent** - Emitted after code execution:
+class TaskExecutionEvent(Event):
+    code: str
+    globals: dict[str, str] = {}
+    locals: dict[str, str] = {}
 
-```python
 class TaskExecutionResultEvent(Event):
-    output: str      # Execution output or error message
+    output: str
+
+class TaskEndEvent(Event):
+    success: bool
+    reason: str
 ```
+  </Accordion>
 
-### Script Execution Events
-
-**ScripterThinkingEvent** - Emitted when ScripterAgent generates code:
+  <Accordion title="Scripter Events (Internal)">
+Internal to ScripterAgent, for off-device script execution.
 
 ```python
+class ScripterInputEvent(Event):
+    input: List
+
 class ScripterThinkingEvent(Event):
-    thoughts: str                    # LLM's reasoning process
-    code: Optional[str]              # Generated Python code
-    full_response: str               # Complete LLM response
-    usage: Optional[UsageResult]     # Token usage (requests, input/output tokens)
+    thoughts: str
+    code: Optional[str]
+    full_response: str
+    usage: Optional[UsageResult]
+
+class ScripterExecutionEvent(Event):
+    code: str
+
+class ScripterExecutionResultEvent(Event):
+    output: str
+
+class ScripterEndEvent(Event):
+    message: str
+    success: bool
+    code_executions: int
 ```
+  </Accordion>
 
-### Visual Events
-
-**ScreenshotEvent** - Emitted when a screenshot is captured:
+  <Accordion title="Action Recording Events">
+Emitted when actions are performed, used for macro recording and trajectory tracking.
 
 ```python
+class MacroEvent(Event):  # Base class
+    action_type: str
+    description: str
+
+class TapActionEvent(MacroEvent):
+    x: int
+    y: int
+    element_index: int = None
+    element_text: str = ""
+    element_bounds: str = ""
+
+class SwipeActionEvent(MacroEvent):
+    start_x: int
+    start_y: int
+    end_x: int
+    end_y: int
+    duration_ms: int
+
+class DragActionEvent(MacroEvent):
+    start_x: int
+    start_y: int
+    end_x: int
+    end_y: int
+    duration_ms: int
+
+class InputTextActionEvent(MacroEvent):
+    text: str
+
+class KeyPressActionEvent(MacroEvent):
+    keycode: int
+    key_name: str = ""
+
+class StartAppEvent(MacroEvent):
+    package: str
+    activity: str = None
+
+class WaitEvent(MacroEvent):
+    duration: float
+```
+  </Accordion>
+
+  <Accordion title="Visual & Telemetry Events">
+```python
+# Visual events
 class ScreenshotEvent(Event):
-    screenshot: bytes  # PNG image data
-```
+    screenshot: bytes
 
-**RecordUIStateEvent** - Emitted when UI state is captured:
-
-```python
 class RecordUIStateEvent(Event):
-    ui_state: list[Dict[str, Any]]  # Accessibility tree as structured data
-```
+    ui_state: list[Dict[str, Any]]
 
-### Usage Tracking
+# Telemetry events (when enabled)
+class DroidAgentInitEvent(TelemetryEvent):
+    goal: str
+    llms: Dict[str, str]
+    tools: str
+    max_steps: int
+    timeout: int
+    vision: Dict[str, bool]
+    reasoning: bool
+    enable_tracing: bool
+    debug: bool
+    save_trajectories: str
+    runtype: str
+    custom_prompts: Optional[Dict[str, str]]
 
-**UsageResult** - Token usage information included in LLM response events:
+class PackageVisitEvent(TelemetryEvent):
+    package_name: str
+    activity_name: str
+    step_number: int
 
-```python
+class DroidAgentFinalizeEvent(TelemetryEvent):
+    success: bool
+    reason: str
+    steps: int
+    unique_packages_count: int
+    unique_activities_count: int
+
+# Usage tracking
 class UsageResult(BaseModel):
-    request_tokens: int   # Number of tokens in the prompt
-    response_tokens: int  # Number of tokens in the response
-    total_tokens: int     # Total tokens used (request + response)
-    requests: int         # Number of LLM requests made
+    request_tokens: int
+    response_tokens: int
+    total_tokens: int
+    requests: int
 ```
+  </Accordion>
+</AccordionGroup>
 
 ## Common Patterns
 
@@ -254,12 +383,53 @@ async def monitor_execution(goal: str):
 
 ## Notes
 
+### Event Streaming Behavior
+
 - Events are **streamed in real-time** as the agent executes
 - Not all events are emitted in every execution (depends on mode and actions)
-- **Reasoning mode** emits `ManagerContextEvent`, `ManagerResponseEvent`, `ManagerPlanDetailsEvent`, `ExecutorContextEvent`, `ExecutorResponseEvent`, `ExecutorActionEvent`, and `ExecutorActionResultEvent`
-- **Direct mode** emits `TaskThinkingEvent` and `TaskExecutionResultEvent`
 - All events are **Pydantic models** with full type safety
 - The `handler` object is **async** - always use `await handler` to get the final result
+
+### Event Emission by Mode
+
+**Reasoning Mode** (`reasoning=True`) emits:
+- Coordination: `ManagerInputEvent`, `ManagerPlanEvent`, `ExecutorInputEvent`, `ExecutorResultEvent`
+- Internal Manager: `ManagerContextEvent`, `ManagerResponseEvent`, `ManagerPlanDetailsEvent`
+- Internal Executor: `ExecutorContextEvent`, `ExecutorResponseEvent`, `ExecutorActionEvent`, `ExecutorActionResultEvent`
+- Actions: All action recording events (`TapActionEvent`, `SwipeActionEvent`, etc.)
+- Visual: `ScreenshotEvent`, `RecordUIStateEvent` (when enabled)
+
+**Direct Mode** (`reasoning=False`) emits:
+- Coordination: `CodeActExecuteEvent`, `CodeActResultEvent`
+- Internal CodeAct: `TaskInputEvent`, `TaskThinkingEvent`, `TaskExecutionEvent`, `TaskExecutionResultEvent`, `TaskEndEvent`
+- Actions: All action recording events
+- Visual: `ScreenshotEvent`, `RecordUIStateEvent` (when enabled)
+
+**ScripterAgent** (when triggered by `<script>` tags) emits:
+- Coordination: `ScripterExecutorInputEvent`, `ScripterExecutorResultEvent`
+- Internal Scripter: `ScripterInputEvent`, `ScripterThinkingEvent`, `ScripterExecutionEvent`, `ScripterExecutionResultEvent`, `ScripterEndEvent`
+
+**All Modes** emit:
+- Finalization: `FinalizeEvent`, `ResultEvent`
+- Telemetry: `DroidAgentInitEvent`, `PackageVisitEvent`, `DroidAgentFinalizeEvent` (when telemetry enabled)
+
+### Event Categories
+
+**Coordination Events** - Used for workflow routing between agents (minimal data)
+- Located in `droidrun/agent/droid/events.py`
+- Examples: `ManagerPlanEvent`, `ExecutorResultEvent`, `ScripterExecutorResultEvent`
+
+**Internal Events** - Used for streaming to frontend/logging (full debug data)
+- Located in agent-specific event files
+- Examples: `ManagerPlanDetailsEvent`, `ExecutorActionEvent`, `TaskThinkingEvent`
+
+**Action Recording Events** - Emitted when actions are performed (for macros/trajectories)
+- Located in `droidrun/agent/common/events.py`
+- Examples: `TapActionEvent`, `SwipeActionEvent`, `InputTextActionEvent`
+
+**Telemetry Events** - Captured for analytics (when enabled)
+- Located in `droidrun/telemetry/events.py`
+- Examples: `DroidAgentInitEvent`, `PackageVisitEvent`, `DroidAgentFinalizeEvent`
 
 ## Learn More
 
