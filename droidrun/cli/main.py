@@ -35,6 +35,7 @@ from droidrun.telemetry import print_telemetry_message
 from droidrun.config_manager.path_resolver import PathResolver
 from droidrun.agent.utils.llm_picker import load_llm
 import json
+
 # Suppress all warnings
 warnings.filterwarnings("ignore")
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -83,7 +84,9 @@ def coro(f):
 
 async def get_portal_version(device_obj) -> str | None:
     try:
-        version_output = await device_obj.shell("content query --uri content://com.droidrun.portal/version")
+        version_output = await device_obj.shell(
+            "content query --uri content://com.droidrun.portal/version"
+        )
 
         if "result=" in version_output:
             json_str = version_output.split("result=", 1)[1].strip()
@@ -258,10 +261,16 @@ async def run_command(
                         portal_version = await get_portal_version(device_obj)
 
                         if portal_version and portal_version < "0.4.0":
-                            logger.warning(f"⚠️  Portal version {portal_version} is outdated")
-                            console.print(f"\n[yellow]Portal version {portal_version} < 0.4.0. Running setup...[/]\n")
+                            logger.warning(
+                                f"⚠️  Portal version {portal_version} is outdated"
+                            )
+                            console.print(
+                                f"\n[yellow]Portal version {portal_version} < 0.4.0. Running setup...[/]\n"
+                            )
 
-                            await setup.__wrapped__(path=None, device=config.device.serial, debug=debug_mode)
+                            await setup.__wrapped__(
+                                path=None, device=config.device.serial, debug=debug_mode
+                            )
 
                             console.print("\n[green]Setup complete![/]\n")
                         else:

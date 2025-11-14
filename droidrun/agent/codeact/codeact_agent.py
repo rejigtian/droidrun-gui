@@ -171,10 +171,7 @@ class CodeActAgent(Workflow):
 
         logger.info("💬 Preparing chat for task execution...")
 
-        if (
-            hasattr(self.tools, "credential_manager")
-            and self.tools.credential_manager
-        ):
+        if hasattr(self.tools, "credential_manager") and self.tools.credential_manager:
             self._available_secrets = await self.tools.credential_manager.get_keys()
 
         # Load system prompt on first call (lazy loading)

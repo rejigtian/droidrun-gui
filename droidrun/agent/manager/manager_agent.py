@@ -182,9 +182,7 @@ class ManagerAgent(Workflow):
             hasattr(self.tools_instance, "credential_manager")
             and self.tools_instance.credential_manager
         ):
-            available_secrets = (
-                await self.tools_instance.credential_manager.get_keys()
-            )
+            available_secrets = await self.tools_instance.credential_manager.get_keys()
 
         # Prepare output structure schema if provided
         output_schema = None

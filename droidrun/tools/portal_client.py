@@ -434,7 +434,9 @@ class PortalClient:
         if self.tcp_available:
             try:
                 async with httpx.AsyncClient() as client:
-                    response = await client.get(f"{self.tcp_base_url}/version", timeout=5.0)
+                    response = await client.get(
+                        f"{self.tcp_base_url}/version", timeout=5.0
+                    )
                     if response.status_code == 200:
                         data = response.json()
                         if "data" in data:
@@ -445,7 +447,9 @@ class PortalClient:
 
         # Fallback to content provider
         try:
-            output = await self.device.shell("content query --uri content://com.droidrun.portal/version")
+            output = await self.device.shell(
+                "content query --uri content://com.droidrun.portal/version"
+            )
             result = self._parse_content_provider_output(output)
             if result and "data" in result:
                 return result["data"]

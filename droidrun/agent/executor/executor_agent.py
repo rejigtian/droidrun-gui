@@ -126,9 +126,7 @@ class ExecutorAgent(Workflow):
             hasattr(self.tools_instance, "credential_manager")
             and self.tools_instance.credential_manager
         ):
-            available_secrets = (
-                await self.tools_instance.credential_manager.get_keys()
-            )
+            available_secrets = await self.tools_instance.credential_manager.get_keys()
 
         # Let Jinja2 handle all formatting
         variables = {

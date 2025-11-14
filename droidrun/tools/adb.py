@@ -741,8 +741,7 @@ class AdbTools(Tools):
             device_context = combined_data["device_context"]
 
             filtered_elements = filter_a11y_tree_to_interactive_elements(
-                full_tree,
-                device_context
+                full_tree, device_context
             )
 
             self.clickable_elements_cache = filtered_elements
