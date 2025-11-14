@@ -21,6 +21,7 @@ from droidrun.tools.tools import Tools
 from droidrun.tools.portal_client import PortalClient
 from async_adbutils import adb
 import asyncio
+from droidrun.tools.a11y_tree_filter import filter_a11y_tree_to_interactive_elements
 
 logger = logging.getLogger("droidrun")
 PORTAL_DEFAULT_TCP_PORT = 8080
@@ -718,7 +719,6 @@ class AdbTools(Tools):
             if "error" in combined_data:
                 return combined_data
 
-            # Validate that both a11y_tree and phone_state are present
             if "a11y_tree" not in combined_data:
                 return {
                     "error": "Missing Data",
@@ -731,21 +731,19 @@ class AdbTools(Tools):
                     "message": "phone_state not found in combined state data",
                 }
 
-            # Filter out the "type" attribute from all a11y_tree elements
-            elements = combined_data["a11y_tree"]
-            filtered_elements = []
-            for element in elements:
-                # Create a copy of the element without the "type" attribute
-                filtered_element = {k: v for k, v in element.items() if k != "type"}
+            if "device_context" not in combined_data:
+                return {
+                    "error": "Missing Data",
+                    "message": "device_context not found in combined state data",
+                }
 
-                # Also filter children if present
-                if "children" in filtered_element:
-                    filtered_element["children"] = [
-                        {k: v for k, v in child.items() if k != "type"}
-                        for child in filtered_element["children"]
-                    ]
+            full_tree = combined_data["a11y_tree"]
+            device_context = combined_data["device_context"]
 
-                filtered_elements.append(filtered_element)
+            filtered_elements = filter_a11y_tree_to_interactive_elements(
+                full_tree,
+                device_context
+            )
 
             self.clickable_elements_cache = filtered_elements
 
