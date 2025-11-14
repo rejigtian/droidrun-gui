@@ -260,23 +260,22 @@ async def run_command(
                     if device_obj:
                         portal_version = await get_portal_version(device_obj)
 
-                        if portal_version and portal_version < "0.4.0":
+                        if not portal_version or portal_version < "0.4.1":
                             logger.warning(
                                 f"⚠️  Portal version {portal_version} is outdated"
                             )
                             console.print(
-                                f"\n[yellow]Portal version {portal_version} < 0.4.0. Running setup...[/]\n"
+                                f"\n[yellow]Portal version {portal_version} < 0.4.1. Running setup...[/]\n"
                             )
 
-                            await setup.__wrapped__(
+                            await _setup_portal(
                                 path=None, device=config.device.serial, debug=debug_mode
                             )
 
-                            console.print("\n[green]Setup complete![/]\n")
                         else:
                             logger.debug("Could not get portal version, skipping check")
                 except Exception as e:
-                    logger.debug(f"Version check failed: {e}")
+                    logger.warning(f"Version check failed: {e}")
 
             droid_agent = DroidAgent(
                 goal=command,
@@ -549,19 +548,8 @@ async def disconnect(serial: str):
         console.print(f"[red]Error disconnecting from device: {e}[/]")
 
 
-@cli.command()
-@click.option("--device", "-d", help="Device serial number or IP address", default=None)
-@click.option(
-    "--path",
-    help="Path to the Droidrun Portal APK to install on the device. If not provided, the latest portal apk version will be downloaded and installed.",
-    default=None,
-)
-@click.option(
-    "--debug", is_flag=True, help="Enable verbose debug logging", default=False
-)
-@coro
-async def setup(path: str | None, device: str | None, debug: bool):
-    """Install and enable the DroidRun Portal on a device."""
+async def _setup_portal(path: str | None, device: str | None, debug: bool):
+    """Internal async function to install and enable the DroidRun Portal on a device."""
     try:
         if not device:
             devices = await adb.list()
@@ -647,6 +635,22 @@ async def setup(path: str | None, device: str | None, debug: bool):
             import traceback
 
             traceback.print_exc()
+
+
+@cli.command()
+@click.option("--device", "-d", help="Device serial number or IP address", default=None)
+@click.option(
+    "--path",
+    help="Path to the Droidrun Portal APK to install on the device. If not provided, the latest portal apk version will be downloaded and installed.",
+    default=None,
+)
+@click.option(
+    "--debug", is_flag=True, help="Enable verbose debug logging", default=False
+)
+@coro
+async def setup(path: str | None, device: str | None, debug: bool):
+    """Install and enable the DroidRun Portal on a device."""
+    await _setup_portal(path, device, debug)
 
 
 @cli.command()
