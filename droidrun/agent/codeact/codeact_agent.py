@@ -127,21 +127,10 @@ class CodeActAgent(Workflow):
             "\n- complete(success: bool, reason: str): Mark task as complete"
         )
 
-        # Get available secrets from credential manager
-        available_secrets = []
-        if (
-            hasattr(tools_instance, "credential_manager")
-            and tools_instance.credential_manager
-        ):
-            available_secrets = (
-                tools_instance.credential_manager.list_available_secrets()
-            )
-
+        self._available_secrets = []
         self._output_schema = None
         if self.output_model is not None:
             self._output_schema = self.output_model.model_json_schema()
-
-        self._available_secrets = available_secrets
         self.system_prompt = None
 
         # Get safety settings
@@ -181,6 +170,12 @@ class CodeActAgent(Workflow):
         self.tools._set_context(ctx)
 
         logger.info("💬 Preparing chat for task execution...")
+
+        if (
+            hasattr(self.tools, "credential_manager")
+            and self.tools.credential_manager
+        ):
+            self._available_secrets = await self.tools.credential_manager.get_keys()
 
         # Load system prompt on first call (lazy loading)
         if self.system_prompt is None:

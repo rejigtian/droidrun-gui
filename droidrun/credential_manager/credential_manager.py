@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import List
 
 
 class CredentialNotFoundError(KeyError):
@@ -11,7 +12,7 @@ class CredentialManager(ABC):
     """Abstract base class for credential resolution."""
 
     @abstractmethod
-    def resolve_key(self, key: str) -> str:
+    async def resolve_key(self, key: str) -> str:
         """
         Resolve and return the value for the given credential key.
 
@@ -23,5 +24,15 @@ class CredentialManager(ABC):
 
         Raises:
             CredentialNotFoundError: If key doesn't exist
+        """
+        pass
+
+    @abstractmethod
+    async def get_keys(self) -> List[str]:
+        """
+        Get all available credential keys.
+
+        Returns:
+            List of credential identifiers
         """
         pass

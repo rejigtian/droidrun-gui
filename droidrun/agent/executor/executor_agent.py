@@ -127,7 +127,7 @@ class ExecutorAgent(Workflow):
             and self.tools_instance.credential_manager
         ):
             available_secrets = (
-                self.tools_instance.credential_manager.list_available_secrets()
+                await self.tools_instance.credential_manager.get_keys()
             )
 
         # Let Jinja2 handle all formatting

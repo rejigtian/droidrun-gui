@@ -109,7 +109,7 @@ class FileCredentialManager(CredentialManager):
 
         return secrets
 
-    def resolve_key(self, key: str) -> str:
+    async def resolve_key(self, key: str) -> str:
         """Get secret value by key."""
         logger.debug(f"🔑 Accessing secret: '{key}'")
 
@@ -121,8 +121,8 @@ class FileCredentialManager(CredentialManager):
 
         return self.secrets[key]
 
-    def list_available_secrets(self):
-        """List available secret IDs (not values)."""
+    async def get_keys(self) -> list[str]:
+        """Get all available credential keys."""
         return list(self.secrets.keys())
 
     def has_credential(self, secret_id: str) -> bool:

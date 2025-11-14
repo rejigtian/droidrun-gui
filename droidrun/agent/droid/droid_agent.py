@@ -251,9 +251,9 @@ class DroidAgent(Workflow):
 
         self.atomic_tools = ATOMIC_ACTION_SIGNATURES.copy()
 
-        # Build custom tools (credentials + open_app + user custom tools)
-        auto_custom_tools = build_custom_tools(self.credential_manager)
-        self.custom_tools = {**auto_custom_tools, **(custom_tools or {})}
+        # Store user custom tools, will build auto tools (credentials + open_app)
+        self.user_custom_tools = custom_tools or {}
+        self.custom_tools = {}
 
         logger.info("🤖 Initializing DroidAgent...")
         logger.info(f"💾 Trajectory saving: {self.config.logging.save_trajectory}")
@@ -435,6 +435,9 @@ class DroidAgent(Workflow):
         ctx.write_event_to_stream(ev)
 
         await self.trajectory_writer.start()
+
+        auto_custom_tools = await build_custom_tools(self.credential_manager)
+        self.custom_tools = {**auto_custom_tools, **self.user_custom_tools}
 
         if self.tools_instance is None:
             tools_instance, tools_config_resolved = await resolve_tools_instance(

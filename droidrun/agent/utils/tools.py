@@ -443,7 +443,7 @@ async def type_secret(
 
     try:
         # Get secret value from credential manager
-        secret_value = tools.credential_manager.resolve_key(secret_id)
+        secret_value = await tools.credential_manager.resolve_key(secret_id)
 
         # Type using existing input_text method
         await tools.input_text(secret_value, index)
@@ -455,14 +455,14 @@ async def type_secret(
         # Log error without exposing secret
         logger.error(f"Failed to type secret '{secret_id}': {e}")
         available = (
-            tools.credential_manager.list_available_secrets()
+            await tools.credential_manager.get_keys()
             if tools.credential_manager
             else []
         )
         return f"Error: Secret '{secret_id}' not found. Available: {available}"
 
 
-def build_credential_tools(credential_manager) -> dict:
+async def build_credential_tools(credential_manager) -> dict:
     """
     Build credential-related custom tools if credential manager is available.
 
@@ -480,7 +480,7 @@ def build_credential_tools(credential_manager) -> dict:
         return {}
 
     # Check if there are any enabled secrets
-    available_secrets = credential_manager.list_available_secrets()
+    available_secrets = await credential_manager.get_keys()
     if not available_secrets:
         logger.debug("No enabled secrets found, credential tools disabled")
         return {}
@@ -496,7 +496,7 @@ def build_credential_tools(credential_manager) -> dict:
     }
 
 
-def build_custom_tools(credential_manager=None) -> dict:
+async def build_custom_tools(credential_manager=None) -> dict:
     """
     Build all custom tools (credentials + utility tools).
 
@@ -517,7 +517,7 @@ def build_custom_tools(credential_manager=None) -> dict:
     custom_tools = {}
 
     # 1. Add credential tools (if available)
-    credential_tools = build_credential_tools(credential_manager)
+    credential_tools = await build_credential_tools(credential_manager)
     custom_tools.update(credential_tools)
 
     # 2. Add open_app as custom tool (always available)
