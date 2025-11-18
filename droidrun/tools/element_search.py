@@ -13,6 +13,7 @@ ElementFilter = Callable[[List[Dict[str, Any]]], List[Dict[str, Any]]]
 
 # ========== HELPER FUNCTIONS ==========
 
+
 def flatten_tree(root: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Recursively flatten tree to list of all nodes."""
     results = [root]
@@ -37,6 +38,7 @@ def get_element_center(node: Dict[str, Any]) -> Tuple[int, int]:
 
 def sort_by_position(nodes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Sort elements top-to-bottom, left-to-right."""
+
     def get_sort_key(node: Dict) -> Tuple[int, int]:
         bounds = node.get("boundsInScreen", {})
         top = bounds.get("top", 0)
@@ -47,6 +49,7 @@ def sort_by_position(nodes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 # ========== FILTERS CLASS ==========
+
 
 class Filters:
     """Composable filters for element search."""
@@ -93,7 +96,7 @@ class Filters:
                         break
 
                     # Newline-normalized match
-                    normalized = field_value.replace('\n', ' ')
+                    normalized = field_value.replace("\n", " ")
                     if pattern_str == normalized or regex.search(normalized):
                         results.append(node)
                         break
@@ -125,7 +128,9 @@ class Filters:
                 if not resource_id:
                     continue
 
-                short_id = resource_id.split("/")[-1] if "/" in resource_id else resource_id
+                short_id = (
+                    resource_id.split("/")[-1] if "/" in resource_id else resource_id
+                )
 
                 # Check full ID
                 if pattern_str == resource_id or regex.search(resource_id):
@@ -145,6 +150,7 @@ class Filters:
     @staticmethod
     def below(anchor_filter: ElementFilter) -> ElementFilter:
         """Find elements positioned below the anchor element."""
+
         def filter_fn(nodes: List[Dict]) -> List[Dict]:
             anchor_results = anchor_filter(nodes)
 
@@ -170,8 +176,10 @@ class Filters:
 
                 if node_top > anchor_bottom:
                     node_center_x, node_center_y = get_element_center(node)
-                    distance = ((node_center_x - anchor_center_x) ** 2 +
-                               (node_center_y - anchor_center_y) ** 2) ** 0.5
+                    distance = (
+                        (node_center_x - anchor_center_x) ** 2
+                        + (node_center_y - anchor_center_y) ** 2
+                    ) ** 0.5
                     candidates.append((distance, node))
 
             candidates.sort(key=lambda x: x[0])
@@ -182,6 +190,7 @@ class Filters:
     @staticmethod
     def above(anchor_filter: ElementFilter) -> ElementFilter:
         """Find elements positioned above the anchor element."""
+
         def filter_fn(nodes: List[Dict]) -> List[Dict]:
             anchor_results = anchor_filter(nodes)
 
@@ -207,8 +216,10 @@ class Filters:
 
                 if node_bottom < anchor_top:
                     node_center_x, node_center_y = get_element_center(node)
-                    distance = ((node_center_x - anchor_center_x) ** 2 +
-                               (node_center_y - anchor_center_y) ** 2) ** 0.5
+                    distance = (
+                        (node_center_x - anchor_center_x) ** 2
+                        + (node_center_y - anchor_center_y) ** 2
+                    ) ** 0.5
                     candidates.append((distance, node))
 
             candidates.sort(key=lambda x: x[0])
@@ -219,6 +230,7 @@ class Filters:
     @staticmethod
     def left_of(anchor_filter: ElementFilter) -> ElementFilter:
         """Find elements positioned left of the anchor element."""
+
         def filter_fn(nodes: List[Dict]) -> List[Dict]:
             anchor_results = anchor_filter(nodes)
 
@@ -244,8 +256,10 @@ class Filters:
 
                 if node_right < anchor_left:
                     node_center_x, node_center_y = get_element_center(node)
-                    distance = ((node_center_x - anchor_center_x) ** 2 +
-                               (node_center_y - anchor_center_y) ** 2) ** 0.5
+                    distance = (
+                        (node_center_x - anchor_center_x) ** 2
+                        + (node_center_y - anchor_center_y) ** 2
+                    ) ** 0.5
                     candidates.append((distance, node))
 
             candidates.sort(key=lambda x: x[0])
@@ -256,6 +270,7 @@ class Filters:
     @staticmethod
     def right_of(anchor_filter: ElementFilter) -> ElementFilter:
         """Find elements positioned right of the anchor element."""
+
         def filter_fn(nodes: List[Dict]) -> List[Dict]:
             anchor_results = anchor_filter(nodes)
 
@@ -281,8 +296,10 @@ class Filters:
 
                 if node_left > anchor_right:
                     node_center_x, node_center_y = get_element_center(node)
-                    distance = ((node_center_x - anchor_center_x) ** 2 +
-                               (node_center_y - anchor_center_y) ** 2) ** 0.5
+                    distance = (
+                        (node_center_x - anchor_center_x) ** 2
+                        + (node_center_y - anchor_center_y) ** 2
+                    ) ** 0.5
                     candidates.append((distance, node))
 
             candidates.sort(key=lambda x: x[0])
@@ -295,6 +312,7 @@ class Filters:
     @staticmethod
     def clickable() -> ElementFilter:
         """Match clickable elements."""
+
         def filter_fn(nodes: List[Dict]) -> List[Dict]:
             all_nodes = []
             for node in nodes:
@@ -307,6 +325,7 @@ class Filters:
     @staticmethod
     def non_clickable() -> ElementFilter:
         """Match non-clickable elements."""
+
         def filter_fn(nodes: List[Dict]) -> List[Dict]:
             all_nodes = []
             for node in nodes:
@@ -319,56 +338,71 @@ class Filters:
     @staticmethod
     def enabled(expected: bool = True) -> ElementFilter:
         """Match elements by enabled state."""
+
         def filter_fn(nodes: List[Dict]) -> List[Dict]:
             all_nodes = []
             for node in nodes:
                 all_nodes.extend(flatten_tree(node))
 
-            return [node for node in all_nodes if node.get("isEnabled", False) == expected]
+            return [
+                node for node in all_nodes if node.get("isEnabled", False) == expected
+            ]
 
         return filter_fn
 
     @staticmethod
     def selected(expected: bool = True) -> ElementFilter:
         """Match elements by selected state."""
+
         def filter_fn(nodes: List[Dict]) -> List[Dict]:
             all_nodes = []
             for node in nodes:
                 all_nodes.extend(flatten_tree(node))
 
-            return [node for node in all_nodes if node.get("isSelected", False) == expected]
+            return [
+                node for node in all_nodes if node.get("isSelected", False) == expected
+            ]
 
         return filter_fn
 
     @staticmethod
     def checked(expected: bool = True) -> ElementFilter:
         """Match elements by checked state."""
+
         def filter_fn(nodes: List[Dict]) -> List[Dict]:
             all_nodes = []
             for node in nodes:
                 all_nodes.extend(flatten_tree(node))
 
-            return [node for node in all_nodes if node.get("isChecked", False) == expected]
+            return [
+                node for node in all_nodes if node.get("isChecked", False) == expected
+            ]
 
         return filter_fn
 
     @staticmethod
     def focused(expected: bool = True) -> ElementFilter:
         """Match elements by focused state."""
+
         def filter_fn(nodes: List[Dict]) -> List[Dict]:
             all_nodes = []
             for node in nodes:
                 all_nodes.extend(flatten_tree(node))
 
-            return [node for node in all_nodes if node.get("isFocused", False) == expected]
+            return [
+                node for node in all_nodes if node.get("isFocused", False) == expected
+            ]
 
         return filter_fn
 
     # ========== SIZE MATCHING ==========
 
     @staticmethod
-    def size_matches(width: int = None, height: int = None, tolerance: int = 0) -> ElementFilter:
+    def size_matches(
+        width: int = None, height: int = None, tolerance: int = 0
+    ) -> ElementFilter:
         """Match elements by size (width and/or height with tolerance)."""
+
         def filter_fn(nodes: List[Dict]) -> List[Dict]:
             all_nodes = []
             for node in nodes:
@@ -400,6 +434,7 @@ class Filters:
     @staticmethod
     def contains_child(child_filter: ElementFilter) -> ElementFilter:
         """Match elements that contain at least one direct child matching the filter."""
+
         def filter_fn(nodes: List[Dict]) -> List[Dict]:
             all_nodes = []
             for node in nodes:
@@ -425,6 +460,7 @@ class Filters:
     @staticmethod
     def contains_descendants(filters: List[ElementFilter]) -> ElementFilter:
         """Match elements that contain ALL specified descendants at any depth."""
+
         def filter_fn(nodes: List[Dict]) -> List[Dict]:
             all_nodes = []
             for node in nodes:
@@ -454,6 +490,7 @@ class Filters:
     @staticmethod
     def child_of(parent_filter: ElementFilter) -> ElementFilter:
         """Match elements that are direct children of elements matching the parent filter."""
+
         def filter_fn(nodes: List[Dict]) -> List[Dict]:
             parents = parent_filter(nodes)
 
@@ -473,16 +510,20 @@ class Filters:
     @staticmethod
     def has_text() -> ElementFilter:
         """Match elements that have non-empty text content."""
+
         def filter_fn(nodes: List[Dict]) -> List[Dict]:
             all_nodes = []
             for node in nodes:
                 all_nodes.extend(flatten_tree(node))
 
             return [
-                node for node in all_nodes
-                if (node.get("text") or
-                    node.get("contentDescription") or
-                    node.get("hint"))
+                node
+                for node in all_nodes
+                if (
+                    node.get("text")
+                    or node.get("contentDescription")
+                    or node.get("hint")
+                )
             ]
 
         return filter_fn
@@ -490,15 +531,13 @@ class Filters:
     @staticmethod
     def clickable_first() -> ElementFilter:
         """Sort elements to put clickable ones first."""
+
         def filter_fn(nodes: List[Dict]) -> List[Dict]:
             all_nodes = []
             for node in nodes:
                 all_nodes.extend(flatten_tree(node))
 
-            return sorted(
-                all_nodes,
-                key=lambda n: not n.get("isClickable", False)
-            )
+            return sorted(all_nodes, key=lambda n: not n.get("isClickable", False))
 
         return filter_fn
 
@@ -507,6 +546,7 @@ class Filters:
     @staticmethod
     def index(idx: int) -> ElementFilter:
         """Select element at index position (supports negative indices)."""
+
         def filter_fn(nodes: List[Dict]) -> List[Dict]:
             all_nodes = []
             for node in nodes:
@@ -526,6 +566,7 @@ class Filters:
     @staticmethod
     def compose(filters: List[ElementFilter]) -> ElementFilter:
         """Apply filters sequentially (pipeline)."""
+
         def filter_fn(nodes: List[Dict]) -> List[Dict]:
             result = nodes
 
@@ -542,6 +583,7 @@ class Filters:
     @staticmethod
     def intersect(filters: List[ElementFilter]) -> ElementFilter:
         """Return elements matching ALL filters (AND logic)."""
+
         def filter_fn(nodes: List[Dict]) -> List[Dict]:
             if not filters:
                 return nodes
@@ -567,6 +609,7 @@ class Filters:
     @staticmethod
     def deepest_matching(base_filter: ElementFilter) -> ElementFilter:
         """Find the deepest (most specific) matching elements in the tree."""
+
         def find_deepest_in_node(node: Dict) -> List[Dict]:
             child_matches = []
             for child in node.get("children", []):
