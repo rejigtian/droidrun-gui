@@ -82,7 +82,7 @@ class ExecutorAgent(Workflow):
         atomic_tools = ATOMIC_ACTION_SIGNATURES
         merged_signatures = {**atomic_tools, **(custom_tools or {})}
         self.all_actions = merged_signatures  # Store merged dict for prompt
-        self.custom_tools = custom_tools or {}  # Keep for execution lookup
+        self.custom_tools = custom_tools if custom_tools is not None else {}
 
         logger.info("✅ ExecutorAgent initialized successfully.")
 

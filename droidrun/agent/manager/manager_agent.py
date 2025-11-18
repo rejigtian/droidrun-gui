@@ -78,7 +78,7 @@ class ManagerAgent(Workflow):
         self.vision = self.config.vision
         self.tools_instance = tools_instance
         self.shared_state = shared_state
-        self.custom_tools = custom_tools or {}
+        self.custom_tools = custom_tools if custom_tools is not None else {}
         self.output_model = output_model
         self.agent_config = agent_config
         self.app_card_config = self.agent_config.app_cards

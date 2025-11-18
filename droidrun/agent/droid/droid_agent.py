@@ -437,7 +437,8 @@ class DroidAgent(Workflow):
         await self.trajectory_writer.start()
 
         auto_custom_tools = await build_custom_tools(self.credential_manager)
-        self.custom_tools = {**auto_custom_tools, **self.user_custom_tools}
+        self.custom_tools.clear()
+        self.custom_tools.update({**auto_custom_tools, **self.user_custom_tools})
 
         if self.tools_instance is None:
             tools_instance, tools_config_resolved = await resolve_tools_instance(
