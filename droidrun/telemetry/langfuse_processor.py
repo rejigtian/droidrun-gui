@@ -422,7 +422,13 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
         if self._is_blocked_instrumentation_scope(span):
             return
 
+        if span.name.endswith("_done"):
+            span._attributes["langfuse.observation.level"] = "DEBUG"
+
         try:
+            if "output.value" in span._attributes and not span._attributes.get("langfuse.observation.output"):
+                span._attributes["langfuse.observation.output"] = span._attributes["output.value"]
+                del span._attributes["output.value"]
             if span.name in ("DroidAgent.run", "ManagerAgent.run", "ExecutorAgent.run"):
                 if "input.value" in span._attributes:
                     del span._attributes["input.value"]

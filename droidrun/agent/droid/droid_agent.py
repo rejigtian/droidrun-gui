@@ -330,6 +330,7 @@ class DroidAgent(Workflow):
         logger.info("✅ DroidAgent initialized successfully.")
 
     def run(self, *args, **kwargs) -> Awaitable[ResultEvent] | WorkflowHandler:
+        apply_session_context()
         handler = super().run(*args, **kwargs)  # type: ignore[assignment]
         return handler
 
@@ -428,7 +429,6 @@ class DroidAgent(Workflow):
     async def start_handler(
         self, ctx: Context, ev: StartEvent
     ) -> CodeActExecuteEvent | ManagerInputEvent:
-        apply_session_context()
         logger.info(
             f"🚀 Running DroidAgent to achieve goal: {self.shared_state.instruction}"
         )
