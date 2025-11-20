@@ -77,7 +77,8 @@
           },
           {
             "product": "Cloud API",
-            "description": "Managed Cloud API"
+            "description": "Managed Cloud API",
+            "openapi": "https://api.droidrun.ai/v1/openapi.json"
           }
         ]
       },
