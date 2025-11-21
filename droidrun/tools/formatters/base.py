@@ -9,9 +9,7 @@ class TreeFormatter(ABC):
 
     @abstractmethod
     def format(
-        self,
-        filtered_tree: Optional[Dict[str, Any]],
-        phone_state: Dict[str, Any]
+        self, filtered_tree: Optional[Dict[str, Any]], phone_state: Dict[str, Any]
     ) -> Tuple[str, str, List[Dict[str, Any]], Dict[str, Any]]:
         """Format filtered tree to standard output format.
 

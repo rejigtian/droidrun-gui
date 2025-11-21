@@ -19,9 +19,4 @@ def get_filter(name: str, **kwargs) -> TreeFilter:
     return filter_class(**kwargs)
 
 
-__all__ = [
-    "TreeFilter",
-    "ConciseFilter",
-    "DetailedFilter",
-    "get_filter"
-]
+__all__ = ["TreeFilter", "ConciseFilter", "DetailedFilter", "get_filter"]

@@ -8,9 +8,7 @@ class IndexedFormatter(TreeFormatter):
     """Format tree in the standard DroidRun format."""
 
     def format(
-        self,
-        filtered_tree: Optional[Dict[str, Any]],
-        phone_state: Dict[str, Any]
+        self, filtered_tree: Optional[Dict[str, Any]], phone_state: Dict[str, Any]
     ) -> Tuple[str, str, List[Dict[str, Any]], Dict[str, Any]]:
         """Format device state with indices and hierarchy."""
         focused_text = self._get_focused_text(phone_state)
@@ -123,16 +121,16 @@ class IndexedFormatter(TreeFormatter):
             formatted_lines.append(formatted_line)
 
             if children:
-                child_formatted = IndexedFormatter._format_ui_elements(children, level + 1)
+                child_formatted = IndexedFormatter._format_ui_elements(
+                    children, level + 1
+                )
                 if child_formatted:
                     formatted_lines.append(child_formatted)
 
         return "\n".join(formatted_lines)
 
     def _flatten_with_index(
-        self,
-        node: Dict[str, Any],
-        counter: List[int]
+        self, node: Dict[str, Any], counter: List[int]
     ) -> List[Dict[str, Any]]:
         """Recursively flatten tree with index assignment."""
         results = []
@@ -151,10 +149,12 @@ class IndexedFormatter(TreeFormatter):
         """Format single node to DroidRun format."""
         bounds = node.get("boundsInScreen", {})
 
-        text = (node.get("text") or
-                node.get("contentDescription") or
-                node.get("resourceId") or
-                node.get("className", ""))
+        text = (
+            node.get("text")
+            or node.get("contentDescription")
+            or node.get("resourceId")
+            or node.get("className", "")
+        )
 
         class_name = node.get("className", "")
         short_class = class_name.split(".")[-1] if class_name else ""
@@ -165,5 +165,5 @@ class IndexedFormatter(TreeFormatter):
             "className": short_class,
             "text": text,
             "bounds": f"{bounds.get('left', 0)},{bounds.get('top', 0)},{bounds.get('right', 0)},{bounds.get('bottom', 0)}",
-            "children": []
+            "children": [],
         }

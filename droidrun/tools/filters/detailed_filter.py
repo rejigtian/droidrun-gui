@@ -11,16 +11,14 @@ class DetailedFilter(TreeFilter):
         self,
         visibility_threshold: float = 0.1,
         filter_keyboard: bool = True,
-        clip_bounds: bool = False
+        clip_bounds: bool = False,
     ):
         self.visibility_threshold = visibility_threshold
         self.filter_keyboard = filter_keyboard
         self.clip_bounds = clip_bounds
 
     def filter(
-        self,
-        a11y_tree: Dict[str, Any],
-        device_context: Dict[str, Any]
+        self, a11y_tree: Dict[str, Any], device_context: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
         """Filter using detailed logic."""
         screen_bounds = device_context.get("screen_bounds", {})
@@ -30,7 +28,9 @@ class DetailedFilter(TreeFilter):
         filtered_tree = a11y_tree
 
         if self.clip_bounds:
-            filtered_tree = self._clip_tree_bounds(filtered_tree, screen_width, screen_height)
+            filtered_tree = self._clip_tree_bounds(
+                filtered_tree, screen_width, screen_height
+            )
 
         if self.filter_keyboard:
             filtered_tree = self._filter_keyboard_elements(filtered_tree)
@@ -38,18 +38,14 @@ class DetailedFilter(TreeFilter):
                 return None
 
         filtered_tree = self._filter_out_of_bounds(
-            filtered_tree,
-            screen_width,
-            screen_height
+            filtered_tree, screen_width, screen_height
         )
 
         return filtered_tree
 
     @staticmethod
     def _get_visible_percentage(
-        bounds: Dict[str, int],
-        screen_width: int,
-        screen_height: int
+        bounds: Dict[str, int], screen_width: int, screen_height: int
     ) -> float:
         """Calculate what percentage of element is visible on screen."""
         left = bounds.get("left", 0)
@@ -63,9 +59,9 @@ class DetailedFilter(TreeFilter):
         if width == 0 and height == 0:
             return 0.0
 
-        overflow = (left <= 0 and top <= 0
-                    and right >= screen_width
-                    and bottom >= screen_height)
+        overflow = (
+            left <= 0 and top <= 0 and right >= screen_width and bottom >= screen_height
+        )
         if overflow:
             return 1.0
 
@@ -79,32 +75,25 @@ class DetailedFilter(TreeFilter):
 
     @staticmethod
     def _clip_bounds_to_screen(
-        bounds: Dict[str, int],
-        screen_width: int,
-        screen_height: int
+        bounds: Dict[str, int], screen_width: int, screen_height: int
     ) -> Dict[str, int]:
         """Clip element bounds to screen boundaries."""
         return {
             "left": max(bounds.get("left", 0), 0),
             "top": max(bounds.get("top", 0), 0),
             "right": min(bounds.get("right", 0), screen_width),
-            "bottom": min(bounds.get("bottom", 0), screen_height)
+            "bottom": min(bounds.get("bottom", 0), screen_height),
         }
 
     @classmethod
     def _clip_tree_bounds(
-        cls,
-        node: Dict[str, Any],
-        screen_width: int,
-        screen_height: int
+        cls, node: Dict[str, Any], screen_width: int, screen_height: int
     ) -> Dict[str, Any]:
         """Recursively clip all bounds in tree to screen."""
         if "boundsInScreen" in node:
             node = {**node}
             node["boundsInScreen"] = cls._clip_bounds_to_screen(
-                node["boundsInScreen"],
-                screen_width,
-                screen_height
+                node["boundsInScreen"], screen_width, screen_height
             )
 
         if "children" in node:
@@ -122,7 +111,9 @@ class DetailedFilter(TreeFilter):
         return resource_id.startswith("com.google.android.inputmethod.latin:id/")
 
     @classmethod
-    def _filter_keyboard_elements(cls, node: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _filter_keyboard_elements(
+        cls, node: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
         """Recursively remove keyboard elements from tree."""
         filtered_children = []
         for child in node.get("children", []):
@@ -136,10 +127,7 @@ class DetailedFilter(TreeFilter):
         return {**node, "children": filtered_children}
 
     def _filter_out_of_bounds(
-        self,
-        node: Dict[str, Any],
-        screen_width: int,
-        screen_height: int
+        self, node: Dict[str, Any], screen_width: int, screen_height: int
     ) -> Optional[Dict[str, Any]]:
         """Filter tree by visibility with parent preservation."""
         if node.get("ignoreBoundsFiltering") == "true":
@@ -148,9 +136,7 @@ class DetailedFilter(TreeFilter):
         filtered_children = []
         for child in node.get("children", []):
             filtered_child = self._filter_out_of_bounds(
-                child,
-                screen_width,
-                screen_height
+                child, screen_width, screen_height
             )
             if filtered_child is not None:
                 filtered_children.append(filtered_child)
@@ -159,7 +145,9 @@ class DetailedFilter(TreeFilter):
         if bounds is None:
             visible_percentage = 0.0
         else:
-            visible_percentage = self._get_visible_percentage(bounds, screen_width, screen_height)
+            visible_percentage = self._get_visible_percentage(
+                bounds, screen_width, screen_height
+            )
 
         if visible_percentage < self.visibility_threshold and not filtered_children:
             return None

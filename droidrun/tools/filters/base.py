@@ -9,9 +9,7 @@ class TreeFilter(ABC):
 
     @abstractmethod
     def filter(
-        self,
-        a11y_tree: Dict[str, Any],
-        device_context: Dict[str, Any]
+        self, a11y_tree: Dict[str, Any], device_context: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
         """Filter tree and return filtered tree with hierarchy preserved."""
         pass

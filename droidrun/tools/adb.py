@@ -84,7 +84,9 @@ class AdbTools(Tools):
             self.tree_filter = tree_filter
         else:
             self.tree_filter = ConciseFilter() if vision_enabled else DetailedFilter()
-            logger.debug(f"Selected {self.tree_filter.__class__.__name__} (vision_enabled={vision_enabled})")
+            logger.debug(
+                f"Selected {self.tree_filter.__class__.__name__} (vision_enabled={vision_enabled})"
+            )
 
         self.tree_formatter = tree_formatter or IndexedFormatter()
 
@@ -739,23 +741,27 @@ class AdbTools(Tools):
                 combined_data = await self.portal.get_state()
 
                 if "error" in combined_data:
-                    raise Exception(f"Portal returned error: {combined_data.get('message', 'Unknown error')}")
+                    raise Exception(
+                        f"Portal returned error: {combined_data.get('message', 'Unknown error')}"
+                    )
 
                 required_keys = ["a11y_tree", "phone_state", "device_context"]
-                missing_keys = [key for key in required_keys if key not in combined_data]
+                missing_keys = [
+                    key for key in required_keys if key not in combined_data
+                ]
                 if missing_keys:
                     raise Exception(f"Missing data in state: {', '.join(missing_keys)}")
 
                 self.raw_tree_cache = combined_data["a11y_tree"]
 
                 self.filtered_tree_cache = self.tree_filter.filter(
-                    self.raw_tree_cache,
-                    combined_data["device_context"]
+                    self.raw_tree_cache, combined_data["device_context"]
                 )
 
-                formatted_text, focused_text, a11y_tree, phone_state = self.tree_formatter.format(
-                    self.filtered_tree_cache,
-                    combined_data["phone_state"]
+                formatted_text, focused_text, a11y_tree, phone_state = (
+                    self.tree_formatter.format(
+                        self.filtered_tree_cache, combined_data["phone_state"]
+                    )
                 )
 
                 self.clickable_elements_cache = a11y_tree

@@ -4,7 +4,4 @@ from .base import TreeFormatter
 from .indexed_formatter import IndexedFormatter
 
 
-__all__ = [
-    "TreeFormatter",
-    "IndexedFormatter"
-]
+__all__ = ["TreeFormatter", "IndexedFormatter"]
