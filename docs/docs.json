@@ -78,7 +78,7 @@
           {
             "product": "Cloud API",
             "description": "Managed Cloud API",
-            "openapi": "https://api.droidrun.ai/v1/openapi.json"
+            "openapi": "https://app.stainless.com/api/spec/documented/droidrun-cloud/openapi.documented.yml"
           }
         ]
       },
