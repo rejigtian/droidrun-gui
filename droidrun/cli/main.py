@@ -492,7 +492,7 @@ async def run(
                 device_obj = await adb.device(device)
                 if device_obj:
                     await device_obj.shell(
-                        "ime disable com.droidrun.portal/.DroidrunKeyboardIME"
+                        "ime disable com.droidrun.portal/.input.DroidrunKeyboardIME"
                     )
         except Exception:
             click.echo("Failed to disable DroidRun keyboard")

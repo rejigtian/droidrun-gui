@@ -249,7 +249,7 @@ async def set_overlay_offset(device: AdbDevice, offset: int):
 
 
 async def toggle_overlay(device: AdbDevice, visible: bool):
-    """toggle the overlay visibility.
+    """Toggle the overlay visibility.
 
     Args:
         device: Device to toggle the overlay on
@@ -259,9 +259,9 @@ async def toggle_overlay(device: AdbDevice, visible: bool):
         Exception: If the overlay toggle fails
     """
     try:
-        await device.shell(
-            f"am broadcast -a com.droidrun.portal.TOGGLE_OVERLAY --ez overlay_visible {'true' if visible else 'false'}"
-        )
+        visible_str = "true" if visible else "false"
+        cmd = f'content insert --uri "content://com.droidrun.portal/overlay_visible" --bind visible:b:{visible_str}'
+        await device.shell(cmd)
     except Exception as e:
         raise Exception("Failed to toggle overlay") from e
 
@@ -275,14 +275,14 @@ async def setup_keyboard(device: AdbDevice):
         Exception: If the keyboard setup fails
     """
     try:
-        await device.shell("ime enable com.droidrun.portal/.DroidrunKeyboardIME")
-        await device.shell("ime set com.droidrun.portal/.DroidrunKeyboardIME")
+        await device.shell("ime enable com.droidrun.portal/.input.DroidrunKeyboardIME")
+        await device.shell("ime set com.droidrun.portal/.input.DroidrunKeyboardIME")
     except Exception as e:
         raise Exception("Error setting up keyboard") from e
 
 
 async def disable_keyboard(
-    device: AdbDevice, target_ime: str = "com.droidrun.portal/.DroidrunKeyboardIME"
+    device: AdbDevice, target_ime: str = "com.droidrun.portal/.input.DroidrunKeyboardIME"
 ):
     """
     Disable a specific IME (keyboard) and optionally switch to another.
