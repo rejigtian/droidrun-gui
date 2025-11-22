@@ -23,7 +23,7 @@ GITHUB_API_HOSTS = ["https://api.github.com", "https://ungh.cc"]
 
 PORTAL_PACKAGE_NAME = "com.droidrun.portal"
 A11Y_SERVICE_NAME = (
-    f"{PORTAL_PACKAGE_NAME}/com.droidrun.portal.DroidrunAccessibilityService"
+    f"{PORTAL_PACKAGE_NAME}/com.droidrun.portal.service.DroidrunAccessibilityService"
 )
 
 

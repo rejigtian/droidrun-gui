@@ -272,8 +272,8 @@ async def run_command(
                                 path=None, device=config.device.serial, debug=debug_mode
                             )
 
-                        else:
-                            logger.debug("Could not get portal version, skipping check")
+                    else:
+                        logger.debug("Could not get portal version, skipping check")
                 except Exception as e:
                     logger.warning(f"Version check failed: {e}")
 
