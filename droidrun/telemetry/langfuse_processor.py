@@ -159,6 +159,16 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
                 input_data["after_action_sleep"] = (
                     self.agent.config.agent.after_sleep_action
                 )
+
+            # Vision settings
+            vision_state = {
+                "manager": getattr(self.agent.config.agent.manager, "vision", False),
+                "executor": getattr(self.agent.config.agent.executor, "vision", False),
+                "codeact": getattr(self.agent.config.agent.codeact, "vision", False),
+            }
+            input_data["vision_enabled"] = any(vision_state.values())
+            input_data["vision"] = vision_state
+
             active_llms = []
             if self.agent.config.agent.reasoning:
                 # Reasoning mode uses manager, executor, scripter
@@ -179,14 +189,17 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
             for llm_attr in llm_attrs:
                 llm = getattr(self.agent, llm_attr)
                 if llm:
+                    role = llm_attr.replace("_llm", "")
                     llm_info = {
-                        "role": llm_attr.replace("_llm", ""),
+                        "role": role,
                         "provider": (
                             llm.class_name()
                             if hasattr(llm, "class_name")
                             else "unknown"
                         ),
                     }
+                    if role in vision_state:
+                        llm_info["vision"] = vision_state[role]
 
                     # Extract model name
                     if hasattr(llm, "model"):
@@ -388,6 +401,10 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
                     )
                     tags = ["reasoning"] if input_data.get("reasoning") else ["fast"]
                     span._attributes["langfuse.trace.tags"] = tags
+                    if "vision_enabled" in input_data:
+                        span._attributes["droidrun.vision.enabled"] = input_data[
+                            "vision_enabled"
+                        ]
 
             elif span.name == "ManagerAgent.run":
                 memory_size = (
@@ -440,6 +457,8 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
                 self._format_chat(span)
             elif span.name.endswith(".complete") or span.name.endswith(".acomplete"):
                 self._format_complete(span)
+            elif span.name == "droidrun.screenshot":
+                self._process_screenshot_span(span)
         except Exception as e:
             logger.error(f"Error processing span for Langfuse: {e}")
 
@@ -620,6 +639,39 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
                     )
 
         return content_blocks
+
+    def _process_screenshot_span(self, span: ReadableSpan) -> None:
+        """Convert custom screenshot spans into Langfuse image content."""
+        attrs = span._attributes or {}
+        image_b64 = attrs.get("droidrun.screenshot.image_base64")
+        mime_type = attrs.get("droidrun.screenshot.mime_type", "image/png")
+
+        if not image_b64:
+            return
+
+        trace_id = format(span.context.trace_id, "032x")
+        data = {
+            "messages": [
+                {
+                    "role": "assistant",
+                    "blocks": [
+                        {
+                            "block_type": "image",
+                            "image": image_b64,
+                            "image_mimetype": mime_type,
+                        }
+                    ],
+                }
+            ]
+        }
+
+        attrs["output.value"] = json.dumps(data)
+        self._transform_and_set_field(attrs, trace_id, "output", data)
+
+        # Clean up raw fields to avoid duplication
+        attrs.pop("droidrun.screenshot.image_base64", None)
+        attrs.pop("droidrun.screenshot.mime_type", None)
+        attrs.pop("output.value", None)
 
     # Image upload
     def _upload_image_to_storage(

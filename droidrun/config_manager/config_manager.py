@@ -151,6 +151,7 @@ class TracingConfig:
 
     enabled: bool = False
     provider: str = "phoenix"  # "phoenix" or "langfuse"
+    langfuse_screenshots: bool = False  # Upload screenshots to Langfuse (if enabled)
     langfuse_secret_key: str = ""  # Set as LANGFUSE_SECRET_KEY env var if not empty
     langfuse_public_key: str = ""  # Set as LANGFUSE_PUBLIC_KEY env var if not empty
     langfuse_host: str = ""  # Set as LANGFUSE_HOST env var if not empty

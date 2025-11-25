@@ -66,7 +66,10 @@ from droidrun.telemetry import (
     capture,
     flush,
 )
-from droidrun.agent.utils.tracing_setup import apply_session_context
+from droidrun.agent.utils.tracing_setup import (
+    apply_session_context,
+    record_langfuse_screenshot,
+)
 
 if TYPE_CHECKING:
     from droidrun.tools import Tools
@@ -945,6 +948,12 @@ class DroidAgent(Workflow):
             if isinstance(ev, ScreenshotEvent):
                 self.trajectory.screenshot_queue.append(ev.screenshot)
                 self.trajectory.screenshot_count += 1
+                if (
+                    self.config.tracing.enabled
+                    and self.config.tracing.provider.lower() == "langfuse"
+                    and getattr(self.config.tracing, "langfuse_screenshots", False)
+                ):
+                    record_langfuse_screenshot(ev.screenshot)
             elif isinstance(ev, MacroEvent):
                 self.trajectory.macro.append(ev)
             elif isinstance(ev, RecordUIStateEvent):

@@ -9,6 +9,7 @@ import logging
 import os
 from typing import Optional
 from uuid import uuid4
+import base64
 
 import llama_index.core
 
@@ -21,12 +22,14 @@ _session_id: str = _default_session_id
 _tracing_initialized: bool = False
 _tracing_provider: Optional[str] = None
 _user_id: str = "anonymous"
+_langfuse_screenshots_enabled: bool = False
 
 
 def setup_tracing(
     tracing_config: TracingConfig, agent: Optional[object] = None
 ) -> None:
     global _tracing_initialized, _tracing_provider, _session_id, _user_id
+    global _langfuse_screenshots_enabled
 
     if not tracing_config.enabled:
         return
@@ -42,6 +45,10 @@ def setup_tracing(
         _user_id = tracing_config.langfuse_user_id
     else:
         _user_id = "anonymous"
+
+    _langfuse_screenshots_enabled = getattr(
+        tracing_config, "langfuse_screenshots", False
+    )
 
     if _tracing_initialized:
         logger.info(
@@ -199,3 +206,30 @@ def apply_session_context() -> None:
     ctx = set_value(SpanAttributes.SESSION_ID, _session_id, ctx)
     ctx = set_value(SpanAttributes.USER_ID, _user_id, ctx)
     attach(ctx)
+
+
+def record_langfuse_screenshot(screenshot: bytes, mime_type: str = "image/png") -> None:
+    """
+    Emit a tracing span that carries a screenshot for Langfuse uploads.
+
+    Only active when Langfuse tracing is enabled and langfuse_screenshots is true.
+    """
+    if (
+        not _tracing_initialized
+        or _tracing_provider != "langfuse"
+        or not _langfuse_screenshots_enabled
+        or not screenshot
+    ):
+        return
+
+    try:
+        from opentelemetry import trace
+
+        tracer = trace.get_tracer("droidrun.screenshot")
+        image_b64 = base64.b64encode(screenshot).decode()
+
+        with tracer.start_as_current_span("droidrun.screenshot") as span:
+            span.set_attribute("droidrun.screenshot.image_base64", image_b64)
+            span.set_attribute("droidrun.screenshot.mime_type", mime_type)
+    except Exception as e:
+        logger.debug(f"Failed to record Langfuse screenshot span: {e}")
