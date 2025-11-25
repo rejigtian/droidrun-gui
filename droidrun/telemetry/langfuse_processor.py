@@ -31,6 +31,7 @@ from typing import List, Optional, TYPE_CHECKING
 import requests
 from opentelemetry.context import Context
 from opentelemetry.sdk.trace import ReadableSpan, Span
+from opentelemetry import trace
 
 from langfuse._client.span_processor import (
     LangfuseSpanProcessor as BaseLangfuseSpanProcessor,
@@ -44,10 +45,26 @@ if TYPE_CHECKING:
 _current_agent: ContextVar[Optional["DroidAgent"]] = ContextVar(
     "_current_agent", default=None
 )
+_root_span_context: ContextVar[Optional[Context]] = ContextVar(
+    "_root_span_context", default=None
+)
 
 
 def set_current_agent(agent: "DroidAgent") -> None:
     _current_agent.set(agent)
+
+
+def set_root_span_context(span: Span) -> None:
+    """Store the root span context so screenshots can attach even if current span is missing."""
+    try:
+        ctx = trace.set_span_in_context(span)
+        _root_span_context.set(ctx)
+    except Exception:
+        pass
+
+
+def get_root_span_context() -> Optional[Context]:
+    return _root_span_context.get()
 
 
 MAX_IMAGE_SIZE_KB = 10000
@@ -393,6 +410,7 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
                 del span._attributes["input.value"]
 
             if span.name == "DroidAgent.run":
+                set_root_span_context(span)
                 span._attributes["langfuse.release"] = "v" + __version__
                 input_data = self._extract_agent_input()
                 if input_data:

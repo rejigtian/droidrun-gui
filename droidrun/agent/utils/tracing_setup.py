@@ -23,6 +23,7 @@ _tracing_initialized: bool = False
 _tracing_provider: Optional[str] = None
 _user_id: str = "anonymous"
 _langfuse_screenshots_enabled: bool = False
+_vision_any_enabled: bool = False
 
 
 def setup_tracing(
@@ -30,6 +31,7 @@ def setup_tracing(
 ) -> None:
     global _tracing_initialized, _tracing_provider, _session_id, _user_id
     global _langfuse_screenshots_enabled
+    global _vision_any_enabled
 
     if not tracing_config.enabled:
         return
@@ -49,6 +51,16 @@ def setup_tracing(
     _langfuse_screenshots_enabled = getattr(
         tracing_config, "langfuse_screenshots", False
     )
+    # Track if any agent role has vision enabled to avoid duplicate screenshot spans when vision already embeds images.
+    if agent and hasattr(agent, "config") and hasattr(agent.config, "agent"):
+        ag = agent.config.agent
+        _vision_any_enabled = bool(
+            getattr(ag.manager, "vision", False)
+            or getattr(ag.executor, "vision", False)
+            or getattr(ag.codeact, "vision", False)
+        )
+    else:
+        _vision_any_enabled = False
 
     if _tracing_initialized:
         logger.info(
@@ -219,16 +231,27 @@ def record_langfuse_screenshot(screenshot: bytes, mime_type: str = "image/png") 
         or _tracing_provider != "langfuse"
         or not _langfuse_screenshots_enabled
         or not screenshot
+        or _vision_any_enabled  # avoid duplicate uploads when vision already embeds images in LLM spans
     ):
         return
 
     try:
         from opentelemetry import trace
+        from droidrun.telemetry.langfuse_processor import get_root_span_context
 
         tracer = trace.get_tracer("droidrun.screenshot")
         image_b64 = base64.b64encode(screenshot).decode()
 
-        with tracer.start_as_current_span("droidrun.screenshot") as span:
+        # Attach to the current trace if one exists; otherwise skip to avoid orphaned traces.
+        current_span = trace.get_current_span()
+        if current_span and current_span.get_span_context().is_valid:
+            ctx = trace.set_span_in_context(current_span)
+        else:
+            ctx = get_root_span_context()
+            if ctx is None:
+                return
+
+        with tracer.start_as_current_span("droidrun.screenshot", context=ctx) as span:
             span.set_attribute("droidrun.screenshot.image_base64", image_b64)
             span.set_attribute("droidrun.screenshot.mime_type", mime_type)
     except Exception as e:
