@@ -472,6 +472,7 @@ class ManagerAgent(Workflow):
                 if screenshot:
                     ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
                     record_langfuse_screenshot(screenshot)
+                    logger.debug("Langfuse screenshot emitted (Manager prepare_context)")
                     logger.debug("📸 Screenshot captured for Manager")
             except Exception as e:
                 logger.warning(f"Failed to capture screenshot: {e}")

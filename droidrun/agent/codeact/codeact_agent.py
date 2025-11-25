@@ -29,6 +29,7 @@ from droidrun.agent.usage import get_usage_from_response
 from droidrun.agent.utils import chat_utils
 from droidrun.agent.utils.executer import ExecuterState, SimpleCodeExecutor
 from droidrun.agent.utils.tracing_setup import record_langfuse_screenshot
+from droidrun.agent.utils.tracing_setup import record_langfuse_screenshot
 from droidrun.agent.utils.prompt_resolver import PromptResolver
 from droidrun.agent.utils.tools import (
     ATOMIC_ACTION_SIGNATURES,
@@ -301,6 +302,7 @@ Now, describe the next step you will take to address the original goal: {goal}""
                 if screenshot:
                     ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
                     record_langfuse_screenshot(screenshot)
+                    logger.debug("Langfuse screenshot emitted (CodeAct handle_llm_input)")
                     await ctx.store.set("screenshot", screenshot)
                     logger.debug("📸 Screenshot captured for CodeAct")
             except Exception as e:
