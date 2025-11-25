@@ -304,7 +304,7 @@ Now, describe the next step you will take to address the original goal: {goal}""
                     parent_span = trace.get_current_span()
                     record_langfuse_screenshot(screenshot, parent_span=parent_span)
                     await ctx.store.set("screenshot", screenshot)
-                    logger.debug("Langfuse screenshot emitted (CodeAct handle_llm_input)")
+                    logger.debug("📸 Screenshot captured for CodeAct")
             except Exception as e:
                 logger.warning(f"Failed to capture screenshot: {e}")
 
