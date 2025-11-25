@@ -258,11 +258,11 @@ def record_langfuse_screenshot(
             if current_span and current_span.get_span_context().is_valid:
                 candidate = current_span
 
-    parent_ctx = (
-        trace.set_span_in_context(candidate)
-        if candidate is not None
-        else (get_last_step_span_context() or get_root_span_context())
-    )
+        parent_ctx = (
+            trace.set_span_in_context(candidate)
+            if candidate is not None
+            else (get_last_step_span_context() or get_root_span_context())
+        )
 
         if parent_ctx is None:
             return
