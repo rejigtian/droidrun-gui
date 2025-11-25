@@ -30,6 +30,7 @@ from droidrun.agent.utils.chat_utils import (
     convert_messages_to_chatmessages,
 )
 from droidrun.agent.utils.inference import acall_with_retries
+from droidrun.agent.utils.tracing_setup import record_langfuse_screenshot
 from droidrun.agent.utils.prompt_resolver import PromptResolver
 from droidrun.agent.utils.tools import build_custom_tool_descriptions
 from droidrun.app_cards.app_card_provider import AppCardProvider
@@ -470,6 +471,7 @@ class ManagerAgent(Workflow):
 
                 if screenshot:
                     ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
+                    record_langfuse_screenshot(screenshot)
                     logger.debug("📸 Screenshot captured for Manager")
             except Exception as e:
                 logger.warning(f"Failed to capture screenshot: {e}")

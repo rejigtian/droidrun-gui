@@ -66,10 +66,7 @@ from droidrun.telemetry import (
     capture,
     flush,
 )
-from droidrun.agent.utils.tracing_setup import (
-    apply_session_context,
-    record_langfuse_screenshot,
-)
+from droidrun.agent.utils.tracing_setup import apply_session_context
 
 if TYPE_CHECKING:
     from droidrun.tools import Tools
@@ -922,11 +919,21 @@ class DroidAgent(Workflow):
                         ctx.write_event_to_stream(
                             ScreenshotEvent(screenshot=screenshot)
                         )
+                        from droidrun.agent.utils.tracing_setup import (
+                            record_langfuse_screenshot,
+                        )
+
+                        record_langfuse_screenshot(screenshot)
                         logger.debug("📸 Final screenshot captured")
                 elif screenshot_result:
                     ctx.write_event_to_stream(
                         ScreenshotEvent(screenshot=screenshot_result)
                     )
+                    from droidrun.agent.utils.tracing_setup import (
+                        record_langfuse_screenshot,
+                    )
+
+                    record_langfuse_screenshot(screenshot_result)
                     logger.debug("📸 Final screenshot captured")
             except Exception as e:
                 logger.warning(f"Failed to capture final screenshot: {e}")
@@ -948,12 +955,6 @@ class DroidAgent(Workflow):
             if isinstance(ev, ScreenshotEvent):
                 self.trajectory.screenshot_queue.append(ev.screenshot)
                 self.trajectory.screenshot_count += 1
-                if (
-                    self.config.tracing.enabled
-                    and self.config.tracing.provider.lower() == "langfuse"
-                    and getattr(self.config.tracing, "langfuse_screenshots", False)
-                ):
-                    record_langfuse_screenshot(ev.screenshot)
             elif isinstance(ev, MacroEvent):
                 self.trajectory.macro.append(ev)
             elif isinstance(ev, RecordUIStateEvent):
