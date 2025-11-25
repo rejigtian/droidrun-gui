@@ -31,6 +31,7 @@ from droidrun.agent.utils.chat_utils import (
 )
 from droidrun.agent.utils.inference import acall_with_retries
 from droidrun.agent.utils.tracing_setup import record_langfuse_screenshot
+from opentelemetry import trace
 from droidrun.agent.utils.prompt_resolver import PromptResolver
 from droidrun.agent.utils.tools import build_custom_tool_descriptions
 from droidrun.app_cards.app_card_provider import AppCardProvider
@@ -471,7 +472,8 @@ class ManagerAgent(Workflow):
 
                 if screenshot:
                     ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
-                    record_langfuse_screenshot(screenshot)
+                    parent_span = trace.get_current_span()
+                    record_langfuse_screenshot(screenshot, parent_span=parent_span)
                     logger.debug("Langfuse screenshot emitted (Manager prepare_context)")
                     logger.debug("📸 Screenshot captured for Manager")
             except Exception as e:

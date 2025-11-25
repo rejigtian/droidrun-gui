@@ -220,7 +220,9 @@ def apply_session_context() -> None:
     attach(ctx)
 
 
-def record_langfuse_screenshot(screenshot: bytes, mime_type: str = "image/png") -> None:
+def record_langfuse_screenshot(
+    screenshot: bytes, mime_type: str = "image/png", parent_span=None
+) -> None:
     """
     Emit a tracing span that carries a screenshot for Langfuse uploads.
 
@@ -242,14 +244,20 @@ def record_langfuse_screenshot(screenshot: bytes, mime_type: str = "image/png") 
         tracer = trace.get_tracer("droidrun.screenshot")
         image_b64 = base64.b64encode(screenshot).decode()
 
-        # Attach to the current span if valid, else root span; skip if neither exists.
-        current_span = trace.get_current_span()
-        parent_ctx = None
+        # Attach to the provided span if valid; otherwise use current span; else root; skip if none.
+        candidate = (
+            parent_span if parent_span and parent_span.get_span_context().is_valid else None
+        )
+        if candidate is None:
+            current_span = trace.get_current_span()
+            if current_span and current_span.get_span_context().is_valid:
+                candidate = current_span
 
-        if current_span and current_span.get_span_context().is_valid:
-            parent_ctx = trace.set_span_in_context(current_span)
-        else:
-            parent_ctx = get_root_span_context()
+        parent_ctx = (
+            trace.set_span_in_context(candidate)
+            if candidate is not None
+            else get_root_span_context()
+        )
 
         if parent_ctx is None:
             return
