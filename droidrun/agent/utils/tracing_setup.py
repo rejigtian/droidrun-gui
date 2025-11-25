@@ -14,6 +14,11 @@ import base64
 import llama_index.core
 
 from droidrun.config_manager.config_manager import TracingConfig
+from droidrun.telemetry.langfuse_processor import (
+    set_root_span_context,
+    get_root_span_context,
+    get_last_step_span_context,
+)
 
 logger = logging.getLogger("droidrun")
 
@@ -253,11 +258,11 @@ def record_langfuse_screenshot(
             if current_span and current_span.get_span_context().is_valid:
                 candidate = current_span
 
-        parent_ctx = (
-            trace.set_span_in_context(candidate)
-            if candidate is not None
-            else get_root_span_context()
-        )
+    parent_ctx = (
+        trace.set_span_in_context(candidate)
+        if candidate is not None
+        else (get_last_step_span_context() or get_root_span_context())
+    )
 
         if parent_ctx is None:
             return

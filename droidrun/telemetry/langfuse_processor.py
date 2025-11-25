@@ -48,6 +48,10 @@ _current_agent: ContextVar[Optional["DroidAgent"]] = ContextVar(
 _root_span_context: ContextVar[Optional[Context]] = ContextVar(
     "_root_span_context", default=None
 )
+# Track last active step span (CodeAct/Manager/Executor) to parent screenshots
+_last_step_span_context: ContextVar[Optional[Context]] = ContextVar(
+    "_last_step_span_context", default=None
+)
 
 
 def set_current_agent(agent: "DroidAgent") -> None:
@@ -65,6 +69,18 @@ def set_root_span_context(span: Span) -> None:
 
 def get_root_span_context() -> Optional[Context]:
     return _root_span_context.get()
+
+
+def set_last_step_span_context(span: Span) -> None:
+    try:
+        ctx = trace.set_span_in_context(span)
+        _last_step_span_context.set(ctx)
+    except Exception:
+        pass
+
+
+def get_last_step_span_context() -> Optional[Context]:
+    return _last_step_span_context.get()
 
 
 MAX_IMAGE_SIZE_KB = 10000
@@ -424,7 +440,8 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
                             "vision_enabled"
                         ]
 
-            elif span.name == "ManagerAgent.run":
+            elif span.name in ("ManagerAgent.run", "CodeActAgent.run", "ExecutorAgent.run"):
+                set_last_step_span_context(span)
                 memory_size = (
                     len(self.agent.shared_state.memory)
                     if self.agent.shared_state.memory
