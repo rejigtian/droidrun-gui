@@ -242,17 +242,23 @@ def record_langfuse_screenshot(screenshot: bytes, mime_type: str = "image/png") 
         tracer = trace.get_tracer("droidrun.screenshot")
         image_b64 = base64.b64encode(screenshot).decode()
 
-        # Attach to the current trace if one exists; otherwise skip to avoid orphaned traces.
+        # Attach to the current span if valid, else root span; skip if neither exists.
         current_span = trace.get_current_span()
-        if current_span and current_span.get_span_context().is_valid:
-            ctx = trace.set_span_in_context(current_span)
-        else:
-            ctx = get_root_span_context()
-            if ctx is None:
-                return
+        parent_ctx = None
 
-        with tracer.start_as_current_span("droidrun.screenshot", context=ctx) as span:
+        if current_span and current_span.get_span_context().is_valid:
+            parent_ctx = trace.set_span_in_context(current_span)
+        else:
+            parent_ctx = get_root_span_context()
+
+        if parent_ctx is None:
+            return
+
+        span = tracer.start_span("droidrun.screenshot", context=parent_ctx)
+        try:
             span.set_attribute("droidrun.screenshot.image_base64", image_b64)
             span.set_attribute("droidrun.screenshot.mime_type", mime_type)
+        finally:
+            span.end()
     except Exception as e:
         logger.debug(f"Failed to record Langfuse screenshot span: {e}")
