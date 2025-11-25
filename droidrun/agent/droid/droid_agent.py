@@ -955,10 +955,6 @@ class DroidAgent(Workflow):
             if isinstance(ev, ScreenshotEvent):
                 self.trajectory.screenshot_queue.append(ev.screenshot)
                 self.trajectory.screenshot_count += 1
-                # Emit screenshot spans as soon as events arrive (vision-off trajectories)
-                from droidrun.agent.utils.tracing_setup import record_langfuse_screenshot
-
-                record_langfuse_screenshot(ev.screenshot)
             elif isinstance(ev, MacroEvent):
                 self.trajectory.macro.append(ev)
             elif isinstance(ev, RecordUIStateEvent):
