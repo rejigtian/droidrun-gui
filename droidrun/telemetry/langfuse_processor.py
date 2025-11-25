@@ -440,7 +440,11 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
                             "vision_enabled"
                         ]
 
-            elif span.name in ("ManagerAgent.run", "CodeActAgent.run", "ExecutorAgent.run"):
+            elif span.name in (
+                "ManagerAgent.run",
+                "CodeActAgent.run",
+                "ExecutorAgent.run",
+            ):
                 set_last_step_span_context(span)
                 memory_size = (
                     len(self.agent.shared_state.memory)
