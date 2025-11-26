@@ -68,7 +68,6 @@ from droidrun.telemetry import (
 )
 from droidrun.agent.utils.tracing_setup import apply_session_context, record_langfuse_screenshot
 from opentelemetry import trace
-from opentelemetry import trace
 
 if TYPE_CHECKING:
     from droidrun.tools import Tools

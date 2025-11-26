@@ -71,7 +71,7 @@ class ManagerAgent(Workflow):
         custom_tools: dict = None,
         output_model: Type[BaseModel] | None = None,
         prompt_resolver: Optional[PromptResolver] = None,
-        tracing_config: "TracingConfig | None" = None,
+        tracing_config: TracingConfig | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
