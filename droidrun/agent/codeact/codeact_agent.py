@@ -36,7 +36,7 @@ from droidrun.agent.utils.tools import (
     build_custom_tool_descriptions,
     get_atomic_tool_descriptions,
 )
-from droidrun.config_manager.config_manager import AgentConfig
+from droidrun.config_manager.config_manager import AgentConfig, TracingConfig
 from droidrun.config_manager.prompt_loader import PromptLoader
 from droidrun.tools import Tools
 
@@ -65,6 +65,7 @@ class CodeActAgent(Workflow):
         safe_execution_config=None,
         output_model: Type[BaseModel] | None = None,
         prompt_resolver: Optional[PromptResolver] = None,
+        tracing_config: TracingConfig | None = None,
         *args,
         **kwargs,
     ):
@@ -81,6 +82,7 @@ class CodeActAgent(Workflow):
         self.shared_state = shared_state
         self.output_model = output_model
         self.prompt_resolver = prompt_resolver or PromptResolver()
+        self.tracing_config = tracing_config
 
         self.chat_memory = None
         self.remembered_info = None
@@ -305,7 +307,10 @@ Now, describe the next step you will take to address the original goal: {goal}""
                     record_langfuse_screenshot(
                         screenshot,
                         parent_span=parent_span,
-                        screenshots_enabled=self.agent_config.tracing.langfuse_screenshots,
+                        screenshots_enabled=bool(
+                            self.tracing_config
+                            and self.tracing_config.langfuse_screenshots
+                        ),
                         vision_enabled=self.vision,
                     )
                     await ctx.store.set("screenshot", screenshot)

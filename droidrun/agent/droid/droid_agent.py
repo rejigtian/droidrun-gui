@@ -270,6 +270,7 @@ class DroidAgent(Workflow):
                 custom_tools=self.custom_tools,
                 output_model=self.output_model,
                 prompt_resolver=self.prompt_resolver,
+                tracing_config=self.config.tracing,
                 timeout=self.timeout,
             )
             self.executor_agent = ExecutorAgent(
@@ -365,6 +366,7 @@ class DroidAgent(Workflow):
                 output_model=self.output_model,
                 prompt_resolver=self.prompt_resolver,
                 timeout=self.timeout,
+                tracing_config=self.config.tracing,
             )
 
             handler = codeact_agent.run(

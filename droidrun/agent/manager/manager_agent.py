@@ -44,7 +44,7 @@ from droidrun.config_manager.prompt_loader import PromptLoader
 
 if TYPE_CHECKING:
     from droidrun.agent.droid import DroidAgentState
-    from droidrun.config_manager.config_manager import AgentConfig
+    from droidrun.config_manager.config_manager import AgentConfig, TracingConfig
     from droidrun.tools import Tools
 
 
@@ -71,6 +71,7 @@ class ManagerAgent(Workflow):
         custom_tools: dict = None,
         output_model: Type[BaseModel] | None = None,
         prompt_resolver: Optional[PromptResolver] = None,
+        tracing_config: "TracingConfig | None" = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -84,6 +85,7 @@ class ManagerAgent(Workflow):
         self.agent_config = agent_config
         self.app_card_config = self.agent_config.app_cards
         self.prompt_resolver = prompt_resolver or PromptResolver()
+        self.tracing_config = tracing_config
 
         # Initialize app card provider based on mode
         self.app_card_provider: AppCardProvider = self._initialize_app_card_provider()
@@ -476,7 +478,10 @@ class ManagerAgent(Workflow):
                     record_langfuse_screenshot(
                         screenshot,
                         parent_span=parent_span,
-                        screenshots_enabled=self.agent_config.tracing.langfuse_screenshots,
+                        screenshots_enabled=bool(
+                            self.tracing_config
+                            and self.tracing_config.langfuse_screenshots
+                        ),
                         vision_enabled=self.vision,
                     )
                     logger.debug("📸 Screenshot captured for Manager")
