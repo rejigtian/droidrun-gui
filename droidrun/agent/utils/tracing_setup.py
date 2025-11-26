@@ -27,16 +27,10 @@ _session_id: str = _default_session_id
 _tracing_initialized: bool = False
 _tracing_provider: Optional[str] = None
 _user_id: str = "anonymous"
-_langfuse_screenshots_enabled: bool = False
-_vision_any_enabled: bool = False
-
-
 def setup_tracing(
     tracing_config: TracingConfig, agent: Optional[object] = None
 ) -> None:
     global _tracing_initialized, _tracing_provider, _session_id, _user_id
-    global _langfuse_screenshots_enabled
-    global _vision_any_enabled
 
     if not tracing_config.enabled:
         return
@@ -52,20 +46,6 @@ def setup_tracing(
         _user_id = tracing_config.langfuse_user_id
     else:
         _user_id = "anonymous"
-
-    _langfuse_screenshots_enabled = getattr(
-        tracing_config, "langfuse_screenshots", False
-    )
-    # Track if any agent role has vision enabled to avoid duplicate screenshot spans when vision already embeds images.
-    if agent and hasattr(agent, "config") and hasattr(agent.config, "agent"):
-        ag = agent.config.agent
-        _vision_any_enabled = bool(
-            getattr(ag.manager, "vision", False)
-            or getattr(ag.executor, "vision", False)
-            or getattr(ag.codeact, "vision", False)
-        )
-    else:
-        _vision_any_enabled = False
 
     if _tracing_initialized:
         logger.info(
@@ -226,19 +206,23 @@ def apply_session_context() -> None:
 
 
 def record_langfuse_screenshot(
-    screenshot: bytes, mime_type: str = "image/png", parent_span=None
+    screenshot: bytes,
+    mime_type: str = "image/png",
+    parent_span=None,
+    screenshots_enabled: bool = False,
+    vision_enabled: bool = False,
 ) -> None:
     """
     Emit a tracing span that carries a screenshot for Langfuse uploads.
 
-    Only active when Langfuse tracing is enabled and langfuse_screenshots is true.
+    Only active when Langfuse tracing is enabled and screenshots are enabled.
     """
     if (
         not _tracing_initialized
         or _tracing_provider != "langfuse"
-        or not _langfuse_screenshots_enabled
         or not screenshot
-        or _vision_any_enabled  # avoid duplicate uploads when vision already embeds images in LLM spans
+        or not screenshots_enabled
+        or vision_enabled  # avoid duplicate uploads when vision already embeds images in LLM spans
     ):
         return
 

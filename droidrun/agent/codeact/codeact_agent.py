@@ -302,7 +302,12 @@ Now, describe the next step you will take to address the original goal: {goal}""
                 if screenshot:
                     ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
                     parent_span = trace.get_current_span()
-                    record_langfuse_screenshot(screenshot, parent_span=parent_span)
+                    record_langfuse_screenshot(
+                        screenshot,
+                        parent_span=parent_span,
+                        screenshots_enabled=self.agent_config.tracing.langfuse_screenshots,
+                        vision_enabled=self.vision,
+                    )
                     await ctx.store.set("screenshot", screenshot)
                     logger.debug("📸 Screenshot captured for CodeAct")
             except Exception as e:
