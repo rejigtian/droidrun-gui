@@ -146,6 +146,8 @@ tracing:
   enabled: false
   # Tracing provider: phoenix or langfuse
   provider: phoenix
+  # Upload screenshots to Langfuse (cloud traces)
+  langfuse_screenshots: false
   # Langfuse configuration (set as environment variables if not empty string)
   langfuse_secret_key: ""  # LANGFUSE_SECRET_KEY
   langfuse_public_key: ""  # LANGFUSE_PUBLIC_KEY

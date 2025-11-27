@@ -9,10 +9,16 @@ import logging
 import os
 from typing import Optional
 from uuid import uuid4
+import base64
 
 import llama_index.core
 
 from droidrun.config_manager.config_manager import TracingConfig
+from droidrun.telemetry.langfuse_processor import (
+    set_root_span_context,
+    get_root_span_context,
+    get_last_step_span_context,
+)
 
 logger = logging.getLogger("droidrun")
 
@@ -21,8 +27,6 @@ _session_id: str = _default_session_id
 _tracing_initialized: bool = False
 _tracing_provider: Optional[str] = None
 _user_id: str = "anonymous"
-
-
 def setup_tracing(
     tracing_config: TracingConfig, agent: Optional[object] = None
 ) -> None:
@@ -199,3 +203,59 @@ def apply_session_context() -> None:
     ctx = set_value(SpanAttributes.SESSION_ID, _session_id, ctx)
     ctx = set_value(SpanAttributes.USER_ID, _user_id, ctx)
     attach(ctx)
+
+
+def record_langfuse_screenshot(
+    screenshot: bytes,
+    mime_type: str = "image/png",
+    parent_span=None,
+    screenshots_enabled: bool = False,
+    vision_enabled: bool = False,
+) -> None:
+    """
+    Emit a tracing span that carries a screenshot for Langfuse uploads.
+
+    Only active when Langfuse tracing is enabled and screenshots are enabled.
+    """
+    if (
+        not _tracing_initialized
+        or _tracing_provider != "langfuse"
+        or not screenshot
+        or not screenshots_enabled
+        or vision_enabled  # avoid duplicate uploads when vision already embeds images in LLM spans
+    ):
+        return
+
+    try:
+        from opentelemetry import trace
+        from droidrun.telemetry.langfuse_processor import get_root_span_context
+
+        tracer = trace.get_tracer("droidrun.screenshot")
+        image_b64 = base64.b64encode(screenshot).decode()
+
+        # Attach to the provided span if valid; otherwise use current span; else root; skip if none.
+        candidate = (
+            parent_span if parent_span and parent_span.get_span_context().is_valid else None
+        )
+        if candidate is None:
+            current_span = trace.get_current_span()
+            if current_span and current_span.get_span_context().is_valid:
+                candidate = current_span
+
+        parent_ctx = (
+            trace.set_span_in_context(candidate)
+            if candidate is not None
+            else (get_last_step_span_context() or get_root_span_context())
+        )
+
+        if parent_ctx is None:
+            return
+
+        span = tracer.start_span("droidrun.screenshot", context=parent_ctx)
+        try:
+            span.set_attribute("droidrun.screenshot.image_base64", image_b64)
+            span.set_attribute("droidrun.screenshot.mime_type", mime_type)
+        finally:
+            span.end()
+    except Exception as e:
+        logger.debug(f"Failed to record Langfuse screenshot span: {e}")

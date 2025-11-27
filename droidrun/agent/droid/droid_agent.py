@@ -66,7 +66,8 @@ from droidrun.telemetry import (
     capture,
     flush,
 )
-from droidrun.agent.utils.tracing_setup import apply_session_context
+from droidrun.agent.utils.tracing_setup import apply_session_context, record_langfuse_screenshot
+from opentelemetry import trace
 
 if TYPE_CHECKING:
     from droidrun.tools import Tools
@@ -268,6 +269,7 @@ class DroidAgent(Workflow):
                 custom_tools=self.custom_tools,
                 output_model=self.output_model,
                 prompt_resolver=self.prompt_resolver,
+                tracing_config=self.config.tracing,
                 timeout=self.timeout,
             )
             self.executor_agent = ExecutorAgent(
@@ -363,6 +365,7 @@ class DroidAgent(Workflow):
                 output_model=self.output_model,
                 prompt_resolver=self.prompt_resolver,
                 timeout=self.timeout,
+                tracing_config=self.config.tracing,
             )
 
             handler = codeact_agent.run(
@@ -919,10 +922,34 @@ class DroidAgent(Workflow):
                         ctx.write_event_to_stream(
                             ScreenshotEvent(screenshot=screenshot)
                         )
+                        vision_any = (
+                            self.config.agent.manager.vision
+                            or self.config.agent.executor.vision
+                            or self.config.agent.codeact.vision
+                        )
+                        parent_span = trace.get_current_span()
+                        record_langfuse_screenshot(
+                            screenshot,
+                            parent_span=parent_span,
+                            screenshots_enabled=self.config.tracing.langfuse_screenshots,
+                            vision_enabled=vision_any,
+                        )
                         logger.debug("📸 Final screenshot captured")
                 elif screenshot_result:
                     ctx.write_event_to_stream(
                         ScreenshotEvent(screenshot=screenshot_result)
+                    )
+                    vision_any = (
+                        self.config.agent.manager.vision
+                        or self.config.agent.executor.vision
+                        or self.config.agent.codeact.vision
+                    )
+                    parent_span = trace.get_current_span()
+                    record_langfuse_screenshot(
+                        screenshot_result,
+                        parent_span=parent_span,
+                        screenshots_enabled=self.config.tracing.langfuse_screenshots,
+                        vision_enabled=vision_any,
                     )
                     logger.debug("📸 Final screenshot captured")
             except Exception as e:

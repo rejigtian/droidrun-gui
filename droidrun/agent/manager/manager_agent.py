@@ -30,6 +30,8 @@ from droidrun.agent.utils.chat_utils import (
     convert_messages_to_chatmessages,
 )
 from droidrun.agent.utils.inference import acall_with_retries
+from droidrun.agent.utils.tracing_setup import record_langfuse_screenshot
+from opentelemetry import trace
 from droidrun.agent.utils.prompt_resolver import PromptResolver
 from droidrun.agent.utils.tools import build_custom_tool_descriptions
 from droidrun.app_cards.app_card_provider import AppCardProvider
@@ -42,7 +44,7 @@ from droidrun.config_manager.prompt_loader import PromptLoader
 
 if TYPE_CHECKING:
     from droidrun.agent.droid import DroidAgentState
-    from droidrun.config_manager.config_manager import AgentConfig
+    from droidrun.config_manager.config_manager import AgentConfig, TracingConfig
     from droidrun.tools import Tools
 
 
@@ -69,6 +71,7 @@ class ManagerAgent(Workflow):
         custom_tools: dict = None,
         output_model: Type[BaseModel] | None = None,
         prompt_resolver: Optional[PromptResolver] = None,
+        tracing_config: TracingConfig | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -82,6 +85,7 @@ class ManagerAgent(Workflow):
         self.agent_config = agent_config
         self.app_card_config = self.agent_config.app_cards
         self.prompt_resolver = prompt_resolver or PromptResolver()
+        self.tracing_config = tracing_config
 
         # Initialize app card provider based on mode
         self.app_card_provider: AppCardProvider = self._initialize_app_card_provider()
@@ -470,6 +474,16 @@ class ManagerAgent(Workflow):
 
                 if screenshot:
                     ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
+                    parent_span = trace.get_current_span()
+                    record_langfuse_screenshot(
+                        screenshot,
+                        parent_span=parent_span,
+                        screenshots_enabled=bool(
+                            self.tracing_config
+                            and self.tracing_config.langfuse_screenshots
+                        ),
+                        vision_enabled=self.vision,
+                    )
                     logger.debug("📸 Screenshot captured for Manager")
             except Exception as e:
                 logger.warning(f"Failed to capture screenshot: {e}")
