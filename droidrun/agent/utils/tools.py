@@ -146,13 +146,16 @@ async def long_press(index: int, *, tools: "Tools" = None, **kwargs) -> bool:
     return await tools.swipe(x, y, x, y, 1000)
 
 
-async def type(text: str, index: int, *, tools: "Tools" = None, **kwargs) -> str:
+async def type(
+    text: str, index: int, clear: bool = False, *, tools: "Tools" = None, **kwargs
+) -> str:
     """
     Type the given text into the element with the given index.
 
     Args:
         text: The text to type
         index: The index of the element to type into
+        clear: Whether to clear existing text before typing (default: False)
         tools: The Tools instance (injected automatically)
 
     Returns:
@@ -160,7 +163,7 @@ async def type(text: str, index: int, *, tools: "Tools" = None, **kwargs) -> str
     """
     if tools is None:
         raise ValueError("tools parameter is required")
-    return await tools.input_text(text, index)
+    return await tools.input_text(text, index, clear=clear)
 
 
 async def system_button(button: str, *, tools: "Tools" = None, **kwargs) -> str:
@@ -342,8 +345,8 @@ ATOMIC_ACTION_SIGNATURES = {
         "function": long_press,
     },
     "type": {
-        "arguments": ["text", "index"],
-        "description": 'Type text into an input box or text field. Specify the element with index to focus the input field before typing. Usage Example: {"action": "type", "text": "the text you want to type", "index": element_index}',
+        "arguments": ["text", "index", "clear=False"],
+        "description": 'Type text into an input box or text field. Specify the element with index to focus the input field before typing. By default, text is APPENDED to existing content. Set clear=True to clear the field first (recommended for URL bars, search fields, or when replacing text). Usage Example: {"action": "type", "text": "example.com", "index": element_index, "clear": true}',
         "function": type,
     },
     "system_button": {
