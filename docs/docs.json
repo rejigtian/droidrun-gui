@@ -16,7 +16,8 @@
   ],
   "integrations": {
     "posthog": {
-        "apiKey": "phc_3BmiVdnS2Wvlm007eHGZLBPwRFCVVWzIZXbB0u3ZH1d"
+        "apiKey": "phc_3BmiVdnS2Wvlm007eHGZLBPwRFCVVWzIZXbB0u3ZH1d",
+        "apiHost": "https://pineapple.droidrun.ai"
     }
   },
   "navigation": {
