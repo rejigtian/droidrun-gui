@@ -42,7 +42,7 @@ from droidrun.agent.oneflows.structured_output_agent import StructuredOutputAgen
 from droidrun.agent.trajectory import TrajectoryWriter
 from droidrun.agent.utils.llm_loader import (
     load_agent_llms,
-    merge_llms_with_config, 
+    merge_llms_with_config,
     validate_llm_dict,
 )
 from droidrun.agent.utils.prompt_resolver import PromptResolver
@@ -70,7 +70,10 @@ from droidrun.telemetry import (
     capture,
     flush,
 )
-from droidrun.agent.utils.tracing_setup import apply_session_context, record_langfuse_screenshot
+from droidrun.agent.utils.tracing_setup import (
+    apply_session_context,
+    record_langfuse_screenshot,
+)
 from opentelemetry import trace
 
 if TYPE_CHECKING:
@@ -220,11 +223,11 @@ class DroidAgent(Workflow):
                 config=self.config, output_model=output_model, **kwargs
             )
         if isinstance(llms, dict):
-            # Allow users to provide a partial dict of LLMs. Merge any missing ones from configuration defaults.
+            # allow users to provide a partial dict of LLMs. Merge any missing ones from configuration defaults.
             llms = merge_llms_with_config(
                 self.config, llms, output_model=output_model, **kwargs
             )
-     
+
         elif isinstance(llms, LLM):
             pass
         else:
