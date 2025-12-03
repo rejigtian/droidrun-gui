@@ -43,17 +43,21 @@ os.environ["GRPC_ENABLE_FORK_SUPPORT"] = "false"
 
 console = Console()
 
-# Ensure config.yaml exists in package dir
-package_config_path = PathResolver.get_project_root() / "config.yaml"
-if not package_config_path.exists():
-    # Config not found, copy config_example.yaml to package dir
-    import shutil
 
-    example_path = PathResolver.get_project_root() / "config_example.yaml"
-    shutil.copy2(example_path, package_config_path)
-    console.print(f"[blue]Created config.yaml in package at: {package_config_path}[/]")
-else:
-    console.print(f"[blue]Using config from package: {package_config_path}[/]")
+def ensure_package_config(verbose: bool = True):
+    """Ensure config.yaml exists in package dir."""
+    package_config_path = PathResolver.get_project_root() / "config.yaml"
+    if not package_config_path.exists():
+        # Config not found, copy config_example.yaml to package dir
+        import shutil
+
+        example_path = PathResolver.get_project_root() / "config_example.yaml"
+        shutil.copy2(example_path, package_config_path)
+        if verbose:
+            console.print(f"[blue]Created config.yaml in package at: {package_config_path}[/]")
+    else:
+        if verbose:
+            console.print(f"[blue]Using config from package: {package_config_path}[/]")
 
 
 def configure_logging(goal: str, debug: bool, rich_text: bool = True):
@@ -127,6 +131,8 @@ async def run_command(
     Returns:
         bool: True if the task completed successfully, False otherwise.
     """
+    ensure_package_config(verbose=False)
+
     # Load config and apply CLI overrides via direct mutation
     config_path = config_path or "config.yaml"
     config = DroidrunConfig.from_yaml(config_path)
@@ -388,6 +394,7 @@ def _print_version(ctx, param, value):
 )
 def cli():
     """DroidRun - Control your Android device through LLM agents."""
+    ensure_package_config(verbose=True)
     pass
 
 
