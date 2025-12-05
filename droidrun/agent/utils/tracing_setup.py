@@ -27,6 +27,8 @@ _session_id: str = _default_session_id
 _tracing_initialized: bool = False
 _tracing_provider: Optional[str] = None
 _user_id: str = "anonymous"
+
+
 def setup_tracing(
     tracing_config: TracingConfig, agent: Optional[object] = None
 ) -> None:
@@ -235,7 +237,9 @@ def record_langfuse_screenshot(
 
         # Attach to the provided span if valid; otherwise use current span; else root; skip if none.
         candidate = (
-            parent_span if parent_span and parent_span.get_span_context().is_valid else None
+            parent_span
+            if parent_span and parent_span.get_span_context().is_valid
+            else None
         )
         if candidate is None:
             current_span = trace.get_current_span()

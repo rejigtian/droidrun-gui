@@ -282,7 +282,8 @@ async def setup_keyboard(device: AdbDevice):
 
 
 async def disable_keyboard(
-    device: AdbDevice, target_ime: str = "com.droidrun.portal/.input.DroidrunKeyboardIME"
+    device: AdbDevice,
+    target_ime: str = "com.droidrun.portal/.input.DroidrunKeyboardIME",
 ):
     """
     Disable a specific IME (keyboard) and optionally switch to another.

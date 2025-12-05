@@ -205,3 +205,56 @@ def load_agent_llms(
     logger.info(f"🧠 Loaded {len(llms)} agent-specific LLMs from profiles")
 
     return llms
+
+
+def merge_llms_with_config(
+    config: DroidrunConfig,
+    llms: dict[str, LLM],
+    output_model: Type[BaseModel] | None = None,
+    **kwargs: Any,
+) -> dict[str, LLM]:
+    """
+    Merge a user-provided partial llms dict with LLMs loaded from the
+    configuration for any missing required profiles.
+    Args:
+        config: DroidRun configuration containing LLM profiles
+        llms: Partial dictionary of LLM instances provided by user. Keys may be
+            a subset of required agent names.
+        output_model: Optional Pydantic model for structured output extraction
+        **kwargs: Additional kwargs forwarded when loading missing profiles
+    Returns:
+        A dictionary containing the union of provided LLMs and any LLMs loaded
+        from config for missing required profiles.
+    Raises:
+        ValueError: If required profiles are missing from both the provided
+            llms dict and the config profiles.
+    """
+    required = _get_required_profiles(config, output_model)
+
+    missing = [name for name in required if name not in llms]
+    if not missing:
+        return llms
+
+    logger.info(
+        f"🔁 Merging provided LLMs with config for missing profiles: {', '.join(missing)}"
+    )
+
+    # Build overrides for missing profiles (temperature and other kwargs)
+    overrides: dict[str, dict] = {}
+    temperature = kwargs.get("temperature", None)
+    if temperature is not None:
+        overrides = {name: {"temperature": temperature} for name in missing}
+
+    if kwargs:
+        for name in missing:
+            if name not in overrides:
+                overrides[name] = {}
+            overrides[name].update(kwargs)
+
+    loaded = load_llms_from_profiles(
+        config.llm_profiles, profile_names=missing, **overrides
+    )
+
+    merged = {**llms, **loaded}
+    logger.info(f"✅ Merged LLMs. Loaded: {', '.join(list(loaded.keys()))}")
+    return merged
