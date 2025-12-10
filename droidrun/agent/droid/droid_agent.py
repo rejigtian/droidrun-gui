@@ -49,6 +49,8 @@ from droidrun.agent.utils.prompt_resolver import PromptResolver
 from droidrun.agent.utils.tools import (
     ATOMIC_ACTION_SIGNATURES,
     build_custom_tools,
+    filter_atomic_actions,
+    filter_custom_tools,
     resolve_tools_instance,
 )
 from droidrun.agent.utils.tracing_setup import setup_tracing
@@ -450,9 +452,21 @@ class DroidAgent(Workflow):
 
         await self.trajectory_writer.start()
 
+        # Build and filter tools (single source of truth for tool filtering)
         auto_custom_tools = await build_custom_tools(self.credential_manager)
+        disabled_tools = (
+            self.config.tools.disabled_tools
+            if self.config.tools and self.config.tools.disabled_tools
+            else []
+        )
+
+        self.atomic_tools = filter_atomic_actions(disabled_tools)
+        filtered_custom = filter_custom_tools(
+            {**auto_custom_tools, **self.user_custom_tools},
+            disabled_tools,
+        )
         self.custom_tools.clear()
-        self.custom_tools.update({**auto_custom_tools, **self.user_custom_tools})
+        self.custom_tools.update(filtered_custom)
 
         if self.tools_instance is None:
             # Determine if vision is enabled based on the active agent role
@@ -476,9 +490,11 @@ class DroidAgent(Workflow):
             self.tools_instance.app_opener_llm = self.app_opener_llm
             self.tools_instance.text_manipulator_llm = self.text_manipulator_llm
 
-            if self.config.agent.reasoning:
-                self.manager_agent.tools_instance = self.tools_instance
-                self.executor_agent.tools_instance = self.tools_instance
+        # Update sub-agents with tools (outside the if block - works for both auto-created and pre-provided)
+        if self.config.agent.reasoning and self.executor_agent:
+            self.manager_agent.tools_instance = self.tools_instance
+            self.executor_agent.tools_instance = self.tools_instance
+            self.executor_agent.atomic_tools = self.atomic_tools
 
         self.tools_instance._set_context(ctx)
 

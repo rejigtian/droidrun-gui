@@ -66,6 +66,7 @@ class ExecutorAgent(Workflow):
         shared_state: "DroidAgentState",
         agent_config: AgentConfig,
         custom_tools: dict = None,
+        atomic_tools: dict = None,
         prompt_resolver: Optional[PromptResolver] = None,
         **kwargs,
     ):
@@ -79,6 +80,7 @@ class ExecutorAgent(Workflow):
         self.prompt_resolver = prompt_resolver or PromptResolver()
 
         self.custom_tools = custom_tools if custom_tools is not None else {}
+        self.atomic_tools = atomic_tools if atomic_tools is not None else ATOMIC_ACTION_SIGNATURES
 
         logger.info("✅ ExecutorAgent initialized successfully.")
 
@@ -124,7 +126,7 @@ class ExecutorAgent(Workflow):
         ):
             available_secrets = await self.tools_instance.credential_manager.get_keys()
 
-        # Let Jinja2 handle all formatting
+        # Let Jinja2 handle all formatting (tools already filtered by DroidAgent)
         variables = {
             "instruction": self.shared_state.instruction,
             "app_card": "",  # TODO: optionally implement app card loader
@@ -132,7 +134,7 @@ class ExecutorAgent(Workflow):
             "plan": self.shared_state.plan,
             "subgoal": subgoal,
             "progress_status": self.shared_state.progress_status,
-            "atomic_actions": {**ATOMIC_ACTION_SIGNATURES, **self.custom_tools},
+            "atomic_actions": {**self.atomic_tools, **self.custom_tools},
             "action_history": action_history,
             "available_secrets": available_secrets,
             "variables": self.shared_state.custom_variables,

@@ -1,5 +1,5 @@
 import asyncio
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, Any, Dict, List
 
 if TYPE_CHECKING:
     from droidrun.config_manager.config_manager import DeviceConfig, ToolsConfig
@@ -79,7 +79,7 @@ async def resolve_tools_instance(
         >>> tools_instance, tools_cfg = resolve_tools_instance(custom_tools, device_config)
         >>>
         >>> # Use ToolsConfig (current behavior)
-        >>> tools_cfg = ToolsConfig(allow_drag=True)
+        >>> tools_cfg = ToolsConfig(disabled_tools=["long_press"])
         >>> tools_instance, tools_cfg = resolve_tools_instance(tools_cfg, device_config)
     """
     # Import at runtime to avoid circular imports
@@ -377,11 +377,59 @@ ATOMIC_ACTION_SIGNATURES = {
 }
 
 
+# =============================================================================
+# TOOL FILTERING
+# =============================================================================
+
+
+def filter_atomic_actions(disabled_tools: List[str]) -> Dict[str, Any]:
+    """
+    Filter ATOMIC_ACTION_SIGNATURES by removing disabled tools.
+
+    Args:
+        disabled_tools: List of tool names to exclude. Empty list = all tools enabled.
+
+    Returns:
+        Filtered dict of atomic action signatures.
+    """
+    if not disabled_tools:
+        return ATOMIC_ACTION_SIGNATURES.copy()
+
+    return {
+        k: v for k, v in ATOMIC_ACTION_SIGNATURES.items()
+        if k not in disabled_tools
+    }
+
+
+def filter_custom_tools(
+    custom_tools: Dict[str, Any],
+    disabled_tools: List[str],
+) -> Dict[str, Any]:
+    """
+    Filter custom tools dict by removing disabled tools.
+
+    Args:
+        custom_tools: Dict of custom tool signatures
+        disabled_tools: List of tool names to exclude. Empty list = all tools enabled.
+
+    Returns:
+        Filtered dict of custom tool signatures.
+    """
+    if not custom_tools:
+        return {}
+
+    if not disabled_tools:
+        return custom_tools.copy()
+
+    return {
+        k: v for k, v in custom_tools.items()
+        if k not in disabled_tools
+    }
+
+
 def get_atomic_tool_descriptions() -> str:
     """
     Get formatted tool descriptions for CodeAct system prompt.
-
-    Parses ATOMIC_ACTION_SIGNATURES to create formatted descriptions.
 
     Returns:
         Formatted string of tool descriptions for LLM prompt

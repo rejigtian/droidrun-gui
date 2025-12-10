@@ -193,6 +193,7 @@ class ManagerAgent(Workflow):
             output_schema = self.output_model.model_json_schema()
 
         # Let Jinja2 handle all formatting and conditionals
+        # (custom_tools already filtered by DroidAgent)
         variables = {
             "instruction": self.shared_state.instruction,
             "device_date": await self.tools_instance.get_date(),

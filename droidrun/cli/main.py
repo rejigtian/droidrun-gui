@@ -122,7 +122,6 @@ async def run_command(
     tcp: bool | None = None,
     save_trajectory: str | None = None,
     ios: bool = False,
-    allow_drag: bool | None = None,
     temperature: float | None = None,
     **kwargs,
 ) -> bool:
@@ -197,10 +196,6 @@ async def run_command(
                 config.device.serial = device
             if tcp is not None:
                 config.device.use_tcp = tcp
-
-            # Tools overrides
-            if allow_drag is not None:
-                config.tools.allow_drag = allow_drag
 
             # Logging overrides
             if debug is not None:
@@ -713,7 +708,6 @@ async def test(
     debug: bool | None = None,
     use_tcp: bool | None = None,
     save_trajectory: str | None = None,
-    allow_drag: bool | None = None,
     temperature: float | None = None,
     ios: bool = False,
 ):
@@ -755,10 +749,6 @@ async def test(
                 config.device.serial = device
             if use_tcp is not None:
                 config.device.use_tcp = use_tcp
-
-            # Tools overrides
-            if allow_drag is not None:
-                config.tools.allow_drag = allow_drag
 
             # Logging overrides
             if debug is not None:
@@ -865,5 +855,4 @@ if __name__ == "__main__":
     api_base = None
     ios = False
     save_trajectory = "none"
-    allow_drag = False
     asyncio.run(run_command(command, device="emulator-5556", reasoning=False))

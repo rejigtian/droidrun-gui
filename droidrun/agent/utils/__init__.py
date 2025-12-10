@@ -15,6 +15,8 @@ from .prompt_resolver import PromptResolver
 from .tools import (
     ATOMIC_ACTION_SIGNATURES,
     build_custom_tool_descriptions,
+    filter_atomic_actions,
+    filter_custom_tools,
     get_atomic_tool_descriptions,
 )
 
@@ -32,6 +34,8 @@ __all__ = [
     "PromptResolver",
     "ATOMIC_ACTION_SIGNATURES",
     "build_custom_tool_descriptions",
+    "filter_atomic_actions",
+    "filter_custom_tools",
     "get_atomic_tool_descriptions",
     "Trajectory",
     "load_llms_from_profiles",

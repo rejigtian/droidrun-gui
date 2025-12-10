@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import yaml
 
@@ -176,7 +176,7 @@ class LoggingConfig:
 class ToolsConfig:
     """Tools configuration."""
 
-    allow_drag: bool = False
+    disabled_tools: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -184,7 +184,7 @@ class CredentialsConfig:
     """Credentials configuration."""
 
     enabled: bool = False
-    file_path: str = "credentials.yaml"
+    file_path: str = "config/credentials.yaml"
 
 
 @dataclass

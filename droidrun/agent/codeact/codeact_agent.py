@@ -34,7 +34,6 @@ from droidrun.agent.utils.prompt_resolver import PromptResolver
 from droidrun.agent.utils.tools import (
     ATOMIC_ACTION_SIGNATURES,
     build_custom_tool_descriptions,
-    get_atomic_tool_descriptions,
 )
 from droidrun.config_manager.config_manager import AgentConfig, TracingConfig
 from droidrun.config_manager.prompt_loader import PromptLoader
@@ -90,6 +89,7 @@ class CodeActAgent(Workflow):
         self.goal = None
         self.code_exec_counter = 0
 
+        # Use provided tools or defaults (filtering done in DroidAgent)
         if atomic_tools is None:
             atomic_tools = ATOMIC_ACTION_SIGNATURES
 
@@ -118,8 +118,8 @@ class CodeActAgent(Workflow):
         self.tool_list["remember"] = tools_instance.remember
         self.tool_list["complete"] = tools_instance.complete
 
-        # Build tool descriptions
-        self.tool_descriptions = get_atomic_tool_descriptions()
+        # Build tool descriptions from provided tools (already filtered by DroidAgent)
+        self.tool_descriptions = build_custom_tool_descriptions(atomic_tools)
         custom_descriptions = build_custom_tool_descriptions(custom_tools or {})
         if custom_descriptions:
             self.tool_descriptions += "\n" + custom_descriptions
