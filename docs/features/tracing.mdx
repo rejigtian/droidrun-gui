@@ -73,7 +73,7 @@ config = DroidrunConfig()
 config.tracing.enabled = True
 
 agent = DroidAgent(goal="Open settings", config=config)
-agent.run()
+await agent.run()
 ```
 
 **4. View traces:**
@@ -204,7 +204,7 @@ config = DroidrunConfig()
 config.logging.save_trajectory = "action"
 
 agent = DroidAgent(goal="Open settings", config=config)
-agent.run()
+await agent.run()
 ```
 
 ### Output Location

@@ -189,9 +189,19 @@ TelemetryConfig(
 from droidrun import ToolsConfig
 
 ToolsConfig(
-    allow_drag=True,  # Enable drag tool
+    allow_drag=True,          # Enable drag tool
+    disabled_tools=[],        # List of tools to disable (e.g., ["long_press", "wait"])
 )
 ```
+
+**Example - Disable specific tools:**
+```yaml
+tools:
+  disabled_tools:
+    - long_press
+    - wait
+```
+Disabled tools will not be available to agents during execution.
 
 ---
 
@@ -201,8 +211,8 @@ ToolsConfig(
 from droidrun import CredentialsConfig
 
 CredentialsConfig(
-    enabled=True,                   # Enable credential manager
-    file_path="credentials.yaml",    # Path to credentials file
+    enabled=True,                        # Enable credential manager
+    file_path="config/credentials.yaml",  # Path to credentials file
 )
 ```
 
@@ -627,12 +637,9 @@ safe_execution:
     - quit
     - input
 
-tools:
-  allow_drag: false
-
 credentials:
   enabled: false
-  file_path: credentials.yaml
+  file_path: config/credentials.yaml
 ```
 
 ---

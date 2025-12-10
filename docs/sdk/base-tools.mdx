@@ -417,11 +417,11 @@ The `tap_by_index()` method relies on cached UI elements from the last `get_stat
 
 ```python
 # Correct
-state = tools.get_state()
-tools.tap_by_index(5)
+state = await tools.get_state()
+await tools.tap_by_index(5)
 
 # Wrong - will fail with "No UI elements cached"
-tools.tap_by_index(5)
+await tools.tap_by_index(5)
 ```
 
 ### 2. Use remember() for important context
@@ -441,8 +441,8 @@ tools.remember("Login successful")
 tools.save_trajectories = "action"
 
 # Now all @ui_action decorated methods capture screenshots
-tools.swipe(100, 500, 100, 100)  # Auto-captured
-tools.input_text("test")          # Auto-captured
+await tools.swipe(100, 500, 100, 100)  # Auto-captured
+await tools.input_text("test")          # Auto-captured
 
 # Access captured data
 for screenshot in tools.screenshots:
@@ -455,7 +455,7 @@ for screenshot in tools.screenshots:
 from droidrun.tools import AdbTools, IOSTools
 
 if isinstance(tools, AdbTools):
-    tools.press_key(4)  # Android back button
+    await tools.press_key(4)  # Android back button
 elif isinstance(tools, IOSTools):
     # iOS doesn't have back button - find in UI
     state = tools.get_state()
@@ -482,14 +482,14 @@ Tools methods use consistent error handling patterns:
 
 **String returns with error messages:**
 ```python
-result = tools.tap_by_index(999)
+result = await tools.tap_by_index(999)
 if result.startswith("Error:"):
     print(f"Tap failed: {result}")
 ```
 
 **Boolean returns:**
 ```python
-success = tools.swipe(100, 500, 100, 100)
+success = await tools.swipe(100, 500, 100, 100)
 if not success:
     print("Swipe failed")
 ```
@@ -497,7 +497,7 @@ if not success:
 **Exceptions for critical errors:**
 ```python
 try:
-    format, screenshot = tools.take_screenshot()
+    format, screenshot = await tools.take_screenshot()
 except ValueError as e:
     print(f"Screenshot failed: {e}")
 ```
@@ -535,7 +535,7 @@ class LoggedAdbTools(AdbTools):
 # Usage
 tools = LoggedAdbTools(serial="emulator-5554")
 tools.save_trajectories = "action"
-tools.swipe(100, 500, 100, 100)  # Logs + captures screenshot
+await tools.swipe(100, 500, 100, 100)  # Logs + captures screenshot
 ```
 
 **Decorator order matters:** Place `@Tools.ui_action` closest to the function definition so it executes last (captures screenshot after all other decorators).
