@@ -14,11 +14,6 @@ import base64
 import llama_index.core
 
 from droidrun.config_manager.config_manager import TracingConfig
-from droidrun.telemetry.langfuse_processor import (
-    set_root_span_context,
-    get_root_span_context,
-    get_last_step_span_context,
-)
 
 logger = logging.getLogger("droidrun")
 
@@ -198,6 +193,10 @@ def _setup_langfuse_tracing(
 
 
 def apply_session_context() -> None:
+    """Apply session context for tracing. Only active when Langfuse tracing is enabled."""
+    if not _tracing_initialized or _tracing_provider != "langfuse":
+        return
+
     from opentelemetry.context import attach, get_current, set_value
     from openinference.semconv.trace import SpanAttributes
 
@@ -230,7 +229,10 @@ def record_langfuse_screenshot(
 
     try:
         from opentelemetry import trace
-        from droidrun.telemetry.langfuse_processor import get_root_span_context
+        from droidrun.telemetry.langfuse_processor import (
+            get_root_span_context,
+            get_last_step_span_context,
+        )
 
         tracer = trace.get_tracer("droidrun.screenshot")
         image_b64 = base64.b64encode(screenshot).decode()
