@@ -80,7 +80,9 @@ class ExecutorAgent(Workflow):
         self.prompt_resolver = prompt_resolver or PromptResolver()
 
         self.custom_tools = custom_tools if custom_tools is not None else {}
-        self.atomic_tools = atomic_tools if atomic_tools is not None else ATOMIC_ACTION_SIGNATURES
+        self.atomic_tools = (
+            atomic_tools if atomic_tools is not None else ATOMIC_ACTION_SIGNATURES
+        )
 
         logger.info("✅ ExecutorAgent initialized successfully.")
 

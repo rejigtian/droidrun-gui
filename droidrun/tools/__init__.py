@@ -12,5 +12,4 @@ __all__ = [
     "AdbTools",
     "IOSTools",
     "StealthAdbTools",
-
 ]

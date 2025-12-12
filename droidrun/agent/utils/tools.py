@@ -396,8 +396,7 @@ def filter_atomic_actions(disabled_tools: List[str]) -> Dict[str, Any]:
         return ATOMIC_ACTION_SIGNATURES.copy()
 
     return {
-        k: v for k, v in ATOMIC_ACTION_SIGNATURES.items()
-        if k not in disabled_tools
+        k: v for k, v in ATOMIC_ACTION_SIGNATURES.items() if k not in disabled_tools
     }
 
 
@@ -421,10 +420,7 @@ def filter_custom_tools(
     if not disabled_tools:
         return custom_tools.copy()
 
-    return {
-        k: v for k, v in custom_tools.items()
-        if k not in disabled_tools
-    }
+    return {k: v for k, v in custom_tools.items() if k not in disabled_tools}
 
 
 def get_atomic_tool_descriptions() -> str:
