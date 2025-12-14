@@ -100,6 +100,7 @@ async def run_command(
     executor_vision: bool | None = None,
     codeact_vision: bool | None = None,
     reasoning: bool | None = None,
+    stream: bool | None = None,
     tracing: bool | None = None,
     debug: bool | None = None,
     tcp: bool | None = None,
@@ -177,6 +178,8 @@ async def run_command(
                 config.agent.max_steps = steps
             if reasoning is not None:
                 config.agent.reasoning = reasoning
+            if stream is not None:
+                config.agent.streaming = stream
 
             # Device overrides
             if device is not None:
@@ -417,6 +420,9 @@ def cli():
     "--reasoning/--no-reasoning", default=None, help="Enable planning with reasoning"
 )
 @click.option(
+    "--stream/--no-stream", default=None, help="Stream LLM responses to console in real-time"
+)
+@click.option(
     "--tracing/--no-tracing", default=None, help="Enable Arize Phoenix tracing"
 )
 @click.option("--debug/--no-debug", default=None, help="Enable verbose debug logging")
@@ -445,6 +451,7 @@ async def run(
     temperature: float | None,
     vision: bool | None,
     reasoning: bool | None,
+    stream: bool | None,
     tracing: bool | None,
     debug: bool | None,
     tcp: bool | None,
@@ -465,6 +472,7 @@ async def run(
             api_base=api_base,
             vision=vision,
             reasoning=reasoning,
+            stream=stream,
             tracing=tracing,
             debug=debug,
             tcp=tcp,
