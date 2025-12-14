@@ -164,7 +164,7 @@ class CodeActAgent(Workflow):
             event_loop=None,
         )
 
-        logger.info("✅ CodeActAgent initialized successfully.")
+        logger.debug("✅ CodeActAgent initialized successfully.")
 
     @step
     async def prepare_chat(self, ctx: Context, ev: StartEvent) -> TaskInputEvent:
@@ -172,7 +172,7 @@ class CodeActAgent(Workflow):
         # macro tools context
         self.tools._set_context(ctx)
 
-        logger.info("💬 Preparing chat for task execution...")
+        logger.debug("💬 Preparing chat for task execution...")
 
         if hasattr(self.tools, "credential_manager") and self.tools.credential_manager:
             self._available_secrets = await self.tools.credential_manager.get_keys()
@@ -276,7 +276,7 @@ Now, describe the next step you will take to address the original goal: {goal}""
                 reason=f"Reached max step count of {self.max_steps} steps",
             )
 
-        logger.info(f"🧠 Step {self.shared_state.step_number + 1}: Thinking...")
+        logger.debug(f"🧠 Step {self.shared_state.step_number + 1}: Thinking...")
 
         model = self.llm.class_name()
 
@@ -393,7 +393,7 @@ Now, describe the next step you will take to address the original goal: {goal}""
             )
             await self.chat_memory.aput(self.no_thoughts_prompt)
         else:
-            logger.info(f"🤔 Reasoning: {thoughts}")
+            logger.debug(f"🤔 Reasoning: {thoughts}")
 
         if code:
             return TaskExecutionEvent(code=code)
@@ -412,20 +412,20 @@ Now, describe the next step you will take to address the original goal: {goal}""
         """Execute the code and return the result."""
         code = ev.code
         assert code, "Code cannot be empty."
-        logger.info("⚡ Executing action...")
-        logger.info(f"Code to execute:\n```python\n{code}\n```")
+        logger.debug("⚡ Executing action...")
+        logger.debug(f"Code to execute:\n```python\n{code}\n```")
 
         try:
             self.code_exec_counter += 1
             result = await self.executor.execute(
                 ExecuterState(ui_state=await ctx.store.get("ui_state", None)), code
             )
-            logger.info(f"💡 Code execution successful. Result: {result}")
+            logger.debug(f"💡 Code execution successful. Result: {result}")
             await asyncio.sleep(self.agent_config.after_sleep_action)
 
             # Check if complete() was called
             if self.tools.finished:
-                logger.info("✅ Task marked as complete via complete() function")
+                logger.debug("✅ Task marked as complete via complete() function")
 
                 # Validate completion state
                 success = (
@@ -440,8 +440,8 @@ Now, describe the next step you will take to address the original goal: {goal}""
                 # Reset finished flag for next execution
                 self.tools.finished = False
 
-                logger.info(f"  - Success: {success}")
-                logger.info(f"  - Reason: {reason}")
+                logger.debug(f"  - Success: {success}")
+                logger.debug(f"  - Reason: {reason}")
 
                 return TaskEndEvent(success=success, reason=reason)
 

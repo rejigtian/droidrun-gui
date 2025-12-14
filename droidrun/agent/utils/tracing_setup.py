@@ -45,7 +45,7 @@ def setup_tracing(
         _user_id = "anonymous"
 
     if _tracing_initialized:
-        logger.info(
+        logger.debug(
             f"🔍 Tracing already initialized with {_tracing_provider}, skipping setup"
         )
         if provider == "langfuse" and agent:
@@ -62,7 +62,7 @@ def setup_tracing(
         _setup_langfuse_tracing(tracing_config, agent)
         _tracing_initialized = True
         _tracing_provider = "langfuse"
-        logger.info(f"🔍 Langfuse tracing enabled | Session: {_session_id}")
+        logger.debug(f"🔍 Langfuse tracing enabled | Session: {_session_id}")
     else:
         logger.warning(
             f"⚠️  Unknown tracing provider: {provider}. "
@@ -78,7 +78,7 @@ def _setup_phoenix_tracing() -> None:
         handler = arize_phoenix_callback_handler()
         llama_index.core.global_handler = handler
         llama_index.core.set_global_handler
-        logger.info("🔍 Arize Phoenix tracing enabled globally")
+        logger.debug("🔍 Arize Phoenix tracing enabled globally")
     except ImportError:
         logger.warning(
             "⚠️  Arize Phoenix is not installed.\n"
@@ -135,12 +135,12 @@ def _setup_langfuse_tracing(
         if hasattr(existing_provider, "add_span_processor"):
             # Use existing provider
             tracer_provider = existing_provider
-            logger.info("🔍 Using existing TracerProvider")
+            logger.debug("🔍 Using existing TracerProvider")
         else:
             # Create new provider
             tracer_provider = TracerProvider()
             trace.set_tracer_provider(tracer_provider)
-            logger.info("🔍 Created new TracerProvider")
+            logger.debug("🔍 Created new TracerProvider")
 
         # STEP 2: Instrument LlamaIndex FIRST (before any LlamaIndex imports!)
         from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
@@ -148,9 +148,9 @@ def _setup_langfuse_tracing(
         instrumentor = LlamaIndexInstrumentor()
         if not instrumentor.is_instrumented_by_opentelemetry:
             instrumentor.instrument()
-            logger.info("🔍 Instrumented LlamaIndex")
+            logger.debug("🔍 Instrumented LlamaIndex")
         else:
-            logger.info("🔍 LlamaIndex already instrumented")
+            logger.debug("🔍 LlamaIndex already instrumented")
 
         # STEP 3: Patch the encoder (now that instrumentation is active)
         from pydantic import BaseModel as PydanticV2BaseModel

@@ -219,7 +219,7 @@ class DroidAgent(Workflow):
                     "If llms is not provided, config is required to load LLMs from profiles."
                 )
 
-            logger.info("🔄 Loading LLMs from config (llms not provided)...")
+            logger.debug("🔄 Loading LLMs from config (llms not provided)...")
 
             llms = load_agent_llms(
                 config=self.config, output_model=output_model, **kwargs
@@ -246,9 +246,9 @@ class DroidAgent(Workflow):
             self.scripter_llm = llms.get("scripter", self.codeact_llm)
             self.structured_output_llm = llms.get("structured_output", self.codeact_llm)
 
-            logger.info("📚 Using agent-specific LLMs from dictionary")
+            logger.debug("📚 Using agent-specific LLMs from dictionary")
         else:
-            logger.info("📚 Using single LLM for all agents")
+            logger.debug("📚 Using single LLM for all agents")
             self.manager_llm = llms
             self.executor_llm = llms
             self.codeact_llm = llms
@@ -269,11 +269,14 @@ class DroidAgent(Workflow):
         self.user_custom_tools = custom_tools or {}
         self.custom_tools = {}
 
-        logger.info("🤖 Initializing DroidAgent...")
-        logger.info(f"💾 Trajectory saving: {self.config.logging.save_trajectory}")
+        if self.user_custom_tools:
+            logger.debug(f"🔧 User custom tools: {list(self.user_custom_tools.keys())}")
+
+        logger.debug("🤖 Initializing DroidAgent...")
+        logger.debug(f"💾 Trajectory saving: {self.config.logging.save_trajectory}")
 
         if self.config.agent.reasoning:
-            logger.info("📝 Initializing Manager and Executor Agents...")
+            logger.debug("📝 Initializing Manager and Executor Agents...")
             self.manager_agent = ManagerAgent(
                 llm=self.manager_llm,
                 tools_instance=None,
@@ -342,7 +345,7 @@ class DroidAgent(Workflow):
             self.user_id,
         )
 
-        logger.info("✅ DroidAgent initialized successfully.")
+        logger.debug("✅ DroidAgent initialized successfully.")
 
     def run(self, *args, **kwargs) -> Awaitable[ResultEvent] | WorkflowHandler:
         apply_session_context()
@@ -363,7 +366,7 @@ class DroidAgent(Workflow):
             Tuple of (success, reason)
         """
 
-        logger.info(f"🔧 Executing task: {ev.instruction}")
+        logger.debug(f"🔧 Executing task: {ev.instruction}")
 
         try:
             codeact_agent = CodeActAgent(
@@ -502,14 +505,14 @@ class DroidAgent(Workflow):
             self.trajectory_writer.write(self.trajectory, stage="init")
 
         if not self.config.agent.reasoning:
-            logger.info(
+            logger.debug(
                 f"🔄 Direct execution mode - executing goal: {self.shared_state.instruction}"
             )
             event = CodeActExecuteEvent(instruction=self.shared_state.instruction)
             ctx.write_event_to_stream(event)
             return event
 
-        logger.info("🧠 Reasoning mode - initializing Manager/Executor workflow")
+        logger.debug("🧠 Reasoning mode - initializing Manager/Executor workflow")
         event = ManagerInputEvent()
         ctx.write_event_to_stream(event)
         return event
@@ -535,7 +538,7 @@ class DroidAgent(Workflow):
                 reason=f"Reached maximum steps ({self.config.agent.max_steps})",
             )
 
-        logger.info(
+        logger.debug(
             f"📋 Running Manager for planning... (step {self.shared_state.step_number}/{self.config.agent.max_steps})"
         )
 
@@ -577,9 +580,6 @@ class DroidAgent(Workflow):
         if ev.manager_answer.strip():
             # Use success field from manager, default to True if not set for backward compatibility
             success = ev.success if ev.success is not None else True
-            logger.info(
-                f"💬 Manager provided answer (success={success}): {ev.manager_answer}"
-            )
             self.shared_state.progress_status = f"Answer: {ev.manager_answer}"
 
             return FinalizeEvent(success=success, reason=ev.manager_answer)
@@ -593,7 +593,7 @@ class DroidAgent(Workflow):
             if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
                 # Extract content between first <script> and first </script> in plan
                 task = ev.plan[start_idx + len("<script>") : end_idx].strip()
-                logger.info(f"🐍 Routing to ScripterAgent: {task[:80]}...")
+                logger.debug(f"🐍 Routing to ScripterAgent: {task[:80]}...")
                 event = ScripterExecutorInputEvent(task=task)
                 ctx.write_event_to_stream(event)
                 return event
@@ -610,7 +610,7 @@ class DroidAgent(Workflow):
             )
 
         # Continue to Executor with current subgoal
-        logger.info(f"▶️  Proceeding to Executor with subgoal: {ev.current_subgoal}")
+        logger.debug(f"▶️  Proceeding to Executor with subgoal: {ev.current_subgoal}")
         event = ExecutorInputEvent(current_subgoal=ev.current_subgoal)
         ctx.write_event_to_stream(event)
         return event
@@ -619,7 +619,7 @@ class DroidAgent(Workflow):
     async def run_text_manipulator(
         self, ctx: Context, ev: TextManipulatorInputEvent
     ) -> TextManipulatorResultEvent:
-        logger.info(f"🔍 Running TextManipulatorAgent for task: {ev.task}")
+        logger.debug(f"🔍 Running TextManipulatorAgent for task: {ev.task}")
 
         if not self.shared_state.focused_text:
             logger.warning("⚠️ No focused text available, using empty string")
@@ -676,7 +676,7 @@ class DroidAgent(Workflow):
                     )
                     self.shared_state.action_outcomes.append(False)
                 else:
-                    logger.info(
+                    logger.debug(
                         f"✅ Text manipulator successfully typed {len(ev.text_to_type)} characters"
                     )
                     self.shared_state.last_summary = f"Text manipulation successful: typed {len(ev.text_to_type)} characters"
@@ -703,7 +703,7 @@ class DroidAgent(Workflow):
         ]
 
         self.shared_state.step_number += 1
-        logger.info(
+        logger.debug(
             f"🔄 Step {self.shared_state.step_number}/{self.config.agent.max_steps} complete, looping to Manager"
         )
 
@@ -725,7 +725,7 @@ class DroidAgent(Workflow):
 
         The Executor selects and executes a specific action for the current subgoal.
         """
-        logger.info("⚡ Running Executor for action...")
+        logger.debug("⚡ Running Executor for action...")
 
         # Run Executor workflow (Executor will update shared_state directly)
         handler = self.executor_agent.run(subgoal=ev.current_subgoal)
@@ -776,11 +776,11 @@ class DroidAgent(Workflow):
                 self.shared_state.error_flag_plan = True
             else:
                 if self.shared_state.error_flag_plan:
-                    logger.info("✅ Error resolved - resetting error flag")
+                    logger.debug("✅ Error resolved - resetting error flag")
                 self.shared_state.error_flag_plan = False
 
         self.shared_state.step_number += 1
-        logger.info(
+        logger.debug(
             f"🔄 Step {self.shared_state.step_number}/{self.config.agent.max_steps} complete, looping to Manager"
         )
 
@@ -804,7 +804,7 @@ class DroidAgent(Workflow):
         """
         Instantiate and run ScripterAgent for off-device operations.
         """
-        logger.info(f"🐍 Starting ScripterAgent for task: {ev.task[:2000]}...")
+        logger.debug(f"🐍 Starting ScripterAgent for task: {ev.task[:2000]}...")
 
         # Create fresh ScripterAgent instance for this task
         scripter_agent = ScripterAgent(
@@ -836,7 +836,7 @@ class DroidAgent(Workflow):
         self.shared_state.last_scripter_message = result["message"]
         self.shared_state.last_scripter_success = result["success"]
 
-        logger.info(f"🐍 ScripterAgent finished: {result['message'][:2000]}...")
+        logger.debug(f"🐍 ScripterAgent finished: {result['message'][:2000]}...")
 
         event = ScripterExecutorResultEvent(
             task=ev.task,
@@ -855,7 +855,7 @@ class DroidAgent(Workflow):
         Process ScripterAgent result and loop back to Manager.
         """
         if ev.success:
-            logger.info(
+            logger.debug(
                 f"✅ Script completed successfully in {ev.code_executions} steps"
             )
         else:
@@ -863,7 +863,7 @@ class DroidAgent(Workflow):
 
         # Increment DroidAgent step counter
         self.shared_state.step_number += 1
-        logger.info(
+        logger.debug(
             f"🔄 Step {self.shared_state.step_number}/{self.config.agent.max_steps} complete, looping to Manager"
         )
 
@@ -906,7 +906,7 @@ class DroidAgent(Workflow):
 
         # Extract structured output if model was provided
         if self.output_model is not None and ev.reason:
-            logger.info("🔄 Running structured output extraction...")
+            logger.debug("🔄 Running structured output extraction...")
 
             try:
                 structured_agent = StructuredOutputAgent(
@@ -926,7 +926,7 @@ class DroidAgent(Workflow):
 
                 if extraction_result["success"]:
                     result.structured_output = extraction_result["structured_output"]
-                    logger.info("✅ Structured output added to final result")
+                    logger.debug("✅ Structured output added to final result")
                 else:
                     logger.warning(
                         f"⚠️  Structured extraction failed: {extraction_result['error_message']}"

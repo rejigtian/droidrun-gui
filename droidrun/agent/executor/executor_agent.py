@@ -84,7 +84,7 @@ class ExecutorAgent(Workflow):
             atomic_tools if atomic_tools is not None else ATOMIC_ACTION_SIGNATURES
         )
 
-        logger.info("✅ ExecutorAgent initialized successfully.")
+        logger.debug("✅ ExecutorAgent initialized successfully.")
 
     @step
     async def prepare_context(
@@ -103,7 +103,7 @@ class ExecutorAgent(Workflow):
         self.tools_instance._set_context(ctx)
 
         subgoal = ev.get("subgoal", "")
-        logger.info(f"🧠 Executor thinking about action for: {subgoal}")
+        logger.debug(f"🧠 Executor thinking about action for: {subgoal}")
 
         # Prepare action history as structured data (last 5 actions)
         action_history = []
@@ -181,7 +181,7 @@ class ExecutorAgent(Workflow):
         1. Calls LLM with prepared messages
         2. Returns raw response for parsing
         """
-        logger.info("🧠 Executor getting LLM response...")
+        logger.debug("🧠 Executor getting LLM response...")
 
         # Receive messages from event (not shared_state)
         messages = ev.messages
@@ -219,7 +219,7 @@ class ExecutorAgent(Workflow):
         2. Extracts action, thought, and description
         3. Returns action event for execution
         """
-        logger.info("⚙️ Processing executor response...")
+        logger.debug("⚙️ Processing executor response...")
 
         response_text = ev.response_text
 
@@ -235,8 +235,8 @@ class ExecutorAgent(Workflow):
                 full_response=response_text,
             )
 
-        logger.info(f"💡 Thought: {parsed['thought']}")
-        logger.info(f"🎯 Action: {parsed['action']}")
+        logger.debug(f"💡 Thought: {parsed['thought']}")
+        logger.debug(f"🎯 Action: {parsed['action']}")
         logger.debug(f"  - Description: {parsed['description']}")
 
         event = ExecutorActionEvent(
@@ -260,7 +260,7 @@ class ExecutorAgent(Workflow):
 
         Maps action JSON to appropriate tool calls and handles execution.
         """
-        logger.info(f"⚡ Executing action: {ev.description}")
+        logger.debug(f"⚡ Executing action: {ev.description}")
 
         # Parse action JSON
         try:
@@ -283,7 +283,7 @@ class ExecutorAgent(Workflow):
 
         await asyncio.sleep(self.agent_config.after_sleep_action)
 
-        logger.info(f"{'✅' if outcome else '❌'} Execution complete: {summary}")
+        logger.debug(f"{'✅' if outcome else '❌'} Execution complete: {summary}")
 
         result_event = ExecutorActionResultEvent(
             action=action_dict,

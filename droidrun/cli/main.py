@@ -277,8 +277,8 @@ async def run_command(
             # STEP 3: Run agent
             # ================================================================
 
-            logger.info("▶️  Starting agent execution...")
-            logger.info("Press Ctrl+C to stop")
+            logger.debug("▶️  Starting agent execution...")
+            logger.debug("Press Ctrl+C to stop")
             log_handler.update_step("Running agent...")
 
             try:
@@ -795,8 +795,8 @@ async def test(
             # STEP 3: Run agent
             # ================================================================
 
-            logger.info("▶️  Starting agent execution...")
-            logger.info("Press Ctrl+C to stop")
+            logger.debug("▶️  Starting agent execution...")
+            logger.debug("Press Ctrl+C to stop")
             log_handler.update_step("Running agent...")
 
             try:

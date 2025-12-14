@@ -236,7 +236,7 @@ class LogHandler(logging.Handler):
         # Manager events (reasoning mode - planning)
         elif isinstance(event, ManagerContextEvent):
             self.current_step = "Manager preparing context..."
-            logger.info("🧠 Manager preparing context...")
+            logger.debug("🧠 Manager preparing context...")
 
         elif isinstance(event, ManagerResponseEvent):
             self.current_step = "Manager received response..."
@@ -251,7 +251,7 @@ class LogHandler(logging.Handler):
                     if len(event.thought) > 120
                     else event.thought
                 )
-                logger.info(f"💭 Thought: {thought_preview}")
+                logger.debug(f"💭 Thought: {thought_preview}")
 
             # Show current subgoal (what we're working on next)
             if hasattr(event, "current_subgoal") and event.current_subgoal:
@@ -260,7 +260,7 @@ class LogHandler(logging.Handler):
                     if len(event.current_subgoal) > 150
                     else event.current_subgoal
                 )
-                logger.info(f"📋 Next step: {subgoal_preview}")
+                logger.debug(f"📋 Next step: {subgoal_preview}")
 
             # Show answer if provided (task complete)
             if hasattr(event, "manager_answer") and event.manager_answer:
@@ -269,7 +269,7 @@ class LogHandler(logging.Handler):
                     if len(event.manager_answer) > 200
                     else event.manager_answer
                 )
-                logger.info(f"💬 Answer: {answer_preview}")
+                logger.debug(f"💬 Answer: {answer_preview}")
 
             # Debug: show memory updates
             if hasattr(event, "memory_update") and event.memory_update:
@@ -280,7 +280,7 @@ class LogHandler(logging.Handler):
             self.current_step = "Selecting action..."
             # Show what action was chosen
             if hasattr(event, "description") and event.description:
-                logger.info(f"🎯 Action: {event.description}")
+                logger.debug(f"🎯 Action: {event.description}")
 
             # Debug: show executor's reasoning
             if hasattr(event, "thought") and event.thought:
@@ -296,18 +296,18 @@ class LogHandler(logging.Handler):
             if hasattr(event, "outcome") and hasattr(event, "summary"):
                 if event.outcome:
                     self.current_step = "Action completed"
-                    logger.info(f"✅ {event.summary}")
+                    logger.debug(f"✅ {event.summary}")
                 else:
                     self.current_step = "Action failed"
                     error_msg = (
                         event.error if hasattr(event, "error") else "Unknown error"
                     )
-                    logger.info(f"❌ {event.summary} ({error_msg})")
+                    logger.debug(f"❌ {event.summary} ({error_msg})")
 
         # CodeAct events (direct mode)
         elif isinstance(event, TaskInputEvent):
             self.current_step = "Processing task input..."
-            logger.info("💬 Task input received...")
+            logger.debug("💬 Task input received...")
 
         elif isinstance(event, TaskThinkingEvent):
             if hasattr(event, "thoughts") and event.thoughts:
@@ -316,14 +316,14 @@ class LogHandler(logging.Handler):
                     if len(event.thoughts) > 150
                     else event.thoughts
                 )
-                logger.info(f"🧠 Thinking: {thoughts_preview}")
+                logger.debug(f"🧠 Thinking: {thoughts_preview}")
             if hasattr(event, "code") and event.code:
-                logger.info("💻 Executing action code")
+                logger.debug("💻 Executing action code")
                 logger.debug(f"{event.code}")
 
         elif isinstance(event, TaskExecutionEvent):
             self.current_step = "Executing action..."
-            logger.info("⚡ Executing action...")
+            logger.debug("⚡ Executing action...")
 
         elif isinstance(event, TaskExecutionResultEvent):
             if hasattr(event, "output") and event.output:
@@ -332,39 +332,35 @@ class LogHandler(logging.Handler):
                     output_preview = (
                         output[:100] + "..." if len(output) > 100 else output
                     )
-                    logger.info(f"❌ Action error: {output_preview}")
+                    logger.debug(f"❌ Action error: {output_preview}")
                 else:
                     output_preview = (
                         output[:100] + "..." if len(output) > 100 else output
                     )
-                    logger.info(f"⚡ Action result: {output_preview}")
+                    logger.debug(f"⚡ Action result: {output_preview}")
 
         elif isinstance(event, TaskEndEvent):
             if hasattr(event, "success") and hasattr(event, "reason"):
                 if event.success:
                     self.current_step = event.reason
-                    logger.info(f"✅ Task completed: {event.reason}")
                 else:
                     self.current_step = "Task failed"
-                    logger.info(f"❌ Task failed: {event.reason}")
 
         # Droid coordination events
         elif isinstance(event, CodeActExecuteEvent):
             self.current_step = "Executing task..."
-            logger.info("🔧 Starting task execution...")
+            logger.debug("🔧 Starting task execution...")
 
         elif isinstance(event, CodeActResultEvent):
             if hasattr(event, "success") and hasattr(event, "reason"):
                 if event.success:
                     self.current_step = event.reason
-                    logger.info(f"✅ Task completed: {event.reason}")
                 else:
                     self.current_step = "Task failed"
-                    logger.info(f"❌ Task failed: {event.reason}")
 
         elif isinstance(event, TaskRunnerEvent):
             self.current_step = "Processing tasks..."
-            logger.info("🏃 Processing task queue...")
+            logger.debug("🏃 Processing task queue...")
 
         elif isinstance(event, FinalizeEvent):
             if hasattr(event, "success") and hasattr(event, "reason"):

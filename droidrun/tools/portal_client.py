@@ -111,7 +111,7 @@ class PortalClient:
             self.tcp_base_url = f"http://localhost:{local_port}"
             if await self._test_connection():
                 self.tcp_available = True
-                logger.info(f"✓ TCP mode enabled: {self.tcp_base_url}")
+                logger.debug(f"✓ TCP mode enabled: {self.tcp_base_url}")
             else:
                 logger.warning(
                     "TCP connection test failed, falling back to content provider"

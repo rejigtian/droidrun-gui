@@ -28,9 +28,9 @@ class FileCredentialManager(CredentialManager):
         self.secrets = self._load(credentials)
 
         if self.path:
-            logger.info(f"✅ Loaded {len(self.secrets)} secrets from {self.path}")
+            logger.debug(f"✅ Loaded {len(self.secrets)} secrets from {self.path}")
         else:
-            logger.info(f"✅ Loaded {len(self.secrets)} secrets from in-memory dict")
+            logger.debug(f"✅ Loaded {len(self.secrets)} secrets from in-memory dict")
 
     def _load(self, credentials: Any) -> Dict[str, str]:
         """Load credentials from dict or file."""

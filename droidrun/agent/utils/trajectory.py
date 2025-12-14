@@ -104,20 +104,20 @@ class Trajectory:
             if os.path.exists(trajectory_json_path):
                 with open(trajectory_json_path, "r") as f:
                     result["trajectory_data"] = json.load(f)
-                logger.info(f"📖 Loaded trajectory data from {trajectory_json_path}")
+                logger.debug(f"📖 Loaded trajectory data from {trajectory_json_path}")
 
             # Load macro sequence
             macro_json_path = os.path.join(trajectory_folder, "macro.json")
             if os.path.exists(macro_json_path):
                 with open(macro_json_path, "r") as f:
                     result["macro_data"] = json.load(f)
-                logger.info(f"📖 Loaded macro data from {macro_json_path}")
+                logger.debug(f"📖 Loaded macro data from {macro_json_path}")
 
             # Check for GIF
             gif_path = os.path.join(trajectory_folder, "screenshots", "trajectory.gif")
             if os.path.exists(gif_path):
                 result["gif_path"] = gif_path
-                logger.info(f"🎬 Found screenshot GIF at {gif_path}")
+                logger.debug(f"🎬 Found screenshot GIF at {gif_path}")
 
             return result
 
@@ -144,7 +144,7 @@ class Trajectory:
             with open(macro_file_path, "r") as f:
                 macro_data = json.load(f)
 
-            logger.info(
+            logger.debug(
                 f"📖 Loaded macro sequence with {macro_data.get('total_actions', 0)} actions from {macro_file_path}"
             )
             return macro_data

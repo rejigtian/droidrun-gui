@@ -140,7 +140,7 @@ def load_agent_llms(
     """
     # Check if user wants custom LLM for all agents
     if custom_provider is not None or custom_model is not None:
-        logger.info("🔧 Using custom LLM for all agents")
+        logger.debug("🔧 Using custom LLM for all agents")
 
         # Use provided values or fall back to first profile's defaults
         if custom_provider is None:
@@ -177,11 +177,11 @@ def load_agent_llms(
         if output_model is not None:
             llms["structured_output"] = custom_llm
 
-        logger.info(f"🧠 Custom LLM ready: {custom_provider}/{custom_model}")
+        logger.debug(f"🧠 Custom LLM ready: {custom_provider}/{custom_model}")
         return llms
 
     # No custom provider/model - use profiles from config
-    logger.info("📋 Loading LLMs from config profiles...")
+    logger.debug("📋 Loading LLMs from config profiles...")
 
     # Determine which LLMs are needed and validate they exist
     profile_names = validate_llm_profiles(config, output_model)
@@ -202,7 +202,7 @@ def load_agent_llms(
     llms = load_llms_from_profiles(
         config.llm_profiles, profile_names=profile_names, **overrides
     )
-    logger.info(f"🧠 Loaded {len(llms)} agent-specific LLMs from profiles")
+    logger.debug(f"🧠 Loaded {len(llms)} agent-specific LLMs from profiles")
 
     return llms
 
@@ -235,7 +235,7 @@ def merge_llms_with_config(
     if not missing:
         return llms
 
-    logger.info(
+    logger.debug(
         f"🔁 Merging provided LLMs with config for missing profiles: {', '.join(missing)}"
     )
 
@@ -256,5 +256,5 @@ def merge_llms_with_config(
     )
 
     merged = {**llms, **loaded}
-    logger.info(f"✅ Merged LLMs. Loaded: {', '.join(list(loaded.keys()))}")
+    logger.debug(f"✅ Merged LLMs. Loaded: {', '.join(list(loaded.keys()))}")
     return merged

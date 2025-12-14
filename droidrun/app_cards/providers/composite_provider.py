@@ -76,7 +76,7 @@ class CompositeAppCardProvider(AppCardProvider):
         )
 
         if local_result:
-            logger.info(f"Composite provider: using local fallback for {package_name}")
+            logger.debug(f"Composite provider: using local fallback for {package_name}")
         else:
             logger.debug(f"Composite provider: no app card found for {package_name}")
 

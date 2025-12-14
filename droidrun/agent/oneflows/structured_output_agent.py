@@ -44,7 +44,7 @@ class StructuredOutputAgent(Workflow):
         """
         Extract structured output using structured_predict().
         """
-        logger.info("🔍 Extracting structured output from final answer...")
+        logger.debug("🔍 Extracting structured output from final answer...")
 
         try:
             # Create prompt for extraction
@@ -57,7 +57,7 @@ class StructuredOutputAgent(Workflow):
                 self.pydantic_model, prompt, text=self.answer_text
             )
 
-            logger.info("✅ Successfully extracted structured output")
+            logger.debug("✅ Successfully extracted structured output")
 
             return StopEvent(
                 result={

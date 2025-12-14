@@ -77,7 +77,7 @@ class SimpleCodeExecutor:
 
         # Setup builtins based on safe mode
         if safe_mode:
-            logger.info("🔒 Safe execution mode enabled")
+            logger.debug("🔒 Safe execution mode enabled")
             if allowed_modules is not None and not allowed_modules:
                 logger.debug("   No imports allowed (allowed_modules is empty)")
             elif allowed_modules is not None:

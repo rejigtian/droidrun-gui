@@ -54,10 +54,10 @@ def print_telemetry_message():
     Displays enabled or disabled message based on DROIDRUN_TELEMETRY_ENABLED setting.
     """
     if is_telemetry_enabled():
-        droidrun_logger.info(TELEMETRY_ENABLED_MESSAGE)
+        droidrun_logger.debug(TELEMETRY_ENABLED_MESSAGE)
 
     else:
-        droidrun_logger.info(TELEMETRY_DISABLED_MESSAGE)
+        droidrun_logger.debug(TELEMETRY_DISABLED_MESSAGE)
 
 
 # Print telemetry message on import

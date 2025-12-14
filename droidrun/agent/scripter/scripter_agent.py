@@ -113,7 +113,7 @@ class ScripterAgent(Workflow):
             event_loop=None,
         )
 
-        logger.info("✅ ScripterAgent initialized successfully.")
+        logger.debug("✅ ScripterAgent initialized successfully.")
 
     def _get_library_descriptions(self) -> str:
         """Build description of available libraries."""
@@ -131,7 +131,7 @@ class ScripterAgent(Workflow):
     @step
     async def prepare_chat(self, ctx: Context, ev: StartEvent) -> ScripterInputEvent:
         """Initialize chat history with task."""
-        logger.info("💬 Preparing script chat...")
+        logger.debug("💬 Preparing script chat...")
 
         # Load system prompt
         system_prompt_text = await PromptLoader.load_prompt(
@@ -174,7 +174,7 @@ class ScripterAgent(Workflow):
             )
 
         self.step_counter += 1
-        logger.info(f"🐍 Script Step {self.step_counter}/{self.max_steps}: Thinking...")
+        logger.debug(f"🐍 Script Step {self.step_counter}/{self.max_steps}: Thinking...")
 
         ctx.write_event_to_stream(ev)
 
@@ -224,13 +224,13 @@ class ScripterAgent(Workflow):
         if not ev.thoughts:
             logger.warning("🤔 LLM provided code without thoughts")
         else:
-            logger.info(f"🤔 Reasoning: {ev.thoughts}")
+            logger.debug(f"🤔 Reasoning: {ev.thoughts}")
 
         if ev.code:
             return ScripterExecutionEvent(code=ev.code)
         else:
             # No code provided - treat entire response as final answer
-            logger.info("📝 No code provided, treating response as final answer")
+            logger.debug("📝 No code provided, treating response as final answer")
 
             # Use thoughts if available, otherwise use full response
             response_message = (
@@ -240,7 +240,7 @@ class ScripterAgent(Workflow):
             if not response_message:
                 response_message = "No response provided by LLM"
 
-            logger.info(
+            logger.debug(
                 f"✅ Script completed with response: {response_message[:100]}..."
             )
             return ScripterEndEvent(
@@ -256,7 +256,7 @@ class ScripterAgent(Workflow):
         """Execute Python code with state preservation."""
 
         code = ev.code
-        logger.info("⚡ Executing script...")
+        logger.debug("⚡ Executing script...")
         logger.debug(f"Code:\n```python\n{code}\n```")
 
         try:
@@ -267,7 +267,7 @@ class ScripterAgent(Workflow):
                 timeout=self.config.execution_timeout,
             )
 
-            logger.info(f"💡 Execution result: {result}")
+            logger.debug(f"💡 Execution result: {result}")
 
             # Continue loop (completion detected in handle_llm_output)
             event = ScripterExecutionResultEvent(output=str(result))

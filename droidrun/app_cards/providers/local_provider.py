@@ -88,7 +88,7 @@ class LocalAppCardProvider(AppCardProvider):
 
             # Cache and return
             self._content_cache[cache_key] = content
-            logger.info(f"Loaded app card for {package_name} from {app_card_path}")
+            logger.debug(f"Loaded app card for {package_name} from {app_card_path}")
             return content
 
         except Exception as e:

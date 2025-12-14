@@ -541,7 +541,7 @@ async def build_credential_tools(credential_manager) -> dict:
         logger.debug("No enabled secrets found, credential tools disabled")
         return {}
 
-    logger.info(f"Building credential tools with {len(available_secrets)} secrets")
+    logger.debug(f"Building credential tools with {len(available_secrets)} secrets")
 
     return {
         "type_secret": {
@@ -576,6 +576,9 @@ async def build_custom_tools(credential_manager=None) -> dict:
     credential_tools = await build_credential_tools(credential_manager)
     custom_tools.update(credential_tools)
 
+    if credential_tools:
+        logger.debug(f"Built {len(credential_tools)} credential tools: {list(credential_tools.keys())}")
+
     # 2. Add open_app as custom tool (always available)
     custom_tools["open_app"] = {
         "arguments": ["text"],
@@ -586,7 +589,6 @@ async def build_custom_tools(credential_manager=None) -> dict:
     # 3. Future: Add other custom tools here
     # custom_tools["some_other_tool"] = {...}
 
-    logger.info(f"Built {len(custom_tools)} custom tools: {list(custom_tools.keys())}")
     return custom_tools
 
 

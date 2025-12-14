@@ -90,7 +90,7 @@ class ManagerAgent(Workflow):
         # Initialize app card provider based on mode
         self.app_card_provider: AppCardProvider = self._initialize_app_card_provider()
 
-        logger.info("✅ ManagerAgent initialized successfully.")
+        logger.debug("✅ ManagerAgent initialized successfully.")
 
     def _initialize_app_card_provider(self) -> AppCardProvider:
         """Initialize app card provider based on configuration mode."""
@@ -107,7 +107,7 @@ class ManagerAgent(Workflow):
         mode = self.app_card_config.mode.lower()
 
         if mode == "local":
-            logger.info(
+            logger.debug(
                 f"Initializing local app card provider (dir: {self.app_card_config.app_cards_dir})"
             )
             return LocalAppCardProvider(
@@ -123,7 +123,7 @@ class ManagerAgent(Workflow):
                     app_cards_dir=self.app_card_config.app_cards_dir
                 )
 
-            logger.info(
+            logger.debug(
                 f"Initializing server app card provider (url: {self.app_card_config.server_url})"
             )
             return ServerAppCardProvider(
@@ -141,7 +141,7 @@ class ManagerAgent(Workflow):
                     app_cards_dir=self.app_card_config.app_cards_dir
                 )
 
-            logger.info(
+            logger.debug(
                 f"Initializing composite app card provider "
                 f"(server: {self.app_card_config.server_url}, local: {self.app_card_config.app_cards_dir})"
             )
@@ -413,7 +413,7 @@ class ManagerAgent(Workflow):
         3. Builds message history entry with last action
         4. Stores context for get_response() step
         """
-        logger.info("💬 Preparing manager context...")
+        logger.debug("💬 Preparing manager context...")
 
         # ====================================================================
         # Step 1: Get and format device state using unified formatter
@@ -545,7 +545,7 @@ class ManagerAgent(Workflow):
         4. Validates and retries if needed
         5. Returns raw validated response
         """
-        logger.info("🧠 Manager thinking about the plan...")
+        logger.debug("🧠 Manager thinking about the plan...")
 
         has_text_to_modify = self.shared_state.has_text_to_modify
         screenshot = self.shared_state.screenshot
@@ -609,7 +609,7 @@ class ManagerAgent(Workflow):
         3. Logs the results
         4. Returns processed plan event
         """
-        logger.info("⚙️ Processing manager response...")
+        logger.debug("⚙️ Processing manager response...")
 
         output_planning = ev.output_planning
 
@@ -641,7 +641,7 @@ class ManagerAgent(Workflow):
         self.shared_state.finish_thought = parsed["thought"]
         self.shared_state.manager_answer = parsed["answer"]
 
-        logger.info(f"📝 Plan: {parsed['plan'][:100]}...")
+        logger.debug(f"📝 Plan: {parsed['plan'][:100]}...")
         logger.debug(f"  - Current subgoal: {parsed['current_subgoal']}")
         logger.debug(
             f"  - Manager answer: {parsed['answer'][:50] if parsed['answer'] else 'None'}"
