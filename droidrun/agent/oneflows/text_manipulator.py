@@ -131,7 +131,9 @@ async def run_text_manipulation_agent(
     for attempt in range(max_retries + 1):  # +1 for initial attempt
         # Call the LLM with current messages
         logger.info("[bright_cyan]✏️ TextManipulator response:[/bright_cyan]")
-        response_message = (await acall_with_retries(llm, messages, stream=stream)).message
+        response_message = (
+            await acall_with_retries(llm, messages, stream=stream)
+        ).message
         content = response_message.content
         messages.append(response_message)
 

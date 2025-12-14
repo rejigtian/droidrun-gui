@@ -581,7 +581,9 @@ async def build_custom_tools(credential_manager=None) -> dict:
     custom_tools.update(credential_tools)
 
     if credential_tools:
-        logger.debug(f"Built {len(credential_tools)} credential tools: {list(credential_tools.keys())}")
+        logger.debug(
+            f"Built {len(credential_tools)} credential tools: {list(credential_tools.keys())}"
+        )
 
     # 2. Add open_app as custom tool (always available)
     custom_tools["open_app"] = {

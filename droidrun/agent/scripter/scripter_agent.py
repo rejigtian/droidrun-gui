@@ -174,7 +174,9 @@ class ScripterAgent(Workflow):
             )
 
         self.step_counter += 1
-        logger.debug(f"🐍 Script Step {self.step_counter}/{self.max_steps}: Thinking...")
+        logger.debug(
+            f"🐍 Script Step {self.step_counter}/{self.max_steps}: Thinking..."
+        )
 
         ctx.write_event_to_stream(ev)
 

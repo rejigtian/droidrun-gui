@@ -832,7 +832,6 @@ class DroidAgent(Workflow):
         self.shared_state.last_scripter_message = result["message"]
         self.shared_state.last_scripter_success = result["success"]
 
-
         event = ScripterExecutorResultEvent(
             task=ev.task,
             message=result["message"],

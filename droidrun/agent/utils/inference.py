@@ -2,7 +2,11 @@ import asyncio
 import logging
 from typing import Any, Optional, Type, TypeVar
 
-from llama_index.core.base.llms.types import ChatMessage, ChatResponse, CompletionResponse
+from llama_index.core.base.llms.types import (
+    ChatMessage,
+    ChatResponse,
+    CompletionResponse,
+)
 from llama_index.core.prompts import PromptTemplate
 from pydantic import BaseModel
 
