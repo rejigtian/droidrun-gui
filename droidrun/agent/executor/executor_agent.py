@@ -187,6 +187,7 @@ class ExecutorAgent(Workflow):
         messages = ev.messages
 
         try:
+            logger.info("[green]⚡ Executor response:[/green]")
             response = await acall_with_retries(
                 self.llm, messages, stream=self.agent_config.streaming
             )

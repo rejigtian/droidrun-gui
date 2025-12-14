@@ -492,6 +492,7 @@ class DroidAgent(Workflow):
             self.tools_instance.save_trajectories = self.config.logging.save_trajectory
             self.tools_instance.app_opener_llm = self.app_opener_llm
             self.tools_instance.text_manipulator_llm = self.text_manipulator_llm
+            self.tools_instance.streaming = self.config.agent.streaming
 
         # Update sub-agents with tools (outside the if block - works for both auto-created and pre-provided)
         if self.config.agent.reasoning and self.executor_agent:
@@ -634,6 +635,7 @@ class DroidAgent(Workflow):
                 current_text=current_text,
                 overall_plan=self.shared_state.plan,
                 llm=self.text_manipulator_llm,
+                stream=self.config.agent.streaming,
             )
 
             return TextManipulatorResultEvent(
@@ -830,7 +832,6 @@ class DroidAgent(Workflow):
         self.shared_state.last_scripter_message = result["message"]
         self.shared_state.last_scripter_success = result["success"]
 
-        logger.debug(f"🐍 ScripterAgent finished: {result['message'][:2000]}...")
 
         event = ScripterExecutorResultEvent(
             task=ev.task,

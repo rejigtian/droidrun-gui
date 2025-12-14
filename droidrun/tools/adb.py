@@ -42,6 +42,7 @@ class AdbTools(Tools):
         tree_filter: TreeFilter = None,
         tree_formatter: TreeFormatter = None,
         vision_enabled: bool = True,
+        streaming: bool = False,
     ) -> None:
         """Initialize the AdbTools instance.
 
@@ -55,6 +56,7 @@ class AdbTools(Tools):
             tree_filter: Filter for accessibility tree (default: None, uses logic based on vision_enabled)
             tree_formatter: Formatter for filtered tree (default: IndexedFormatter)
             vision_enabled: Whether vision is enabled (default: True). Used to select default filter.
+            streaming: Whether to stream LLM responses to console (default: False)
         """
         self._serial = serial
         self._use_tcp = use_tcp
@@ -76,6 +78,7 @@ class AdbTools(Tools):
         # LLM instances for specialized workflows
         self.app_opener_llm = app_opener_llm
         self.text_manipulator_llm = text_manipulator_llm
+        self.streaming = streaming
 
         # Credential manager for secret handling
         self.credential_manager = credential_manager
@@ -556,7 +559,7 @@ class AdbTools(Tools):
         """
         await self._ensure_connected()
         try:
-            print(f"Starting app {package} with activity {activity}")
+            logger.debug(f"Starting app {package} with activity {activity}")
             if not activity:
                 dumpsys_output = await self.device.shell(
                     f"cmd package resolve-activity --brief {package}"
@@ -572,10 +575,10 @@ class AdbTools(Tools):
                 )
                 self._ctx.write_event_to_stream(start_app_event)
 
-            print(f"Activity: {activity}")
+            logger.debug(f"Activity: {activity}")
 
             await self.device.app_start(package, activity)
-            print(f"App started: {package} with activity {activity}")
+            logger.debug(f"App started: {package} with activity {activity}")
             return f"App started: {package} with activity {activity}"
         except Exception as e:
             return f"Error: {str(e)}"

@@ -52,7 +52,7 @@ async def acall_with_retries(
                 and getattr(response.message, "content", None)
             ):
                 if not stream:
-                    logger.info(f"LLM: {response.message.content}")
+                    logger.info(f"{response.message.content}")
                 return response
             else:
                 logger.warning(f"Attempt {attempt} returned empty content")
@@ -148,7 +148,7 @@ async def acomplete_with_retries(
             # Validate response
             if response is not None and getattr(response, "text", None):
                 if not stream:
-                    logger.info(f"LLM: {response.text}")
+                    logger.info(f"{response.text}")
                 return response
             else:
                 logger.warning(f"Attempt {attempt} returned empty content")
@@ -244,7 +244,7 @@ async def astructured_predict_with_retries(
 
             # Validate response
             if result is not None:
-                logger.info(f"LLM: {result}")
+                logger.info(f"{result}")
                 return result
             else:
                 logger.warning(f"Attempt {attempt} returned None")

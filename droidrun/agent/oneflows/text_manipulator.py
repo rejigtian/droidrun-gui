@@ -24,6 +24,7 @@ The agent returns the final text that should be entered into the text box and th
 raw code produced by the model (potentially after corrections).
 '''
 
+import logging
 import traceback
 
 from llama_index.core.llms import ChatMessage
@@ -31,6 +32,8 @@ from llama_index.core.llms.llm import LLM
 
 from droidrun.agent.utils.inference import acall_with_retries
 from llama_index_instrumentation import get_dispatcher
+
+logger = logging.getLogger("droidrun")
 
 dispatcher = get_dispatcher()
 
@@ -43,6 +46,7 @@ async def run_text_manipulation_agent(
     overall_plan,
     llm: LLM,
     max_retries: int = 4,
+    stream: bool = False,
 ) -> tuple[str, str]:
     """Convenience function to run CodeAct text manipulation with error correction.
 
@@ -53,6 +57,7 @@ async def run_text_manipulation_agent(
         overall_plan: Overall plan context
         llm: LLM instance to use for text manipulation
         max_retries: Maximum number of retry attempts if code execution fails
+        stream: If True, stream LLM response to console in real-time
 
     Returns:
         Tuple of (final_text, raw_code) - the final text to input and the generated code
@@ -125,7 +130,8 @@ async def run_text_manipulation_agent(
 
     for attempt in range(max_retries + 1):  # +1 for initial attempt
         # Call the LLM with current messages
-        response_message = (await acall_with_retries(llm, messages)).message
+        logger.info("[bright_cyan]✏️ TextManipulator response:[/bright_cyan]")
+        response_message = (await acall_with_retries(llm, messages, stream=stream)).message
         content = response_message.content
         messages.append(response_message)
 

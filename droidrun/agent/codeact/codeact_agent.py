@@ -420,7 +420,8 @@ Now, describe the next step you will take to address the original goal: {goal}""
             result = await self.executor.execute(
                 ExecuterState(ui_state=await ctx.store.get("ui_state", None)), code
             )
-            logger.debug(f"💡 Code execution successful. Result: {result}")
+            logger.info("[dim]💡 Execution result:[/dim]")
+            logger.info(f"{result}")
             await asyncio.sleep(self.agent_config.after_sleep_action)
 
             # Check if complete() was called
@@ -504,11 +505,11 @@ Now, describe the next step you will take to address the original goal: {goal}""
     async def _get_llm_response(
         self, ctx: Context, chat_history: List[ChatMessage]
     ) -> ChatResponse | None:
-        logger.debug("🔍 Getting LLM response...")
         limited_history = self._limit_history(chat_history)
         messages_to_send = [self.system_prompt] + limited_history
         messages_to_send = [chat_utils.message_copy(msg) for msg in messages_to_send]
 
+        logger.info("[yellow]🤖 CodeAct response:[/yellow]")
         response = await acall_with_retries(
             self.llm, messages_to_send, stream=self.agent_config.streaming
         )

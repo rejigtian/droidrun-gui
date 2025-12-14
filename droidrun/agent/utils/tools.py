@@ -259,7 +259,11 @@ async def open_app(text: str, *, tools: "Tools" = None, **kwargs) -> str:
 
     # Create workflow instance
     workflow = AppStarter(
-        tools=tools, llm=tools.app_opener_llm, timeout=60, verbose=True
+        tools=tools,
+        llm=tools.app_opener_llm,
+        timeout=60,
+        stream=tools.streaming,
+        verbose=False,
     )
 
     # Run workflow to open an app

@@ -570,6 +570,7 @@ class ManagerAgent(Workflow):
         chat_messages = convert_messages_to_chatmessages(messages)
 
         try:
+            logger.info("[cyan]📋 Manager response:[/cyan]")
             response = await acall_with_retries(
                 self.llm, chat_messages, stream=self.agent_config.streaming
             )

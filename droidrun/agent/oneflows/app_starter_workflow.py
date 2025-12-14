@@ -3,8 +3,11 @@ Simple workflow to open an app based on a description.
 """
 
 import json
+import logging
 
 from workflows import Context, Workflow, step
+
+logger = logging.getLogger("droidrun")
 from workflows.events import StartEvent, StopEvent
 
 from droidrun.agent.utils.inference import acomplete_with_retries
@@ -19,7 +22,7 @@ class AppStarter(Workflow):
     to an installed app's package name, then opens it.
     """
 
-    def __init__(self, tools: Tools, llm, timeout: int = 60, **kwargs):
+    def __init__(self, tools: Tools, llm, timeout: int = 60, stream: bool = False, **kwargs):
         """
         Initialize the OpenAppWorkflow.
 
@@ -27,11 +30,13 @@ class AppStarter(Workflow):
             tools: An instance of Tools (e.g., AdbTools) to interact with the device
             llm: An LLM instance (e.g., OpenAI) to determine which app to open
             timeout: Workflow timeout in seconds (default: 60)
+            stream: If True, stream LLM response to console in real-time
             **kwargs: Additional arguments passed to Workflow
         """
         super().__init__(timeout=timeout, **kwargs)
         self.tools = tools
         self.llm = llm
+        self.stream = stream
 
     @step
     async def open_app_step(self, ev: StartEvent, ctx: Context) -> StopEvent:
@@ -70,7 +75,8 @@ Return ONLY a JSON object with the following structure:
 Choose the most appropriate app based on the description. Return the package name of the best match."""
 
         # Get LLM response
-        response = await acomplete_with_retries(self.llm, prompt)
+        logger.info("[blue]📱 AppOpener response:[/blue]")
+        response = await acomplete_with_retries(self.llm, prompt, stream=self.stream)
         response_text = response.text.strip()
 
         # Parse JSON response - extract content between { and }
