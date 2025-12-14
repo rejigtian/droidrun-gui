@@ -276,7 +276,7 @@ Now, describe the next step you will take to address the original goal: {goal}""
                 reason=f"Reached max step count of {self.max_steps} steps",
             )
 
-        logger.debug(f"🧠 Step {self.shared_state.step_number + 1}: Thinking...")
+        logger.info(f"🔄 Step {self.shared_state.step_number + 1}/{self.max_steps}")
 
         model = self.llm.class_name()
 

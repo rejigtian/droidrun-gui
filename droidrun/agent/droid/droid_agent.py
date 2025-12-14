@@ -538,8 +538,8 @@ class DroidAgent(Workflow):
                 reason=f"Reached maximum steps ({self.config.agent.max_steps})",
             )
 
-        logger.debug(
-            f"📋 Running Manager for planning... (step {self.shared_state.step_number}/{self.config.agent.max_steps})"
+        logger.info(
+            f"🔄 Step {self.shared_state.step_number + 1}/{self.config.agent.max_steps}"
         )
 
         # Run Manager workflow
@@ -703,9 +703,6 @@ class DroidAgent(Workflow):
         ]
 
         self.shared_state.step_number += 1
-        logger.debug(
-            f"🔄 Step {self.shared_state.step_number}/{self.config.agent.max_steps} complete, looping to Manager"
-        )
 
         if self.config.logging.save_trajectory != "none":
             self.trajectory_writer.write(
@@ -780,9 +777,6 @@ class DroidAgent(Workflow):
                 self.shared_state.error_flag_plan = False
 
         self.shared_state.step_number += 1
-        logger.debug(
-            f"🔄 Step {self.shared_state.step_number}/{self.config.agent.max_steps} complete, looping to Manager"
-        )
 
         if self.config.logging.save_trajectory != "none":
             self.trajectory_writer.write(
@@ -863,9 +857,6 @@ class DroidAgent(Workflow):
 
         # Increment DroidAgent step counter
         self.shared_state.step_number += 1
-        logger.debug(
-            f"🔄 Step {self.shared_state.step_number}/{self.config.agent.max_steps} complete, looping to Manager"
-        )
 
         if self.config.logging.save_trajectory != "none":
             self.trajectory_writer.write(
