@@ -13,6 +13,8 @@ from llama_index.core.prompts import PromptTemplate
 from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
 from pydantic import BaseModel
 
+from droidrun.agent.utils.inference import astructured_predict_with_retries
+
 logger = logging.getLogger("droidrun")
 
 
@@ -53,8 +55,8 @@ class StructuredOutputAgent(Workflow):
             )
 
             # Use structured_predict to extract data
-            structured_output = await self.llm.astructured_predict(
-                self.pydantic_model, prompt, text=self.answer_text
+            structured_output = await astructured_predict_with_retries(
+                self.llm, self.pydantic_model, prompt, text=self.answer_text
             )
 
             logger.debug("✅ Successfully extracted structured output")

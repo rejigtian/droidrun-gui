@@ -1,7 +1,7 @@
 import asyncio
+import inspect
 import json
 import logging
-import re
 import warnings
 from typing import TYPE_CHECKING, List, Optional, Type, Union
 
@@ -11,10 +11,10 @@ from pydantic import BaseModel
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     from llama_index.core.base.llms.types import ChatMessage, ChatResponse
-import inspect
 from llama_index.core.llms.llm import LLM
 from llama_index.core.memory import Memory
 from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
+from opentelemetry import trace
 
 from droidrun.agent.codeact.events import (
     TaskEndEvent,
@@ -28,9 +28,9 @@ from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
 from droidrun.agent.usage import get_usage_from_response
 from droidrun.agent.utils import chat_utils
 from droidrun.agent.utils.executer import ExecuterState, SimpleCodeExecutor
-from droidrun.agent.utils.tracing_setup import record_langfuse_screenshot
-from opentelemetry import trace
+from droidrun.agent.utils.inference import acall_with_retries
 from droidrun.agent.utils.prompt_resolver import PromptResolver
+from droidrun.agent.utils.tracing_setup import record_langfuse_screenshot
 from droidrun.agent.utils.tools import (
     ATOMIC_ACTION_SIGNATURES,
     build_custom_tool_descriptions,
@@ -508,58 +508,10 @@ Now, describe the next step you will take to address the original goal: {goal}""
         limited_history = self._limit_history(chat_history)
         messages_to_send = [self.system_prompt] + limited_history
         messages_to_send = [chat_utils.message_copy(msg) for msg in messages_to_send]
-        try:
-            response = await self.llm.achat(messages=messages_to_send)
-            logger.debug("🔍 Received LLM response.")
 
-            filtered_chat_history = []
-            for msg in limited_history:
-                filtered_msg = chat_utils.message_copy(msg)
-                if hasattr(filtered_msg, "blocks") and filtered_msg.blocks:
-                    filtered_msg.blocks = [
-                        block
-                        for block in filtered_msg.blocks
-                        if not isinstance(block, chat_utils.ImageBlock)
-                    ]
-                filtered_chat_history.append(filtered_msg)
-
-            assert hasattr(
-                response, "message"
-            ), f"LLM response does not have a message attribute.\nResponse: {response}"
-        except Exception as e:
-            if (
-                self.llm.class_name() == "Gemini_LLM"
-                and "You exceeded your current quota" in str(e)
-            ):
-                s = str(e._details[2])
-                match = re.search(r"seconds:\s*(\d+)", s)
-                if match:
-                    seconds = int(match.group(1)) + 1
-                    logger.error(f"Rate limit error. Retrying in {seconds} seconds...")
-                    await asyncio.sleep(seconds)
-                else:
-                    logger.error("Rate limit error. Retrying in 5 seconds...")
-                    await asyncio.sleep(40)
-                logger.debug("🔍 Retrying call to LLM...")
-                response = await self.llm.achat(messages=messages_to_send)
-            elif self.llm.class_name() == "Anthropic_LLM" and "overloaded_error" in str(
-                e
-            ):
-                # Use exponential backoff for Anthropic errors
-                if not hasattr(self, "_anthropic_retry_count"):
-                    self._anthropic_retry_count = 0
-                self._anthropic_retry_count += 1
-                seconds = min(2**self._anthropic_retry_count, 60)  # Cap at 60 seconds
-                logger.error(
-                    f"Anthropic overload error. Retrying in {seconds} seconds... (attempt {self._anthropic_retry_count})"
-                )
-                await asyncio.sleep(seconds)
-                logger.debug("🔍 Retrying call to LLM...")
-                response = await self.llm.achat(messages=messages_to_send)
-                self._anthropic_retry_count = 0  # Reset on success
-            else:
-                logger.error(f"Could not get an answer from LLM: {repr(e)}")
-                raise e
+        response = await acall_with_retries(
+            self.llm, messages_to_send, stream=self.agent_config.streaming
+        )
         logger.debug("  - Received response from LLM.")
         return response
 

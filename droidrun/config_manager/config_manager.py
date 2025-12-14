@@ -92,6 +92,7 @@ class AgentConfig:
 
     max_steps: int = 15
     reasoning: bool = False
+    streaming: bool = True
     after_sleep_action: float = 1.0
     wait_for_stable_ui: float = 0.3
     prompts_dir: str = "config/prompts"
@@ -302,6 +303,7 @@ class DroidrunConfig:
         agent_config = AgentConfig(
             max_steps=agent_data.get("max_steps", 15),
             reasoning=agent_data.get("reasoning", False),
+            streaming=agent_data.get("streaming", False),
             after_sleep_action=agent_data.get("after_sleep_action", 1.0),
             wait_for_stable_ui=agent_data.get("wait_for_stable_ui", 0.3),
             prompts_dir=agent_data.get("prompts_dir", "config/prompts"),

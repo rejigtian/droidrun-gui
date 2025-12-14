@@ -184,7 +184,9 @@ class ScripterAgent(Workflow):
         )
 
         try:
-            response = await acall_with_retries(self.llm, chat_messages)
+            response = await acall_with_retries(
+                self.llm, chat_messages, stream=self.agent_config.streaming
+            )
         except Exception as e:
             logger.error(f"LLM call failed: {e}")
             return ScripterEndEvent(

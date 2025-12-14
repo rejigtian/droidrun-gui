@@ -187,7 +187,9 @@ class ExecutorAgent(Workflow):
         messages = ev.messages
 
         try:
-            response = await acall_with_retries(self.llm, messages)
+            response = await acall_with_retries(
+                self.llm, messages, stream=self.agent_config.streaming
+            )
             response_text = str(response)
         except Exception as e:
             raise RuntimeError(f"Error calling LLM in executor: {e}") from e

@@ -387,7 +387,9 @@ class ManagerAgent(Workflow):
                 chat_messages = convert_messages_to_chatmessages(retry_messages)
 
                 try:
-                    response = await acall_with_retries(self.llm, chat_messages)
+                    response = await acall_with_retries(
+                        self.llm, chat_messages, stream=self.agent_config.streaming
+                    )
                     output_planning = response.message.content
                     parsed = parse_manager_response(output_planning)
                 except Exception as e:
@@ -568,7 +570,9 @@ class ManagerAgent(Workflow):
         chat_messages = convert_messages_to_chatmessages(messages)
 
         try:
-            response = await acall_with_retries(self.llm, chat_messages)
+            response = await acall_with_retries(
+                self.llm, chat_messages, stream=self.agent_config.streaming
+            )
             output_planning = response.message.content
         except Exception as e:
             logger.error(f"LLM call failed: {e}")

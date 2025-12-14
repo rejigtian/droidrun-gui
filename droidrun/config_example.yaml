@@ -7,6 +7,8 @@ agent:
   max_steps: 15
   # Enable planning with reasoning mode
   reasoning: false
+  # Enable streaming LLM responses to console in real-time
+  streaming: true
   # Sleep duration after each action, waits for ui state to be updated (seconds)
   after_sleep_action: 1.0
   # Wait duration for UI to stabilize (seconds)

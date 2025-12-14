@@ -7,6 +7,7 @@ import json
 from workflows import Context, Workflow, step
 from workflows.events import StartEvent, StopEvent
 
+from droidrun.agent.utils.inference import acomplete_with_retries
 from droidrun.tools.tools import Tools
 
 
@@ -69,8 +70,8 @@ Return ONLY a JSON object with the following structure:
 Choose the most appropriate app based on the description. Return the package name of the best match."""
 
         # Get LLM response
-        response = await self.llm.acomplete(prompt)
-        response_text = str(response).strip()
+        response = await acomplete_with_retries(self.llm, prompt)
+        response_text = response.text.strip()
 
         # Parse JSON response - extract content between { and }
         try:
