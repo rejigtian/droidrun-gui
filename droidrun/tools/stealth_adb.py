@@ -6,17 +6,72 @@ to mimic natural human behavior on Android devices.
 """
 
 import asyncio
+import math
 import random
 from typing import List, Tuple
 
 from droidrun.tools.adb import AdbTools
 
 
+def ease_in_out_cubic(t: float) -> float:
+    """
+    Smooth acceleration/deceleration curve for human-like velocity profiling.
+
+    Humans naturally accelerate at the start and decelerate at the end of swipes.
+    This cubic easing function creates that natural motion pattern.
+
+    Args:
+        t: Progress value between 0.0 and 1.0
+
+    Returns:
+        Eased value between 0.0 and 1.0
+    """
+    if t < 0.5:
+        return 4 * t ** 3
+    else:
+        return 1 - pow(-2 * t + 2, 3) / 2
+
+
+def perlin_noise_1d(x: float, seed: int = 0) -> float:
+    """
+    Simple 1D Perlin-like noise for micro-jitter simulation.
+
+    Creates smooth, natural-looking random variations that simulate hand tremor.
+    Unlike pure random noise, this creates coherent patterns that look more organic.
+
+    Args:
+        x: Input value (position along the swipe path)
+        seed: Random seed for reproducibility
+
+    Returns:
+        Noise value between -1.0 and 1.0
+    """
+    # Simple implementation using sine waves with pseudo-random frequencies
+    # This avoids external dependencies while providing smooth noise
+    random.seed(seed + int(x * 1000))
+    freq1 = random.uniform(0.5, 1.5)
+    freq2 = random.uniform(2.0, 3.0)
+    freq3 = random.uniform(4.0, 6.0)
+
+    noise = (
+        math.sin(x * freq1) * 0.5 +
+        math.sin(x * freq2) * 0.3 +
+        math.sin(x * freq3) * 0.2
+    )
+
+    return noise
+
+
 def generate_curved_path(
     start_x: int, start_y: int, end_x: int, end_y: int, num_points: int = 15
 ) -> List[Tuple[int, int]]:
     """
-    Generate a curved path using a quadratic Bezier curve with randomized control point.
+    Generate a curved path using a quadratic Bezier curve with human-like characteristics.
+
+    Enhancements over basic Bezier curves:
+    - Velocity profiling: Ease-in/ease-out using cubic easing for natural acceleration
+    - Micro-jitter: Perlin noise to simulate hand tremor
+    - Randomized control points for organic curves
 
     Args:
         start_x: Starting X coordinate
@@ -26,15 +81,14 @@ def generate_curved_path(
         num_points: Number of intermediate points to generate
 
     Returns:
-        List of (x, y) coordinate tuples along the curve
+        List of (x, y) coordinate tuples along the curve with human-like motion
     """
     # Calculate distance to determine curve intensity
     distance = ((end_x - start_x) ** 2 + (end_y - start_y) ** 2) ** 0.5
 
-    # Only add curve for distances > 100 pixels
+    # For short swipes, use fewer points but still maintain curve
     if distance <= 100:
-        # For short swipes, return straight line
-        return [(start_x, start_y), (end_x, end_y)]
+        num_points = max(5, int(num_points / 3))
 
     # Calculate midpoint
     mid_x = (start_x + end_x) / 2
@@ -62,16 +116,35 @@ def generate_curved_path(
         control_x = mid_x
         control_y = mid_y
 
-    # Generate points along quadratic Bezier curve
+    # Generate random seed for consistent noise across this swipe
+    noise_seed = random.randint(0, 10000)
+
+    # Jitter intensity scales with distance (subtle for all swipes)
+    jitter_intensity = min(2.0, distance * 0.01)
+
+    # Generate points along quadratic Bezier curve with velocity profiling
     points = []
     for i in range(num_points):
-        t = i / (num_points - 1)
+        # Linear progress
+        linear_t = i / (num_points - 1)
+
+        # Apply ease-in-out cubic for velocity profiling
+        # This creates natural acceleration at start and deceleration at end
+        eased_t = ease_in_out_cubic(linear_t)
 
         # Quadratic Bezier formula: B(t) = (1-t)²P₀ + 2(1-t)tP₁ + t²P₂
-        x = (1 - t) ** 2 * start_x + 2 * (1 - t) * t * control_x + t**2 * end_x
-        y = (1 - t) ** 2 * start_y + 2 * (1 - t) * t * control_y + t**2 * end_y
+        x = (1 - eased_t) ** 2 * start_x + 2 * (1 - eased_t) * eased_t * control_x + eased_t**2 * end_x
+        y = (1 - eased_t) ** 2 * start_y + 2 * (1 - eased_t) * eased_t * control_y + eased_t**2 * end_y
 
-        points.append((int(x), int(y)))
+        # Add micro-jitter using Perlin-like noise to simulate hand tremor
+        jitter_x = perlin_noise_1d(linear_t * 10, noise_seed) * jitter_intensity
+        jitter_y = perlin_noise_1d(linear_t * 10, noise_seed + 1000) * jitter_intensity
+
+        # Apply jitter (subtle hand shake)
+        final_x = int(x + jitter_x)
+        final_y = int(y + jitter_y)
+
+        points.append((final_x, final_y))
 
     return points
 
@@ -256,7 +329,6 @@ class StealthAdbTools(AdbTools):
             x_end, y_end = path_points[-1]
             await self.device.shell(f"input motionevent UP {x_end} {y_end}")
 
-            await asyncio.sleep(duration_ms / 1000)
             return True
         except Exception:
             return False
