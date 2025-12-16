@@ -241,7 +241,7 @@ class ExecutorAgent(Workflow):
 
         await asyncio.sleep(self.agent_config.after_sleep_action)
 
-        logger.debug(f"{'✅' if outcome else '❌'} Execution complete: {summary}")
+        logger.debug(f"{'✅' if success else '❌'} Execution complete: {summary}")
 
         return ExecutorActionResultEvent(
             action=action_dict,

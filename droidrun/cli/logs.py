@@ -16,18 +16,17 @@ from rich.panel import Panel
 from rich.spinner import Spinner
 
 from droidrun.agent.codeact.events import (
-    TaskEndEvent,
-    TaskExecutionEvent,
-    TaskExecutionResultEvent,
-    TaskInputEvent,
-    TaskThinkingEvent,
+    CodeActEndEvent,
+    CodeActCodeEvent,
+    CodeActOutputEvent,
+    CodeActInputEvent,
+    CodeActResponseEvent,
 )
 from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
 from droidrun.agent.droid.events import (
     CodeActExecuteEvent,
     CodeActResultEvent,
     FinalizeEvent,
-    TaskRunnerEvent,
 )
 from droidrun.agent.executor.events import (
     ExecutorActionEvent,
@@ -305,27 +304,27 @@ class LogHandler(logging.Handler):
                     logger.debug(f"❌ {event.summary} ({error_msg})")
 
         # CodeAct events (direct mode)
-        elif isinstance(event, TaskInputEvent):
+        elif isinstance(event, CodeActInputEvent):
             self.current_step = "Processing task input..."
             logger.debug("💬 Task input received...")
 
-        elif isinstance(event, TaskThinkingEvent):
-            if hasattr(event, "thoughts") and event.thoughts:
-                thoughts_preview = (
-                    event.thoughts[:150] + "..."
-                    if len(event.thoughts) > 150
-                    else event.thoughts
+        elif isinstance(event, CodeActResponseEvent):
+            if hasattr(event, "thought") and event.thought:
+                thought_preview = (
+                    event.thought[:150] + "..."
+                    if len(event.thought) > 150
+                    else event.thought
                 )
-                logger.debug(f"🧠 Thinking: {thoughts_preview}")
+                logger.debug(f"🧠 Thinking: {thought_preview}")
             if hasattr(event, "code") and event.code:
                 logger.debug("💻 Executing action code")
                 logger.debug(f"{event.code}")
 
-        elif isinstance(event, TaskExecutionEvent):
+        elif isinstance(event, CodeActCodeEvent):
             self.current_step = "Executing action..."
             logger.debug("⚡ Executing action...")
 
-        elif isinstance(event, TaskExecutionResultEvent):
+        elif isinstance(event, CodeActOutputEvent):
             if hasattr(event, "output") and event.output:
                 output = str(event.output)
                 if "Error" in output or "Exception" in output:
@@ -339,7 +338,7 @@ class LogHandler(logging.Handler):
                     )
                     logger.debug(f"⚡ Action result: {output_preview}")
 
-        elif isinstance(event, TaskEndEvent):
+        elif isinstance(event, CodeActEndEvent):
             if hasattr(event, "success") and hasattr(event, "reason"):
                 if event.success:
                     self.current_step = event.reason
@@ -357,10 +356,6 @@ class LogHandler(logging.Handler):
                     self.current_step = event.reason
                 else:
                     self.current_step = "Task failed"
-
-        elif isinstance(event, TaskRunnerEvent):
-            self.current_step = "Processing tasks..."
-            logger.debug("🏃 Processing task queue...")
 
         elif isinstance(event, FinalizeEvent):
             if hasattr(event, "success") and hasattr(event, "reason"):
