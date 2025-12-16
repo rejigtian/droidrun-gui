@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from llama_index.core.workflow import Event
 
@@ -19,7 +19,7 @@ class TapActionEvent(MacroEvent):
 
     x: int
     y: int
-    element_index: int = None
+    element_index: Optional[int] = None
     element_text: str = ""
     element_bounds: str = ""
 
@@ -61,7 +61,7 @@ class StartAppEvent(MacroEvent):
     """ "Event for starting an app"""
 
     package: str
-    activity: str = None
+    activity: Optional[str] = None
 
 
 class WaitEvent(MacroEvent):

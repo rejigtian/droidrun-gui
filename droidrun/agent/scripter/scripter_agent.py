@@ -154,7 +154,7 @@ class ScripterAgent(Workflow):
             },
         ]
 
-        return ScripterInputEvent(input=self.message_history)
+        return ScripterInputEvent()
 
     @step
     async def handle_llm_input(
@@ -179,9 +179,7 @@ class ScripterAgent(Workflow):
         ctx.write_event_to_stream(ev)
 
         # Convert to ChatMessages for LLM call
-        chat_messages = chat_utils.convert_messages_to_chatmessages(
-            self.message_history
-        )
+        chat_messages = chat_utils.to_chat_messages(self.message_history)
 
         try:
             logger.info("[magenta]🐍 Scripter response:[/magenta]")
@@ -307,7 +305,7 @@ class ScripterAgent(Workflow):
             }
         )
 
-        return ScripterInputEvent(input=self.message_history)
+        return ScripterInputEvent()
 
     @step
     async def finalize(self, ctx: Context, ev: ScripterEndEvent) -> StopEvent:

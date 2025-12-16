@@ -1,15 +1,11 @@
 """
 DroidAgent coordination events.
 
-These events are used for WORKFLOW COORDINATION between DroidAgent and its child agents.
-They carry minimal data needed for routing workflow steps.
-
-For internal events with full debugging metadata, see:
-- manager/events.py (ManagerPlanDetailsEvent, ManagerContextEvent, ManagerResponseEvent)
-- executor/events.py (ExecutorActionEvent, ExecutorActionResultEvent, ExecutorContextEvent, ExecutorResponseEvent)
+These events route between DroidAgent and child agents.
+For internal agent events, see each agent's events.py file.
 """
 
-from typing import Dict
+from typing import Dict, Optional
 
 from llama_index.core.workflow import Event, StopEvent
 from pydantic import BaseModel
@@ -23,32 +19,6 @@ class CodeActResultEvent(Event):
     success: bool
     reason: str
     instruction: str
-
-
-class FinalizeEvent(Event):
-    success: bool
-    reason: str
-
-
-class ResultEvent(StopEvent):
-    """
-    DroidAgent final result event.
-
-    Returned by DroidAgent.run() with attributes:
-    - success: Whether the task completed successfully
-    - reason: Explanation of the result or error message
-    - steps: Number of steps taken
-    - structured_output: Extracted structured data (if output_model was provided)
-    """
-
-    success: bool
-    reason: str
-    steps: int
-    structured_output: BaseModel | None
-
-
-class TaskRunnerEvent(Event):
-    pass
 
 
 # ============================================================================
@@ -74,9 +44,7 @@ class ManagerPlanEvent(Event):
     current_subgoal: str
     thought: str
     manager_answer: str = ""
-    success: bool | None = (
-        None  # True/False if task complete, None if still in progress
-    )
+    success: Optional[bool] = None  # True/False if complete, None if in progress
 
 
 class ExecutorInputEvent(Event):
@@ -86,18 +54,12 @@ class ExecutorInputEvent(Event):
 
 
 class ExecutorResultEvent(Event):
-    """
-    Coordination event from ExecutorAgent to DroidAgent.
-
-    Used for workflow step routing only (NOT streamed to frontend).
-    For internal events with thought/action_json metadata, see ExecutorActionResultEvent.
-    """
+    """Executor finished with action result."""
 
     action: Dict
     outcome: bool
     error: str
     summary: str
-    full_response: str = ""
 
 
 # ============================================================================
@@ -112,16 +74,17 @@ class ScripterExecutorInputEvent(Event):
 
 
 class ScripterExecutorResultEvent(Event):
-    """
-    Coordination event from ScripterAgent to DroidAgent.
-
-    Used for workflow step routing only (NOT streamed to frontend).
-    """
+    """Scripter finished."""
 
     task: str
-    message: str  # Response from response() function
+    message: str
     success: bool
     code_executions: int
+
+
+# ============================================================================
+# TEXT MANIPULATOR WORKFLOW EVENTS
+# ============================================================================
 
 
 class TextManipulatorInputEvent(Event):
@@ -134,3 +97,32 @@ class TextManipulatorResultEvent(Event):
     task: str
     text_to_type: str
     code_ran: str
+
+
+# ============================================================================
+# FINALIZATION EVENTS
+# ============================================================================
+
+
+class FinalizeEvent(Event):
+    """Trigger finalization."""
+
+    success: bool
+    reason: str
+
+
+class ResultEvent(StopEvent):
+    """
+    Final result from DroidAgent.
+
+    Returned by DroidAgent.run() with:
+    - success: Whether the task completed successfully
+    - reason: Explanation or answer
+    - steps: Number of steps taken
+    - structured_output: Extracted structured data (if output_model was provided)
+    """
+
+    success: bool
+    reason: str
+    steps: int
+    structured_output: Optional[BaseModel] = None

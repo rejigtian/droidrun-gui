@@ -1,8 +1,10 @@
 """
-Events for ScripterAgent workflow.
+Events for the ScripterAgent workflow.
+
+Internal events for streaming to frontend/logging.
 """
 
-from typing import List, Optional
+from typing import Optional
 
 from llama_index.core.workflow import Event
 
@@ -10,22 +12,22 @@ from droidrun.agent.usage import UsageResult
 
 
 class ScripterInputEvent(Event):
-    """Input to LLM (chat history)."""
+    """Input ready for LLM."""
 
-    input: List  # List of ChatMessages
+    pass
 
 
 class ScripterThinkingEvent(Event):
-    """LLM generated thought + code."""
+    """LLM response received."""
 
-    thoughts: str
+    thought: str
     code: Optional[str] = None
-    full_response: str = ""  # Full LLM response (for fallback when no code)
+    full_response: str = ""
     usage: Optional[UsageResult] = None
 
 
 class ScripterExecutionEvent(Event):
-    """Trigger code execution."""
+    """Code ready to execute."""
 
     code: str
 
@@ -37,7 +39,7 @@ class ScripterExecutionResultEvent(Event):
 
 
 class ScripterEndEvent(Event):
-    """Script agent finished."""
+    """Scripter finished."""
 
     message: str  # Message to Manager
     success: bool  # True if response() called, False if max_steps

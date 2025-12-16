@@ -53,6 +53,7 @@ class ManagerConfig:
 
     vision: bool = False
     system_prompt: str = "system.jinja2"
+    stateless: bool = False  # Use stateless manager (no chat history)
 
 
 @dataclass
