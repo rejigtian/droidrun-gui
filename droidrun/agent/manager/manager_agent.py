@@ -90,8 +90,6 @@ class ManagerAgent(Workflow):
         # Initialize app card provider based on mode
         self.app_card_provider: AppCardProvider = self._initialize_app_card_provider()
 
-        logger.debug("✅ ManagerAgent initialized successfully.")
-
     def _initialize_app_card_provider(self) -> AppCardProvider:
         """Initialize app card provider based on configuration mode."""
         if not self.app_card_config.enabled:

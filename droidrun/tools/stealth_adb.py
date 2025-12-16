@@ -27,7 +27,7 @@ def ease_in_out_cubic(t: float) -> float:
         Eased value between 0.0 and 1.0
     """
     if t < 0.5:
-        return 4 * t ** 3
+        return 4 * t**3
     else:
         return 1 - pow(-2 * t + 2, 3) / 2
 
@@ -54,9 +54,9 @@ def perlin_noise_1d(x: float, seed: int = 0) -> float:
     freq3 = random.uniform(4.0, 6.0)
 
     noise = (
-        math.sin(x * freq1) * 0.5 +
-        math.sin(x * freq2) * 0.3 +
-        math.sin(x * freq3) * 0.2
+        math.sin(x * freq1) * 0.5
+        + math.sin(x * freq2) * 0.3
+        + math.sin(x * freq3) * 0.2
     )
 
     return noise
@@ -133,8 +133,16 @@ def generate_curved_path(
         eased_t = ease_in_out_cubic(linear_t)
 
         # Quadratic Bezier formula: B(t) = (1-t)²P₀ + 2(1-t)tP₁ + t²P₂
-        x = (1 - eased_t) ** 2 * start_x + 2 * (1 - eased_t) * eased_t * control_x + eased_t**2 * end_x
-        y = (1 - eased_t) ** 2 * start_y + 2 * (1 - eased_t) * eased_t * control_y + eased_t**2 * end_y
+        x = (
+            (1 - eased_t) ** 2 * start_x
+            + 2 * (1 - eased_t) * eased_t * control_x
+            + eased_t**2 * end_x
+        )
+        y = (
+            (1 - eased_t) ** 2 * start_y
+            + 2 * (1 - eased_t) * eased_t * control_y
+            + eased_t**2 * end_y
+        )
 
         # Add micro-jitter using Perlin-like noise to simulate hand tremor
         jitter_x = perlin_noise_1d(linear_t * 10, noise_seed) * jitter_intensity

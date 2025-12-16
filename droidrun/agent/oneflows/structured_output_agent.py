@@ -37,8 +37,6 @@ class StructuredOutputAgent(Workflow):
         self.pydantic_model = pydantic_model
         self.answer_text = answer_text
 
-        logger.debug("🔄 StructuredOutputAgent initialized")
-
     @step
     async def extract_structured_output(
         self, ctx: Context, ev: StartEvent

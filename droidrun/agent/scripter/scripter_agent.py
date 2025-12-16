@@ -113,8 +113,6 @@ class ScripterAgent(Workflow):
             event_loop=None,
         )
 
-        logger.debug("✅ ScripterAgent initialized successfully.")
-
     def _get_library_descriptions(self) -> str:
         """Build description of available libraries."""
         libraries = [

@@ -164,8 +164,6 @@ class CodeActAgent(Workflow):
             event_loop=None,
         )
 
-        logger.debug("✅ CodeActAgent initialized successfully.")
-
     @step
     async def prepare_chat(self, ctx: Context, ev: StartEvent) -> TaskInputEvent:
         """Prepare chat history from user input."""

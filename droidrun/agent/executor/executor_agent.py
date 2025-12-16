@@ -84,8 +84,6 @@ class ExecutorAgent(Workflow):
             atomic_tools if atomic_tools is not None else ATOMIC_ACTION_SIGNATURES
         )
 
-        logger.debug("✅ ExecutorAgent initialized successfully.")
-
     @step
     async def prepare_context(
         self, ctx: Context, ev: StartEvent
@@ -237,10 +235,6 @@ class ExecutorAgent(Workflow):
                 description="Invalid response format from LLM",
                 full_response=response_text,
             )
-
-        logger.debug(f"💡 Thought: {parsed['thought']}")
-        logger.debug(f"🎯 Action: {parsed['action']}")
-        logger.debug(f"  - Description: {parsed['description']}")
 
         event = ExecutorActionEvent(
             action_json=parsed["action"],

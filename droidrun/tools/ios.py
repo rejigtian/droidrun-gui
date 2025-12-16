@@ -11,7 +11,7 @@ import requests
 
 from droidrun.tools.tools import Tools
 
-logger = logging.getLogger("IOS")
+logger = logging.getLogger("droidrun")
 
 SYSTEM_BUNDLE_IDENTIFIERS = [
     "ai.droidrun.droidrun-ios-portal",
@@ -59,7 +59,7 @@ class IOSTools(Tools):
             None  # Store last tapped element's rect for text input
         )
         self.bundle_identifiers = bundle_identifiers or []
-        logger.info(f"iOS device URL: {url}")
+        logger.debug(f"iOS device URL: {url}")
 
     def get_state(self) -> List[Dict[str, Any]]:
         """
@@ -276,7 +276,7 @@ class IOSTools(Tools):
             tap_url = f"{self.url}/gestures/tap"
             payload = {"rect": ios_rect, "count": 1, "longPress": False}
 
-            logger.info(f"payload {payload}")
+            logger.debug(f"payload {payload}")
 
             response = requests.post(tap_url, json=payload)
             if response.status_code == 200:
@@ -363,7 +363,7 @@ class IOSTools(Tools):
 
             response = requests.post(swipe_url, json=payload)
             if response.status_code == 200:
-                logger.info(
+                logger.debug(
                     f"Swiped from ({start_x}, {start_y}) to ({end_x}, {end_y}) direction: {direction}"
                 )
                 return True
@@ -395,7 +395,7 @@ class IOSTools(Tools):
             Bool indicating success or failure
         """
         # TODO: implement this
-        logger.info("Drag action FAILED! Not implemented for iOS")
+        logger.warning("Drag action not implemented for iOS")
         return False
 
     def input_text(self, text: str) -> str:
@@ -500,7 +500,7 @@ class IOSTools(Tools):
                 self.screenshots.append(screenshot_info)
                 self.last_screenshot = screenshot_data
 
-                logger.info(
+                logger.debug(
                     f"Screenshot captured successfully, size: {len(screenshot_data)} bytes"
                 )
                 return ("PNG", screenshot_data)

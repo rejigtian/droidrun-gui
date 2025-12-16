@@ -420,7 +420,9 @@ def cli():
     "--reasoning/--no-reasoning", default=None, help="Enable planning with reasoning"
 )
 @click.option(
-    "--stream/--no-stream", default=None, help="Stream LLM responses to console in real-time"
+    "--stream/--no-stream",
+    default=None,
+    help="Stream LLM responses to console in real-time",
 )
 @click.option(
     "--tracing/--no-tracing", default=None, help="Enable Arize Phoenix tracing"

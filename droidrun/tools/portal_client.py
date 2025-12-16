@@ -113,15 +113,11 @@ class PortalClient:
                 self.tcp_available = True
                 logger.debug(f"✓ TCP mode enabled: {self.tcp_base_url}")
             else:
-                logger.warning(
-                    "TCP connection test failed, falling back to content provider"
-                )
+                logger.warning("TCP unavailable, using content provider fallback")
                 self.tcp_available = False
 
         except Exception as e:
-            logger.warning(
-                f"Failed to setup TCP forwarding: {e}. Using content provider fallback."
-            )
+            logger.warning(f"TCP unavailable ({e}), using content provider fallback")
             self.tcp_available = False
 
     async def _find_existing_forward(self) -> Optional[int]:
@@ -238,12 +234,12 @@ class PortalClient:
                             return json.loads(data["data"])
                     return data
                 else:
-                    logger.warning(
-                        f"TCP get_state failed ({response.status_code}), falling back"
+                    logger.debug(
+                        f"TCP get_state failed ({response.status_code}), using fallback"
                     )
                     return await self._get_state_content_provider()
         except Exception as e:
-            logger.warning(f"TCP get_state error: {e}, falling back")
+            logger.debug(f"TCP get_state error: {e}, using fallback")
             return await self._get_state_content_provider()
 
     async def _get_state_content_provider(self) -> Dict[str, Any]:
@@ -306,15 +302,15 @@ class PortalClient:
                     timeout=10,
                 )
                 if response.status_code == 200:
-                    logger.debug(f"TCP input_text successful")
+                    logger.debug("TCP input_text successful")
                     return True
                 else:
-                    logger.warning(
-                        f"TCP input_text failed ({response.status_code}), falling back"
+                    logger.debug(
+                        f"TCP input_text failed ({response.status_code}), using fallback"
                     )
                     return await self._input_text_content_provider(text, clear)
         except Exception as e:
-            logger.warning(f"TCP input_text error: {e}, falling back")
+            logger.debug(f"TCP input_text error: {e}, using fallback")
             return await self._input_text_content_provider(text, clear)
 
     async def _input_text_content_provider(self, text: str, clear: bool) -> bool:
@@ -365,17 +361,17 @@ class PortalClient:
                         logger.debug("Screenshot taken via TCP")
                         return base64.b64decode(data["data"])
                     else:
-                        logger.warning(
-                            "TCP screenshot failed (invalid response), falling back"
+                        logger.debug(
+                            "TCP screenshot failed (invalid response), using fallback"
                         )
                         return await self._take_screenshot_adb()
                 else:
-                    logger.warning(
-                        f"TCP screenshot failed ({response.status_code}), falling back"
+                    logger.debug(
+                        f"TCP screenshot failed ({response.status_code}), using fallback"
                     )
                     return await self._take_screenshot_adb()
         except Exception as e:
-            logger.warning(f"TCP screenshot error: {e}, falling back")
+            logger.debug(f"TCP screenshot error: {e}, using fallback")
             return await self._take_screenshot_adb()
 
     async def _take_screenshot_adb(self) -> bytes:
