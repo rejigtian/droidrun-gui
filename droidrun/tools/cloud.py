@@ -1,0 +1,339 @@
+import asyncio
+import logging
+import os
+import uuid
+from typing import Dict, List, Tuple
+
+from mobilerun import AsyncMobilerun
+from mobilerun.types.devices import StateTimeResponse
+from typing_extensions import Any
+
+from droidrun.tools.filters import ConciseFilter, DetailedFilter, TreeFilter
+from droidrun.tools.formatters import IndexedFormatter, TreeFormatter
+from droidrun.tools.tools import Tools
+
+logger = logging.getLogger("droidrun")
+
+
+class MobileRunTools(Tools):
+    def __init__(
+        self,
+        device_id: str,
+        api_key: str,
+        base_url: str = "https://api.mobilerun.com/v1",
+        tree_filter: TreeFilter = None,
+        tree_formatter: TreeFormatter = None,
+        vision_enabled: bool = True,
+    ):
+        self.device_id = device_id
+        self.api_key = api_key
+        self.mobilerun = AsyncMobilerun(api_key=api_key, base_url=base_url)
+        self.user_id = str(uuid.uuid4())
+
+        # Instance‐level cache for clickable elements (index-based tapping)
+        self.clickable_elements_cache: List[Dict[str, Any]] = []
+        self.reason = None
+        self.success = None
+        self.finished = False
+        # Memory storage for remembering important information
+        self.memory: List[str] = []
+
+        if tree_filter:
+            self.tree_filter = tree_filter
+        else:
+            self.tree_filter = ConciseFilter() if vision_enabled else DetailedFilter()
+            logger.debug(
+                f"Selected {self.tree_filter.__class__.__name__} (vision_enabled={vision_enabled})"
+            )
+
+        self.tree_formatter = tree_formatter or IndexedFormatter()
+
+        # Caches
+        self.raw_tree_cache = None
+        self.filtered_tree_cache = None
+
+    async def get_state(self) -> Tuple[str, str, List[Dict[str, Any]], Dict[str, Any]]:
+        combined_data = await self.mobilerun.devices.state.ui(
+            self.device_id, x_user_id=self.user_id
+        )
+
+        required_keys = ["a11y_tree", "phone_state", "device_context"]
+        missing_keys = [key for key in required_keys if key not in combined_data]
+        if missing_keys:
+            raise Exception(f"Missing data in state: {', '.join(missing_keys)}")
+
+        self.raw_tree_cache = combined_data["a11y_tree"]
+
+        self.filtered_tree_cache = self.tree_filter.filter(
+            self.raw_tree_cache, combined_data["device_context"]
+        )
+
+        formatted_text, focused_text, a11y_tree, phone_state = self.tree_formatter.format(
+            self.filtered_tree_cache, combined_data["phone_state"]
+        )
+
+        self.clickable_elements_cache = a11y_tree
+
+        return (formatted_text, focused_text, a11y_tree, phone_state)
+
+    async def get_date(self) -> str:
+        res: StateTimeResponse = await self.mobilerun.devices.state.time(
+            self.device_id, x_user_id=self.user_id
+        )
+        return res.strftime("%Y-%m-%d %H:%M:%S")
+
+    @Tools.ui_action
+    async def tap_by_index(self, index: int) -> str:
+        try:
+            x, y = self._extract_element_coordinates_by_index(index)
+            await self.mobilerun.devices.actions.tap(self.device_id, x, y, x_user_id=self.user_id)
+        except Exception as e:
+            print(f"Error: {str(e)}")
+            return False
+        return True
+
+    @Tools.ui_action
+    async def swipe(
+        self, start_x: int, start_y: int, end_x: int, end_y: int, duration_ms: int = 300
+    ) -> bool:
+        try:
+            await self.mobilerun.devices.actions.swipe(
+                self.device_id, start_x, start_y, end_x, end_y, duration_ms, x_user_id=self.user_id
+            )
+        except Exception as e:
+            print(f"Error: {str(e)}")
+            return False
+        return True
+
+    @Tools.ui_action
+    async def drag(
+        self, start_x: int, start_y: int, end_x: int, end_y: int, duration_ms: int = 3000
+    ) -> bool:
+        print("Error: Drag is not implemented yet")
+        return False
+
+    @Tools.ui_action
+    async def input_text(self, text: str, index: int = -1, clear: bool = False) -> str:
+        try:
+            if index != -1:
+                x, y = self._extract_element_coordinates_by_index(index)
+                await self.mobilerun.devices.actions.tap(
+                    self.device_id, x, y, x_user_id=self.user_id
+                )
+
+            await self.mobilerun.devices.keyboard.write(
+                self.device_id, text=text, clear=clear, x_user_id=self.user_id
+            )
+        except Exception as e:
+            print(f"Error: {str(e)}")
+            return False
+        return True
+
+    @Tools.ui_action
+    async def back(self) -> str:
+        print("Error: Back is not implemented yet")
+        return False
+
+    @Tools.ui_action
+    async def press_key(self, keycode: int) -> str:
+        print("Error: Press key is not implemented yet")
+        return False
+
+    @Tools.ui_action
+    async def start_app(self, package: str, activity: str = "") -> str:
+        try:
+            await self.mobilerun.devices.apps.start(
+                package, device_id=self.device_id, activity=activity, x_user_id=self.user_id
+            )
+        except Exception as e:
+            print(f"Error: {str(e)}")
+            return False
+        return True
+
+    async def take_screenshot(self) -> Tuple[str, bytes]:
+        try:
+            # Use with_raw_response to get the raw httpx.Response object
+            # instead of the parsed string content
+            response = await self.mobilerun.devices.state.with_raw_response.screenshot(
+                self.device_id, x_user_id=self.user_id
+            )
+            # Extract the raw binary content (PNG bytes)
+            data = await response.read()
+            return "PNG", data
+        except Exception as e:
+            print(f"Error: {str(e)}")
+            return "PNG", b""
+
+    @Tools.ui_action
+    async def list_packages(self, include_system_apps: bool = False) -> List[str]:
+        try:
+            packages = await self.mobilerun.devices.packages.list(
+                device_id=self.device_id,
+                include_system_apps=include_system_apps,
+                x_user_id=self.user_id,
+            )
+            return packages
+        except Exception as e:
+            print(f"Error: {str(e)}")
+            return []
+
+    @Tools.ui_action
+    async def get_apps(self, include_system_apps: bool = True) -> List[Dict[str, Any]]:
+        try:
+            apps = await self.mobilerun.devices.apps.list(
+                device_id=self.device_id,
+                include_system_apps=include_system_apps,
+                x_user_id=self.user_id,
+            )
+            return apps
+        except Exception as e:
+            print(f"Error: {str(e)}")
+            return []
+
+    def remember(self, information: str) -> str:
+        """
+        Store important information to remember for future context.
+
+        This information will be extracted and included into your next steps to maintain context
+        across interactions. Use this for critical facts, observations, or user preferences
+        that should influence future decisions.
+
+        Args:
+            information: The information to remember
+
+        Returns:
+            Confirmation message
+        """
+        if not information or not isinstance(information, str):
+            return "Error: Please provide valid information to remember."
+
+        # Add the information to memory
+        self.memory.append(information.strip())
+
+        # Limit memory size to prevent context overflow (keep most recent items)
+        max_memory_items = 10
+        if len(self.memory) > max_memory_items:
+            self.memory = self.memory[-max_memory_items:]
+
+        return f"Remembered: {information}"
+
+    def get_memory(self) -> List[str]:
+        """
+        Retrieve all stored memory items.
+
+        Returns:
+            List of stored memory items
+        """
+        return self.memory.copy()
+
+    @Tools.ui_action
+    async def complete(self, success: bool, reason: str = "") -> None:
+        """
+        Mark the task as finished.
+
+        Args:
+            success: Indicates if the task was successful.
+            reason: Reason for failure/success
+        """
+        if success:
+            self.success = True
+            self.reason = reason or "Task completed successfully."
+            self.finished = True
+        else:
+            self.success = False
+            if not reason:
+                raise ValueError("Reason for failure is required if success is False.")
+            self.reason = reason
+            self.finished = True
+
+    def _extract_element_coordinates_by_index(self, index: int) -> Tuple[int, int]:
+        """
+        Extract center coordinates from an element by its index.
+
+        Args:
+            index: Index of the element to find and extract coordinates from
+
+        Returns:
+            Tuple of (x, y) center coordinates
+
+        Raises:
+            ValueError: If element not found, bounds format is invalid, or missing bounds
+        """
+
+        def collect_all_indices(elements):
+            """Recursively collect all indices from elements and their children."""
+            indices = []
+            for item in elements:
+                if item.get("index") is not None:
+                    indices.append(item.get("index"))
+                # Check children if present
+                children = item.get("children", [])
+                indices.extend(collect_all_indices(children))
+            return indices
+
+        def find_element_by_index(elements, target_index):
+            """Recursively find an element with the given index."""
+            for item in elements:
+                if item.get("index") == target_index:
+                    return item
+                # Check children if present
+                children = item.get("children", [])
+                result = find_element_by_index(children, target_index)
+                if result:
+                    return result
+            return None
+
+        # Check if we have cached elements
+        if not self.clickable_elements_cache:
+            raise ValueError("No UI elements cached. Call get_state first.")
+
+        # Find the element with the given index (including in children)
+        element = find_element_by_index(self.clickable_elements_cache, index)
+
+        if not element:
+            # List available indices to help the user
+            indices = sorted(collect_all_indices(self.clickable_elements_cache))
+            indices_str = ", ".join(str(idx) for idx in indices[:20])
+            if len(indices) > 20:
+                indices_str += f"... and {len(indices) - 20} more"
+            raise ValueError(
+                f"No element found with index {index}. Available indices: {indices_str}"
+            )
+
+        # Get the bounds of the element
+        bounds_str = element.get("bounds")
+        if not bounds_str:
+            element_text = element.get("text", "No text")
+            element_type = element.get("type", "unknown")
+            element_class = element.get("className", "Unknown class")
+            raise ValueError(
+                f"Element with index {index} ('{element_text}', {element_class}, type: {element_type}) has no bounds and cannot be tapped"
+            )
+
+        # Parse the bounds (format: "left,top,right,bottom")
+        try:
+            left, top, right, bottom = map(int, bounds_str.split(","))
+        except ValueError as e:
+            raise ValueError(
+                f"Invalid bounds format for element with index {index}: {bounds_str}"
+            ) from e
+
+        # Calculate the center of the element
+        x = (left + right) // 2
+        y = (top + bottom) // 2
+
+        return x, y
+
+
+async def main():
+    tools = MobileRunTools(
+        device_id=os.getenv("DEVICE_ID"),
+        api_key=os.getenv("API_KEY"),
+        base_url=os.getenv("BASE_URL"),
+    )
+
+    # test tools here
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
