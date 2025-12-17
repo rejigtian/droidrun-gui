@@ -1,12 +1,9 @@
-import asyncio
 import logging
-import os
 import uuid
 from typing import Dict, List, Tuple
 
 from llama_index.core.workflow import Context
 from mobilerun import AsyncMobilerun
-from mobilerun.types.devices import StateTimeResponse
 from typing_extensions import Any
 
 from droidrun.tools.filters import ConciseFilter, DetailedFilter, TreeFilter
@@ -20,7 +17,7 @@ class MobileRunTools(Tools):
     def __init__(
         self,
         device_id: str,
-        api_key: str,
+        api_key: str | None = None,
         base_url: str = "https://api.mobilerun.com/v1",
         tree_filter: TreeFilter = None,
         tree_formatter: TreeFormatter = None,
@@ -28,7 +25,7 @@ class MobileRunTools(Tools):
     ):
         self.device_id = device_id
         self.api_key = api_key
-        self.mobilerun = AsyncMobilerun(api_key=api_key, base_url=base_url)
+        self.mobilerun = AsyncMobilerun(api_key=api_key, base_url=base_url, timeout=10.0)
         self.user_id = str(uuid.uuid4())
 
         # Instance‐level cache for clickable elements (index-based tapping)
@@ -342,22 +339,3 @@ class MobileRunTools(Tools):
         y = (top + bottom) // 2
 
         return x, y
-
-
-async def main():
-    from dotenv import load_dotenv
-
-    load_dotenv()
-    tools = MobileRunTools(
-        device_id=os.getenv("DEVICE_ID"),
-        api_key=os.getenv("API_KEY"),
-        base_url=os.getenv("BASE_URL"),
-    )
-
-    await tools.start_app("com.google.android.youtube")
-
-    # test tools here
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
