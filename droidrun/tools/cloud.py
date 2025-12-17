@@ -17,6 +17,7 @@ class MobileRunTools(Tools):
     def __init__(
         self,
         device_id: str,
+        display_id: str | None = None,
         api_key: str | None = None,
         base_url: str = "https://api.mobilerun.com/v1",
         tree_filter: TreeFilter = None,
@@ -24,9 +25,9 @@ class MobileRunTools(Tools):
         vision_enabled: bool = True,
     ):
         self.device_id = device_id
+        self.display_id = display_id
         self.api_key = api_key
         self.mobilerun = AsyncMobilerun(api_key=api_key, base_url=base_url, timeout=10.0)
-        self.user_id = str(uuid.uuid4())
 
         # Instance‐level cache for clickable elements (index-based tapping)
         self.clickable_elements_cache: List[Dict[str, Any]] = []
@@ -55,7 +56,8 @@ class MobileRunTools(Tools):
 
     async def get_state(self) -> Tuple[str, str, List[Dict[str, Any]], Dict[str, Any]]:
         combined_data = await self.mobilerun.devices.state.ui(
-            self.device_id, x_user_id=self.user_id
+            self.device_id,
+            x_device_display_id=self.display_id,
         )
 
         required_keys = ["a11y_tree", "phone_state", "device_context"]
@@ -79,7 +81,7 @@ class MobileRunTools(Tools):
 
     async def get_date(self) -> str:
         try:
-            res = await self.mobilerun.devices.state.time(self.device_id, x_user_id=self.user_id)
+            res = await self.mobilerun.devices.state.time(self.device_id, x_device_display_id=self.display_id)
         except Exception as e:
             print(f"Error: {str(e)}")
             return "unknown"
@@ -90,7 +92,7 @@ class MobileRunTools(Tools):
         try:
             x, y = self._extract_element_coordinates_by_index(index)
             await self.mobilerun.devices.actions.tap(
-                self.device_id, x=x, y=y, x_user_id=self.user_id
+                self.device_id, x=x, y=y, x_device_display_id=self.display_id
             )
         except Exception as e:
             print(f"Error: {str(e)}")
@@ -109,7 +111,7 @@ class MobileRunTools(Tools):
                 end_x=end_x,
                 end_y=end_y,
                 duration=duration_ms,
-                x_user_id=self.user_id,
+                x_device_display_id=self.display_id,
             )
         except Exception as e:
             print(f"Error: {str(e)}")
@@ -129,11 +131,11 @@ class MobileRunTools(Tools):
             if index != -1:
                 x, y = self._extract_element_coordinates_by_index(index)
                 await self.mobilerun.devices.actions.tap(
-                    self.device_id, x=x, y=y, x_user_id=self.user_id
+                    self.device_id, x=x, y=y, x_device_display_id=self.display_id
                 )
 
             await self.mobilerun.devices.keyboard.write(
-                self.device_id, text=text, clear=clear, x_user_id=self.user_id
+                self.device_id, text=text, clear=clear, x_device_display_id=self.display_id
             )
         except Exception as e:
             print(f"Error: {str(e)}")
@@ -159,7 +161,7 @@ class MobileRunTools(Tools):
             else:
                 act = activity
             await self.mobilerun.devices.apps.start(
-                package, device_id=self.device_id, activity=act, x_user_id=self.user_id
+                package, device_id=self.device_id, activity=act, x_device_display_id=self.display_id
             )
         except Exception as e:
             print(f"Error: {str(e)}")
@@ -171,7 +173,7 @@ class MobileRunTools(Tools):
             # Use with_raw_response to get the raw httpx.Response object
             # instead of the parsed string content
             response = await self.mobilerun.devices.state.with_raw_response.screenshot(
-                self.device_id, x_user_id=self.user_id
+                self.device_id, x_device_display_id=self.display_id
             )
             # Extract the raw binary content (PNG bytes)
             data = await response.read()
@@ -186,7 +188,7 @@ class MobileRunTools(Tools):
             packages = await self.mobilerun.devices.packages.list(
                 device_id=self.device_id,
                 include_system_packages=include_system_apps,
-                x_user_id=self.user_id,
+                x_device_display_id=self.display_id,
             )
             return packages
         except Exception as e:
@@ -199,7 +201,7 @@ class MobileRunTools(Tools):
             apps = await self.mobilerun.devices.apps.list(
                 device_id=self.device_id,
                 include_system_apps=include_system,
-                x_user_id=self.user_id,
+                x_device_display_id=self.display_id,
             )
             return [app.model_dump() for app in apps]
         except Exception as e:

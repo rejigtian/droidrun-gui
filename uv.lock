@@ -938,7 +938,7 @@ requires-dist = [
     { name = "llama-index-llms-openai-like", marker = "extra == 'openai'", specifier = ">=0.5.1" },
     { name = "llama-index-llms-openrouter", marker = "extra == 'openrouter'", specifier = ">=0.4.2" },
     { name = "llama-index-workflows", specifier = "==2.8.3" },
-    { name = "mobilerun-sdk", marker = "extra == 'mobilerun'", git = "ssh://git@github.com/stainless-sdks/droidrun-cloud-python.git" },
+    { name = "mobilerun-sdk", marker = "extra == 'mobilerun'", git = "ssh://git@github.com/stainless-sdks/droidrun-cloud-python.git?branch=next" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
     { name = "openai", marker = "extra == 'openai'", specifier = ">=1.99.1" },
     { name = "openinference-instrumentation-llama-index", marker = "extra == 'langfuse'", specifier = ">=3.0.0" },
@@ -1983,7 +1983,7 @@ wheels = [
 [[package]]
 name = "mobilerun-sdk"
 version = "0.0.1"
-source = { git = "ssh://git@github.com/stainless-sdks/droidrun-cloud-python.git#d230b5e325a0c7ebcf8819fb848a61ac19d6d433" }
+source = { git = "ssh://git@github.com/stainless-sdks/droidrun-cloud-python.git?branch=next#d09ba89ab97834d00bc4521ef6b897b8bf558994" }
 dependencies = [
     { name = "anyio" },
     { name = "distro" },
