@@ -4,6 +4,7 @@ import os
 import uuid
 from typing import Dict, List, Tuple
 
+from llama_index.core.workflow import Context
 from mobilerun import AsyncMobilerun
 from mobilerun.types.devices import StateTimeResponse
 from typing_extensions import Any
@@ -52,6 +53,9 @@ class MobileRunTools(Tools):
         self.raw_tree_cache = None
         self.filtered_tree_cache = None
 
+    def _set_context(self, ctx: Context):
+        self._ctx = ctx
+
     async def get_state(self) -> Tuple[str, str, List[Dict[str, Any]], Dict[str, Any]]:
         combined_data = await self.mobilerun.devices.state.ui(
             self.device_id, x_user_id=self.user_id
@@ -77,16 +81,16 @@ class MobileRunTools(Tools):
         return (formatted_text, focused_text, a11y_tree, phone_state)
 
     async def get_date(self) -> str:
-        res: StateTimeResponse = await self.mobilerun.devices.state.time(
-            self.device_id, x_user_id=self.user_id
-        )
+        res = await self.mobilerun.devices.state.time(self.device_id, x_user_id=self.user_id)
         return res.strftime("%Y-%m-%d %H:%M:%S")
 
     @Tools.ui_action
     async def tap_by_index(self, index: int) -> str:
         try:
             x, y = self._extract_element_coordinates_by_index(index)
-            await self.mobilerun.devices.actions.tap(self.device_id, x, y, x_user_id=self.user_id)
+            await self.mobilerun.devices.actions.tap(
+                self.device_id, x=x, y=y, x_user_id=self.user_id
+            )
         except Exception as e:
             print(f"Error: {str(e)}")
             return False
@@ -98,7 +102,13 @@ class MobileRunTools(Tools):
     ) -> bool:
         try:
             await self.mobilerun.devices.actions.swipe(
-                self.device_id, start_x, start_y, end_x, end_y, duration_ms, x_user_id=self.user_id
+                self.device_id,
+                start_x=start_x,
+                start_y=start_y,
+                end_x=end_x,
+                end_y=end_y,
+                duration=duration_ms,
+                x_user_id=self.user_id,
             )
         except Exception as e:
             print(f"Error: {str(e)}")
@@ -118,7 +128,7 @@ class MobileRunTools(Tools):
             if index != -1:
                 x, y = self._extract_element_coordinates_by_index(index)
                 await self.mobilerun.devices.actions.tap(
-                    self.device_id, x, y, x_user_id=self.user_id
+                    self.device_id, x=x, y=y, x_user_id=self.user_id
                 )
 
             await self.mobilerun.devices.keyboard.write(
@@ -141,9 +151,14 @@ class MobileRunTools(Tools):
 
     @Tools.ui_action
     async def start_app(self, package: str, activity: str = "") -> str:
+        logger.info(f"Starting app {package} with activity {activity}")
         try:
+            if activity == "":
+                act = None
+            else:
+                act = activity
             await self.mobilerun.devices.apps.start(
-                package, device_id=self.device_id, activity=activity, x_user_id=self.user_id
+                package, device_id=self.device_id, activity=act, x_user_id=self.user_id
             )
         except Exception as e:
             print(f"Error: {str(e)}")
@@ -169,7 +184,7 @@ class MobileRunTools(Tools):
         try:
             packages = await self.mobilerun.devices.packages.list(
                 device_id=self.device_id,
-                include_system_apps=include_system_apps,
+                include_system_packages=include_system_apps,
                 x_user_id=self.user_id,
             )
             return packages
@@ -178,14 +193,14 @@ class MobileRunTools(Tools):
             return []
 
     @Tools.ui_action
-    async def get_apps(self, include_system_apps: bool = True) -> List[Dict[str, Any]]:
+    async def get_apps(self, include_system: bool = True) -> List[Dict[str, Any]]:
         try:
             apps = await self.mobilerun.devices.apps.list(
                 device_id=self.device_id,
-                include_system_apps=include_system_apps,
+                include_system_apps=include_system,
                 x_user_id=self.user_id,
             )
-            return apps
+            return [app.model_dump() for app in apps]
         except Exception as e:
             print(f"Error: {str(e)}")
             return []
@@ -326,11 +341,16 @@ class MobileRunTools(Tools):
 
 
 async def main():
+    from dotenv import load_dotenv
+
+    load_dotenv()
     tools = MobileRunTools(
         device_id=os.getenv("DEVICE_ID"),
         api_key=os.getenv("API_KEY"),
         base_url=os.getenv("BASE_URL"),
     )
+
+    await tools.start_app("com.google.android.youtube")
 
     # test tools here
 
