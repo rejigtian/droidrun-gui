@@ -16,7 +16,7 @@ class MobileRunTools(Tools):
     def __init__(
         self,
         device_id: str,
-        display_id: str | None = None,
+        display_id: int | None = None,
         api_key: str | None = None,
         base_url: str = "https://api.mobilerun.com/v1",
         tree_filter: TreeFilter = None,
