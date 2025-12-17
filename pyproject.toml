@@ -79,6 +79,9 @@ langfuse = [
     "openinference-instrumentation-llama-index>=3.0.0",
     "llama-index-instrumentation"
 ]
+mobilerun = [
+    "mobilerun-sdk",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -170,6 +173,9 @@ contents = ["droidrun.tools.adb.AdbTools.*"]
 title = "IOSTools"
 name = "ios-tools"
 contents = ["droidrun.tools.ios.IOSTools.*"]
+
+[tool.uv.sources]
+mobilerun-sdk = { git = "ssh://git@github.com/droidrun/mobilerun-sdk-python.git", branch = "next" }
 
 [dependency-groups]
 dev = [

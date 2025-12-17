@@ -5,34 +5,34 @@ Droidrun - A framework for controlling Android devices through LLM agents.
 __version__ = "0.4.16"
 
 # Import main classes for easier access
+from droidrun.agent import ResultEvent
 from droidrun.agent.droid import DroidAgent
 from droidrun.agent.utils.llm_picker import load_llm
 
-# Import macro functionality
-from droidrun.macro import MacroPlayer, replay_macro_file, replay_macro_folder
-from droidrun.tools import AdbTools, IOSTools, Tools
-from droidrun.agent import ResultEvent
-
 # Import configuration classes
 from droidrun.config_manager import (
-    DroidrunConfig,
     # Agent configs
     AgentConfig,
-    CodeActConfig,
-    ManagerConfig,
-    ExecutorConfig,
-    ScripterConfig,
     AppCardConfig,
+    CodeActConfig,
+    CredentialsConfig,
     # Feature configs
     DeviceConfig,
+    DroidrunConfig,
+    ExecutorConfig,
+    LLMProfile,
     LoggingConfig,
-    TracingConfig,
+    ManagerConfig,
+    SafeExecutionConfig,
+    ScripterConfig,
     TelemetryConfig,
     ToolsConfig,
-    CredentialsConfig,
-    SafeExecutionConfig,
-    LLMProfile,
+    TracingConfig,
 )
+
+# Import macro functionality
+from droidrun.macro import MacroPlayer, replay_macro_file, replay_macro_folder
+from droidrun.tools import AdbTools, IOSTools, StealthAdbTools, Tools
 
 # Make main components available at package level
 __all__ = [
@@ -44,6 +44,7 @@ __all__ = [
     "Tools",
     "AdbTools",
     "IOSTools",
+    "StealthAdbTools",
     # Macro
     "MacroPlayer",
     "replay_macro_file",
@@ -65,3 +66,10 @@ __all__ = [
     "SafeExecutionConfig",
     "LLMProfile",
 ]
+
+try:
+    from droidrun.tools import MobileRunTools
+
+    __all__.append("MobileRunTools")
+except ImportError:
+    pass
