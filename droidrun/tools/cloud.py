@@ -81,8 +81,12 @@ class MobileRunTools(Tools):
         return (formatted_text, focused_text, a11y_tree, phone_state)
 
     async def get_date(self) -> str:
-        res = await self.mobilerun.devices.state.time(self.device_id, x_user_id=self.user_id)
-        return res.strftime("%Y-%m-%d %H:%M:%S")
+        try:
+            res = await self.mobilerun.devices.state.time(self.device_id, x_user_id=self.user_id)
+        except Exception as e:
+            print(f"Error: {str(e)}")
+            return "unknown"
+        return res
 
     @Tools.ui_action
     async def tap_by_index(self, index: int) -> str:
@@ -142,12 +146,12 @@ class MobileRunTools(Tools):
     @Tools.ui_action
     async def back(self) -> str:
         print("Error: Back is not implemented yet")
-        return False
+        return "Error: Back is not implemented yet"
 
     @Tools.ui_action
     async def press_key(self, keycode: int) -> str:
         print("Error: Press key is not implemented yet")
-        return False
+        return "Error: Press key is not implemented yet"
 
     @Tools.ui_action
     async def start_app(self, package: str, activity: str = "") -> str:
