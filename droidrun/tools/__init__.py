@@ -3,7 +3,6 @@ DroidRun Tools - Core functionality for Android device control.
 """
 
 from droidrun.tools.adb import AdbTools
-from droidrun.tools.cloud import MobileRunTools
 from droidrun.tools.ios import IOSTools
 from droidrun.tools.stealth_adb import StealthAdbTools
 from droidrun.tools.tools import Tools, describe_tools
@@ -14,5 +13,11 @@ __all__ = [
     "AdbTools",
     "IOSTools",
     "StealthAdbTools",
-    "MobileRunTools",
 ]
+
+try:
+    from droidrun.tools.cloud import MobileRunTools
+
+    __all__.append("MobileRunTools")
+except ImportError:
+    pass

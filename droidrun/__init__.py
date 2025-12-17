@@ -32,7 +32,7 @@ from droidrun.config_manager import (
 
 # Import macro functionality
 from droidrun.macro import MacroPlayer, replay_macro_file, replay_macro_folder
-from droidrun.tools import AdbTools, IOSTools, MobileRunTools, StealthAdbTools, Tools
+from droidrun.tools import AdbTools, IOSTools, StealthAdbTools, Tools
 
 # Make main components available at package level
 __all__ = [
@@ -44,7 +44,6 @@ __all__ = [
     "Tools",
     "AdbTools",
     "IOSTools",
-    "MobileRunTools",
     "StealthAdbTools",
     # Macro
     "MacroPlayer",
@@ -67,3 +66,10 @@ __all__ = [
     "SafeExecutionConfig",
     "LLMProfile",
 ]
+
+try:
+    from droidrun.tools import MobileRunTools
+
+    __all__.append("MobileRunTools")
+except ImportError:
+    pass
