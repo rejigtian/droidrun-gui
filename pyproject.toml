@@ -175,7 +175,7 @@ name = "ios-tools"
 contents = ["droidrun.tools.ios.IOSTools.*"]
 
 [tool.uv.sources]
-mobilerun-sdk = { git = "ssh://git@github.com/stainless-sdks/droidrun-cloud-python.git", branch = "next" }
+mobilerun-sdk = { git = "ssh://git@github.com/droidrun/mobilerun-sdk-python.git", branch = "next" }
 
 [dependency-groups]
 dev = [
