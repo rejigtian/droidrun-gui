@@ -286,13 +286,20 @@ class StealthAdbTools(AdbTools):
             )
             results.append(result)
 
+            # Check if the word input failed
+            if "Error" in result or "failed" in result:
+                return f"Stealth typing failed at word {i + 1}/{len(words)}: {result}"
+
             # Add space after word (except for last word)
             if i < len(words) - 1:
-                await super().input_text(" ", index=-1, clear=False)
+                space_result = await super().input_text(" ", index=-1, clear=False)
+                # Check if space input failed
+                if "Error" in space_result or "failed" in space_result:
+                    return f"Stealth typing failed adding space after word {i + 1}: {space_result}"
                 # Random delay between words (100-300ms)
                 await asyncio.sleep(random.uniform(0.1, 0.3))
 
-        return f"Stealth typing completed: {len(words)} words typed"
+        return f"Stealth typing completed: {len(words)} words typed successfully"
 
     async def swipe(
         self,
