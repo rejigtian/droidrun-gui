@@ -30,7 +30,7 @@ class MobileRunTools(Tools):
             self.mobilerun = AsyncMobilerun(api_key=api_key, base_url=base_url, timeout=10.0)
         else:
             self.mobilerun = AsyncMobilerun(
-                api_key="", base_url=base_url, timeout=10.0, default_headers={"X-User-ID": user_id}
+                api_key=None, base_url=base_url, timeout=10.0, default_headers={"X-User-ID": user_id}
             )
 
         # Instance‐level cache for clickable elements (index-based tapping)
