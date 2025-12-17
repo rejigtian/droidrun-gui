@@ -1,5 +1,4 @@
 import logging
-import uuid
 from typing import Dict, List, Tuple
 
 from llama_index.core.workflow import Context
@@ -23,11 +22,16 @@ class MobileRunTools(Tools):
         tree_filter: TreeFilter = None,
         tree_formatter: TreeFormatter = None,
         vision_enabled: bool = True,
+        user_id: str | None = None,
     ):
         self.device_id = device_id
         self.display_id = display_id
-        self.api_key = api_key
-        self.mobilerun = AsyncMobilerun(api_key=api_key, base_url=base_url, timeout=10.0)
+        if not user_id:
+            self.mobilerun = AsyncMobilerun(api_key=api_key, base_url=base_url, timeout=10.0)
+        else:
+            self.mobilerun = AsyncMobilerun(
+                api_key="", base_url=base_url, timeout=10.0, default_headers={"X-User-ID": user_id}
+            )
 
         # Instance‐level cache for clickable elements (index-based tapping)
         self.clickable_elements_cache: List[Dict[str, Any]] = []
@@ -81,7 +85,9 @@ class MobileRunTools(Tools):
 
     async def get_date(self) -> str:
         try:
-            res = await self.mobilerun.devices.state.time(self.device_id, x_device_display_id=self.display_id)
+            res = await self.mobilerun.devices.state.time(
+                self.device_id, x_device_display_id=self.display_id
+            )
         except Exception as e:
             print(f"Error: {str(e)}")
             return "unknown"
