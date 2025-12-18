@@ -1983,7 +1983,7 @@ wheels = [
 [[package]]
 name = "mobilerun-sdk"
 version = "0.0.1"
-source = { git = "ssh://git@github.com/droidrun/mobilerun-sdk-python.git?branch=next#3ce14b3d3654739f8d5d06d115b6813879f1de30" }
+source = { git = "ssh://git@github.com/droidrun/mobilerun-sdk-python.git?branch=next#b4a539276412316465e883d4dd89453c66d2f82b" }
 dependencies = [
     { name = "anyio" },
     { name = "distro" },
