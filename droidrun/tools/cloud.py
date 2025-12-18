@@ -16,7 +16,7 @@ class MobileRunTools(Tools):
     def __init__(
         self,
         device_id: str,
-        display_id: int | None = None,
+        display_id: int = 0,
         api_key: str | None = None,
         base_url: str = "https://api.mobilerun.com/v1",
         tree_filter: TreeFilter = None,
@@ -30,7 +30,7 @@ class MobileRunTools(Tools):
             self.mobilerun = AsyncMobilerun(api_key=api_key, base_url=base_url, timeout=10.0)
         else:
             self.mobilerun = AsyncMobilerun(
-                api_key="", base_url=base_url, timeout=10.0, default_headers={"X-User-ID": user_id}
+                api_key="x", base_url=base_url, timeout=10.0, default_headers={"X-User-ID": user_id}
             )
 
         # Instance‐level cache for clickable elements (index-based tapping)
@@ -150,13 +150,78 @@ class MobileRunTools(Tools):
 
     @Tools.ui_action
     async def back(self) -> str:
-        print("Error: Back is not implemented yet")
-        return "Error: Back is not implemented yet"
+        return "use press_key(4) to go back"
 
     @Tools.ui_action
     async def press_key(self, keycode: int) -> str:
-        print("Error: Press key is not implemented yet")
-        return "Error: Press key is not implemented yet"
+        """
+        Press a key on the device.
+
+        Args:
+            keycode: The keycode to press. (Android KeyEvent code)
+
+        Returns:
+            A string indicating the keycode pressed.
+        """
+        if keycode == 4:
+            ok = await self.global_action(1)
+        elif keycode == 3:
+            ok = await self.global_action(2)
+        else:
+            ok = None
+
+        if ok is not None:
+            return f"Pressed key {keycode}" if ok else f"Error: Failed to press key {keycode}"
+
+        try:
+            await self.mobilerun.devices.keyboard.key(
+                self.device_id, action=keycode, x_device_display_id=self.display_id
+            )
+        except Exception as e:
+            print(f"Error: {str(e)}")
+            return f"Error: {str(e)}"
+        return f"Pressed key {keycode}"
+
+    @Tools.ui_action
+    async def global_action(self, action: int) -> bool:
+        """
+        Press a key on the device.
+
+        Args:
+            keycode: The keycode to press.
+            possible keycodes:
+                Back	1
+                Home	2
+                Recents	3
+                Notifications	4
+                QuickSettings	5
+                PowerDialog	6
+                ToggleSplitScreen	7
+                LockScreen	8
+                TakeScreenshot	9
+                KeycodeHeadsetHook	10
+                AccessibilityButton	11
+                AccessibilityButtonChooser	12
+                AccessibilityShortcut	13
+                AccessibilityAllApps	14
+                DismissNotificationShade	15
+                DpadUp	16
+                DpadDown	17
+                DpadLeft	18
+                DpadRight	19
+                DpadCenter	20
+
+        Returns:
+            A string indicating the keycode pressed.
+        """
+        try:
+            await self.mobilerun.devices.actions.global_(
+                self.device_id, action=action, x_device_display_id=self.display_id
+            )
+        except Exception as e:
+            print(f"Error: {str(e)}")
+            return False
+        return True
 
     @Tools.ui_action
     async def start_app(self, package: str, activity: str = "") -> str:
