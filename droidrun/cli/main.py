@@ -80,7 +80,8 @@ async def get_portal_version(device_obj) -> str | None:
             version_data = json.loads(json_str)
 
             if version_data.get("status") == "success":
-                return version_data.get("data")
+                # Check for 'result' first (new portal), then 'data' (legacy)
+                return version_data.get("result") or version_data.get("data")
         return None
     except Exception:
         return None
