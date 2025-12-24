@@ -221,7 +221,9 @@ class StatelessManagerAgent(Workflow):
         self.shared_state.has_text_to_modify = has_text_to_modify
         self.shared_state.screenshot = screenshot
 
-        return ManagerContextEvent()
+        event = ManagerContextEvent()
+        ctx.write_event_to_stream(event)
+        return event
 
     @step
     async def get_response(
@@ -256,7 +258,9 @@ class StatelessManagerAgent(Workflow):
 
         output = await self._validate_and_retry(messages, output)
 
-        return ManagerResponseEvent(response=output, usage=usage)
+        event = ManagerResponseEvent(response=output, usage=usage)
+        ctx.write_event_to_stream(event)
+        return event
 
     @step
     async def process_response(
@@ -282,7 +286,7 @@ class StatelessManagerAgent(Workflow):
         self.shared_state.current_subgoal = parsed["current_subgoal"]
         self.shared_state.manager_answer = parsed["answer"]
 
-        return ManagerPlanDetailsEvent(
+        event = ManagerPlanDetailsEvent(
             plan=parsed["plan"],
             subgoal=parsed["current_subgoal"],
             thought=parsed["thought"],
@@ -292,6 +296,8 @@ class StatelessManagerAgent(Workflow):
             success=parsed["success"],
             full_response=output,
         )
+        ctx.write_event_to_stream(event)
+        return event
 
     @step
     async def finalize(self, ctx: Context, ev: ManagerPlanDetailsEvent) -> StopEvent:

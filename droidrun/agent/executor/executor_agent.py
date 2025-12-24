@@ -149,9 +149,10 @@ class ExecutorAgent(Workflow):
                 logger.debug("📸 Using screenshot for Executor")
             else:
                 logger.warning("⚠️ Vision enabled but no screenshot available")
-        # Store messages in context for next step
         await ctx.store.set("executor_messages", messages)
-        return ExecutorContextEvent(subgoal=subgoal)
+        event = ExecutorContextEvent(subgoal=subgoal)
+        ctx.write_event_to_stream(event)
+        return event
 
     @step
     async def get_response(
@@ -182,7 +183,9 @@ class ExecutorAgent(Workflow):
         except Exception as e:
             logger.warning(f"Could not get usage: {e}")
 
-        return ExecutorResponseEvent(response=response_text, usage=usage)
+        event = ExecutorResponseEvent(response=response_text, usage=usage)
+        ctx.write_event_to_stream(event)
+        return event
 
     @step
     async def process_response(
@@ -228,7 +231,7 @@ class ExecutorAgent(Workflow):
             action_dict = json.loads(ev.action_json)
         except json.JSONDecodeError as e:
             logger.error(f"❌ Failed to parse action JSON: {e}")
-            return ExecutorActionResultEvent(
+            event = ExecutorActionResultEvent(
                 action={"action": "invalid"},
                 success=False,
                 error=f"Invalid action JSON: {str(e)}",
@@ -236,6 +239,8 @@ class ExecutorAgent(Workflow):
                 thought=ev.thought,
                 full_response=ev.full_response,
             )
+            ctx.write_event_to_stream(event)
+            return event
 
         success, error, summary = await self._execute_action(action_dict, ev.description)
 
@@ -243,7 +248,7 @@ class ExecutorAgent(Workflow):
 
         logger.debug(f"{'✅' if success else '❌'} Execution complete: {summary}")
 
-        return ExecutorActionResultEvent(
+        event = ExecutorActionResultEvent(
             action=action_dict,
             success=success,
             error=error,
@@ -251,6 +256,8 @@ class ExecutorAgent(Workflow):
             thought=ev.thought,
             full_response=ev.full_response,
         )
+        ctx.write_event_to_stream(event)
+        return event
 
 
     async def _execute_action(

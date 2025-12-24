@@ -257,11 +257,13 @@ class CodeActAgent(Workflow):
 
         # Check max steps
         if self.shared_state.step_number + 1 > self.max_steps:
-            return CodeActEndEvent(
+            event = CodeActEndEvent(
                 success=False,
                 reason=f"Reached max step count of {self.max_steps} steps",
                 code_executions=self.code_exec_counter,
             )
+            ctx.write_event_to_stream(event)
+            return event
 
         logger.info(f"🔄 Step {self.shared_state.step_number + 1}/{self.max_steps}")
 
@@ -371,7 +373,9 @@ class CodeActAgent(Workflow):
         # Update unified state
         self.shared_state.last_thought = thought
 
-        return CodeActResponseEvent(thought=thought, code=code, usage=usage)
+        event = CodeActResponseEvent(thought=thought, code=code, usage=usage)
+        ctx.write_event_to_stream(event)
+        return event
 
 
     @step
@@ -394,7 +398,9 @@ class CodeActAgent(Workflow):
             logger.debug(f"Reasoning: {ev.thought}")
 
         if ev.code:
-            return CodeActCodeEvent(code=ev.code)
+            event = CodeActCodeEvent(code=ev.code)
+            ctx.write_event_to_stream(event)
+            return event
         else:
             # No code - ask for it
             no_code_text = (
@@ -437,24 +443,29 @@ class CodeActAgent(Workflow):
                 )
                 self.tools.finished = False
 
-                return CodeActEndEvent(
+                event = CodeActEndEvent(
                     success=success,
                     reason=reason,
                     code_executions=self.code_exec_counter,
                 )
+                ctx.write_event_to_stream(event)
+                return event
 
             # Update remembered info
             self.remembered_info = self.tools.memory
 
-            return CodeActOutputEvent(output=str(result))
+            event = CodeActOutputEvent(output=str(result))
+            ctx.write_event_to_stream(event)
+            return event
 
         except Exception as e:
             logger.error(f"💥 Action failed: {e}")
             if self.debug:
                 logger.error("Exception details:", exc_info=True)
-            error_message = f"Error during execution: {e}"
 
-            return CodeActOutputEvent(output=error_message)
+            event = CodeActOutputEvent(output=f"Error during execution: {e}")
+            ctx.write_event_to_stream(event)
+            return event
 
     @step
     async def handle_execution_result(
@@ -471,8 +482,8 @@ class CodeActAgent(Workflow):
 
     @step
     async def finalize(self, ev: CodeActEndEvent, ctx: Context) -> StopEvent:
-        """Finalize the workflow."""
         self.tools.finished = False
+        ctx.write_event_to_stream(ev)
 
         return StopEvent(
             result={

@@ -482,10 +482,11 @@ class ManagerAgent(Workflow):
         except Exception as e:
             logger.warning(f"Could not get usage: {e}")
 
-        # Validate and retry if needed
         output = await self._validate_and_retry(messages, output)
 
-        return ManagerResponseEvent(response=output, usage=usage)
+        event = ManagerResponseEvent(response=output, usage=usage)
+        ctx.write_event_to_stream(event)
+        return event
 
     @step
     async def process_response(
@@ -517,13 +518,10 @@ class ManagerAgent(Workflow):
         self.shared_state.last_thought = parsed["thought"]
         self.shared_state.manager_answer = parsed["answer"]
 
-        # Update progress summary if provided
         if parsed.get("progress_summary"):
             self.shared_state.progress_summary = parsed["progress_summary"]
 
-
-
-        return ManagerPlanDetailsEvent(
+        event = ManagerPlanDetailsEvent(
             plan=parsed["plan"],
             subgoal=parsed["current_subgoal"],
             thought=parsed["thought"],
@@ -533,10 +531,11 @@ class ManagerAgent(Workflow):
             success=parsed["success"],
             full_response=output,
         )
+        ctx.write_event_to_stream(event)
+        return event
 
     @step
     async def finalize(self, ctx: Context, ev: ManagerPlanDetailsEvent) -> StopEvent:
-        """Return manager results to parent workflow."""
         logger.debug("✅ Manager planning complete")
 
         return StopEvent(

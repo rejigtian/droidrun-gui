@@ -162,14 +162,15 @@ class ScripterAgent(Workflow):
     ) -> ScripterThinkingEvent | ScripterEndEvent:
         """Call LLM to generate thought + code."""
 
-        # Check max steps
         if self.step_counter >= self.max_steps:
             logger.warning(f"⚠️ Max steps ({self.max_steps}) reached without completion")
-            return ScripterEndEvent(
+            event = ScripterEndEvent(
                 message=f"Max steps ({self.max_steps}) reached without completion",
                 success=False,
                 code_executions=self.step_counter,
             )
+            ctx.write_event_to_stream(event)
+            return event
 
         self.step_counter += 1
         logger.debug(
@@ -188,11 +189,13 @@ class ScripterAgent(Workflow):
             )
         except Exception as e:
             logger.error(f"LLM call failed: {e}")
-            return ScripterEndEvent(
+            event = ScripterEndEvent(
                 message=f"LLM call failed: {e}",
                 success=False,
                 code_executions=self.step_counter,
             )
+            ctx.write_event_to_stream(event)
+            return event
 
         # Extract usage from response
         try:
@@ -228,12 +231,12 @@ class ScripterAgent(Workflow):
             logger.debug(f"🤔 Reasoning: {ev.thoughts}")
 
         if ev.code:
-            return ScripterExecutionEvent(code=ev.code)
+            event = ScripterExecutionEvent(code=ev.code)
+            ctx.write_event_to_stream(event)
+            return event
         else:
-            # No code provided - treat entire response as final answer
             logger.debug("📝 No code provided, treating response as final answer")
 
-            # Use thoughts if available, otherwise use full response
             response_message = (
                 ev.thoughts.strip() if ev.thoughts.strip() else ev.full_response.strip()
             )
@@ -244,11 +247,13 @@ class ScripterAgent(Workflow):
             logger.debug(
                 f"✅ Script completed with response: {response_message[:100]}..."
             )
-            return ScripterEndEvent(
+            event = ScripterEndEvent(
                 message=response_message,
                 success=True,
                 code_executions=self.step_counter,
             )
+            ctx.write_event_to_stream(event)
+            return event
 
     @step
     async def execute_code(
