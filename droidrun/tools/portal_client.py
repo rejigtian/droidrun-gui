@@ -184,10 +184,18 @@ class PortalClient:
                 json_str = line[result_start:]
                 try:
                     json_data = json.loads(json_str)
-                    # Handle nested "data" field with JSON string
-                    if isinstance(json_data, dict) and "data" in json_data:
-                        if isinstance(json_data["data"], str):
-                            return json.loads(json_data["data"])
+                    # Handle nested "result" or "data" field with JSON string (backward compatible)
+                    if isinstance(json_data, dict):
+                        # Check for 'result' first (new portal format), then 'data' (legacy)
+                        inner_key = "result" if "result" in json_data else "data" if "data" in json_data else None
+                        if inner_key:
+                            inner_value = json_data[inner_key]
+                            if isinstance(inner_value, str):
+                                try:
+                                    return json.loads(inner_value)
+                                except json.JSONDecodeError:
+                                    return inner_value
+                            return inner_value
                     return json_data
                 except json.JSONDecodeError:
                     continue
@@ -228,10 +236,19 @@ class PortalClient:
                 if response.status_code == 200:
                     data = response.json()
 
-                    # Handle nested "data" field
-                    if isinstance(data, dict) and "data" in data:
-                        if isinstance(data["data"], str):
-                            return json.loads(data["data"])
+                    # Handle nested "result" or "data" field (backward compatible)
+                    if isinstance(data, dict):
+                        # Check for 'result' first (new portal format), then 'data' (legacy)
+                        inner_key = "result" if "result" in data else "data" if "data" in data else None
+                        if inner_key:
+                            inner_value = data[inner_key]
+                            if isinstance(inner_value, str):
+                                try:
+                                    return json.loads(inner_value)
+                                except json.JSONDecodeError:
+                                    pass
+                            elif isinstance(inner_value, dict):
+                                return inner_value
                     return data
                 else:
                     logger.debug(
@@ -256,16 +273,22 @@ class PortalClient:
                     "message": "Failed to parse state data from ContentProvider",
                 }
 
-            # Handle nested "data" field if present
-            if isinstance(state_data, dict) and "data" in state_data:
-                if isinstance(state_data["data"], str):
-                    try:
-                        return json.loads(state_data["data"])
-                    except json.JSONDecodeError:
-                        return {
-                            "error": "Parse Error",
-                            "message": "Failed to parse nested JSON data",
-                        }
+            # Handle nested "result" or "data" field if present (backward compatible)
+            if isinstance(state_data, dict):
+                # Check for 'result' first (new portal format), then 'data' (legacy)
+                inner_key = "result" if "result" in state_data else "data" if "data" in state_data else None
+                if inner_key:
+                    inner_value = state_data[inner_key]
+                    if isinstance(inner_value, str):
+                        try:
+                            return json.loads(inner_value)
+                        except json.JSONDecodeError:
+                            return {
+                                "error": "Parse Error",
+                                "message": "Failed to parse nested JSON data",
+                            }
+                    elif isinstance(inner_value, dict):
+                        return inner_value
 
             return state_data
 
@@ -357,14 +380,16 @@ class PortalClient:
                 response = await client.get(url, timeout=10.0)
                 if response.status_code == 200:
                     data = response.json()
-                    if data.get("status") == "success" and "data" in data:
-                        logger.debug("Screenshot taken via TCP")
-                        return base64.b64decode(data["data"])
-                    else:
-                        logger.debug(
-                            "TCP screenshot failed (invalid response), using fallback"
-                        )
-                        return await self._take_screenshot_adb()
+                    # Check for 'result' first (new portal format), then 'data' (legacy)
+                    if data.get("status") == "success":
+                        inner_key = "result" if "result" in data else "data" if "data" in data else None
+                        if inner_key:
+                            logger.debug("Screenshot taken via TCP")
+                            return base64.b64decode(data[inner_key])
+                    logger.debug(
+                        "TCP screenshot failed (invalid response), using fallback"
+                    )
+                    return await self._take_screenshot_adb()
                 else:
                     logger.debug(
                         f"TCP screenshot failed ({response.status_code}), using fallback"
@@ -402,13 +427,38 @@ class PortalClient:
             )
             packages_data = self._parse_content_provider_output(output)
 
-            if not packages_data or "packages" not in packages_data:
+            if not packages_data:
                 logger.warning("No packages data found in content provider response")
+                return []
+
+            # Handle both formats:
+            # - New format: array directly (via RawArray -> result: [...])
+            # - Legacy format: wrapped in {"packages": [...]}
+            packages_list = None
+            if isinstance(packages_data, list):
+                # New format: packages_data is already the list
+                packages_list = packages_data
+            elif isinstance(packages_data, dict):
+                if "packages" in packages_data:
+                    # Legacy format: wrapped in {"packages": [...]}
+                    packages_list = packages_data["packages"]
+                else:
+                    # May be wrapped in result/data
+                    inner_key = "result" if "result" in packages_data else "data" if "data" in packages_data else None
+                    if inner_key:
+                        inner_value = packages_data[inner_key]
+                        if isinstance(inner_value, list):
+                            packages_list = inner_value
+                        elif isinstance(inner_value, dict) and "packages" in inner_value:
+                            packages_list = inner_value["packages"]
+
+            if not packages_list:
+                logger.warning("Could not extract packages list from response")
                 return []
 
             # Filter and format apps
             apps = []
-            for package_info in packages_data["packages"]:
+            for package_info in packages_list:
                 if not include_system and package_info.get("isSystemApp", False):
                     continue
 
@@ -437,8 +487,10 @@ class PortalClient:
                     )
                     if response.status_code == 200:
                         data = response.json()
-                        if "data" in data:
-                            return data["data"]
+                        # Check for 'result' first (new portal format), then 'data' (legacy)
+                        inner_key = "result" if "result" in data else "data" if "data" in data else None
+                        if inner_key:
+                            return data[inner_key]
                         return data.get("status", "unknown")
             except Exception:
                 pass
@@ -449,8 +501,11 @@ class PortalClient:
                 "content query --uri content://com.droidrun.portal/version"
             )
             result = self._parse_content_provider_output(output)
-            if result and "data" in result:
-                return result["data"]
+            if result:
+                # Check for 'result' first (new portal format), then 'data' (legacy)
+                inner_key = "result" if "result" in result else "data" if "data" in result else None
+                if inner_key:
+                    return result[inner_key]
         except Exception:
             pass
 
