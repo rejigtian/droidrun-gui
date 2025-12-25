@@ -580,7 +580,6 @@ async def _setup_portal(path: str | None, device: str | None, debug: bool, lates
             portal_version, download_base, mapping_fetched = get_compatible_portal_version(__version__, debug)
 
             if portal_version:
-                console.print(f"[bold blue]Downloading Portal APK {portal_version} (compatible with droidrun {__version__})...[/]")
                 apk_context = download_versioned_portal_apk(portal_version, download_base, debug)
             else:
                 if not mapping_fetched:
