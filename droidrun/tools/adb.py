@@ -358,68 +358,87 @@ class AdbTools(Tools):
     async def tap_on_index(self, index: int) -> str:
         """Tap on element by index, avoiding overlapping elements."""
         await self._ensure_connected()
+        try:
+            def find_element_by_index(elements, target_index):
+                for item in elements:
+                    if item.get("index") == target_index:
+                        return item
+                    children = item.get("children", [])
+                    result = find_element_by_index(children, target_index)
+                    if result:
+                        return result
+                return None
 
-        def find_element_by_index(elements, target_index):
-            for item in elements:
-                if item.get("index") == target_index:
-                    return item
-                children = item.get("children", [])
-                result = find_element_by_index(children, target_index)
-                if result:
-                    return result
-            return None
+            def collect_all_elements(elements):
+                result = []
+                for item in elements:
+                    result.append(item)
+                    result.extend(collect_all_elements(item.get("children", [])))
+                return result
 
-        def collect_all_elements(elements):
-            result = []
-            for item in elements:
-                result.append(item)
-                result.extend(collect_all_elements(item.get("children", [])))
-            return result
+            if not self.clickable_elements_cache:
+                raise ValueError("No UI elements cached. Call get_state first.")
 
-        if not self.clickable_elements_cache:
-            raise ValueError("No UI elements cached. Call get_state first.")
+            element = find_element_by_index(self.clickable_elements_cache, index)
+            if not element:
+                raise ValueError(f"No element found with index {index}")
 
-        element = find_element_by_index(self.clickable_elements_cache, index)
-        if not element:
-            raise ValueError(f"No element found with index {index}")
+            bounds_str = element.get("bounds")
+            if not bounds_str:
+                raise ValueError(f"Element {index} has no bounds")
 
-        bounds_str = element.get("bounds")
-        if not bounds_str:
-            raise ValueError(f"Element {index} has no bounds")
+            target_bounds = tuple(map(int, bounds_str.split(",")))
 
-        target_bounds = tuple(map(int, bounds_str.split(",")))
+            all_elements = collect_all_elements(self.clickable_elements_cache)
+            blockers = []
+            for el in all_elements:
+                el_idx = el.get("index")
+                el_bounds_str = el.get("bounds")
+                if el_idx is not None and el_idx > index and el_bounds_str:
+                    el_bounds = tuple(map(int, el_bounds_str.split(",")))
+                    if rects_overlap(target_bounds, el_bounds):
+                        blockers.append(el_bounds)
 
-        all_elements = collect_all_elements(self.clickable_elements_cache)
-        blockers = []
-        for el in all_elements:
-            el_idx = el.get("index")
-            el_bounds_str = el.get("bounds")
-            if el_idx is not None and el_idx > index and el_bounds_str:
-                el_bounds = tuple(map(int, el_bounds_str.split(",")))
-                if rects_overlap(target_bounds, el_bounds):
-                    blockers.append(el_bounds)
+            point = find_clear_point(target_bounds, blockers)
+            if not point:
+                raise ValueError(f"Element {index} is fully obscured by overlapping elements")
 
-        point = find_clear_point(target_bounds, blockers)
-        if not point:
-            raise ValueError(f"Element {index} is fully obscured by overlapping elements")
+            x, y = point
+            await self.device.click(x, y)
+            print(f"Tapped element with index {index} at coordinates ({x}, {y})")
 
-        x, y = point
-        await self.device.click(x, y)
-        print(f"Tapped element {index} at ({x}, {y})")
+            if self._ctx:
+                element_text = element.get("text", "No text")
+                element_class = element.get("className", "Unknown class")
 
-        if self._ctx:
-            tap_event = TapActionEvent(
-                action_type="tap",
-                description=f"Smart tap element {index} at ({x}, {y})",
-                x=x,
-                y=y,
-                element_index=index,
-                element_text=element.get("text", ""),
-                element_bounds=bounds_str,
-            )
-            self._ctx.write_event_to_stream(tap_event)
+                tap_event = TapActionEvent(
+                    action_type="tap",
+                    description=f"Tap element at index {index}: '{element_text}' ({element_class}) at coordinates ({x}, {y})",
+                    x=x,
+                    y=y,
+                    element_index=index,
+                    element_text=element_text,
+                    element_bounds=bounds_str,
+                )
+                self._ctx.write_event_to_stream(tap_event)
 
-        return f"Tapped element {index} at ({x}, {y})"
+            response_parts = []
+            response_parts.append(f"Tapped element with index {index}")
+            response_parts.append(f"Text: '{element.get('text', 'No text')}'")
+            response_parts.append(f"Class: {element.get('className', 'Unknown class')}")
+            response_parts.append(f"Type: {element.get('type', 'unknown')}")
+
+            children = element.get("children", [])
+            if children:
+                child_texts = [child.get("text") for child in children if child.get("text")]
+                if child_texts:
+                    response_parts.append(f"Contains text: {' | '.join(child_texts)}")
+
+            response_parts.append(f"Coordinates: ({x}, {y})")
+
+            return " | ".join(response_parts)
+        except ValueError as e:
+            return f"Error: {str(e)}"
 
     @Tools.ui_action
     async def swipe(
