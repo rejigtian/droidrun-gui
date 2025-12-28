@@ -58,7 +58,7 @@ class AppStarter(Workflow):
 
         # Format apps list for LLM
         apps_list = "\n".join(
-            [f"- {app['label']} (package: {app['package']})" for app in apps]
+            [f"- {app['label']} (package: {app['package_name'] if 'package_name' in app else app['package']})" for app in apps]
         )
 
         # Construct prompt for LLM
@@ -93,6 +93,8 @@ Choose the most appropriate app based on the description. Return the package nam
                 result=f"Error parsing LLM response: {e}. Response: {response_text}"
             )
 
+        logger.info(f"Starting app {package_name}")
+        logger.info(self.tools.__class__.__class__)
         result = await self.tools.start_app(package_name)
 
         return StopEvent(result=result)

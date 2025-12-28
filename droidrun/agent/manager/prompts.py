@@ -45,14 +45,19 @@ def parse_manager_response(response: str) -> dict:
     thought = extract("thought")
     memory_section = extract("add_memory")
     plan = extract("plan")
+    progress_summary = extract("progress_summary")
     answer = extract("request_accomplished")
 
-    # Parse success attribute from request_accomplished tag
+    # Also support <answer> tag as alternative to <request_accomplished>
+    if not answer:
+        answer = extract("answer")
+
+    # Parse success attribute from request_accomplished or answer tag
     success = None
     if answer:
         # Try to extract success attribute from tag
         success_match = re.search(
-            r'<request_accomplished\s+success="(true|false)">', response
+            r'<(?:request_accomplished|answer)\s+success="(true|false)">', response
         )
         if success_match:
             success = success_match.group(1) == "true"
@@ -97,4 +102,5 @@ def parse_manager_response(response: str) -> dict:
         "current_subgoal": current_subgoal,
         "answer": answer,
         "success": success,
+        "progress_summary": progress_summary,
     }

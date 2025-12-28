@@ -21,10 +21,80 @@ REPO = "droidrun/droidrun-portal"
 ASSET_NAME = "droidrun-portal"
 GITHUB_API_HOSTS = ["https://api.github.com", "https://ungh.cc"]
 
+VERSION_MAP_GIST_URL = "https://raw.githubusercontent.com/droidrun/gists/refs/heads/main/version_map_android.json"
+
 PORTAL_PACKAGE_NAME = "com.droidrun.portal"
 A11Y_SERVICE_NAME = (
     f"{PORTAL_PACKAGE_NAME}/com.droidrun.portal.service.DroidrunAccessibilityService"
 )
+
+
+def get_version_mapping(debug: bool = False) -> dict | None:
+    try:
+        response = requests.get(VERSION_MAP_GIST_URL, timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        if debug:
+            print(f"Failed to fetch version mapping: {e}")
+        return None
+
+
+def _version_in_range(version: str, range_str: str) -> bool:
+    if "-" not in range_str:
+        return False
+    try:
+        start, end = range_str.split("-", 1)
+        v_parts = [int(x) for x in version.split(".")]
+        s_parts = [int(x) for x in start.split(".")]
+        e_parts = [int(x) for x in end.split(".")]
+        return s_parts <= v_parts <= e_parts
+    except (ValueError, AttributeError):
+        return False
+
+
+def get_compatible_portal_version(droidrun_version: str, debug: bool = False) -> tuple[str | None, str, bool]:
+    mapping = get_version_mapping(debug)
+    if mapping is None:
+        return (None, "", False)
+
+    mappings = mapping.get("mappings", {})
+    download_base = mapping.get("download_base", "https://github.com/droidrun/droidrun-portal/releases/download")
+
+    # Try exact match first
+    if droidrun_version in mappings:
+        return (mappings[droidrun_version], download_base, True)
+
+    # Try range match (e.g., "0.4.0-0.4.14": "1.0.0")
+    for key, portal_version in mappings.items():
+        if "-" in key and _version_in_range(droidrun_version, key):
+            return (portal_version, download_base, True)
+
+    return (None, download_base, True)
+
+
+@contextlib.contextmanager
+def download_versioned_portal_apk(version: str, download_base: str, debug: bool = False):
+    """Download a specific Portal APK version."""
+    console = Console()
+    asset_url = f"{download_base}/{version}/{ASSET_NAME}-{version}.apk"
+
+    console.print(f"Downloading Portal APK [bold]{version}[/bold]")
+    if debug:
+        console.print(f"Asset URL: {asset_url}")
+
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".apk")
+    try:
+        r = requests.get(asset_url, stream=True)
+        r.raise_for_status()
+        for chunk in r.iter_content(chunk_size=8192):
+            if chunk:
+                tmp.write(chunk)
+        tmp.close()
+        yield tmp.name
+    finally:
+        if os.path.exists(tmp.name):
+            os.unlink(tmp.name)
 
 
 def get_latest_release_assets(debug: bool = False):

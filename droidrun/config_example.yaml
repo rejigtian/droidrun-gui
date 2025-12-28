@@ -33,6 +33,8 @@ agent:
     vision: false
     # System prompt filename (located in prompts_dir/manager/)
     system_prompt: system.jinja2
+    # Use stateless manager (rebuilds context each turn, no chat history, experimental)
+    stateless: false
 
   # Executor Agent Configuration
   executor:

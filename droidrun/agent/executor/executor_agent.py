@@ -14,18 +14,18 @@ import json
 import logging
 from typing import TYPE_CHECKING, Optional
 
-from llama_index.core.llms import ChatMessage, ImageBlock, TextBlock
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
 
 from droidrun.agent.executor.events import (
     ExecutorActionEvent,
-    ExecutorActionResultEvent,
     ExecutorContextEvent,
     ExecutorResponseEvent,
+    ExecutorActionResultEvent,
 )
 from droidrun.agent.executor.prompts import parse_executor_response
 from droidrun.agent.usage import get_usage_from_response
+from droidrun.agent.utils.chat_utils import to_chat_messages
 from droidrun.agent.utils.inference import acall_with_retries
 from droidrun.agent.utils.prompt_resolver import PromptResolver
 from droidrun.agent.utils.tools import (
@@ -51,12 +51,8 @@ class ExecutorAgent(Workflow):
     """
     Action execution agent that performs specific actions.
 
-    The Executor:
-    1. Receives a subgoal from the Manager
-    2. Analyzes current UI state and context
-    3. Selects an appropriate action to take
-    4. Executes the action on the device
-    5. Reports the outcome
+    Single-turn agent: receives subgoal, selects action, executes it.
+    Uses dict messages, converts to ChatMessage at LLM call time.
     """
 
     def __init__(
@@ -84,32 +80,25 @@ class ExecutorAgent(Workflow):
             atomic_tools if atomic_tools is not None else ATOMIC_ACTION_SIGNATURES
         )
 
+        logger.debug("ExecutorAgent initialized.")
+
     @step
     async def prepare_context(
         self, ctx: Context, ev: StartEvent
     ) -> ExecutorContextEvent:
-        """
-        Prepare executor context and prompt.
-
-        This step:
-        1. Extracts subgoal from event
-        2. Builds action history context
-        3. Builds system prompt with all variables
-        4. Stores messages for next step
-        """
-        # macro tools context
+        """Prepare executor context and prompt."""
         self.tools_instance._set_context(ctx)
 
         subgoal = ev.get("subgoal", "")
         logger.debug(f"🧠 Executor thinking about action for: {subgoal}")
 
-        # Prepare action history as structured data (last 5 actions)
+        # Build action history (last 5)
         action_history = []
         if self.shared_state.action_history:
             n = min(5, len(self.shared_state.action_history))
             action_history = [
-                {"action": act, "summary": summ, "outcome": outcome, "error": err_des}
-                for act, summ, outcome, err_des in zip(
+                {"action": act, "summary": summ, "outcome": outcome, "error": err}
+                for act, summ, outcome, err in zip(
                     self.shared_state.action_history[-n:],
                     self.shared_state.summary_history[-n:],
                     self.shared_state.action_outcomes[-n:],
@@ -118,7 +107,7 @@ class ExecutorAgent(Workflow):
                 )
             ]
 
-        # Get available secrets from credential manager
+        # Get available secrets
         available_secrets = []
         if (
             hasattr(self.tools_instance, "credential_manager")
@@ -126,105 +115,87 @@ class ExecutorAgent(Workflow):
         ):
             available_secrets = await self.tools_instance.credential_manager.get_keys()
 
-        # Let Jinja2 handle all formatting (tools already filtered by DroidAgent)
+        # Build prompt variables
         variables = {
             "instruction": self.shared_state.instruction,
-            "app_card": "",  # TODO: optionally implement app card loader
+            "app_card": "",
             "device_state": self.shared_state.formatted_device_state,
             "plan": self.shared_state.plan,
             "subgoal": subgoal,
-            "progress_status": self.shared_state.progress_status,
+            "progress_status": self.shared_state.progress_summary,
             "atomic_actions": {**self.atomic_tools, **self.custom_tools},
             "action_history": action_history,
             "available_secrets": available_secrets,
             "variables": self.shared_state.custom_variables,
         }
 
-        custom_executor_prompt = self.prompt_resolver.get_prompt("executor_system")
-        if custom_executor_prompt:
-            system_prompt = PromptLoader.render_template(
-                custom_executor_prompt, variables
-            )
+        custom_prompt = self.prompt_resolver.get_prompt("executor_system")
+        if custom_prompt:
+            prompt_text = PromptLoader.render_template(custom_prompt, variables)
         else:
-            system_prompt = await PromptLoader.load_prompt(
+            prompt_text = await PromptLoader.load_prompt(
                 self.agent_config.get_executor_system_prompt_path(),
                 variables,
             )
 
-        blocks = [TextBlock(text=system_prompt)]
+        # Build message as dict
+        messages = [{"role": "user", "content": [{"text": prompt_text}]}]
+
+        # Add screenshot if vision enabled
         if self.vision:
             screenshot = self.shared_state.screenshot
             if screenshot is not None:
-                blocks.append(ImageBlock(image=screenshot))
+                messages[0]["content"].append({"image": screenshot})
                 logger.debug("📸 Using screenshot for Executor")
             else:
                 logger.warning("⚠️ Vision enabled but no screenshot available")
-        messages = [ChatMessage(role="user", blocks=blocks)]
-
-        logger.debug("✅ Executor context prepared")
-
-        event = ExecutorContextEvent(messages=messages, subgoal=subgoal)
+        await ctx.store.set("executor_messages", messages)
+        event = ExecutorContextEvent(subgoal=subgoal)
         ctx.write_event_to_stream(event)
-
         return event
 
     @step
     async def get_response(
         self, ctx: Context, ev: ExecutorContextEvent
     ) -> ExecutorResponseEvent:
-        """
-        Executor thinks and gets LLM response.
+        """Get LLM response."""
+        logger.debug("Executor getting LLM response...")
 
-        This step:
-        1. Calls LLM with prepared messages
-        2. Returns raw response for parsing
-        """
-        logger.debug("🧠 Executor getting LLM response...")
+        # Get messages from context
+        messages = await ctx.store.get("executor_messages")
 
-        # Receive messages from event (not shared_state)
-        messages = ev.messages
+        # Convert to ChatMessage and call LLM
+        chat_messages = to_chat_messages(messages)
 
         try:
-            logger.info("[green]⚡ Executor response:[/green]")
+            logger.info("[green]Executor response:[/green]")
             response = await acall_with_retries(
-                self.llm, messages, stream=self.agent_config.streaming
+                self.llm, chat_messages, stream=self.agent_config.streaming
             )
             response_text = str(response)
         except Exception as e:
             raise RuntimeError(f"Error calling LLM in executor: {e}") from e
 
-        # Extract usage from response
+        # Extract usage
+        usage = None
         try:
             usage = get_usage_from_response(self.llm.class_name(), response)
         except Exception as e:
-            logger.warning(f"Could not get llm usage from response: {e}")
-            usage = None
+            logger.warning(f"Could not get usage: {e}")
 
-        logger.debug("✅ Executor finished thinking, sending response for parsing")
-
-        # Emit event to stream and return for next step
-        event = ExecutorResponseEvent(response_text=response_text, usage=usage)
+        event = ExecutorResponseEvent(response=response_text, usage=usage)
         ctx.write_event_to_stream(event)
-
         return event
 
     @step
     async def process_response(
         self, ctx: Context, ev: ExecutorResponseEvent
     ) -> ExecutorActionEvent:
-        """
-        Parse LLM response and extract action.
-
-        This step:
-        1. Parses the raw LLM response
-        2. Extracts action, thought, and description
-        3. Returns action event for execution
-        """
+        """Parse LLM response and extract action."""
         logger.debug("⚙️ Processing executor response...")
 
-        response_text = ev.response_text
+        response_text = ev.response
 
-        # Parse response
         try:
             parsed = parse_executor_response(response_text)
         except Exception as e:
@@ -236,6 +207,9 @@ class ExecutorAgent(Workflow):
                 full_response=response_text,
             )
 
+        # Update unified state
+        self.shared_state.last_thought = parsed["thought"]
+
         event = ExecutorActionEvent(
             action_json=parsed["action"],
             thought=parsed["thought"],
@@ -243,77 +217,56 @@ class ExecutorAgent(Workflow):
             full_response=response_text,
         )
 
-        # Write event to stream for web interface
         ctx.write_event_to_stream(event)
-
         return event
 
     @step
     async def execute(
         self, ctx: Context, ev: ExecutorActionEvent
     ) -> ExecutorActionResultEvent:
-        """
-        Execute the selected action using the tools instance.
-
-        Maps action JSON to appropriate tool calls and handles execution.
-        """
+        """Execute the action."""
         logger.debug(f"⚡ Executing action: {ev.description}")
 
-        # Parse action JSON
         try:
             action_dict = json.loads(ev.action_json)
         except json.JSONDecodeError as e:
             logger.error(f"❌ Failed to parse action JSON: {e}")
-            return ExecutorActionResultEvent(
+            event = ExecutorActionResultEvent(
                 action={"action": "invalid"},
-                outcome=False,
+                success=False,
                 error=f"Invalid action JSON: {str(e)}",
                 summary="Failed to parse action",
                 thought=ev.thought,
-                action_json=ev.action_json,
                 full_response=ev.full_response,
             )
+            ctx.write_event_to_stream(event)
+            return event
 
-        outcome, error, summary = await self._execute_action(
-            action_dict, ev.description
-        )
+        success, error, summary = await self._execute_action(action_dict, ev.description)
 
         await asyncio.sleep(self.agent_config.after_sleep_action)
 
-        logger.debug(f"{'✅' if outcome else '❌'} Execution complete: {summary}")
+        logger.debug(f"{'✅' if success else '❌'} Execution complete: {summary}")
 
-        result_event = ExecutorActionResultEvent(
+        event = ExecutorActionResultEvent(
             action=action_dict,
-            outcome=outcome,
+            success=success,
             error=error,
             summary=summary,
             thought=ev.thought,
-            action_json=ev.action_json,
             full_response=ev.full_response,
         )
+        ctx.write_event_to_stream(event)
+        return event
 
-        # Write event to stream for web interface
-        ctx.write_event_to_stream(result_event)
-
-        return result_event
 
     async def _execute_action(
         self, action_dict: dict, description: str
     ) -> tuple[bool, str, str]:
-        """
-        Execute a single action based on the action dictionary.
-
-        Args:
-            action_dict: Dictionary containing action type and parameters
-            description: Human-readable description of the action
-
-        Returns:
-            Tuple of (outcome: bool, error: str, summary: str)
-        """
-
+        """Execute action and return (success, error, summary)."""
         action_type = action_dict.get("action", "unknown")
 
-        # Check custom_tools first (before atomic actions)
+        # Check custom tools first
         if action_type in self.custom_tools:
             return await self._execute_custom_tool(action_type, action_dict)
 
@@ -321,165 +274,86 @@ class ExecutorAgent(Workflow):
             if action_type == "click":
                 index = action_dict.get("index")
                 if index is None:
-                    return (
-                        False,
-                        "Missing 'index' parameter",
-                        "Failed: click requires index",
-                    )
-
-                result = await click(index, tools=self.tools_instance)
-                return True, "None", f"Clicked element at index {index}"
+                    return False, "Missing 'index' parameter", "Failed: click requires index"
+                await click(index, tools=self.tools_instance)
+                return True, "", f"Clicked element at index {index}"
 
             elif action_type == "long_press":
                 index = action_dict.get("index")
                 if index is None:
-                    return (
-                        False,
-                        "Missing 'index' parameter",
-                        "Failed: long_press requires index",
-                    )
-
+                    return False, "Missing 'index' parameter", "Failed: long_press requires index"
                 success = await long_press(index, tools=self.tools_instance)
                 if success:
-                    return True, "None", f"Long pressed element at index {index}"
-                else:
-                    return (
-                        False,
-                        "Long press failed",
-                        f"Failed to long press at index {index}",
-                    )
+                    return True, "", f"Long pressed element at index {index}"
+                return False, "Long press failed", f"Failed to long press at index {index}"
 
             elif action_type == "type":
                 text = action_dict.get("text")
                 index = action_dict.get("index", -1)
                 clear = action_dict.get("clear", False)
                 if text is None:
-                    return (
-                        False,
-                        "Missing 'text' parameter",
-                        "Failed: type requires text",
-                    )
-
-                result = await type(text, index, clear=clear, tools=self.tools_instance)
-                return True, "None", f"Typed '{text}' into element at index {index}"
+                    return False, "Missing 'text' parameter", "Failed: type requires text"
+                await type(text, index, clear=clear, tools=self.tools_instance)
+                return True, "", f"Typed '{text}' into element at index {index}"
 
             elif action_type == "system_button":
                 button = action_dict.get("button")
                 if button is None:
-                    return (
-                        False,
-                        "Missing 'button' parameter",
-                        "Failed: system_button requires button",
-                    )
-
+                    return False, "Missing 'button' parameter", "Failed: system_button requires button"
                 result = await system_button(button, tools=self.tools_instance)
                 if "Error" in result:
                     return False, result, f"Failed to press {button} button"
-                return True, "None", f"Pressed {button} button"
+                return True, "", f"Pressed {button} button"
 
             elif action_type == "swipe":
                 coordinate = action_dict.get("coordinate")
                 coordinate2 = action_dict.get("coordinate2")
-                duration = action_dict.get("duration", 1.0)  # Default to 1.0 seconds
+                duration = action_dict.get("duration", 1.0)
 
                 if coordinate is None or coordinate2 is None:
-                    return (
-                        False,
-                        "Missing coordinate parameters",
-                        "Failed: swipe requires coordinate and coordinate2",
-                    )
+                    return False, "Missing coordinate parameters", "Failed: swipe requires coordinates"
 
-                # Validate coordinate format before calling swipe
                 if not isinstance(coordinate, list) or len(coordinate) != 2:
-                    return (
-                        False,
-                        f"Invalid coordinate format: {coordinate}",
-                        "Failed: coordinate must be [x, y]",
-                    )
+                    return False, f"Invalid coordinate: {coordinate}", "Failed: coordinate must be [x, y]"
                 if not isinstance(coordinate2, list) or len(coordinate2) != 2:
-                    return (
-                        False,
-                        f"Invalid coordinate2 format: {coordinate2}",
-                        "Failed: coordinate2 must be [x, y]",
-                    )
+                    return False, f"Invalid coordinate2: {coordinate2}", "Failed: coordinate2 must be [x, y]"
 
-                success = await swipe(
-                    coordinate, coordinate2, duration, tools=self.tools_instance
-                )
+                success = await swipe(coordinate, coordinate2, duration, tools=self.tools_instance)
                 if success:
-                    return (
-                        True,
-                        "None",
-                        f"Swiped from {coordinate} to {coordinate2} over {duration}s",
-                    )
-                else:
-                    return (
-                        False,
-                        "Swipe failed",
-                        f"Failed to swipe from {coordinate} to {coordinate2}",
-                    )
+                    return True, "", f"Swiped from {coordinate} to {coordinate2}"
+                return False, "Swipe failed", f"Failed to swipe from {coordinate} to {coordinate2}"
 
             elif action_type == "wait":
                 duration = action_dict.get("duration")
                 if duration is None:
-                    return (
-                        False,
-                        "Missing 'duration' parameter",
-                        "Failed: wait requires duration",
-                    )
-
-                result = await wait(duration)
-                return True, "None", f"Waited for {duration} seconds"
+                    return False, "Missing 'duration' parameter", "Failed: wait requires duration"
+                await wait(duration)
+                return True, "", f"Waited for {duration} seconds"
 
             elif action_type == "open_app":
                 text = action_dict.get("text")
                 if text is None:
-                    return (
-                        False,
-                        "Missing 'text' parameter",
-                        "Failed: open_app requires text",
-                    )
-
-                result = await open_app(text, tools=self.tools_instance)
-                return True, "None", f"Opened app: {text}"
+                    return False, "Missing 'text' parameter", "Failed: open_app requires text"
+                await open_app(text, tools=self.tools_instance)
+                return True, "", f"Opened app: {text}"
 
             else:
-                return (
-                    False,
-                    f"Unknown action type: {action_type}",
-                    f"Failed: unknown action '{action_type}'",
-                )
+                return False, f"Unknown action type: {action_type}", f"Failed: unknown action '{action_type}'"
 
         except Exception as e:
-            logger.error(f"❌ Exception during action execution: {e}", exc_info=True)
-            return (
-                False,
-                f"Exception: {str(e)}",
-                f"Failed to execute {action_type}: {str(e)}",
-            )
+            logger.error(f"Exception during action execution: {e}", exc_info=True)
+            return False, f"Exception: {str(e)}", f"Failed to execute {action_type}: {str(e)}"
 
     async def _execute_custom_tool(
         self, action_type: str, action_dict: dict
     ) -> tuple[bool, str, str]:
-        """
-        Execute a custom tool based on the action dictionary.
-
-        Args:
-            action_type: The custom tool name
-            action_dict: Dictionary containing action parameters
-
-        Returns:
-            Tuple of (outcome: bool, error: str, summary: str)
-        """
+        """Execute custom tool."""
         try:
             tool_spec = self.custom_tools[action_type]
             tool_func = tool_spec["function"]
 
-            # Extract arguments (exclude 'action' key)
             tool_args = {k: v for k, v in action_dict.items() if k != "action"}
 
-            # Execute the custom tool function
-            # Pass tools and shared_state as keyword arguments for flexible signatures
             if asyncio.iscoroutinefunction(tool_func):
                 result = await tool_func(
                     **tool_args,
@@ -493,21 +367,18 @@ class ExecutorAgent(Workflow):
                     shared_state=self.shared_state,
                 )
 
-            # Success case
             summary = f"Executed custom tool '{action_type}'"
             if result is not None:
                 summary += f": {str(result)}"
 
-            return True, "None", summary
+            return True, "", summary
 
         except TypeError as e:
-            # Likely missing or wrong arguments
             error_msg = f"Invalid arguments for custom tool '{action_type}': {str(e)}"
             logger.error(f"❌ {error_msg}")
             return False, error_msg, f"Failed: {action_type}"
 
         except Exception as e:
-            # General execution error
             error_msg = f"Error executing custom tool '{action_type}': {str(e)}"
             logger.error(f"❌ {error_msg}", exc_info=True)
             return False, error_msg, f"Failed: {action_type}"
@@ -520,11 +391,9 @@ class ExecutorAgent(Workflow):
         return StopEvent(
             result={
                 "action": ev.action,
-                "outcome": ev.outcome,
+                "outcome": ev.success,
                 "error": ev.error,
                 "summary": ev.summary,
                 "thought": ev.thought,
-                "action_json": ev.action_json,
-                "full_response": ev.full_response,
             }
         )

@@ -17,7 +17,7 @@ from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, 
 from workflows.events import Event
 from workflows.handler import WorkflowHandler
 from droidrun.agent.codeact import CodeActAgent
-from droidrun.agent.codeact.events import TaskExecutionResultEvent
+from droidrun.agent.codeact.events import CodeActOutputEvent
 from droidrun.agent.common.events import MacroEvent, RecordUIStateEvent, ScreenshotEvent
 from droidrun.agent.droid.events import (
     CodeActExecuteEvent,
@@ -35,7 +35,7 @@ from droidrun.agent.droid.events import (
 )
 from droidrun.agent.droid.state import DroidAgentState
 from droidrun.agent.executor import ExecutorAgent
-from droidrun.agent.manager import ManagerAgent
+from droidrun.agent.manager import ManagerAgent, StatelessManagerAgent
 from droidrun.agent.oneflows.text_manipulator import run_text_manipulation_agent
 from droidrun.agent.scripter import ScripterAgent
 from droidrun.agent.oneflows.structured_output_agent import StructuredOutputAgent
@@ -276,8 +276,15 @@ class DroidAgent(Workflow):
         logger.debug(f"💾 Trajectory saving: {self.config.logging.save_trajectory}")
 
         if self.config.agent.reasoning:
-            logger.debug("📝 Initializing Manager and Executor Agents...")
-            self.manager_agent = ManagerAgent(
+            # Choose between stateful and stateless manager
+            if self.config.agent.manager.stateless:
+                logger.debug("📝 Initializing StatelessManager and Executor Agents...")
+                ManagerClass = StatelessManagerAgent
+            else:
+                logger.debug("📝 Initializing Manager and Executor Agents...")
+                ManagerClass = ManagerAgent
+
+            self.manager_agent = ManagerClass(
                 llm=self.manager_llm,
                 tools_instance=None,
                 shared_state=self.shared_state,
@@ -392,7 +399,7 @@ class DroidAgent(Workflow):
             async for nested_ev in handler.stream_events():
                 self.handle_stream_event(nested_ev, ctx)
 
-                if isinstance(nested_ev, TaskExecutionResultEvent):
+                if isinstance(nested_ev, CodeActOutputEvent):
                     if self.config.logging.save_trajectory != "none":
                         self.shared_state.step_number += 1
                         self.trajectory_writer.write(
@@ -581,7 +588,7 @@ class DroidAgent(Workflow):
         if ev.manager_answer.strip():
             # Use success field from manager, default to True if not set for backward compatibility
             success = ev.success if ev.success is not None else True
-            self.shared_state.progress_status = f"Answer: {ev.manager_answer}"
+            self.shared_state.progress_summary = f"Answer: {ev.manager_answer}"
 
             return FinalizeEvent(success=success, reason=ev.manager_answer)
 
@@ -612,9 +619,8 @@ class DroidAgent(Workflow):
 
         # Continue to Executor with current subgoal
         logger.debug(f"▶️  Proceeding to Executor with subgoal: {ev.current_subgoal}")
-        event = ExecutorInputEvent(current_subgoal=ev.current_subgoal)
-        ctx.write_event_to_stream(event)
-        return event
+        return ExecutorInputEvent(current_subgoal=ev.current_subgoal)
+
 
     @step
     async def run_text_manipulator(
@@ -711,9 +717,7 @@ class DroidAgent(Workflow):
                 self.trajectory, stage=f"step_{self.shared_state.step_number}"
             )
 
-        event = ManagerInputEvent()
-        ctx.write_event_to_stream(event)
-        return event
+        return ManagerInputEvent()
 
     @step
     async def run_executor(
@@ -742,17 +746,13 @@ class DroidAgent(Workflow):
         self.shared_state.error_descriptions.append(result["error"])
         self.shared_state.last_action = result["action"]
         self.shared_state.last_summary = result["summary"]
-        self.shared_state.last_action_thought = result.get("thought", "")
-        self.shared_state.action_pool.append(result["action_json"])
 
-        event = ExecutorResultEvent(
+        return ExecutorResultEvent(
             action=result["action"],
             outcome=result["outcome"],
             error=result["error"],
             summary=result["summary"],
         )
-        ctx.write_event_to_stream(event)
-        return event
 
     @step
     async def handle_executor_result(
@@ -785,9 +785,7 @@ class DroidAgent(Workflow):
                 self.trajectory, stage=f"step_{self.shared_state.step_number}"
             )
 
-        event = ManagerInputEvent()
-        ctx.write_event_to_stream(event)
-        return event
+        return ManagerInputEvent()
 
     # ========================================================================
     # Script Executor Workflow Steps
@@ -832,14 +830,12 @@ class DroidAgent(Workflow):
         self.shared_state.last_scripter_message = result["message"]
         self.shared_state.last_scripter_success = result["success"]
 
-        event = ScripterExecutorResultEvent(
+        return ScripterExecutorResultEvent(
             task=ev.task,
             message=result["message"],
             success=result["success"],
             code_executions=result.get("code_executions", 0),
         )
-        ctx.write_event_to_stream(event)
-        return event
 
     @step
     async def handle_scripter_result(
@@ -864,9 +860,7 @@ class DroidAgent(Workflow):
             )
 
         # Loop back to Manager (script result in shared_state)
-        event = ManagerInputEvent()
-        ctx.write_event_to_stream(event)
-        return event
+        return ManagerInputEvent()
 
     # ========================================================================
     # End Manager/Executor/Script Workflow Steps

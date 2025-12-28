@@ -1,6 +1,6 @@
 [project]
 name = "droidrun"
-version = "0.4.16"
+version = "0.4.18"
 description = "A framework for controlling Android devices through LLM agents"
 authors = [{ name = "Niels Schmidt", email = "niels.schmidt@droidrun.ai" }]
 dependencies = [
@@ -78,6 +78,9 @@ langfuse = [
     "langfuse>=2.0.0",
     "openinference-instrumentation-llama-index>=3.0.0",
     "llama-index-instrumentation"
+]
+mobilerun = [
+    "mobilerun-sdk",
 ]
 
 [build-system]
@@ -170,6 +173,14 @@ contents = ["droidrun.tools.adb.AdbTools.*"]
 title = "IOSTools"
 name = "ios-tools"
 contents = ["droidrun.tools.ios.IOSTools.*"]
+
+[[tool.pydoc-markdown.renderer.pages]]
+title = "CloudTools"
+name = "cloud-tools"
+contents = ["droidrun.tools.cloud.MobileRunTools.*"]
+
+[tool.uv.sources]
+mobilerun-sdk = { git = "ssh://git@github.com/droidrun/mobilerun-sdk-python.git", branch = "next" }
 
 [dependency-groups]
 dev = [

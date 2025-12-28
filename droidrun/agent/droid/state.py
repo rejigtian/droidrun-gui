@@ -11,74 +11,93 @@ class DroidAgentState(BaseModel):
     # Task context
     instruction: str = ""
     step_number: int = 0
-    # App Cards
+    runtype: str = "developer"
+    user_id: str | None = None
+
+    # ========================================================================
+    # Device State (current)
+    # ========================================================================
+    formatted_device_state: str = ""  # Text description for prompts
+    focused_text: str = ""  # Text in focused input field
+    a11y_tree: List[Dict] = Field(default_factory=list)  # Raw accessibility tree
+    phone_state: Dict = Field(default_factory=dict)  # Package, activity, etc.
+    screenshot: str | bytes | None = None  # Current screenshot
+    width: int = 0
+    height: int = 0
+
+    # ========================================================================
+    # Device State (previous - for before/after comparison)
+    # ========================================================================
+    previous_formatted_device_state: str = ""
+
+    # ========================================================================
+    # App Tracking
+    # ========================================================================
     app_card: str = ""
-    # Formatted device state for prompts (complete text)
-    formatted_device_state: str = ""
-
-    # Focused element text
-    focused_text: str = ""
-
-    # Raw device state components (for access to raw data)
-    a11y_tree: List[Dict] = Field(default_factory=list)
-    phone_state: Dict = Field(default_factory=dict)
-
-    # Private fields
     current_package_name: str = ""
     current_activity_name: str = ""
     visited_packages: set = Field(default_factory=set)
     visited_activities: set = Field(default_factory=set)
 
-    # Previous device state (for before/after comparison in Manager)
-    previous_formatted_device_state: str = ""
+    # ========================================================================
+    # Unified Thought/Plan Tracking (used by all agents)
+    # ========================================================================
+    last_thought: str = ""  # Most recent thought from any agent
+    previous_plan: str = ""  # Plan from previous iteration
+    progress_summary: str = ""  # Cumulative progress (replaces each turn)
 
-    # Screen dimensions and screenshot
-    width: int = 0
-    height: int = 0
-    screenshot: str | bytes | None = None
+    # ========================================================================
+    # Planning State (Manager sets these)
+    # ========================================================================
+    plan: str = ""  # Current plan
+    current_subgoal: str = ""  # Current subgoal for Executor
+    manager_answer: str = ""  # Final answer when complete
 
-    # Text manipulation flag
-    has_text_to_modify: bool = False
-
-    # Action tracking
-    action_pool: List[Dict] = Field(default_factory=list)
+    # ========================================================================
+    # Action Tracking
+    # ========================================================================
     action_history: List[Dict] = Field(default_factory=list)
     summary_history: List[str] = Field(default_factory=list)
-    action_outcomes: List[bool] = Field(default_factory=list)  # "A", "B", "C"
+    action_outcomes: List[bool] = Field(default_factory=list)
     error_descriptions: List[str] = Field(default_factory=list)
-
-    # Last action info
     last_action: Dict = Field(default_factory=dict)
     last_summary: str = ""
-    last_action_thought: str = ""
 
-    # Memory
+    # ========================================================================
+    # Memory (append-only information storage)
+    # ========================================================================
     memory: str = ""
+
+    # ========================================================================
+    # Message History (for stateful agents - list of dicts)
+    # ========================================================================
     message_history: List[Dict] = Field(default_factory=list)
 
-    # Planning
-    plan: str = ""
-    current_subgoal: str = ""
-    finish_thought: str = ""
-    progress_status: str = ""
-    manager_answer: str = ""  # For answer-type tasks
-
-    # Error handling
+    # ========================================================================
+    # Error Handling
+    # ========================================================================
     error_flag_plan: bool = False
     err_to_manager_thresh: int = 2
-    user_id: str | None = None
-    # Script execution tracking
+
+    # ========================================================================
+    # Script Execution Tracking
+    # ========================================================================
     scripter_history: List[Dict] = Field(default_factory=list)
     last_scripter_message: str = ""
     last_scripter_success: bool = True
 
+    # ========================================================================
+    # Text Manipulation Tracking
+    # ========================================================================
+    has_text_to_modify: bool = False
     text_manipulation_history: List[Dict] = Field(default_factory=list)
     last_text_manipulation_success: bool = False
 
-    output_dir: str = ""
-
-    # Custom variables (user-defined)
+    # ========================================================================
+    # Custom Variables (user-defined)
+    # ========================================================================
     custom_variables: Dict = Field(default_factory=dict)
+    output_dir: str = ""
 
     def update_current_app(self, package_name: str, activity_name: str):
         """

@@ -154,7 +154,7 @@ class ScripterAgent(Workflow):
             },
         ]
 
-        return ScripterInputEvent(input=self.message_history)
+        return ScripterInputEvent()
 
     @step
     async def handle_llm_input(
@@ -162,14 +162,15 @@ class ScripterAgent(Workflow):
     ) -> ScripterThinkingEvent | ScripterEndEvent:
         """Call LLM to generate thought + code."""
 
-        # Check max steps
         if self.step_counter >= self.max_steps:
             logger.warning(f"⚠️ Max steps ({self.max_steps}) reached without completion")
-            return ScripterEndEvent(
+            event = ScripterEndEvent(
                 message=f"Max steps ({self.max_steps}) reached without completion",
                 success=False,
                 code_executions=self.step_counter,
             )
+            ctx.write_event_to_stream(event)
+            return event
 
         self.step_counter += 1
         logger.debug(
@@ -179,9 +180,7 @@ class ScripterAgent(Workflow):
         ctx.write_event_to_stream(ev)
 
         # Convert to ChatMessages for LLM call
-        chat_messages = chat_utils.convert_messages_to_chatmessages(
-            self.message_history
-        )
+        chat_messages = chat_utils.to_chat_messages(self.message_history)
 
         try:
             logger.info("[magenta]🐍 Scripter response:[/magenta]")
@@ -190,11 +189,13 @@ class ScripterAgent(Workflow):
             )
         except Exception as e:
             logger.error(f"LLM call failed: {e}")
-            return ScripterEndEvent(
+            event = ScripterEndEvent(
                 message=f"LLM call failed: {e}",
                 success=False,
                 code_executions=self.step_counter,
             )
+            ctx.write_event_to_stream(event)
+            return event
 
         # Extract usage from response
         try:
@@ -213,7 +214,7 @@ class ScripterAgent(Workflow):
         code, thoughts = chat_utils.extract_code_and_thought(full_response)
 
         event = ScripterThinkingEvent(
-            thoughts=thoughts, code=code, full_response=full_response, usage=usage
+            thought=thoughts, code=code, full_response=full_response, usage=usage
         )
         ctx.write_event_to_stream(event)
         return event
@@ -224,20 +225,20 @@ class ScripterAgent(Workflow):
     ) -> ScripterExecutionEvent | ScripterEndEvent:
         """Route to execution or treat as final response if no code."""
 
-        if not ev.thoughts:
+        if not ev.thought:
             logger.warning("🤔 LLM provided code without thoughts")
         else:
-            logger.debug(f"🤔 Reasoning: {ev.thoughts}")
+            logger.debug(f"🤔 Reasoning: {ev.thought}")
 
         if ev.code:
-            return ScripterExecutionEvent(code=ev.code)
+            event = ScripterExecutionEvent(code=ev.code)
+            ctx.write_event_to_stream(event)
+            return event
         else:
-            # No code provided - treat entire response as final answer
             logger.debug("📝 No code provided, treating response as final answer")
 
-            # Use thoughts if available, otherwise use full response
             response_message = (
-                ev.thoughts.strip() if ev.thoughts.strip() else ev.full_response.strip()
+                ev.thought.strip() if ev.thought.strip() else ev.full_response.strip()
             )
 
             if not response_message:
@@ -246,11 +247,13 @@ class ScripterAgent(Workflow):
             logger.debug(
                 f"✅ Script completed with response: {response_message[:100]}..."
             )
-            return ScripterEndEvent(
+            event = ScripterEndEvent(
                 message=response_message,
                 success=True,
                 code_executions=self.step_counter,
             )
+            ctx.write_event_to_stream(event)
+            return event
 
     @step
     async def execute_code(
@@ -307,7 +310,7 @@ class ScripterAgent(Workflow):
             }
         )
 
-        return ScripterInputEvent(input=self.message_history)
+        return ScripterInputEvent()
 
     @step
     async def finalize(self, ctx: Context, ev: ScripterEndEvent) -> StopEvent:

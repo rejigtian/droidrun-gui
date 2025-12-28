@@ -1,32 +1,28 @@
 import asyncio
 import inspect
-import json
 import logging
-import warnings
-from typing import TYPE_CHECKING, List, Optional, Type, Union
+from typing import TYPE_CHECKING, Optional, Type
 
 from pydantic import BaseModel
-
-# Suppress all warnings for llama-index import (version compatibility)
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore")
-    from llama_index.core.base.llms.types import ChatMessage, ChatResponse
 from llama_index.core.llms.llm import LLM
-from llama_index.core.memory import Memory
 from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
 from opentelemetry import trace
 
 from droidrun.agent.codeact.events import (
-    TaskEndEvent,
-    TaskExecutionEvent,
-    TaskExecutionResultEvent,
-    TaskInputEvent,
-    TaskThinkingEvent,
+    CodeActInputEvent,
+    CodeActResponseEvent,
+    CodeActCodeEvent,
+    CodeActOutputEvent,
+    CodeActEndEvent,
 )
 from droidrun.agent.common.constants import LLM_HISTORY_LIMIT
 from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
 from droidrun.agent.usage import get_usage_from_response
-from droidrun.agent.utils import chat_utils
+from droidrun.agent.utils.chat_utils import (
+    to_chat_messages,
+    extract_code_and_thought,
+    limit_history,
+)
 from droidrun.agent.utils.executer import ExecuterState, SimpleCodeExecutor
 from droidrun.agent.utils.inference import acall_with_retries
 from droidrun.agent.utils.prompt_resolver import PromptResolver
@@ -47,16 +43,17 @@ logger = logging.getLogger("droidrun")
 
 class CodeActAgent(Workflow):
     """
-    An agent that uses a ReAct-like cycle (Thought -> Code -> Observation)
-    to solve problems requiring code execution. It extracts code from
-    Markdown blocks and uses specific step types for tracking.
+    Agent that generates and executes Python code using atomic actions.
+
+    Uses ReAct cycle: Thought -> Code -> Observation -> repeat until complete().
+    Messages stored as list[dict], converted to ChatMessage only for LLM calls.
     """
 
     def __init__(
         self,
         llm: LLM,
         agent_config: AgentConfig,
-        tools_instance: "Tools",
+        tools_instance: Tools,
         custom_tools: dict = None,
         atomic_tools: dict = None,
         debug: bool = False,
@@ -73,7 +70,7 @@ class CodeActAgent(Workflow):
 
         self.llm = llm
         self.agent_config = agent_config
-        self.config = agent_config.codeact  # Shortcut to codeact config
+        self.config = agent_config.codeact
         self.max_steps = agent_config.max_steps
         self.vision = agent_config.codeact.vision
         self.debug = debug
@@ -83,13 +80,11 @@ class CodeActAgent(Workflow):
         self.prompt_resolver = prompt_resolver or PromptResolver()
         self.tracing_config = tracing_config
 
-        self.chat_memory = None
-        self.remembered_info = None
-
-        self.goal = None
+        self.system_prompt: dict | None = None
         self.code_exec_counter = 0
+        self.remembered_info: list[str] | None = None
 
-        # Use provided tools or defaults (filtering done in DroidAgent)
+        # Build tool list from atomic + custom tools
         if atomic_tools is None:
             atomic_tools = ATOMIC_ACTION_SIGNATURES
 
@@ -118,7 +113,7 @@ class CodeActAgent(Workflow):
         self.tool_list["remember"] = tools_instance.remember
         self.tool_list["complete"] = tools_instance.complete
 
-        # Build tool descriptions from provided tools (already filtered by DroidAgent)
+        # Build tool descriptions
         self.tool_descriptions = build_custom_tool_descriptions(atomic_tools)
         custom_descriptions = build_custom_tool_descriptions(custom_tools or {})
         if custom_descriptions:
@@ -134,9 +129,8 @@ class CodeActAgent(Workflow):
         self._output_schema = None
         if self.output_model is not None:
             self._output_schema = self.output_model.model_json_schema()
-        self.system_prompt = None
 
-        # Get safety settings
+        # Initialize code executor
         safe_mode = self.config.safe_execution
         safe_config = safe_execution_config
 
@@ -164,67 +158,42 @@ class CodeActAgent(Workflow):
             event_loop=None,
         )
 
-    @step
-    async def prepare_chat(self, ctx: Context, ev: StartEvent) -> TaskInputEvent:
-        """Prepare chat history from user input."""
-        # macro tools context
-        self.tools._set_context(ctx)
+        logger.debug("CodeActAgent initialized.")
 
-        logger.debug("💬 Preparing chat for task execution...")
+    async def _build_system_prompt(self) -> dict:
+        """Build system prompt message."""
+        custom_system_prompt = self.prompt_resolver.get_prompt("codeact_system")
+        if custom_system_prompt:
+            system_text = PromptLoader.render_template(
+                custom_system_prompt,
+                {
+                    "tool_descriptions": self.tool_descriptions,
+                    "available_secrets": self._available_secrets,
+                    "variables": (
+                        self.shared_state.custom_variables if self.shared_state else {}
+                    ),
+                    "output_schema": self._output_schema,
+                },
+            )
+        else:
+            system_text = await PromptLoader.load_prompt(
+                self.agent_config.get_codeact_system_prompt_path(),
+                {
+                    "tool_descriptions": self.tool_descriptions,
+                    "available_secrets": self._available_secrets,
+                    "variables": (
+                        self.shared_state.custom_variables if self.shared_state else {}
+                    ),
+                    "output_schema": self._output_schema,
+                },
+            )
+        return {"role": "system", "content": [{"text": system_text}]}
 
-        if hasattr(self.tools, "credential_manager") and self.tools.credential_manager:
-            self._available_secrets = await self.tools.credential_manager.get_keys()
-
-        # Load system prompt on first call (lazy loading)
-        if self.system_prompt is None:
-            custom_system_prompt = self.prompt_resolver.get_prompt("codeact_system")
-            if custom_system_prompt:
-                system_prompt_text = PromptLoader.render_template(
-                    custom_system_prompt,
-                    {
-                        "tool_descriptions": self.tool_descriptions,
-                        "available_secrets": self._available_secrets,
-                        "variables": (
-                            self.shared_state.custom_variables
-                            if self.shared_state
-                            else {}
-                        ),
-                        "output_schema": self._output_schema,
-                    },
-                )
-            else:
-                system_prompt_text = await PromptLoader.load_prompt(
-                    self.agent_config.get_codeact_system_prompt_path(),
-                    {
-                        "tool_descriptions": self.tool_descriptions,
-                        "available_secrets": self._available_secrets,
-                        "variables": (
-                            self.shared_state.custom_variables
-                            if self.shared_state
-                            else {}
-                        ),
-                        "output_schema": self._output_schema,
-                    },
-                )
-            self.system_prompt = ChatMessage(role="system", content=system_prompt_text)
-
-        self.chat_memory: Memory = await ctx.store.get(
-            "chat_memory", default=Memory.from_defaults()
-        )
-
-        user_input = ev.get("input", default=None)
-        assert user_input, "User input cannot be empty."
-
-        if ev.remembered_info:
-            self.remembered_info = ev.remembered_info
-
-        logger.debug("  - Adding goal to memory.")
-        goal = user_input
-
-        # Format user prompt with goal
+    async def _build_user_prompt(self, goal: str) -> dict:
+        """Build initial user prompt message."""
         custom_user_prompt = self.prompt_resolver.get_prompt("codeact_user")
         if custom_user_prompt:
-            user_prompt_text = PromptLoader.render_template(
+            user_text = PromptLoader.render_template(
                 custom_user_prompt,
                 {
                     "goal": goal,
@@ -234,7 +203,7 @@ class CodeActAgent(Workflow):
                 },
             )
         else:
-            user_prompt_text = await PromptLoader.load_prompt(
+            user_text = await PromptLoader.load_prompt(
                 self.agent_config.get_codeact_user_prompt_path(),
                 {
                     "goal": goal,
@@ -243,47 +212,62 @@ class CodeActAgent(Workflow):
                     ),
                 },
             )
-        self.user_message = ChatMessage(role="user", content=user_prompt_text)
+        return {"role": "user", "content": [{"text": user_text}]}
 
-        # No thoughts prompt
-        no_thoughts_text = f"""Your previous response provided code without explaining your reasoning first. Remember to always describe your thought process and plan *before* providing the code block.
+    @step
+    async def prepare_chat(self, ctx: Context, ev: StartEvent) -> CodeActInputEvent:
+        """Initialize message history with goal."""
+        self.tools._set_context(ctx)
+        logger.debug("Preparing chat for task execution...")
 
-The code you provided will be executed below.
+        # Get available secrets
+        if hasattr(self.tools, "credential_manager") and self.tools.credential_manager:
+            self._available_secrets = await self.tools.credential_manager.get_keys()
 
-Now, describe the next step you will take to address the original goal: {goal}"""
-        self.no_thoughts_prompt = ChatMessage(role="user", content=no_thoughts_text)
+        # Build system prompt (lazy load)
+        if self.system_prompt is None:
+            self.system_prompt = await self._build_system_prompt()
 
-        await self.chat_memory.aput(self.user_message)
+        # Get goal and build user message
+        user_input = ev.get("input", default=None)
+        assert user_input, "User input cannot be empty."
 
-        await ctx.store.set("chat_memory", self.chat_memory)
-        input_messages = self.chat_memory.get_all()
-        return TaskInputEvent(input=input_messages)
+        user_message = await self._build_user_prompt(user_input)
+        self.shared_state.message_history.clear()
+        self.shared_state.message_history.append(user_message)
+
+        # Store remembered info if provided
+        remembered_info = ev.get("remembered_info", default=None)
+        if remembered_info:
+            self.remembered_info = remembered_info
+            memory_text = "\n### Remembered Information:\n"
+            for idx, item in enumerate(remembered_info, 1):
+                memory_text += f"{idx}. {item}\n"
+            # Append to first user message
+            self.shared_state.message_history[0]["content"].append({"text": memory_text})
+
+        return CodeActInputEvent()
 
     @step
     async def handle_llm_input(
-        self, ctx: Context, ev: TaskInputEvent
-    ) -> TaskThinkingEvent | TaskEndEvent:
-        """Handle LLM input."""
-        chat_history = ev.input
-        assert len(chat_history) > 0, "Chat history cannot be empty."
+        self, ctx: Context, ev: CodeActInputEvent
+    ) -> CodeActResponseEvent | CodeActEndEvent:
+        """Get device state, call LLM, return response."""
         ctx.write_event_to_stream(ev)
 
+        # Check max steps
         if self.shared_state.step_number + 1 > self.max_steps:
-            return TaskEndEvent(
+            event = CodeActEndEvent(
                 success=False,
                 reason=f"Reached max step count of {self.max_steps} steps",
+                code_executions=self.code_exec_counter,
             )
+            ctx.write_event_to_stream(event)
+            return event
 
         logger.info(f"🔄 Step {self.shared_state.step_number + 1}/{self.max_steps}")
 
-        model = self.llm.class_name()
-
-        if "remember" in self.tool_list and self.remembered_info:
-            await ctx.store.set("remembered_info", self.remembered_info)
-            chat_history = await chat_utils.add_memory_block(
-                self.remembered_info, chat_history
-            )
-
+        # Capture screenshot if needed
         screenshot = None
         if self.vision or (
             hasattr(self.tools, "save_trajectories")
@@ -316,20 +300,13 @@ Now, describe the next step you will take to address the original goal: {goal}""
             except Exception as e:
                 logger.warning(f"Failed to capture screenshot: {e}")
 
-        if self.vision and screenshot and model != "DeepSeek":
-            chat_history = await chat_utils.add_screenshot_image_block(
-                screenshot, chat_history
-            )
-
-        # Get and format device state using unified formatter
+        # Get device state
         try:
-            # Get raw state from device - returns 4 values directly
             formatted_text, focused_text, a11y_tree, phone_state = (
                 await self.tools.get_state()
             )
 
-            # Update shared_state if available
-            assert self.shared_state is not None, "Shared state is not set"
+            # Update shared state
             self.shared_state.formatted_device_state = formatted_text
             self.shared_state.focused_text = focused_text
             self.shared_state.a11y_tree = a11y_tree
@@ -344,74 +321,103 @@ Now, describe the next step you will take to address the original goal: {goal}""
             # Stream formatted state for trajectory
             ctx.write_event_to_stream(RecordUIStateEvent(ui_state=a11y_tree))
 
-            # Add device state to chat using new chat_utils function
-            # This injects into LAST user message, doesn't create new message
-            chat_history = await chat_utils.add_device_state_block(
-                formatted_text, chat_history
-            )
+            # Add device state to last user message
+            self.shared_state.message_history[-1]["content"].append({"text": f"\n{formatted_text}\n"})
 
         except Exception as e:
             logger.warning(f"⚠️ Error retrieving state from the connected device: {e}")
             if self.debug:
                 logger.error("State retrieval error details:", exc_info=True)
 
-        response = await self._get_llm_response(ctx, chat_history)
+        # Add screenshot to message if vision enabled
+        if self.vision and screenshot:
+            self.shared_state.message_history[-1]["content"].append({"image": screenshot})
+
+        # Limit history and prepare for LLM
+        limited_history = limit_history(
+            self.shared_state.message_history, LLM_HISTORY_LIMIT * 2, preserve_first=True
+        )
+
+        # Build final messages: system + history
+        messages_to_send = [self.system_prompt] + limited_history
+        chat_messages = to_chat_messages(messages_to_send)
+
+        # Call LLM
+        logger.info("[yellow]CodeAct response:[/yellow]")
+        response = await acall_with_retries(
+            self.llm, chat_messages, stream=self.agent_config.streaming
+        )
+
         if response is None:
-            return TaskEndEvent(
-                success=False, reason="LLM response is None. This is a critical error."
+            return CodeActEndEvent(
+                success=False,
+                reason="LLM response is None. This is a critical error.",
+                code_executions=self.code_exec_counter,
             )
 
+        # Extract usage
+        usage = None
         try:
             usage = get_usage_from_response(self.llm.class_name(), response)
         except Exception as e:
-            logger.warning(f"Could not get llm usage from response: {e}")
-            usage = None
+            logger.warning(f"Could not get usage: {e}")
 
-        await self.chat_memory.aput(response.message)
+        # Store assistant response
+        response_text = response.message.content
+        self.shared_state.message_history.append({"role": "assistant", "content": [{"text": response_text}]})
         self.shared_state.step_number += 1
 
-        code, thoughts = chat_utils.extract_code_and_thought(response.message.content)
+        # Extract thought and code
+        code, thought = extract_code_and_thought(response_text)
 
-        event = TaskThinkingEvent(thoughts=thoughts, code=code, usage=usage)
+        # Update unified state
+        self.shared_state.last_thought = thought
+
+        event = CodeActResponseEvent(thought=thought, code=code, usage=usage)
         ctx.write_event_to_stream(event)
         return event
 
+
     @step
     async def handle_llm_output(
-        self, ctx: Context, ev: TaskThinkingEvent
-    ) -> Union[TaskExecutionEvent, TaskInputEvent]:
-        """Handle LLM output."""
-        logger.debug("⚙️ Handling LLM output...")
-        code = ev.code
-        thoughts = ev.thoughts
-
-        if not thoughts:
-            logger.warning(
-                "🤔 LLM provided code without thoughts. Adding reminder prompt."
+        self, ctx: Context, ev: CodeActResponseEvent
+    ) -> CodeActCodeEvent | CodeActInputEvent:
+        """Route to execution or request code if missing."""
+        if not ev.thought:
+            logger.warning("LLM provided code without thoughts.")
+            # Add reminder to get thoughts
+            goal = self.shared_state.message_history[0]["content"][0].get("text", "")[:200]
+            no_thoughts_text = (
+                "Your previous response provided code without explaining your reasoning first. "
+                "Remember to always describe your thought process and plan *before* providing the code block.\n\n"
+                "The code you provided will be executed below.\n\n"
+                f"Now, describe the next step you will take to address the original goal."
             )
-            await self.chat_memory.aput(self.no_thoughts_prompt)
+            self.shared_state.message_history.append({"role": "user", "content": [{"text": no_thoughts_text}]})
         else:
-            logger.debug(f"🤔 Reasoning: {thoughts}")
+            logger.debug(f"Reasoning: {ev.thought}")
 
-        if code:
-            return TaskExecutionEvent(code=code)
+        if ev.code:
+            event = CodeActCodeEvent(code=ev.code)
+            ctx.write_event_to_stream(event)
+            return event
         else:
-            message = ChatMessage(
-                role="user",
-                content="No code was provided. If you want to mark task as complete (whether it failed or succeeded), use complete(success:bool, reason:str) function within a code block ```pythn\n```.",
+            # No code - ask for it
+            no_code_text = (
+                "No code was provided. If you want to mark task as complete "
+                "(whether it failed or succeeded), use complete(success: bool, reason: str) "
+                "function within a code block ```python\n```."
             )
-            await self.chat_memory.aput(message)
-            return TaskInputEvent(input=self.chat_memory.get_all())
+            self.shared_state.message_history.append({"role": "user", "content": [{"text": no_code_text}]})
+            return CodeActInputEvent()
 
     @step
     async def execute_code(
-        self, ctx: Context, ev: TaskExecutionEvent
-    ) -> Union[TaskExecutionResultEvent, TaskEndEvent]:
-        """Execute the code and return the result."""
+        self, ctx: Context, ev: CodeActCodeEvent
+    ) -> CodeActOutputEvent | CodeActEndEvent:
+        """Execute the code and return result."""
         code = ev.code
-        assert code, "Code cannot be empty."
-        logger.debug("⚡ Executing action...")
-        logger.debug(f"Code to execute:\n```python\n{code}\n```")
+        logger.debug(f"Executing:\n```\n{code}\n```")
 
         try:
             self.code_exec_counter += 1
@@ -435,99 +441,54 @@ Now, describe the next step you will take to address the original goal: {goal}""
                     if self.tools.reason
                     else "Task completed without reason"
                 )
-
-                # Reset finished flag for next execution
                 self.tools.finished = False
 
-                logger.debug(f"  - Success: {success}")
-                logger.debug(f"  - Reason: {reason}")
+                event = CodeActEndEvent(
+                    success=success,
+                    reason=reason,
+                    code_executions=self.code_exec_counter,
+                )
+                ctx.write_event_to_stream(event)
+                return event
 
-                return TaskEndEvent(success=success, reason=reason)
-
+            # Update remembered info
             self.remembered_info = self.tools.memory
 
-            return TaskExecutionResultEvent(output=str(result))
+            event = CodeActOutputEvent(output=str(result))
+            ctx.write_event_to_stream(event)
+            return event
 
         except Exception as e:
             logger.error(f"💥 Action failed: {e}")
             if self.debug:
                 logger.error("Exception details:", exc_info=True)
-            error_message = f"Error during execution: {e}"
 
-            event = TaskExecutionResultEvent(output=error_message)
+            event = CodeActOutputEvent(output=f"Error during execution: {e}")
             ctx.write_event_to_stream(event)
             return event
 
     @step
     async def handle_execution_result(
-        self, ctx: Context, ev: TaskExecutionResultEvent
-    ) -> TaskInputEvent:
-        """Handle the execution result. Currently it just returns InputEvent."""
-        logger.debug("📊 Handling execution result...")
-        # Get the output from the event
-        output = ev.output
-        if output is None:
-            output = "Code executed, but produced no output."
-            logger.warning("  - Execution produced no output.")
-        else:
-            logger.debug(
-                f"  - Execution output: {output[:100]}..."
-                if len(output) > 100
-                else f"  - Execution output: {output}"
-            )
-        # Add the output to memory as an user message (observation)
-        observation_message = ChatMessage(
-            role="user", content=f"Execution Result:\n```\n{output}\n```"
-        )
-        await self.chat_memory.aput(observation_message)
+        self, ctx: Context, ev: CodeActOutputEvent
+    ) -> CodeActInputEvent:
+        """Add execution result to history and loop back."""
+        output = ev.output or "Code executed, but produced no output."
 
-        return TaskInputEvent(input=self.chat_memory.get_all())
+        # Add execution output as user message
+        observation_text = f"Execution Result:\n```\n{output}\n```"
+        self.shared_state.message_history.append({"role": "user", "content": [{"text": observation_text}]})
+
+        return CodeActInputEvent()
 
     @step
-    async def finalize(self, ev: TaskEndEvent, ctx: Context) -> StopEvent:
-        """Finalize the workflow."""
+    async def finalize(self, ev: CodeActEndEvent, ctx: Context) -> StopEvent:
         self.tools.finished = False
-        await ctx.store.set("chat_memory", self.chat_memory)
+        ctx.write_event_to_stream(ev)
 
-        result = {}
-        result.update(
-            {
+        return StopEvent(
+            result={
                 "success": ev.success,
                 "reason": ev.reason,
-                "code_executions": self.code_exec_counter,
+                "code_executions": ev.code_executions,
             }
         )
-
-        return StopEvent(result)
-
-    async def _get_llm_response(
-        self, ctx: Context, chat_history: List[ChatMessage]
-    ) -> ChatResponse | None:
-        limited_history = self._limit_history(chat_history)
-        messages_to_send = [self.system_prompt] + limited_history
-        messages_to_send = [chat_utils.message_copy(msg) for msg in messages_to_send]
-
-        logger.info("[yellow]🤖 CodeAct response:[/yellow]")
-        response = await acall_with_retries(
-            self.llm, messages_to_send, stream=self.agent_config.streaming
-        )
-        logger.debug("  - Received response from LLM.")
-        return response
-
-    def _limit_history(self, chat_history: List[ChatMessage]) -> List[ChatMessage]:
-        if LLM_HISTORY_LIMIT <= 0:
-            return chat_history
-
-        max_messages = LLM_HISTORY_LIMIT * 2
-        if len(chat_history) <= max_messages:
-            return chat_history
-
-        preserved_head: List[ChatMessage] = []
-        if chat_history and chat_history[0].role == "user":
-            preserved_head = [chat_history[0]]
-
-        tail = chat_history[-max_messages:]
-        if preserved_head and preserved_head[0] in tail:
-            preserved_head = []
-
-        return preserved_head + tail

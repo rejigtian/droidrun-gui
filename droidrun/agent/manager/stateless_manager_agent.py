@@ -1,0 +1,313 @@
+"""
+StatelessManagerAgent - Stateless planning agent that rebuilds context each turn.
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import TYPE_CHECKING, Optional, Type
+
+from llama_index.core.llms.llm import LLM
+from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
+from pydantic import BaseModel
+from opentelemetry import trace
+
+from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
+from droidrun.agent.manager.events import (
+    ManagerContextEvent,
+    ManagerPlanDetailsEvent,
+    ManagerResponseEvent,
+)
+from droidrun.agent.manager.prompts import parse_manager_response
+from droidrun.agent.usage import get_usage_from_response
+from droidrun.agent.utils.chat_utils import to_chat_messages
+from droidrun.agent.utils.inference import acall_with_retries
+from droidrun.agent.utils.tracing_setup import record_langfuse_screenshot
+from droidrun.agent.utils.prompt_resolver import PromptResolver
+from droidrun.config_manager.prompt_loader import PromptLoader
+
+if TYPE_CHECKING:
+    from droidrun.agent.droid import DroidAgentState
+    from droidrun.config_manager.config_manager import AgentConfig, TracingConfig
+    from droidrun.tools import Tools
+
+
+logger = logging.getLogger("droidrun")
+
+
+class StatelessManagerAgent(Workflow):
+    def __init__(
+        self,
+        llm: LLM,
+        tools_instance: "Tools | None",
+        shared_state: "DroidAgentState",
+        agent_config: "AgentConfig",
+        custom_tools: dict = None,
+        output_model: Type[BaseModel] | None = None,
+        prompt_resolver: Optional[PromptResolver] = None,
+        tracing_config: "TracingConfig | None" = None,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.llm = llm
+        self.config = agent_config.manager
+        self.vision = self.config.vision
+        self.tools_instance = tools_instance
+        self.shared_state = shared_state
+        self.custom_tools = custom_tools if custom_tools is not None else {}
+        self.output_model = output_model
+        self.agent_config = agent_config
+        self.prompt_resolver = prompt_resolver or PromptResolver()
+        self.tracing_config = tracing_config
+
+    def _build_action_history(self) -> list[dict]:
+        if not self.shared_state.action_history:
+            return []
+
+        n = min(5, len(self.shared_state.action_history))
+        return [
+            {
+                "action": act,
+                "summary": summ,
+                "outcome": outcome,
+                "error": err,
+            }
+            for act, summ, outcome, err in zip(
+                self.shared_state.action_history[-n:],
+                self.shared_state.summary_history[-n:],
+                self.shared_state.action_outcomes[-n:],
+                self.shared_state.error_descriptions[-n:],
+                strict=True,
+            )
+        ]
+
+    async def _build_prompt(self, has_text_to_modify: bool) -> str:
+        variables = {
+            "instruction": self.shared_state.instruction,
+            "device_date": await self.tools_instance.get_date(),
+            "previous_plan": self.shared_state.previous_plan,
+            "previous_state": self.shared_state.previous_formatted_device_state,
+            "memory": self.shared_state.memory,
+            "last_thought": self.shared_state.last_thought,
+            "progress_summary": self.shared_state.progress_summary,
+            "action_history": self._build_action_history(),
+            "current_state": self.shared_state.formatted_device_state,
+            "text_manipulation_enabled": has_text_to_modify,
+        }
+
+        custom_prompt = self.prompt_resolver.get_prompt("manager_system")
+        if custom_prompt:
+            return PromptLoader.render_template(custom_prompt, variables)
+
+        return await PromptLoader.load_prompt(
+            self.agent_config.get_manager_system_prompt_path(),
+            variables,
+        )
+
+    async def _validate_and_retry(
+        self, messages: list[dict], initial_response: str
+    ) -> str:
+        output = initial_response
+        parsed = parse_manager_response(output)
+
+        max_retries = 3
+        retry_count = 0
+
+        while retry_count < max_retries:
+            error_message = None
+
+            if parsed["answer"] and not parsed["plan"]:
+                if parsed["success"] is None:
+                    error_message = (
+                        'You must include success="true" or success="false" attribute '
+                        "in the <answer> or <request_accomplished> tag.\n"
+                        'Example: <answer success="true">Task completed</answer>\n'
+                        "Retry again."
+                    )
+                else:
+                    break
+            elif parsed["plan"] and parsed["answer"]:
+                error_message = (
+                    "You cannot include both <plan> and <answer> tags. "
+                    "Use <answer> only when the task is complete.\n"
+                    "Retry again."
+                )
+            elif not parsed["plan"] and not parsed["answer"]:
+                error_message = (
+                    "You must provide either a <plan> or an <answer>. "
+                    "Please provide a plan with numbered steps."
+                )
+            else:
+                break
+
+            if error_message:
+                retry_count += 1
+                logger.warning(
+                    f"Manager response invalid (retry {retry_count}/{max_retries}): {error_message}"
+                )
+
+                retry_messages = messages + [
+                    {"role": "assistant", "content": [{"text": output}]},
+                    {"role": "user", "content": [{"text": error_message}]},
+                ]
+
+                chat_messages = to_chat_messages(retry_messages)
+
+                try:
+                    response = await acall_with_retries(self.llm, chat_messages)
+                    output = response.message.content
+                    parsed = parse_manager_response(output)
+                except Exception as e:
+                    logger.error(f"LLM retry failed: {e}")
+                    break
+
+        return output
+
+    @step
+    async def prepare_context(
+        self, ctx: Context, ev: StartEvent
+    ) -> ManagerContextEvent:
+        formatted_text, focused_text, a11y_tree, phone_state = (
+            await self.tools_instance.get_state()
+        )
+
+        self.shared_state.previous_formatted_device_state = (
+            self.shared_state.formatted_device_state
+        )
+        self.shared_state.formatted_device_state = formatted_text
+        self.shared_state.focused_text = focused_text
+        self.shared_state.a11y_tree = a11y_tree
+        self.shared_state.phone_state = phone_state
+
+        self.shared_state.update_current_app(
+            package_name=phone_state.get("packageName", "Unknown"),
+            activity_name=phone_state.get("currentApp", "Unknown"),
+        )
+
+        ctx.write_event_to_stream(RecordUIStateEvent(ui_state=a11y_tree))
+
+        screenshot = None
+        if self.vision or (
+            hasattr(self.tools_instance, "save_trajectories")
+            and self.tools_instance.save_trajectories != "none"
+        ):
+            try:
+                result = await self.tools_instance.take_screenshot()
+                if isinstance(result, tuple):
+                    success, screenshot = result
+                    if not success:
+                        screenshot = None
+                else:
+                    screenshot = result
+
+                if screenshot:
+                    ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
+                    parent_span = trace.get_current_span()
+                    record_langfuse_screenshot(
+                        screenshot,
+                        parent_span=parent_span,
+                        screenshots_enabled=bool(
+                            self.tracing_config
+                            and self.tracing_config.langfuse_screenshots
+                        ),
+                        vision_enabled=self.vision,
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to capture screenshot: {e}")
+
+        focused_text_clean = focused_text.replace("'", "").strip()
+        has_text_to_modify = focused_text_clean != ""
+
+        self.shared_state.has_text_to_modify = has_text_to_modify
+        self.shared_state.screenshot = screenshot
+
+        event = ManagerContextEvent()
+        ctx.write_event_to_stream(event)
+        return event
+
+    @step
+    async def get_response(
+        self, ctx: Context, ev: ManagerContextEvent
+    ) -> ManagerResponseEvent:
+        has_text_to_modify = self.shared_state.has_text_to_modify
+        screenshot = self.shared_state.screenshot
+
+        prompt_text = await self._build_prompt(has_text_to_modify)
+        messages = [{"role": "user", "content": [{"text": prompt_text}]}]
+
+        if self.vision and screenshot:
+            messages[0]["content"].append({"image": screenshot})
+
+        chat_messages = to_chat_messages(messages)
+
+        try:
+            logger.info("[cyan]Manager response:[/cyan]")
+            response = await acall_with_retries(
+                self.llm, chat_messages, stream=self.agent_config.streaming
+            )
+            output = response.message.content
+        except Exception as e:
+            logger.error(f"LLM call failed: {e}")
+            raise RuntimeError(f"Error calling LLM in stateless manager: {e}") from e
+
+        usage = None
+        try:
+            usage = get_usage_from_response(self.llm.class_name(), response)
+        except Exception as e:
+            logger.warning(f"Could not get usage: {e}")
+
+        output = await self._validate_and_retry(messages, output)
+
+        event = ManagerResponseEvent(response=output, usage=usage)
+        ctx.write_event_to_stream(event)
+        return event
+
+    @step
+    async def process_response(
+        self, ctx: Context, ev: ManagerResponseEvent
+    ) -> ManagerPlanDetailsEvent:
+        output = ev.response
+        parsed = parse_manager_response(output)
+
+        self.shared_state.previous_plan = parsed["plan"]
+        self.shared_state.last_thought = parsed["thought"]
+
+        if parsed.get("progress_summary"):
+            self.shared_state.progress_summary = parsed["progress_summary"]
+
+        memory_update = parsed.get("memory", "").strip()
+        if memory_update:
+            if self.shared_state.memory:
+                self.shared_state.memory += "\n" + memory_update
+            else:
+                self.shared_state.memory = memory_update
+
+        self.shared_state.plan = parsed["plan"]
+        self.shared_state.current_subgoal = parsed["current_subgoal"]
+        self.shared_state.manager_answer = parsed["answer"]
+
+        event = ManagerPlanDetailsEvent(
+            plan=parsed["plan"],
+            subgoal=parsed["current_subgoal"],
+            thought=parsed["thought"],
+            answer=parsed["answer"],
+            memory_update=memory_update,
+            progress_summary=parsed.get("progress_summary", ""),
+            success=parsed["success"],
+            full_response=output,
+        )
+        ctx.write_event_to_stream(event)
+        return event
+
+    @step
+    async def finalize(self, ctx: Context, ev: ManagerPlanDetailsEvent) -> StopEvent:
+        return StopEvent(
+            result={
+                "plan": ev.plan,
+                "current_subgoal": ev.subgoal,
+                "thought": ev.thought,
+                "manager_answer": ev.answer,
+                "memory_update": ev.memory_update,
+                "success": ev.success,
+            }
+        )
