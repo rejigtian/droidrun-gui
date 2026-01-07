@@ -327,11 +327,8 @@ async def run_command(
 
 class DroidRunCLI(click.Group):
     def parse_args(self, ctx, args):
-        # If no arguments provided, default to TUI
-        if not args:
-            args.insert(0, "tui")
         # If the first arg is not an option and not a known command, treat as 'run'
-        elif not args[0].startswith("-") and args[0] not in self.commands:
+        if args and not args[0].startswith("-") and args[0] not in self.commands:
             args.insert(0, "run")
 
         return super().parse_args(ctx, args)
