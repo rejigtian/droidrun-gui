@@ -21,104 +21,67 @@
     }
   },
   "navigation": {
-    "versions": [
+    "tabs": [
       {
-        "version": "v4 (Latest)",
-        "products": [
-          {
-            "product": "Framework",
-            "description": "Open Source Framework",
-            "groups": [
-              {
-                "group": "Introduction",
-                "pages": [
-                  "/overview",
-                  "/quickstart"
-                ]
-              },
-              {
-                "group": "Features",
-                "pages": [
-                  "/features/structured-output",
-                  "/features/credentials",
-                  "/features/app-cards",
-                  "/features/custom-tools",
-                  "/features/custom-variables",
-                  "/features/tracing",
-                  "/features/telemetry"
-                ]
-              },
-              {
-                "group": "Guides",
-                "pages": [
-                  "/guides/overview",
-                  "/guides/device-setup",
-                  "/guides/cli",
-                  "/guides/docker",
-                  "/guides/migration-v3-to-v4"
-                ]
-              },
-              {
-                "group": "Concepts",
-                "pages": [
-                  "/concepts/architecture",
-                  "/concepts/scripter-agent",
-                  "/concepts/shared-state",
-                  "/concepts/events-and-workflows",
-                  "/concepts/prompts"
-                ]
-              },
-              {
-                "group": "SDK Reference",
-                "pages": [
-                  "/sdk/reference",
-                  "/sdk/droid-agent",
-                  "/sdk/adb-tools",
-                  "/sdk/ios-tools",
-                  "/sdk/base-tools",
-                  "/sdk/configuration"
-                ]
-              }
-            ]
-          },
-          {
-            "product": "Cloud API",
-            "description": "Managed Cloud API",
-            "openapi": "https://app.stainless.com/api/spec/documented/droidrun-cloud/openapi.documented.yml"
-          }
-        ]
-      },
-      {
-        "version": "v3",
+        "tab": "Docs",
+        "icon": "book",
         "groups": [
           {
             "group": "Introduction",
             "pages": [
-              "/v3/overview",
-              "/v3/quickstart"
+              "/overview",
+              "/quickstart"
+            ]
+          },
+          {
+            "group": "Features",
+            "pages": [
+              "/features/structured-output",
+              "/features/credentials",
+              "/features/app-cards",
+              "/features/custom-tools",
+              "/features/custom-variables",
+              "/features/tracing",
+              "/features/telemetry"
             ]
           },
           {
             "group": "Guides",
             "pages": [
-              "/v3/guides/overview",
-              "/v3/guides/cli",
-              "/v3/guides/gemini",
-              "/v3/guides/ollama",
-              "/v3/guides/openailike",
-              "/v3/guides/telemetry"
+              "/guides/overview",
+              "/guides/device-setup",
+              "/guides/cli",
+              "/guides/docker",
+              "/guides/migration-v3-to-v4"
             ]
           },
           {
             "group": "Concepts",
             "pages": [
-              "/v3/concepts/agent",
-              "/v3/concepts/android-tools",
-              "/v3/concepts/models",
-              "/v3/concepts/portal-app"
+              "/concepts/architecture",
+              "/concepts/scripter-agent",
+              "/concepts/shared-state",
+              "/concepts/events-and-workflows",
+              "/concepts/prompts"
+            ]
+          },
+          {
+            "group": "SDK Reference",
+            "pages": [
+              "/sdk/reference",
+              "/sdk/droid-agent",
+              "/sdk/adb-tools",
+              "/sdk/ios-tools",
+              "/sdk/base-tools",
+              "/sdk/configuration"
             ]
           }
         ]
+      },
+      {
+        "tab": "Cloud",
+        "icon": "cloud",
+        "href": "https://docs.mobilerun.ai"
       }
     ]
   },
