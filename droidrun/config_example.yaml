@@ -16,6 +16,11 @@ agent:
   # Base directory for prompt templates
   prompts_dir: config/prompts
 
+  # Coordinate system for swipe and state bounds output
+  # false = absolute pixels (default)
+  # true = normalized [0-1000] range (resolution-independent)
+  use_normalized_coordinates: false
+
   # CodeAct Agent Configuration
   codeact:
     # Enable vision capabilities (screenshots)
@@ -230,6 +235,8 @@ tools:
   # Disabled tools - add tool names to disable them
   # Available tools:
   #   - click          # Tap UI elements by index
+  #   - click_at       # Tap at specific coordinates
+  #   - click_area     # Tap center of an area
   #   - long_press     # Long press UI elements
   #   - type           # Type text into input fields
   #   - system_button  # Press back, home, enter

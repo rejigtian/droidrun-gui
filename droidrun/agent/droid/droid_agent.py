@@ -500,6 +500,7 @@ class DroidAgent(Workflow):
             self.tools_instance.app_opener_llm = self.app_opener_llm
             self.tools_instance.text_manipulator_llm = self.text_manipulator_llm
             self.tools_instance.streaming = self.config.agent.streaming
+            self.tools_instance.use_normalized = self.config.agent.use_normalized_coordinates
 
         # Update sub-agents with tools (outside the if block - works for both auto-created and pre-provided)
         if self.config.agent.reasoning and self.executor_agent:

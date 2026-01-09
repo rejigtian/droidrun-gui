@@ -317,27 +317,24 @@ class AdbTools(Tools):
         except ValueError as e:
             return f"Error: {str(e)}"
 
-    # Rename the old tap function to tap_by_coordinates for backward compatibility
-    async def tap_by_coordinates(self, x: int, y: int) -> bool:
-        """
-        Tap on the device screen at specific coordinates.
-
-        Args:
-            x: X coordinate
-            y: Y coordinate
-
-        Returns:
-            Bool indicating success or failure
-        """
+    @Tools.ui_action
+    async def tap_by_coordinates(self, x: int, y: int) -> str:
+        """Tap at absolute pixel coordinates."""
         await self._ensure_connected()
         try:
-            logger.debug(f"Tapping at coordinates ({x}, {y})")
+            if self._ctx:
+                tap_event = TapActionEvent(
+                    action_type="tap_coordinate",
+                    description=f"Tap at ({x}, {y})",
+                    x=x,
+                    y=y,
+                )
+                self._ctx.write_event_to_stream(tap_event)
+
             await self.device.click(x, y)
-            logger.debug(f"Tapped at coordinates ({x}, {y})")
-            return True
+            return f"Tapped at ({x}, {y})"
         except ValueError as e:
-            logger.debug(f"Error: {str(e)}")
-            return False
+            return f"Error: {str(e)}"
 
     # Replace the old tap function with the new one
     async def tap(self, index: int) -> str:
@@ -844,11 +841,22 @@ class AdbTools(Tools):
                 if missing_keys:
                     raise Exception(f"Missing data in state: {', '.join(missing_keys)}")
 
+                # Store screen dimensions for coordinate conversion
+                device_context = combined_data["device_context"]
+                screen_bounds = device_context.get("screen_bounds", {})
+                self.screen_width = screen_bounds.get("width")
+                self.screen_height = screen_bounds.get("height")
+
                 self.raw_tree_cache = combined_data["a11y_tree"]
 
                 self.filtered_tree_cache = self.tree_filter.filter(
                     self.raw_tree_cache, combined_data["device_context"]
                 )
+
+                # Set formatter screen dimensions for normalized bounds
+                self.tree_formatter.screen_width = self.screen_width
+                self.tree_formatter.screen_height = self.screen_height
+                self.tree_formatter.use_normalized = self.use_normalized
 
                 formatted_text, focused_text, a11y_tree, phone_state = (
                     self.tree_formatter.format(

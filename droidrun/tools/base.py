@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod
 from functools import wraps
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from .helpers.coordinate import to_absolute
+
 # Get a logger for this module
 logger = logging.getLogger(__name__)
 
@@ -13,6 +15,19 @@ class Tools(ABC):
     Abstract base class for all tools.
     This class provides a common interface for all tools to implement.
     """
+
+    # Screen dimensions (populated by get_state)
+    screen_width: Optional[int] = None
+    screen_height: Optional[int] = None
+
+    # Coordinate mode (set from config)
+    use_normalized: bool = False
+
+    def convert_point(self, x: int, y: int) -> tuple[int, int]:
+        """Convert point to absolute if normalized mode enabled."""
+        if self.use_normalized:
+            return to_absolute(x, y, self.screen_width, self.screen_height)
+        return x, y
 
     @staticmethod
     def ui_action(func):

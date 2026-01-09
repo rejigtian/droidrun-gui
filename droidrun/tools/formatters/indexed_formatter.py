@@ -2,10 +2,16 @@
 
 from typing import Dict, Any, List, Optional, Tuple
 from .base import TreeFormatter
+from ..helpers.coordinate import bounds_to_normalized
 
 
 class IndexedFormatter(TreeFormatter):
     """Format tree in the standard DroidRun format."""
+
+    def __init__(self):
+        self.screen_width: Optional[int] = None
+        self.screen_height: Optional[int] = None
+        self.use_normalized: bool = False
 
     def format(
         self, filtered_tree: Optional[Dict[str, Any]], phone_state: Dict[str, Any]
@@ -59,21 +65,18 @@ class IndexedFormatter(TreeFormatter):
 
         return phone_state_text
 
-    @staticmethod
-    def _format_ui_elements_text(a11y_tree: List[Dict[str, Any]]) -> str:
+    def _format_ui_elements_text(self, a11y_tree: List[Dict[str, Any]]) -> str:
         """Format UI elements text."""
+        coord_note = " (normalized [0-1000])" if self.use_normalized else ""
+        schema = "'index. className: resourceId, text - bounds(x1,y1,x2,y2)'"
         if a11y_tree:
             formatted_ui = IndexedFormatter._format_ui_elements(a11y_tree)
             ui_elements_text = (
-                "Current Clickable UI elements from the device in the schema "
-                "'index. className: resourceId, text - bounds(x1,y1,x2,y2)':\n"
-                f"{formatted_ui}"
+                f"Current Clickable UI elements{coord_note}:\n{schema}:\n{formatted_ui}"
             )
         else:
             ui_elements_text = (
-                "Current Clickable UI elements from the device in the schema "
-                "'index. className: resourceId, text - bounds(x1,y1,x2,y2)':\n"
-                "No UI elements found"
+                f"Current Clickable UI elements{coord_note}:\n{schema}:\nNo UI elements found"
             )
         return ui_elements_text
 
@@ -144,10 +147,13 @@ class IndexedFormatter(TreeFormatter):
 
         return results
 
-    @staticmethod
-    def _format_node(node: Dict[str, Any], index: int) -> Dict[str, Any]:
+    def _format_node(self, node: Dict[str, Any], index: int) -> Dict[str, Any]:
         """Format single node to DroidRun format."""
         bounds = node.get("boundsInScreen", {})
+        bounds_str = f"{bounds.get('left', 0)},{bounds.get('top', 0)},{bounds.get('right', 0)},{bounds.get('bottom', 0)}"
+
+        if self.use_normalized and self.screen_width and self.screen_height:
+            bounds_str = bounds_to_normalized(bounds_str, self.screen_width, self.screen_height)
 
         text = (
             node.get("text")
@@ -164,6 +170,6 @@ class IndexedFormatter(TreeFormatter):
             "resourceId": node.get("resourceId", ""),
             "className": short_class,
             "text": text,
-            "bounds": f"{bounds.get('left', 0)},{bounds.get('top', 0)},{bounds.get('right', 0)},{bounds.get('bottom', 0)}",
+            "bounds": bounds_str,
             "children": [],
         }

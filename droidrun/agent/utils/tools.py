@@ -144,6 +144,25 @@ async def long_press(index: int, *, tools: "Tools" = None, **kwargs) -> bool:
     return await tools.swipe(x, y, x, y, 1000)
 
 
+async def click_at(x: int, y: int, *, tools: "Tools" = None, **kwargs) -> str:
+    """Click at screen coordinates."""
+    if tools is None:
+        raise ValueError("tools parameter is required")
+    abs_x, abs_y = tools.convert_point(x, y)
+    return await tools.tap_by_coordinates(abs_x, abs_y)
+
+
+async def click_area(
+    x1: int, y1: int, x2: int, y2: int, *, tools: "Tools" = None, **kwargs
+) -> str:
+    """Click center of area."""
+    if tools is None:
+        raise ValueError("tools parameter is required")
+    cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+    abs_x, abs_y = tools.convert_point(cx, cy)
+    return await tools.tap_by_coordinates(abs_x, abs_y)
+
+
 async def type(
     text: str, index: int, clear: bool = False, *, tools: "Tools" = None, **kwargs
 ) -> str:
@@ -225,12 +244,11 @@ async def swipe(
             f"coordinate2 must be a list of 2 integers, got: {coordinate2}"
         )
 
-    start_x, start_y = coordinate
-    end_x, end_y = coordinate2
+    # Convert if normalized mode enabled
+    start_x, start_y = tools.convert_point(*coordinate)
+    end_x, end_y = tools.convert_point(*coordinate2)
 
-    # Convert seconds to milliseconds
     duration_ms = int(duration * 1000)
-
     return await tools.swipe(start_x, start_y, end_x, end_y, duration_ms=duration_ms)
 
 
@@ -343,6 +361,16 @@ ATOMIC_ACTION_SIGNATURES = {
         "arguments": ["index"],
         "description": 'Long press on the position with specified index. Usage Example: {"action": "long_press", "index": element_index}',
         "function": long_press,
+    },
+    "click_at": {
+        "arguments": ["x", "y"],
+        "description": 'Click at screen position (x, y). Use element bounds as reference to determine where to click. Usage: {"action": "click_at", "x": 500, "y": 300}',
+        "function": click_at,
+    },
+    "click_area": {
+        "arguments": ["x1", "y1", "x2", "y2"],
+        "description": 'Click center of area (x1, y1, x2, y2). Useful when you want to click a specific region. Usage: {"action": "click_area", "x1": 100, "y1": 200, "x2": 300, "y2": 400}',
+        "function": click_area,
     },
     "type": {
         "arguments": ["text", "index", "clear=False"],
