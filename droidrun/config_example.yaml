@@ -237,7 +237,8 @@ tools:
   #   - click          # Tap UI elements by index
   #   - click_at       # Tap at specific coordinates
   #   - click_area     # Tap center of an area
-  #   - long_press     # Long press UI elements
+  #   - long_press     # Long press UI elements by index
+  #   - long_press_at  # Long press at specific coordinates
   #   - type           # Type text into input fields
   #   - system_button  # Press back, home, enter
   #   - swipe          # Swipe gestures

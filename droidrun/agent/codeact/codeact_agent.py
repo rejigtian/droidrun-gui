@@ -27,7 +27,7 @@ from droidrun.agent.utils.executer import ExecuterState, SimpleCodeExecutor
 from droidrun.agent.utils.inference import acall_with_retries
 from droidrun.agent.utils.prompt_resolver import PromptResolver
 from droidrun.agent.utils.tracing_setup import record_langfuse_screenshot
-from droidrun.agent.utils.tools import (
+from droidrun.agent.utils.signatures import (
     ATOMIC_ACTION_SIGNATURES,
     build_custom_tool_descriptions,
 )

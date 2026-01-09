@@ -46,13 +46,13 @@ from droidrun.agent.utils.llm_loader import (
     validate_llm_dict,
 )
 from droidrun.agent.utils.prompt_resolver import PromptResolver
-from droidrun.agent.utils.tools import (
+from droidrun.agent.utils.signatures import (
     ATOMIC_ACTION_SIGNATURES,
     build_custom_tools,
     filter_atomic_actions,
     filter_custom_tools,
-    resolve_tools_instance,
 )
+from droidrun.agent.utils.tools import resolve_tools_instance
 from droidrun.agent.utils.tracing_setup import setup_tracing
 from droidrun.agent.utils.trajectory import Trajectory
 from droidrun.config_manager.config_manager import (

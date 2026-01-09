@@ -28,18 +28,19 @@ from droidrun.agent.usage import get_usage_from_response
 from droidrun.agent.utils.chat_utils import to_chat_messages
 from droidrun.agent.utils.inference import acall_with_retries
 from droidrun.agent.utils.prompt_resolver import PromptResolver
-from droidrun.agent.utils.tools import (
-    ATOMIC_ACTION_SIGNATURES,
+from droidrun.agent.utils.actions import (
     click,
     click_at,
     click_area,
     long_press,
+    long_press_at,
     open_app,
     swipe,
     system_button,
     type,
     wait,
 )
+from droidrun.agent.utils.signatures import ATOMIC_ACTION_SIGNATURES
 from droidrun.config_manager.config_manager import AgentConfig
 from droidrun.config_manager.prompt_loader import PromptLoader
 
@@ -303,6 +304,15 @@ class ExecutorAgent(Workflow):
                     return False, "Missing coordinates", "Failed: click_area requires x1, y1, x2, y2"
                 result = await click_area(x1, y1, x2, y2, tools=self.tools_instance)
                 return True, "", result
+
+            elif action_type == "long_press_at":
+                x, y = action_dict.get("x"), action_dict.get("y")
+                if x is None or y is None:
+                    return False, "Missing x or y", "Failed: long_press_at requires x and y"
+                success = await long_press_at(x, y, tools=self.tools_instance)
+                if success:
+                    return True, "", f"Long pressed at ({x}, {y})"
+                return False, "Long press failed", f"Failed to long press at ({x}, {y})"
 
             elif action_type == "type":
                 text = action_dict.get("text")
