@@ -720,6 +720,13 @@ async def ping(device: str | None, tcp: bool | None, debug: bool | None):
 # Add macro commands as a subgroup
 cli.add_command(macro_cli, name="macro")
 
+@cli.command()
+def tui():
+    """Launch the DroidRun Terminal User Interface."""
+    from droidrun.cli.tui import run_tui
+
+    run_tui()
+
 
 async def test(
     command: str,
