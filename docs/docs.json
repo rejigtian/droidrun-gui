@@ -82,6 +82,11 @@
         "tab": "Cloud",
         "icon": "cloud",
         "href": "https://docs.mobilerun.ai"
+      },
+      {
+        "tab": "GitHub",
+        "icon": "github",
+        "href": "https://github.com/droidrun/droidrun"
       }
     ]
   },
@@ -91,16 +96,6 @@
     "href": "https://droidrun.ai"
   },
   "navbar": {
-    "links": [
-      {
-        "label": "GitHub",
-        "href": "https://github.com/droidrun/droidrun"
-      },
-      {
-        "label": "Benchmark",
-        "href": "https://droidrun.ai/benchmark"
-      }
-    ],
     "primary": {
       "type": "button",
       "label": "Join Discord",
