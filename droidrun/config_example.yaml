@@ -245,7 +245,11 @@ tools:
   #   - wait           # Wait for duration
   #   - open_app       # Open apps by name
   #   - type_secret    # Type credentials (requires credentials.enabled: true)
-  disabled_tools: []
+  # Coordinate-based tools disabled by default (enable if needed)
+  disabled_tools:
+    - click_at
+    - click_area
+    - long_press_at
 
 # === Credential Settings ===
 credentials:

@@ -174,11 +174,15 @@ class LoggingConfig:
     trajectory_gifs: bool = True
 
 
+def _default_disabled_tools() -> List[str]:
+    return ["click_at", "click_area", "long_press_at"]
+
+
 @dataclass
 class ToolsConfig:
     """Tools configuration."""
 
-    disabled_tools: List[str] = field(default_factory=list)
+    disabled_tools: List[str] = field(default_factory=_default_disabled_tools)
 
 
 @dataclass
