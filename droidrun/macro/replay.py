@@ -10,7 +10,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from droidrun.agent.utils.trajectory import Trajectory
-from droidrun.tools.adb import AdbTools
+from droidrun.tools import AdbTools
 
 logger = logging.getLogger("droidrun-macro")
 

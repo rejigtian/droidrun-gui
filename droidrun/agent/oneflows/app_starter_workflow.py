@@ -11,7 +11,7 @@ logger = logging.getLogger("droidrun")
 from workflows.events import StartEvent, StopEvent
 
 from droidrun.agent.utils.inference import acomplete_with_retries
-from droidrun.tools.tools import Tools
+from droidrun.tools import Tools
 
 
 class AppStarter(Workflow):
@@ -107,7 +107,7 @@ async def main():
     """
     from llama_index.llms.openai import OpenAI
 
-    from droidrun.tools.adb import AdbTools
+    from droidrun.tools import AdbTools
 
     # Initialize tools with device serial (None for default device)
     tools = AdbTools(serial=None)

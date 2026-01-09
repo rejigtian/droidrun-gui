@@ -10,8 +10,7 @@ from async_adbutils import adb
 from droidrun.agent.common.events import WaitEvent
 from droidrun.agent.oneflows.app_starter_workflow import AppStarter
 from droidrun.config_manager.config_manager import ToolsConfig
-from droidrun.tools import AdbTools, IOSTools
-from droidrun.tools.tools import Tools
+from droidrun.tools import AdbTools, IOSTools, Tools
 
 
 async def create_tools_from_config(
@@ -597,7 +596,7 @@ async def _test_main():
 
     from llama_index.llms.google_genai import GoogleGenAI
 
-    from droidrun.tools.adb import AdbTools
+    from droidrun.tools import AdbTools
 
     llm = GoogleGenAI(model="gemini-2.5-pro", temperature=0.0)
     mock_tools = AdbTools(app_opener_llm=llm, text_manipulator_llm=llm)

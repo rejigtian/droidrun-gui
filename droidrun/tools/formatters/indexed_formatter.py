@@ -1,7 +1,7 @@
 """Indexed formatter - Standard DroidRun format."""
 
 from typing import Dict, Any, List, Optional, Tuple
-from droidrun.tools.formatters.base import TreeFormatter
+from .base import TreeFormatter
 
 
 class IndexedFormatter(TreeFormatter):
