@@ -14,6 +14,7 @@ from droidrun.config_manager.safe_execution import (
     create_safe_builtins,
     create_safe_import,
 )
+from droidrun.agent.utils.code_checker import check_code, set_tools
 
 logger = logging.getLogger("droidrun")
 
@@ -109,11 +110,13 @@ class SimpleCodeExecutor:
             )
             wrapped_tools = self._wrap_tools_dict(tools)
             globals.update(wrapped_tools)
+            set_tools(set(tools.keys()))
         elif isinstance(tools, list):
             logger.debug(f"🔧 Initializing SimpleCodeExecutor with {len(tools)} tools")
             wrapped_tools = self._wrap_tools_list(tools)
             for tool in wrapped_tools:
                 globals[tool.__name__] = tool
+            set_tools({tool.__name__ for tool in tools})
         else:
             raise ValueError("Tools must be a dictionary or a list of functions.")
 
@@ -174,6 +177,11 @@ class SimpleCodeExecutor:
         self, code: str, ui_state: Any, ctx: contextvars.Context = None
     ) -> str:
         """Execute code in thread with context propagation."""
+        # Run code through checker if one is registered
+        is_safe, error_msg = check_code(code)
+        if not is_safe:
+            return f"Error: Code blocked by security check: {error_msg}"
+
         self.globals["ui_state"] = ui_state
 
         if ctx is not None:
