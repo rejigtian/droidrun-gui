@@ -162,30 +162,27 @@ class CodeActAgent(Workflow):
 
     async def _build_system_prompt(self) -> dict:
         """Build system prompt message."""
+        # Build template context with available tools for conditional examples
+        template_context = {
+            "tool_descriptions": self.tool_descriptions,
+            "available_secrets": self._available_secrets,
+            "available_tools": set(self.tool_list.keys()),
+            "variables": (
+                self.shared_state.custom_variables if self.shared_state else {}
+            ),
+            "output_schema": self._output_schema,
+        }
+
         custom_system_prompt = self.prompt_resolver.get_prompt("codeact_system")
         if custom_system_prompt:
             system_text = PromptLoader.render_template(
                 custom_system_prompt,
-                {
-                    "tool_descriptions": self.tool_descriptions,
-                    "available_secrets": self._available_secrets,
-                    "variables": (
-                        self.shared_state.custom_variables if self.shared_state else {}
-                    ),
-                    "output_schema": self._output_schema,
-                },
+                template_context,
             )
         else:
             system_text = await PromptLoader.load_prompt(
                 self.agent_config.get_codeact_system_prompt_path(),
-                {
-                    "tool_descriptions": self.tool_descriptions,
-                    "available_secrets": self._available_secrets,
-                    "variables": (
-                        self.shared_state.custom_variables if self.shared_state else {}
-                    ),
-                    "output_schema": self._output_schema,
-                },
+                template_context,
             )
         return {"role": "system", "content": [{"text": system_text}]}
 
