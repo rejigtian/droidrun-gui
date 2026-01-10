@@ -1,7 +1,7 @@
 """Concise filtering - all logic self-contained."""
 
 from typing import Dict, Any, Optional
-from droidrun.tools.filters.base import TreeFilter
+from .base import TreeFilter
 
 
 class ConciseFilter(TreeFilter):

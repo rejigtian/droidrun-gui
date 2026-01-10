@@ -1,18 +1,20 @@
 """
-DroidRun Tools - Core functionality for Android device control.
+DroidRun Tools - Public API.
+
+All external code should import from this module:
+    from droidrun.tools import Tools, AdbTools, IOSTools
 """
 
-from droidrun.tools.adb import AdbTools
+from droidrun.tools.base import Tools, describe_tools
+from droidrun.tools.android import AdbTools, StealthAdbTools
 from droidrun.tools.ios import IOSTools
-from droidrun.tools.stealth_adb import StealthAdbTools
-from droidrun.tools.tools import Tools, describe_tools
 
 __all__ = [
     "Tools",
     "describe_tools",
     "AdbTools",
-    "IOSTools",
     "StealthAdbTools",
+    "IOSTools",
 ]
 
 try:

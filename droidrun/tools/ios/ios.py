@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
-from droidrun.tools.tools import Tools
+from ..base import Tools
 
 logger = logging.getLogger("droidrun")
 

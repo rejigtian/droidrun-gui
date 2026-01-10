@@ -11,7 +11,7 @@ from .chat_utils import (
 )
 
 from .prompt_resolver import PromptResolver
-from .tools import (
+from .signatures import (
     ATOMIC_ACTION_SIGNATURES,
     build_custom_tool_descriptions,
     filter_atomic_actions,

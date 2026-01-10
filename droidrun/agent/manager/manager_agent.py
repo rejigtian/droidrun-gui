@@ -35,7 +35,7 @@ import copy
 from droidrun.agent.utils.inference import acall_with_retries
 from droidrun.agent.utils.tracing_setup import record_langfuse_screenshot
 from droidrun.agent.utils.prompt_resolver import PromptResolver
-from droidrun.agent.utils.tools import build_custom_tool_descriptions
+from droidrun.agent.utils.signatures import build_custom_tool_descriptions
 from droidrun.app_cards.app_card_provider import AppCardProvider
 from droidrun.app_cards.providers import (
     CompositeAppCardProvider,

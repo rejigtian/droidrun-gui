@@ -10,8 +10,8 @@ import math
 import random
 from typing import List, Tuple
 
-from droidrun.tools.adb import AdbTools
-from droidrun.tools.geometry import find_clear_point, rects_overlap
+from .adb import AdbTools
+from ..helpers.geometry import find_clear_point, rects_overlap
 
 
 def ease_in_out_cubic(t: float) -> float:

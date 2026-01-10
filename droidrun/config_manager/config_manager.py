@@ -97,6 +97,7 @@ class AgentConfig:
     after_sleep_action: float = 1.0
     wait_for_stable_ui: float = 0.3
     prompts_dir: str = "config/prompts"
+    use_normalized_coordinates: bool = False
 
     codeact: CodeActConfig = field(default_factory=CodeActConfig)
     manager: ManagerConfig = field(default_factory=ManagerConfig)
@@ -173,11 +174,15 @@ class LoggingConfig:
     trajectory_gifs: bool = True
 
 
+def _default_disabled_tools() -> List[str]:
+    return ["click_at", "click_area", "long_press_at"]
+
+
 @dataclass
 class ToolsConfig:
     """Tools configuration."""
 
-    disabled_tools: List[str] = field(default_factory=list)
+    disabled_tools: List[str] = field(default_factory=_default_disabled_tools)
 
 
 @dataclass
@@ -308,6 +313,7 @@ class DroidrunConfig:
             after_sleep_action=agent_data.get("after_sleep_action", 1.0),
             wait_for_stable_ui=agent_data.get("wait_for_stable_ui", 0.3),
             prompts_dir=agent_data.get("prompts_dir", "config/prompts"),
+            use_normalized_coordinates=agent_data.get("use_normalized_coordinates", False),
             codeact=codeact_config,
             manager=manager_config,
             executor=executor_config,
