@@ -849,7 +849,7 @@ wheels = [
 
 [[package]]
 name = "droidrun"
-version = "0.4.19"
+version = "0.4.21"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
@@ -939,7 +939,7 @@ requires-dist = [
     { name = "llama-index-llms-openai-like", marker = "extra == 'openai'", specifier = ">=0.5.1" },
     { name = "llama-index-llms-openrouter", marker = "extra == 'openrouter'", specifier = ">=0.4.2" },
     { name = "llama-index-workflows", specifier = "==2.8.3" },
-    { name = "mobilerun-sdk", marker = "extra == 'mobilerun'", git = "ssh://git@github.com/droidrun/mobilerun-sdk-python.git?branch=next" },
+    { name = "mobilerun-sdk", marker = "extra == 'mobilerun'", git = "ssh://git@github.com/droidrun/mobilerun-sdk-python.git?branch=main" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
     { name = "openai", marker = "extra == 'openai'", specifier = ">=1.99.1" },
     { name = "openinference-instrumentation-llama-index", marker = "extra == 'langfuse'", specifier = ">=3.0.0" },
@@ -2013,8 +2013,8 @@ wheels = [
 
 [[package]]
 name = "mobilerun-sdk"
-version = "0.0.1"
-source = { git = "ssh://git@github.com/droidrun/mobilerun-sdk-python.git?branch=next#b4a539276412316465e883d4dd89453c66d2f82b" }
+version = "2.0.0"
+source = { git = "ssh://git@github.com/droidrun/mobilerun-sdk-python.git?branch=main#98944f7be10b02af753f7fddec05c32e4a631234" }
 dependencies = [
     { name = "anyio" },
     { name = "distro" },
