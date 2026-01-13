@@ -59,10 +59,11 @@ class MobileRunTools(Tools):
         self._ctx = ctx
 
     async def get_state(self) -> Tuple[str, str, List[Dict[str, Any]], Dict[str, Any]]:
-        combined_data = await self.mobilerun.devices.state.ui(
+        response = await self.mobilerun.devices.state.ui(
             self.device_id,
             x_device_display_id=self.display_id,
         )
+        combined_data = response.model_dump()
 
         required_keys = ["a11y_tree", "phone_state", "device_context"]
         missing_keys = [key for key in required_keys if key not in combined_data]
@@ -238,7 +239,7 @@ class MobileRunTools(Tools):
 
         try:
             await self.mobilerun.devices.keyboard.key(
-                self.device_id, action=keycode, x_device_display_id=self.display_id
+                self.device_id, key=keycode, x_device_display_id=self.display_id
             )
         except Exception as e:
             print(f"Error: {str(e)}")

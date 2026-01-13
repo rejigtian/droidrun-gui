@@ -15,7 +15,7 @@ async def click(index: int, *, tools: "Tools" = None, **kwargs) -> str:
     """Click the element with the given index."""
     if tools is None:
         raise ValueError("tools parameter is required")
-    return await tools.tap_on_index(index)
+    return await tools.tap_by_index(index)
 
 
 async def long_press(index: int, *, tools: "Tools" = None, **kwargs) -> bool:

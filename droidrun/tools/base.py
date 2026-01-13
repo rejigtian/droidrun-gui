@@ -80,6 +80,13 @@ class Tools(ABC):
         """
         pass
 
+    @abstractmethod
+    async def tap_on_index(self, index: int) -> str:
+        """
+        Tap at the largest visible region, avoiding overlapping elements.
+        """
+        pass
+
     # @abstractmethod
     # async def tap_by_coordinates(self, x: int, y: int) -> bool:
     #    pass
