@@ -118,9 +118,11 @@ async def run_command(
     Returns:
         bool: True if the task completed successfully, False otherwise.
     """
-    # Load config: use provided file or defaults
+    # Load config: use provided file, env var, or defaults
     if config_path:
         config = DroidrunConfig.from_yaml(config_path)
+    elif env_config := os.environ.get("DROIDRUN_CONFIG"):
+        config = DroidrunConfig.from_yaml(env_config)
     else:
         config = DroidrunConfig()
 
@@ -152,6 +154,8 @@ async def run_command(
             logger.info(f"🚀 Starting: {command}")
             if config_path:
                 logger.info(f"📄 Config: {config_path}")
+            elif env_config := os.environ.get("DROIDRUN_CONFIG"):
+                logger.info(f"📄 Config: {env_config}")
             else:
                 logger.info("📄 Config: defaults")
 
@@ -742,9 +746,11 @@ async def test(
     temperature: float | None = None,
     ios: bool = False,
 ):
-    # Load config: use provided file or defaults
+    # Load config: use provided file, env var, or defaults
     if config_path:
         config = DroidrunConfig.from_yaml(config_path)
+    elif env_config := os.environ.get("DROIDRUN_CONFIG"):
+        config = DroidrunConfig.from_yaml(env_config)
     else:
         config = DroidrunConfig()
 
@@ -760,6 +766,8 @@ async def test(
             logger.info(f"🚀 Starting: {command}")
             if config_path:
                 logger.info(f"📄 Config: {config_path}")
+            elif env_config := os.environ.get("DROIDRUN_CONFIG"):
+                logger.info(f"📄 Config: {env_config}")
             else:
                 logger.info("📄 Config: defaults")
 
