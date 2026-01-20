@@ -31,6 +31,8 @@ agent:
     user_prompt: user.jinja2
     # Enable safe code execution (restricts imports and builtins)
     safe_execution: false
+    # Execution timeout per code block (seconds)
+    execution_timeout: 50.0
 
   # Manager Agent Configuration
   manager:

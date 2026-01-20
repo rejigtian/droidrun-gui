@@ -419,7 +419,9 @@ class CodeActAgent(Workflow):
         try:
             self.code_exec_counter += 1
             result = await self.executor.execute(
-                ExecuterState(ui_state=await ctx.store.get("ui_state", None)), code
+                ExecuterState(ui_state=await ctx.store.get("ui_state", None)),
+                code,
+                timeout=self.config.execution_timeout,
             )
             logger.info("[dim]💡 Execution result:[/dim]")
             logger.info(f"{result}")

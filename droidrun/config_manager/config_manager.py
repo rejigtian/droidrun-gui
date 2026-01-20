@@ -45,6 +45,7 @@ class CodeActConfig:
     system_prompt: str = "system.jinja2"
     user_prompt: str = "user.jinja2"
     safe_execution: bool = False
+    execution_timeout: float = 50.0
 
 
 @dataclass
