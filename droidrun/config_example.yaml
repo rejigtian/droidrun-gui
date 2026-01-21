@@ -278,8 +278,8 @@ credentials:
 # External agent configurations (reference settings)
 external_agents:
   # MAI-UI - Alibaba's GUI agent foundation model
-  # https://github.com/AlibabaCloud-AIDC/MAI-UI
-  # Requires vLLM server: vllm serve AlibabaCloud-AIDC/MAI-UI-8B --trust-remote-code
+  # https://github.com/Tongyi-MAI/MAI-UI
+  # Requires vLLM server: vllm serve Tongyi-MAI/MAI-UI-8B
   mai_ui:
     llm:
       provider: OpenAI
@@ -293,7 +293,7 @@ external_agents:
     history_n: 3  # Number of history steps with images
 
   # AutoGLM - Open-AutoGLM phone agent
-  # https://github.com/ArtificialZeng/Open-AutoGLM
+  # https://github.com/zai-org/Open-AutoGLM/
   autoglm:
     llm:
       provider: OpenAILike
