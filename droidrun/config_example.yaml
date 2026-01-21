@@ -3,6 +3,8 @@
 
 # === Agent Settings ===
 agent:
+  # Agent to use: "droidrun" (native) or external: "mai_ui", "autoglm"
+  name: droidrun
   # Maximum number of steps per task
   max_steps: 15
   # Enable planning with reasoning mode
@@ -259,16 +261,37 @@ credentials:
   file_path: config/credentials.yaml
 
 # === External Agent Settings ===
-# Configure external agents (AutoGLM, and more soon)
-# To use: set agent.external_agent to the agent name
-# max_steps is shared from agent.max_steps
+# External agents are selected via agent.name above.
+# Set agent.name to "mai_ui" or "autoglm" to use external agents.
+# Settings below are merged with agent-specific defaults.
 #
-# Example usage in agent section:
+# Example:
 #   agent:
-#     external_agent: autoglm
+#     name: mai_ui
 #     max_steps: 20
 #
+# Optional overrides via external_agent section:
+# external_agent:
+#   llm:
+#     base_url: http://custom:8000/v1
+
+# External agent configurations (reference settings)
 external_agents:
+  # MAI-UI - Alibaba's GUI agent foundation model
+  # https://github.com/AlibabaCloud-AIDC/MAI-UI
+  # Requires vLLM server: vllm serve AlibabaCloud-AIDC/MAI-UI-8B --trust-remote-code
+  mai_ui:
+    llm:
+      provider: OpenAI
+      model: mai-ui-8b  # or mai-ui-2b, mai-ui-32b, mai-ui-235b-a22b
+      base_url: http://localhost:8000/v1
+      api_key: EMPTY
+      temperature: 0.0
+      max_tokens: 2048
+      top_p: 1.0
+      top_k: -1
+    history_n: 3  # Number of history steps with images
+
   # AutoGLM - Open-AutoGLM phone agent
   # https://github.com/ArtificialZeng/Open-AutoGLM
   autoglm:
@@ -281,5 +304,5 @@ external_agents:
       top_p: 0.85
       frequency_penalty: 0.2
       max_tokens: 3000
-    lang: cn      # cn (18 detailed rules) or en (minimal)
+    lang: en      # cn or en
     stream: true
