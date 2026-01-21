@@ -4,7 +4,7 @@
 # === Agent Settings ===
 agent:
   # Agent to use: "droidrun" (native) or external: "mai_ui", "autoglm"
-  name: droidrun
+  name: mai_ui
   # Maximum number of steps per task
   max_steps: 15
   # Enable planning with reasoning mode
@@ -282,9 +282,9 @@ external_agents:
   # Requires vLLM server: vllm serve Tongyi-MAI/MAI-UI-8B
   mai_ui:
     llm:
-      provider: OpenAI
-      model: mai-ui-8b  # or mai-ui-2b, mai-ui-32b, mai-ui-235b-a22b
-      base_url: http://localhost:8000/v1
+      provider: OpenAILike
+      model: Tongyi-MAI/MAI-UI-8B  # or mai-ui-2b, mai-ui-32b, mai-ui-235b-a22b
+      api_base: https://enjoyed-placed-theaters-survival.trycloudflare.com/v1
       api_key: EMPTY
       temperature: 0.0
       max_tokens: 2048
@@ -298,7 +298,7 @@ external_agents:
     llm:
       provider: OpenAILike
       model: autoglm-phone-9b
-      base_url: http://localhost:8000/v1
+      api_base: http://localhost:8000/v1
       api_key: EMPTY
       temperature: 0.0
       top_p: 0.85

@@ -65,6 +65,7 @@ from droidrun.config_manager.config_manager import (
     ToolsConfig,
     TracingConfig,
 )
+from droidrun.config_manager.safe_execution import SafeExecutionConfig
 from droidrun.credential_manager import FileCredentialManager, CredentialManager
 from droidrun.telemetry import (
     DroidAgentFinalizeEvent,
@@ -202,6 +203,8 @@ class DroidAgent(Workflow):
             telemetry=config.telemetry if config else TelemetryConfig(),
             llm_profiles=config.llm_profiles if config else {},
             credentials=config.credentials if config else CredentialsConfig(),
+            safe_execution=config.safe_execution if config else SafeExecutionConfig(),
+            external_agents=config.external_agents if config else {},
         )
 
         self.tools_instance = None
@@ -212,51 +215,69 @@ class DroidAgent(Workflow):
 
         setup_tracing(self.config.tracing, agent=self)
 
-        # Load LLMs if not provided
-        if llms is None:
-            if config is None:
-                raise ValueError(
-                    "Either 'llms' or 'config' must be provided. "
-                    "If llms is not provided, config is required to load LLMs from profiles."
-                )
-
-            logger.debug("🔄 Loading LLMs from config (llms not provided)...")
-
-            llms = load_agent_llms(
-                config=self.config, output_model=output_model, **kwargs
-            )
-        if isinstance(llms, dict):
-            # allow users to provide a partial dict of LLMs. Merge any missing ones from configuration defaults.
-            llms = merge_llms_with_config(
-                self.config, llms, output_model=output_model, **kwargs
-            )
-
-        elif isinstance(llms, LLM):
-            pass
-        else:
-            raise ValueError(f"Invalid LLM type: {type(llms)}")
+        # Check if using external agent - skip LLM loading
+        self._using_external_agent = self.config.agent.name != "droidrun"
+        logger.debug(f"DEBUG __init__: config.agent.name = {self.config.agent.name}")
+        logger.debug(f"DEBUG __init__: config.external_agents = {self.config.external_agents}")
+        logger.debug(f"DEBUG __init__: _using_external_agent = {self._using_external_agent}")
 
         self.timeout = timeout
 
-        if isinstance(llms, dict):
-            self.manager_llm = llms.get("manager")
-            self.executor_llm = llms.get("executor")
-            self.codeact_llm = llms.get("codeact")
-            self.text_manipulator_llm = llms.get("text_manipulator")
-            self.app_opener_llm = llms.get("app_opener")
-            self.scripter_llm = llms.get("scripter", self.codeact_llm)
-            self.structured_output_llm = llms.get("structured_output", self.codeact_llm)
+        # Only load LLMs for native DroidRun agents
+        if not self._using_external_agent:
+            # Load LLMs if not provided
+            if llms is None:
+                if config is None:
+                    raise ValueError(
+                        "Either 'llms' or 'config' must be provided. "
+                        "If llms is not provided, config is required to load LLMs from profiles."
+                    )
 
-            logger.debug("📚 Using agent-specific LLMs from dictionary")
+                logger.debug("🔄 Loading LLMs from config (llms not provided)...")
+
+                llms = load_agent_llms(
+                    config=self.config, output_model=output_model, **kwargs
+                )
+            if isinstance(llms, dict):
+                # allow users to provide a partial dict of LLMs. Merge any missing ones from configuration defaults.
+                llms = merge_llms_with_config(
+                    self.config, llms, output_model=output_model, **kwargs
+                )
+
+            elif isinstance(llms, LLM):
+                pass
+            else:
+                raise ValueError(f"Invalid LLM type: {type(llms)}")
+
+            if isinstance(llms, dict):
+                self.manager_llm = llms.get("manager")
+                self.executor_llm = llms.get("executor")
+                self.codeact_llm = llms.get("codeact")
+                self.text_manipulator_llm = llms.get("text_manipulator")
+                self.app_opener_llm = llms.get("app_opener")
+                self.scripter_llm = llms.get("scripter", self.codeact_llm)
+                self.structured_output_llm = llms.get("structured_output", self.codeact_llm)
+
+                logger.debug("📚 Using agent-specific LLMs from dictionary")
+            else:
+                logger.debug("📚 Using single LLM for all agents")
+                self.manager_llm = llms
+                self.executor_llm = llms
+                self.codeact_llm = llms
+                self.text_manipulator_llm = llms
+                self.app_opener_llm = llms
+                self.scripter_llm = llms
+                self.structured_output_llm = llms
         else:
-            logger.debug("📚 Using single LLM for all agents")
-            self.manager_llm = llms
-            self.executor_llm = llms
-            self.codeact_llm = llms
-            self.text_manipulator_llm = llms
-            self.app_opener_llm = llms
-            self.scripter_llm = llms
-            self.structured_output_llm = llms
+            # External agent mode - no native LLMs needed
+            logger.debug(f"🔄 Using external agent: {self.config.agent.name}")
+            self.manager_llm = None
+            self.executor_llm = None
+            self.codeact_llm = None
+            self.text_manipulator_llm = None
+            self.app_opener_llm = None
+            self.scripter_llm = None
+            self.structured_output_llm = None
 
         self.trajectory = Trajectory(
             goal=self.shared_state.instruction,
@@ -276,7 +297,11 @@ class DroidAgent(Workflow):
         logger.debug("🤖 Initializing DroidAgent...")
         logger.debug(f"💾 Trajectory saving: {self.config.logging.save_trajectory}")
 
-        if self.config.agent.reasoning:
+        # Skip native agent initialization for external agents
+        if self._using_external_agent:
+            self.manager_agent = None
+            self.executor_agent = None
+        elif self.config.agent.reasoning:
             # Choose between stateful and stateless manager
             if self.config.agent.manager.stateless:
                 logger.debug("📝 Initializing StatelessManager and Executor Agents...")
@@ -512,8 +537,11 @@ class DroidAgent(Workflow):
         self.tools_instance._set_context(ctx)
 
         # External agent mode - bypass DroidRun agents entirely
-        agent_name = self.config.agent.name
-        if agent_name != "droidrun":
+        logger.debug(f"DEBUG: _using_external_agent = {self._using_external_agent}")
+        logger.debug(f"DEBUG: config.agent.name = {self.config.agent.name}")
+        logger.debug(f"DEBUG: config.external_agents = {self.config.external_agents}")
+        if self._using_external_agent:
+            agent_name = self.config.agent.name
             # Load external agent module
             agent_module = load_agent(agent_name)
             if not agent_module:
@@ -521,6 +549,7 @@ class DroidAgent(Workflow):
 
             # Get config from external_agents section
             agent_config = self.config.external_agents.get(agent_name)
+            logger.debug(f"DEBUG: agent_config for '{agent_name}' = {agent_config}")
             if not agent_config:
                 raise ValueError(
                     f"No config found for agent '{agent_name}' in external_agents section"

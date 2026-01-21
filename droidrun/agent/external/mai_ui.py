@@ -117,7 +117,7 @@ MAI_MOBILE_SYS_PROMPT_TEMPLATE = Template(
     "{\"action\": \"ask_user\", \"text\": \"xxx\"} # you can ask user for more information to complete the task.\n"
     "{\"action\": \"double_click\", \"coordinate\": [x, y]}\n"
     "\n"
-    "{% if tools -%}\n"
+    "{% if tools %}"
     "## MCP Tools\n"
     "You are also provided with MCP tools, you can use them to complete the task.\n"
     "{{ tools }}\n"
@@ -131,8 +131,7 @@ MAI_MOBILE_SYS_PROMPT_TEMPLATE = Template(
     "{\"name\": <function-name>, \"arguments\": <args-json-object>}\n"
     "</tool_call>\n"
     "```\n"
-    "{% endif -%}\n"
-    "\n"
+    "{% endif %}"
     "## Note\n"
     "- Available Apps: `{{ apps_list }}`.\n"
     "- Write a small plan and finally summarize your next action (with its target element) in one sentence in <thinking></thinking> part."
@@ -325,15 +324,16 @@ def mem2response(step: TrajStep) -> str:
     action_json = copy.deepcopy(structured_action.get("action_json", {}))
 
     # Convert normalized coordinates back to SCALE_FACTOR range for history
-    for coord_key in ["coordinate", "start_coordinate", "end_coordinate"]:
-        if coord_key in action_json:
-            coords = action_json[coord_key]
-            if len(coords) == 2:
-                # Coordinates are stored normalized (0-1), convert to 0-999
-                action_json[coord_key] = [
-                    int(coords[0] * SCALE_FACTOR),
-                    int(coords[1] * SCALE_FACTOR),
-                ]
+    # NOTE: Original MAI-UI only converts "coordinate", NOT start_coordinate/end_coordinate
+    # This matches the behavior in mai_naivigation_agent.py mem2response()
+    if "coordinate" in action_json:
+        coords = action_json["coordinate"]
+        if len(coords) == 2:
+            # Coordinates are stored normalized (0-1), convert to 0-999
+            action_json["coordinate"] = [
+                int(coords[0] * SCALE_FACTOR),
+                int(coords[1] * SCALE_FACTOR),
+            ]
 
     tool_call_dict = {
         "name": "mobile_use",
