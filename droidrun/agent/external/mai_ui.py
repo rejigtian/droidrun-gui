@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from PIL import Image
 from jinja2 import Template
 
+from droidrun.agent.oneflows.app_starter_workflow import AppStarter
 from droidrun.agent.utils.chat_utils import to_chat_messages
 from droidrun.agent.utils.inference import acall_with_retries
 from droidrun.agent.utils.llm_picker import load_llm
@@ -448,6 +449,7 @@ async def execute_action(
     action: Dict[str, Any],
     screen_width: int,
     screen_height: int,
+    llm=None,
 ) -> Tuple[bool, str]:
     """
     Execute a MAI-UI action using DroidRun tools.
@@ -457,6 +459,7 @@ async def execute_action(
         action: Parsed action dictionary with normalized coordinates (0-1 range)
         screen_width: Screen width in pixels
         screen_height: Screen height in pixels
+        llm: LLM instance for intelligent app opening (AppStarter workflow)
 
     Returns:
         Tuple of (success, result_message)
@@ -534,9 +537,22 @@ async def execute_action(
 
         elif action_type == "open":
             app_name = action.get("text", "")
-            package = await resolve_app_name(tools, app_name)
-            result = await tools.start_app(package)
-            return True, f"open '{app_name}' ({package}): {result}"
+            if llm is not None:
+                # Use intelligent LLM-based app matching via AppStarter
+                workflow = AppStarter(
+                    tools=tools,
+                    llm=llm,
+                    timeout=60,
+                    verbose=False,
+                )
+                result = await workflow.run(app_description=app_name)
+                await asyncio.sleep(1)
+                return True, f"open '{app_name}': {result}"
+            else:
+                # Fallback to simple name matching
+                package = await resolve_app_name(tools, app_name)
+                result = await tools.start_app(package)
+                return True, f"open '{app_name}' ({package}): {result}"
 
         elif action_type == "system_button":
             button = action.get("button", "back")
@@ -773,7 +789,7 @@ async def run(
         traj_memory.steps.append(traj_step)
 
         # Execute action
-        success, result_msg = await execute_action(tools, action_json, w, h)
+        success, result_msg = await execute_action(tools, action_json, w, h, llm)
         logger.info(f"Execution: {result_msg}")
 
         # Brief pause between steps
