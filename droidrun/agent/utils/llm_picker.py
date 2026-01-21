@@ -47,6 +47,9 @@ def load_llm(provider_name: str, model: str | None = None, **kwargs: Any) -> LLM
     if provider_name == "OpenAILike":
         module_provider_part = "openai_like"
         kwargs.setdefault("is_chat_model", True)
+        # OpenAILike uses api_base, not base_url - handle both for convenience
+        if "base_url" in kwargs and "api_base" not in kwargs:
+            kwargs["api_base"] = kwargs.pop("base_url")
     elif provider_name == "GoogleGenAI":
         module_provider_part = "google_genai"
     else:

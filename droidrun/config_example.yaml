@@ -3,6 +3,8 @@
 
 # === Agent Settings ===
 agent:
+  # Agent to use: "droidrun" (native) or external: "mai_ui", "autoglm"
+  name: mai_ui
   # Maximum number of steps per task
   max_steps: 15
   # Enable planning with reasoning mode
@@ -259,3 +261,50 @@ credentials:
   enabled: false
   # Path to credentials file (see config/credentials_example.yaml for format)
   file_path: config/credentials.yaml
+
+# === External Agent Settings ===
+# External agents are selected via agent.name above.
+# Set agent.name to "mai_ui" or "autoglm" to use external agents.
+# Settings below are merged with agent-specific defaults.
+#
+# Example:
+#   agent:
+#     name: mai_ui
+#     max_steps: 20
+#
+# Optional overrides via external_agent section:
+# external_agent:
+#   llm:
+#     base_url: http://custom:8000/v1
+
+# External agent configurations (reference settings)
+external_agents:
+  # MAI-UI - Alibaba's GUI agent foundation model
+  # https://github.com/Tongyi-MAI/MAI-UI
+  # Requires vLLM server: vllm serve Tongyi-MAI/MAI-UI-8B
+  mai_ui:
+    llm:
+      provider: OpenAILike
+      model: Tongyi-MAI/MAI-UI-8B  # or mai-ui-2b, mai-ui-32b, mai-ui-235b-a22b
+      api_base: https://enjoyed-placed-theaters-survival.trycloudflare.com/v1
+      api_key: EMPTY
+      temperature: 0.0
+      max_tokens: 2048
+      top_p: 1.0
+      top_k: -1
+    history_n: 3  # Number of history steps with images
+
+  # AutoGLM - Open-AutoGLM phone agent
+  # https://github.com/zai-org/Open-AutoGLM/
+  autoglm:
+    llm:
+      provider: OpenAILike
+      model: autoglm-phone-9b
+      api_base: http://localhost:8000/v1
+      api_key: EMPTY
+      temperature: 0.0
+      top_p: 0.85
+      frequency_penalty: 0.2
+      max_tokens: 3000
+    lang: en      # cn or en
+    stream: true

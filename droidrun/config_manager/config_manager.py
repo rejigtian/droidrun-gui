@@ -92,6 +92,7 @@ class AppCardConfig:
 class AgentConfig:
     """Agent-related configuration."""
 
+    name: str = "droidrun"  # "droidrun" (native) or external agent: "mai_ui", "autoglm"
     max_steps: int = 15
     reasoning: bool = False
     streaming: bool = True
@@ -194,6 +195,8 @@ class CredentialsConfig:
     file_path: str = "config/credentials.yaml"
 
 
+
+
 @dataclass
 class DroidrunConfig:
     """Complete DroidRun configuration schema."""
@@ -207,6 +210,7 @@ class DroidrunConfig:
     tools: ToolsConfig = field(default_factory=ToolsConfig)
     credentials: CredentialsConfig = field(default_factory=CredentialsConfig)
     safe_execution: SafeExecutionConfig = field(default_factory=SafeExecutionConfig)
+    external_agents: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
     def __post_init__(self):
         """Ensure default profiles exist."""
@@ -308,6 +312,7 @@ class DroidrunConfig:
         )
 
         agent_config = AgentConfig(
+            name=agent_data.get("name", "droidrun"),
             max_steps=agent_data.get("max_steps", 15),
             reasoning=agent_data.get("reasoning", False),
             streaming=agent_data.get("streaming", False),
@@ -330,6 +335,9 @@ class DroidrunConfig:
             else SafeExecutionConfig()
         )
 
+        # External agents config - just pass through as-is
+        external_agents = data.get("external_agents", {})
+
         return cls(
             agent=agent_config,
             llm_profiles=llm_profiles,
@@ -340,6 +348,7 @@ class DroidrunConfig:
             tools=ToolsConfig(**data.get("tools", {})),
             credentials=CredentialsConfig(**data.get("credentials", {})),
             safe_execution=safe_execution_config,
+            external_agents=external_agents,
         )
 
     @classmethod
