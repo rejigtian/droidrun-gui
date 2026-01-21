@@ -30,6 +30,17 @@ logger = logging.getLogger("droidrun")
 SCALE_FACTOR = 999
 
 # =============================================================================
+# Default Configuration (agent-specific only, NOT LLM)
+# =============================================================================
+
+DEFAULT_CONFIG: Dict[str, Any] = {
+    # Agent-specific settings matching MAI-UI defaults
+    "history_n": 3,  # Number of history steps with images
+    # Note: vision is always True for MAI-UI (screenshot-based agent)
+}
+
+
+# =============================================================================
 # Trajectory Memory (matches MAI-UI's unified_memory.py)
 # =============================================================================
 
@@ -580,38 +591,44 @@ async def run(
     Args:
         tools: DroidRun Tools instance (AdbTools)
         instruction: Task to complete
-        config: Configuration dictionary with:
-            - provider: LLM provider (default: "OpenAI")
-            - model: Model name (default: "gpt-4o")
-            - temperature: Sampling temperature (default: 0.0)
-            - base_url: Optional base URL for vLLM
-            - api_key: Optional API key
-            - history_n: Number of history images (default: 3)
-            - vision: Whether to use screenshots (default: True)
-            - top_k: Top-k sampling (default: -1)
-            - top_p: Top-p sampling (default: 1.0)
-            - max_tokens: Max tokens (default: 2048)
+        config: Configuration dictionary:
+            llm: Dict passed directly to load_llm() with:
+                provider: LLM provider (default: "OpenAI")
+                model, temperature, base_url, api_key, max_tokens, top_p, top_k, etc.
+            history_n: Number of history images (default: 3)
+            vision: Whether to use screenshots (default: True)
         max_steps: Maximum iterations
 
     Returns:
-        Dictionary with:
-            - success: bool
-            - reason: str
-            - steps: int
-            - answer: str (if answer action was used)
+        Dictionary with: success, reason, steps, answer (if answer action)
     """
-    # Load LLM
-    llm = load_llm(
-        provider=config.get("provider", "OpenAI"),
-        model=config.get("model", "gpt-4o"),
-        temperature=config.get("temperature", 0.0),
-        base_url=config.get("base_url"),
-        api_key=config.get("api_key"),
-    )
+    # Validate LLM config - must be provided by user
+    llm_cfg = config.get("llm")
+    if not llm_cfg or not isinstance(llm_cfg, dict):
+        raise ValueError(
+            "MAI-UI requires 'llm' configuration. "
+            "Please configure external_agents.mai_ui.llm in your config.yaml"
+        )
 
-    # Configuration
-    history_n = config.get("history_n", 3)
-    use_vision = config.get("vision", True)
+    if "provider" not in llm_cfg:
+        raise ValueError(
+            "MAI-UI requires 'llm.provider' to be specified. "
+            "Example: provider: OpenAI"
+        )
+
+    if "model" not in llm_cfg:
+        raise ValueError(
+            "MAI-UI requires 'llm.model' to be specified. "
+            "Example: model: mai-ui-8b"
+        )
+
+    # Load LLM - pass config directly to load_llm
+    llm_cfg = dict(llm_cfg)  # Copy to avoid mutating
+    provider = llm_cfg.pop("provider")
+    llm = load_llm(provider, **llm_cfg)
+
+    # Agent-specific configuration (defaults from DEFAULT_CONFIG)
+    history_n = config.get("history_n", DEFAULT_CONFIG["history_n"])
 
     # Initialize trajectory memory
     traj_memory = TrajMemory(task_goal=instruction)
@@ -637,14 +654,12 @@ async def run(
             logger.error(f"Failed to get state: {e}")
             w, h = 1080, 2400  # Fallback dimensions
 
-        # Take screenshot
-        screenshot_bytes = None
-        if use_vision:
-            try:
-                _, screenshot_bytes = await tools.take_screenshot()
-            except Exception as e:
-                logger.error(f"Failed to take screenshot: {e}")
-                continue
+        # Take screenshot (MAI-UI is vision-based, always requires screenshots)
+        try:
+            _, screenshot_bytes = await tools.take_screenshot()
+        except Exception as e:
+            logger.error(f"Failed to take screenshot: {e}")
+            continue
 
         if not screenshot_bytes:
             logger.error("No screenshot available")
