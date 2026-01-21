@@ -247,8 +247,12 @@ def pil_to_base64(image: Image.Image) -> str:
 
 
 def bytes_to_base64(image_bytes: bytes) -> str:
-    """Convert image bytes to base64 string."""
-    return base64.b64encode(image_bytes).decode("utf-8")
+    image = Image.open(BytesIO(image_bytes))
+    if image.mode != "RGB":
+        image = image.convert("RGB")
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
 
 async def resolve_app_name(tools, app_name: str) -> str:
