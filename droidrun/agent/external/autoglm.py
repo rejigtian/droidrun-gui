@@ -36,10 +36,12 @@ logger = logging.getLogger("droidrun")
 
 
 def get_system_prompt_zh() -> str:
-    """Get Chinese system prompt with current date (matches original prompts.py)."""
+    """Get Chinese system prompt with current date (matches original prompts_zh.py)."""
     from datetime import datetime
     today = datetime.today()
-    formatted_date = today.strftime("%Y年%m月%d日")
+    weekday_names = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
+    weekday = weekday_names[today.weekday()]
+    formatted_date = today.strftime("%Y年%m月%d日") + " " + weekday
     return "今天的日期是: " + formatted_date + """
 你是一个智能体分析专家，可以根据操作历史和当前状态图执行一系列操作来完成任务。
 你必须严格按照要求输出以下格式：
