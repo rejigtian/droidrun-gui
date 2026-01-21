@@ -4,7 +4,7 @@
 # === Agent Settings ===
 agent:
   # Agent to use: "droidrun" (native) or external: "mai_ui", "autoglm"
-  name: mai_ui
+  name: droidrun
   # Maximum number of steps per task
   max_steps: 15
   # Enable planning with reasoning mode
