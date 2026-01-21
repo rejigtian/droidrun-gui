@@ -199,24 +199,11 @@ def get_system_prompt(lang: str = "cn") -> str:
         return get_system_prompt_en()
 
 # =============================================================================
-# Default Configuration (matches original Open-AutoGLM)
+# Default Configuration (agent-specific only, NOT LLM)
 # =============================================================================
 
 DEFAULT_CONFIG: Dict[str, Any] = {
-    # LLM configuration (matches original Open-AutoGLM ModelConfig)
-    "llm": {
-        "provider": "OpenAILike",
-        "model": "autoglm-phone-9b",
-        "base_url": "http://localhost:8000/v1",
-        "api_key": "EMPTY",
-        "temperature": 0.0,
-        "top_p": 0.85,
-        "frequency_penalty": 0.2,
-        "max_tokens": 3000,
-    },
-    # Agent-specific settings
-    # Note: vision is always enabled (AutoGLM requires screenshots)
-    # Note: max_steps comes from agent.max_steps in main config
+    # Agent-specific settings only - LLM must be provided by user
     "lang": "cn",  # cn (18 detailed rules) or en (minimal rules)
     "stream": True,
 }
@@ -916,18 +903,13 @@ async def run(
     Args:
         tools: DroidRun Tools instance
         instruction: Task to complete
-        config: Agent config with structure:
-            {
-                "llm": {
-                    "provider": "OpenAI",
-                    "model": "gpt-4o",
-                    "temperature": 0.0,
-                    ...
-                },
-                "vision": true,
-                "lang": "en",
-                "stream": true
-            }
+        config: Configuration dictionary:
+            llm: Dict passed directly to load_llm() - REQUIRED
+                provider: LLM provider (required, e.g. "OpenAILike")
+                model: Model name (required, e.g. "autoglm-phone-9b")
+                + any other params for load_llm (temperature, base_url, etc.)
+            lang: "cn" (detailed rules) or "en" (minimal) - default: "cn"
+            stream: Enable streaming - default: True
         max_steps: Max iterations
         confirmation_callback: Optional callback for sensitive action confirmation
         takeover_callback: Optional callback for takeover requests
@@ -935,46 +917,34 @@ async def run(
     Returns:
         {"success": bool, "reason": str, "steps": int}
     """
-    # Merge with defaults (deep merge for nested llm config)
-    cfg = {**DEFAULT_CONFIG}
-    for key, value in config.items():
-        if key == "llm" and isinstance(value, dict):
-            # Deep merge llm config
-            cfg["llm"] = {**cfg.get("llm", {}), **value}
-        else:
-            cfg[key] = value
+    # Validate LLM config - must be provided by user
+    llm_cfg = config.get("llm")
+    if not llm_cfg or not isinstance(llm_cfg, dict):
+        raise ValueError(
+            "AutoGLM requires 'llm' configuration. "
+            "Please configure external_agents.autoglm.llm in your config.yaml"
+        )
 
-    # Extract LLM config (nested or flat for backward compatibility)
-    llm_cfg = cfg.get("llm", {})
-    if not llm_cfg:
-        # Backward compatibility: flat config (provider/model at top level)
-        llm_cfg = {
-            "provider": cfg.get("provider"),
-            "model": cfg.get("model"),
-            "temperature": cfg.get("temperature"),
-            "max_tokens": cfg.get("max_tokens"),
-            "top_p": cfg.get("top_p"),
-            "frequency_penalty": cfg.get("frequency_penalty"),
-            "base_url": cfg.get("base_url"),
-            "api_key": cfg.get("api_key"),
-        }
-        # Remove None values
-        llm_cfg = {k: v for k, v in llm_cfg.items() if v is not None}
+    if "provider" not in llm_cfg:
+        raise ValueError(
+            "AutoGLM requires 'llm.provider' to be specified. "
+            "Example: provider: OpenAILike"
+        )
 
-    # Create LLM from config
-    llm = load_llm(
-        provider=llm_cfg.get("provider", "OpenAI"),
-        model=llm_cfg.get("model", "gpt-4o"),
-        temperature=llm_cfg.get("temperature", 0.0),
-        max_tokens=llm_cfg.get("max_tokens", 3000),
-        top_p=llm_cfg.get("top_p", 0.85),
-        frequency_penalty=llm_cfg.get("frequency_penalty", 0.2),
-        base_url=llm_cfg.get("base_url"),
-        api_key=llm_cfg.get("api_key"),
-    )
+    if "model" not in llm_cfg:
+        raise ValueError(
+            "AutoGLM requires 'llm.model' to be specified. "
+            "Example: model: autoglm-phone-9b"
+        )
 
-    lang = cfg.get("lang", "cn")
-    stream = cfg.get("stream", True)
+    # Load LLM - pass config directly to load_llm
+    llm_cfg = dict(llm_cfg)  # Copy to avoid mutating
+    provider = llm_cfg.pop("provider")
+    llm = load_llm(provider, **llm_cfg)
+
+    # Agent-specific configuration (defaults from DEFAULT_CONFIG)
+    lang = config.get("lang", DEFAULT_CONFIG["lang"])
+    stream = config.get("stream", DEFAULT_CONFIG["stream"])
 
     # Get system prompt with date (matches original)
     system_prompt = get_system_prompt(lang=lang)
