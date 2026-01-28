@@ -68,6 +68,8 @@ from droidrun.config_manager.config_manager import (
 from droidrun.config_manager.safe_execution import SafeExecutionConfig
 from droidrun.credential_manager import FileCredentialManager, CredentialManager
 from droidrun.mcp.config import MCPConfig
+from droidrun.mcp.client import MCPClientManager
+from droidrun.mcp.adapter import mcp_to_droidrun_tools
 from droidrun.telemetry import (
     DroidAgentFinalizeEvent,
     DroidAgentInitEvent,
@@ -499,19 +501,9 @@ class DroidAgent(Workflow):
         # Discover and add MCP tools
         mcp_tools = {}
         if self.config.mcp and self.config.mcp.enabled:
-            try:
-                from droidrun.mcp.client import MCPClientManager
-                from droidrun.mcp.adapter import mcp_to_droidrun_tools
-
-                self.mcp_manager = MCPClientManager(self.config.mcp)
-                await self.mcp_manager.discover_tools()
-                mcp_tools = mcp_to_droidrun_tools(self.mcp_manager)
-                if mcp_tools:
-                    logger.info(f"🔌 MCP: loaded {len(mcp_tools)} tools")
-            except ImportError as e:
-                logger.warning(f"MCP SDK not installed, skipping MCP tools: {e}")
-            except Exception as e:
-                logger.warning(f"MCP initialization failed: {e}")
+            self.mcp_manager = MCPClientManager(self.config.mcp)
+            await self.mcp_manager.discover_tools()
+            mcp_tools = mcp_to_droidrun_tools(self.mcp_manager)
 
         disabled_tools = (
             self.config.tools.disabled_tools
