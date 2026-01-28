@@ -40,40 +40,32 @@ class LLMProfile:
 
 @dataclass
 class CodeActConfig:
-    """CodeAct agent configuration."""
-
     vision: bool = False
-    system_prompt: str = "system.jinja2"
-    user_prompt: str = "user.jinja2"
+    system_prompt: str = "config/prompts/codeact/system.jinja2"
+    user_prompt: str = "config/prompts/codeact/user.jinja2"
     safe_execution: bool = False
     execution_timeout: float = 50.0
 
 
 @dataclass
 class ManagerConfig:
-    """Manager agent configuration."""
-
     vision: bool = False
-    system_prompt: str = "system.jinja2"
-    stateless: bool = False  # Use stateless manager (no chat history)
+    system_prompt: str = "config/prompts/manager/system.jinja2"
+    stateless: bool = False
 
 
 @dataclass
 class ExecutorConfig:
-    """Executor agent configuration."""
-
     vision: bool = False
-    system_prompt: str = "system.jinja2"
+    system_prompt: str = "config/prompts/executor/system.jinja2"
 
 
 @dataclass
 class ScripterConfig:
-    """Scripter agent configuration."""
-
     enabled: bool = True
     max_steps: int = 10
     execution_timeout: float = 30.0
-    system_prompt_path: str = "system.jinja2"
+    system_prompt: str = "config/prompts/scripter/system.jinja2"
     safe_execution: bool = False
 
 
@@ -91,15 +83,12 @@ class AppCardConfig:
 
 @dataclass
 class AgentConfig:
-    """Agent-related configuration."""
-
-    name: str = "droidrun"  # "droidrun" (native) or external agent: "mai_ui", "autoglm"
+    name: str = "droidrun"
     max_steps: int = 15
     reasoning: bool = False
     streaming: bool = True
     after_sleep_action: float = 1.0
     wait_for_stable_ui: float = 0.3
-    prompts_dir: str = "config/prompts"
     use_normalized_coordinates: bool = False
 
     codeact: CodeActConfig = field(default_factory=CodeActConfig)
@@ -109,29 +98,19 @@ class AgentConfig:
     app_cards: AppCardConfig = field(default_factory=AppCardConfig)
 
     def get_codeact_system_prompt_path(self) -> str:
-        """Get resolved absolute path to CodeAct system prompt."""
-        path = f"{self.prompts_dir}/codeact/{self.codeact.system_prompt}"
-        return str(PathResolver.resolve(path, must_exist=True))
+        return str(PathResolver.resolve(self.codeact.system_prompt, must_exist=True))
 
     def get_codeact_user_prompt_path(self) -> str:
-        """Get resolved absolute path to CodeAct user prompt."""
-        path = f"{self.prompts_dir}/codeact/{self.codeact.user_prompt}"
-        return str(PathResolver.resolve(path, must_exist=True))
+        return str(PathResolver.resolve(self.codeact.user_prompt, must_exist=True))
 
     def get_manager_system_prompt_path(self) -> str:
-        """Get resolved absolute path to Manager system prompt."""
-        path = f"{self.prompts_dir}/manager/{self.manager.system_prompt}"
-        return str(PathResolver.resolve(path, must_exist=True))
+        return str(PathResolver.resolve(self.manager.system_prompt, must_exist=True))
 
     def get_executor_system_prompt_path(self) -> str:
-        """Get resolved absolute path to Executor system prompt."""
-        path = f"{self.prompts_dir}/executor/{self.executor.system_prompt}"
-        return str(PathResolver.resolve(path, must_exist=True))
+        return str(PathResolver.resolve(self.executor.system_prompt, must_exist=True))
 
     def get_scripter_system_prompt_path(self) -> str:
-        """Get resolved absolute path to Scripter system prompt."""
-        path = f"{self.prompts_dir}/scripter/{self.scripter.system_prompt_path}"
-        return str(PathResolver.resolve(path, must_exist=True))
+        return str(PathResolver.resolve(self.scripter.system_prompt, must_exist=True))
 
 
 @dataclass
@@ -289,29 +268,19 @@ class DroidrunConfig:
         agent_data = data.get("agent", {})
 
         codeact_data = agent_data.get("codeact", {})
-        codeact_config = (
-            CodeActConfig(**codeact_data) if codeact_data else CodeActConfig()
-        )
+        codeact_config = CodeActConfig(**codeact_data) if codeact_data else CodeActConfig()
 
         manager_data = agent_data.get("manager", {})
-        manager_config = (
-            ManagerConfig(**manager_data) if manager_data else ManagerConfig()
-        )
+        manager_config = ManagerConfig(**manager_data) if manager_data else ManagerConfig()
 
         executor_data = agent_data.get("executor", {})
-        executor_config = (
-            ExecutorConfig(**executor_data) if executor_data else ExecutorConfig()
-        )
+        executor_config = ExecutorConfig(**executor_data) if executor_data else ExecutorConfig()
 
         script_data = agent_data.get("scripter", {})
-        scripter_config = (
-            ScripterConfig(**script_data) if script_data else ScripterConfig()
-        )
+        scripter_config = ScripterConfig(**script_data) if script_data else ScripterConfig()
 
         app_cards_data = agent_data.get("app_cards", {})
-        app_cards_config = (
-            AppCardConfig(**app_cards_data) if app_cards_data else AppCardConfig()
-        )
+        app_cards_config = AppCardConfig(**app_cards_data) if app_cards_data else AppCardConfig()
 
         agent_config = AgentConfig(
             name=agent_data.get("name", "droidrun"),
@@ -320,7 +289,6 @@ class DroidrunConfig:
             streaming=agent_data.get("streaming", False),
             after_sleep_action=agent_data.get("after_sleep_action", 1.0),
             wait_for_stable_ui=agent_data.get("wait_for_stable_ui", 0.3),
-            prompts_dir=agent_data.get("prompts_dir", "config/prompts"),
             use_normalized_coordinates=agent_data.get("use_normalized_coordinates", False),
             codeact=codeact_config,
             manager=manager_config,
@@ -329,13 +297,8 @@ class DroidrunConfig:
             app_cards=app_cards_config,
         )
 
-        # Parse safe_execution config
         safe_exec_data = data.get("safe_execution", {})
-        safe_execution_config = (
-            SafeExecutionConfig(**safe_exec_data)
-            if safe_exec_data
-            else SafeExecutionConfig()
-        )
+        safe_execution_config = SafeExecutionConfig(**safe_exec_data) if safe_exec_data else SafeExecutionConfig()
 
         # External agents config - just pass through as-is
         external_agents = data.get("external_agents", {})

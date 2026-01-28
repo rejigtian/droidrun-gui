@@ -21,7 +21,7 @@ from rich.text import Text
 
 from droidrun import ResultEvent, DroidAgent
 from droidrun.cli.logs import LogHandler
-from droidrun.config_manager import DroidrunConfig
+from droidrun.config_manager import ConfigLoader, DroidrunConfig
 from droidrun.macro.cli import macro_cli
 from droidrun import __version__
 from droidrun.portal import (
@@ -118,13 +118,7 @@ async def run_command(
     Returns:
         bool: True if the task completed successfully, False otherwise.
     """
-    # Load config: use provided file, env var, or defaults
-    if config_path:
-        config = DroidrunConfig.from_yaml(config_path)
-    elif env_config := os.environ.get("DROIDRUN_CONFIG"):
-        config = DroidrunConfig.from_yaml(env_config)
-    else:
-        config = DroidrunConfig()
+    config = ConfigLoader.load(config_path)
 
     # Print cloud link in a box
     if config.logging.rich_text:
@@ -152,13 +146,6 @@ async def run_command(
     with log_handler.render():
         try:
             logger.info(f"🚀 Starting: {command}")
-            if config_path:
-                logger.info(f"📄 Config: {config_path}")
-            elif env_config := os.environ.get("DROIDRUN_CONFIG"):
-                logger.info(f"📄 Config: {env_config}")
-            else:
-                logger.info("📄 Config: defaults")
-
             print_telemetry_message()
 
             # ================================================================
@@ -746,13 +733,7 @@ async def test(
     temperature: float | None = None,
     ios: bool = False,
 ):
-    # Load config: use provided file, env var, or defaults
-    if config_path:
-        config = DroidrunConfig.from_yaml(config_path)
-    elif env_config := os.environ.get("DROIDRUN_CONFIG"):
-        config = DroidrunConfig.from_yaml(env_config)
-    else:
-        config = DroidrunConfig()
+    config = ConfigLoader.load(config_path)
 
     # Initialize logging first (use config default if debug not specified)
     debug_mode = debug if debug is not None else config.logging.debug
@@ -764,13 +745,6 @@ async def test(
     with log_handler.render():
         try:
             logger.info(f"🚀 Starting: {command}")
-            if config_path:
-                logger.info(f"📄 Config: {config_path}")
-            elif env_config := os.environ.get("DROIDRUN_CONFIG"):
-                logger.info(f"📄 Config: {env_config}")
-            else:
-                logger.info("📄 Config: defaults")
-
             print_telemetry_message()
 
             # ================================================================

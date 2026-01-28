@@ -23,7 +23,7 @@ from textual.binding import Binding
 from rich.text import Text
 
 from droidrun import DroidAgent, ResultEvent
-from droidrun.config_manager import DroidrunConfig
+from droidrun.config_manager import ConfigLoader
 from droidrun.agent.droid.events import (
     ManagerPlanEvent,
     ExecutorResultEvent,
@@ -408,9 +408,8 @@ class DroidrunTUI(App):
         success = False
 
         try:
-            # Load config
-            config = DroidrunConfig()
-            config.logging.debug = True  # Enable debug for all logs
+            config = ConfigLoader.load()
+            config.logging.debug = True
 
             # Apply settings from UI
             if self.device_serial:
