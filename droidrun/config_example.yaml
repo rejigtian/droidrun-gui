@@ -1,6 +1,8 @@
 # DroidRun Configuration File
 # This file is auto-generated. Edit values as needed.
 
+_version: 1
+
 # === Agent Settings ===
 agent:
   # Agent to use: "droidrun" (native) or external: "mai_ui", "autoglm"
@@ -15,8 +17,6 @@ agent:
   after_sleep_action: 1.0
   # Wait duration for UI to stabilize (seconds)
   wait_for_stable_ui: 0.3
-  # Base directory for prompt templates
-  prompts_dir: config/prompts
 
   # Coordinate system for swipe and state bounds output
   # false = absolute pixels (default)
@@ -27,10 +27,10 @@ agent:
   codeact:
     # Enable vision capabilities (screenshots)
     vision: false
-    # System prompt filename (located in prompts_dir/codeact/)
-    system_prompt: system.jinja2
-    # User prompt filename (located in prompts_dir/codeact/)
-    user_prompt: user.jinja2
+    # System prompt path (relative or absolute)
+    system_prompt: config/prompts/codeact/system.jinja2
+    # User prompt path (relative or absolute)
+    user_prompt: config/prompts/codeact/user.jinja2
     # Enable safe code execution (restricts imports and builtins)
     safe_execution: false
     # Execution timeout per code block (seconds)
@@ -40,8 +40,8 @@ agent:
   manager:
     # Enable vision capabilities (screenshots)
     vision: false
-    # System prompt filename (located in prompts_dir/manager/)
-    system_prompt: system.jinja2
+    # System prompt path (relative or absolute)
+    system_prompt: config/prompts/manager/system.jinja2
     # Use stateless manager (rebuilds context each turn, no chat history, experimental)
     stateless: false
 
@@ -49,8 +49,8 @@ agent:
   executor:
     # Enable vision capabilities (screenshots)
     vision: false
-    # System prompt filename (located in prompts_dir/executor/)
-    system_prompt: system.jinja2
+    # System prompt path (relative or absolute)
+    system_prompt: config/prompts/executor/system.jinja2
 
   # Scripter Agent Configuration
   scripter:
@@ -60,8 +60,8 @@ agent:
     max_steps: 10
     # Execution timeout per code block (seconds)
     execution_timeout: 30.0
-    # System prompt filename (located in prompts_dir/scripter/)
-    system_prompt_path: system.jinja2
+    # System prompt path (relative or absolute)
+    system_prompt: config/prompts/scripter/system.jinja2
     # Enable safe code execution (restricts imports and builtins)
     safe_execution: false
 
