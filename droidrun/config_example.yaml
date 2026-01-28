@@ -262,6 +262,40 @@ credentials:
   # Path to credentials file (see config/credentials_example.yaml for format)
   file_path: config/credentials.yaml
 
+# === MCP (Model Context Protocol) Settings ===
+# Connect to MCP servers to extend agent capabilities with external tools
+# Requires: pip install mcp
+mcp:
+  # Enable MCP client
+  enabled: false
+
+  # MCP server configurations
+  # Each server exposes tools that become available to agents
+  servers:
+    # Example: Filesystem server for file operations
+    # filesystem:
+    #   command: npx
+    #   args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+    #   prefix: "fs_"  # Tool names become fs_read_file, fs_write_file, etc.
+    #   # Optional: Only include specific tools
+    #   # include_tools: [read_file, list_directory]
+    #   # Optional: Exclude specific tools
+    #   # exclude_tools: [write_file]
+
+    # Example: Fetch server for HTTP requests
+    # fetch:
+    #   command: uvx
+    #   args: ["mcp-server-fetch"]
+    #   prefix: ""  # No prefix, tools keep original names
+
+    # Example: Custom Python MCP server
+    # my_server:
+    #   command: python
+    #   args: ["/path/to/my_server.py"]
+    #   env:
+    #     API_KEY: "your-api-key"
+    #   enabled: true
+
 # === External Agent Settings ===
 # External agents are selected via agent.name above.
 # Set agent.name to "mai_ui" or "autoglm" to use external agents.

@@ -67,6 +67,7 @@ from droidrun.config_manager.config_manager import (
 )
 from droidrun.config_manager.safe_execution import SafeExecutionConfig
 from droidrun.credential_manager import FileCredentialManager, CredentialManager
+from droidrun.mcp.config import MCPConfig
 from droidrun.telemetry import (
     DroidAgentFinalizeEvent,
     DroidAgentInitEvent,
@@ -205,6 +206,7 @@ class DroidAgent(Workflow):
             credentials=config.credentials if config else CredentialsConfig(),
             safe_execution=config.safe_execution if config else SafeExecutionConfig(),
             external_agents=config.external_agents if config else {},
+            mcp=config.mcp if config else MCPConfig(),
         )
 
         self.tools_instance = None
@@ -287,9 +289,12 @@ class DroidAgent(Workflow):
 
         self.atomic_tools = ATOMIC_ACTION_SIGNATURES.copy()
 
-        # Store user custom tools, will build auto tools (credentials + open_app)
+        # Store user custom tools, will build auto tools (credentials + open_app + MCP)
         self.user_custom_tools = custom_tools or {}
         self.custom_tools = {}
+
+        # Initialize MCP manager (connections made lazily in start_handler)
+        self.mcp_manager = None
 
         if self.user_custom_tools:
             logger.debug(f"🔧 User custom tools: {list(self.user_custom_tools.keys())}")
@@ -490,6 +495,24 @@ class DroidAgent(Workflow):
 
         # Build and filter tools (single source of truth for tool filtering)
         auto_custom_tools = await build_custom_tools(self.credential_manager)
+
+        # Discover and add MCP tools
+        mcp_tools = {}
+        if self.config.mcp and self.config.mcp.enabled:
+            try:
+                from droidrun.mcp.client import MCPClientManager
+                from droidrun.mcp.adapter import mcp_to_droidrun_tools
+
+                self.mcp_manager = MCPClientManager(self.config.mcp)
+                await self.mcp_manager.discover_tools()
+                mcp_tools = mcp_to_droidrun_tools(self.mcp_manager)
+                if mcp_tools:
+                    logger.info(f"🔌 MCP: loaded {len(mcp_tools)} tools")
+            except ImportError as e:
+                logger.warning(f"MCP SDK not installed, skipping MCP tools: {e}")
+            except Exception as e:
+                logger.warning(f"MCP initialization failed: {e}")
+
         disabled_tools = (
             self.config.tools.disabled_tools
             if self.config.tools and self.config.tools.disabled_tools
@@ -498,7 +521,7 @@ class DroidAgent(Workflow):
 
         self.atomic_tools = filter_atomic_actions(disabled_tools)
         filtered_custom = filter_custom_tools(
-            {**auto_custom_tools, **self.user_custom_tools},
+            {**auto_custom_tools, **self.user_custom_tools, **mcp_tools},
             disabled_tools,
         )
         self.custom_tools.clear()
@@ -1034,6 +1057,13 @@ class DroidAgent(Workflow):
             logger.info(f"📁 Trajectory saved: {self.trajectory.trajectory_folder}")
 
         self.tools_instance._set_context(None)
+
+        # Cleanup MCP connections
+        if self.mcp_manager:
+            try:
+                await self.mcp_manager.disconnect_all()
+            except Exception as e:
+                logger.warning(f"MCP cleanup error: {e}")
 
         return result
 

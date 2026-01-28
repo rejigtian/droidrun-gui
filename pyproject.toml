@@ -15,6 +15,7 @@ dependencies = [
     "llama-index-workflows==2.8.3",
     "aiofiles>=25.1.0",
     "textual>=6.11.0",
+    "mcp>=1.26.0",
 ]
 requires-python = ">=3.11"
 readme = "README.md"

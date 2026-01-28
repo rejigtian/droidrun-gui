@@ -7,6 +7,7 @@ import yaml
 
 from droidrun.config_manager.path_resolver import PathResolver
 from droidrun.config_manager.safe_execution import SafeExecutionConfig
+from droidrun.mcp.config import MCPConfig, MCPServerConfig
 
 
 # ---------- Config Schema ----------
@@ -211,6 +212,7 @@ class DroidrunConfig:
     credentials: CredentialsConfig = field(default_factory=CredentialsConfig)
     safe_execution: SafeExecutionConfig = field(default_factory=SafeExecutionConfig)
     external_agents: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    mcp: MCPConfig = field(default_factory=MCPConfig)
 
     def __post_init__(self):
         """Ensure default profiles exist."""
@@ -338,6 +340,25 @@ class DroidrunConfig:
         # External agents config - just pass through as-is
         external_agents = data.get("external_agents", {})
 
+        # Parse MCP config
+        mcp_data = data.get("mcp", {}) or {}
+        mcp_servers = {}
+        servers_data = mcp_data.get("servers") or {}
+        for server_name, server_data in servers_data.items():
+            mcp_servers[server_name] = MCPServerConfig(
+                command=server_data.get("command", ""),
+                args=server_data.get("args", []),
+                env=server_data.get("env", {}),
+                prefix=server_data.get("prefix"),
+                enabled=server_data.get("enabled", True),
+                include_tools=server_data.get("include_tools"),
+                exclude_tools=server_data.get("exclude_tools", []),
+            )
+        mcp_config = MCPConfig(
+            enabled=mcp_data.get("enabled", False),
+            servers=mcp_servers,
+        )
+
         return cls(
             agent=agent_config,
             llm_profiles=llm_profiles,
@@ -349,6 +370,7 @@ class DroidrunConfig:
             credentials=CredentialsConfig(**data.get("credentials", {})),
             safe_execution=safe_execution_config,
             external_agents=external_agents,
+            mcp=mcp_config,
         )
 
     @classmethod
