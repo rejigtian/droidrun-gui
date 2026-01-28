@@ -1,0 +1,160 @@
+Screen {
+    background: #1B1B25;
+}
+
+/* ── Banner ── */
+#banner {
+    width: 100%;
+    content-align: center middle;
+    text-align: center;
+    padding: 1 0;
+}
+
+#banner.hidden {
+    display: none;
+}
+
+/* ── Log Area ── */
+#log-container {
+    height: 1fr;
+    padding: 0 1;
+}
+
+#log-container.hidden {
+    display: none;
+}
+
+#log-display {
+    height: 100%;
+    background: #13131b;
+    border: none;
+    padding: 0 1;
+}
+
+/* ── Input Bar ── */
+#input-bar {
+    dock: bottom;
+    height: auto;
+    padding: 0 1;
+    margin-bottom: 0;
+}
+
+InputBar {
+    background: #1B1B25;
+    border: solid #47475e;
+    height: 3;
+}
+
+InputBar:focus {
+    border: solid #838BBC;
+}
+
+/* ── Command Dropdown ── */
+#command-dropdown {
+    dock: bottom;
+    height: auto;
+    max-height: 10;
+    background: #22223a;
+    border: solid #47475e;
+    margin: 0 1;
+    padding: 0;
+}
+
+#command-dropdown.hidden {
+    display: none;
+}
+
+.command-row {
+    height: 1;
+    padding: 0 1;
+    color: #838BBC;
+}
+
+.command-row.highlighted {
+    background: #2e2e4a;
+    color: #CAD3F6;
+}
+
+.command-name {
+    width: 16;
+    color: #CAD3F6;
+    text-style: bold;
+}
+
+.command-desc {
+    color: #838BBC;
+}
+
+/* ── Status Bar ── */
+#status-bar {
+    dock: bottom;
+    height: 1;
+    background: #22223a;
+    color: #838BBC;
+    padding: 0 1;
+}
+
+#status-bar.hidden {
+    display: none;
+}
+
+.status-device-connected {
+    color: #a6da95;
+}
+
+.status-device-disconnected {
+    color: #ed8796;
+}
+
+.status-mode {
+    color: #CAD3F6;
+}
+
+.status-steps {
+    color: #f5a97f;
+}
+
+.status-separator {
+    color: #47475e;
+}
+
+/* ── Config Modal ── */
+ConfigModal {
+    align: center middle;
+}
+
+#config-dialog {
+    width: 70;
+    max-width: 90%;
+    height: auto;
+    max-height: 80%;
+    background: #1B1B25;
+    border: solid #838BBC;
+    padding: 1 2;
+}
+
+#config-dialog-title {
+    text-align: center;
+    text-style: bold;
+    color: #CAD3F6;
+    padding-bottom: 1;
+}
+
+.config-label {
+    margin-top: 1;
+    color: #838BBC;
+}
+
+.config-input {
+    margin-bottom: 0;
+}
+
+#config-buttons {
+    height: auto;
+    margin-top: 1;
+    align: center middle;
+}
+
+#config-save-btn {
+    margin-right: 2;
+}
