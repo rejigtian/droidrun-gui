@@ -79,15 +79,10 @@ class DroidrunTUI(App):
         self._sync_status_bar()
         self._update_hint()
 
-    def on_click(self, event: events.Click) -> None:
-        # Don't steal focus from the log (allows text selection)
-        try:
-            log = self.query_one("#log-display", RichLog)
-            if log in event.widget.ancestors_with_self:
-                return
-        except Exception:
-            pass
-        self.query_one("#input-bar", InputBar).focus()
+    def on_key(self, event: events.Key) -> None:
+        input_bar = self.query_one("#input-bar", InputBar)
+        if not input_bar.has_focus and event.is_printable:
+            input_bar.focus()
 
     # ── Status bar ──
 
