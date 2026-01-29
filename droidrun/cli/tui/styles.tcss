@@ -95,74 +95,49 @@ StatusBar.hidden {
     display: none;
 }
 
-/* ── Config Modal ── */
-ConfigModal {
-    align: center middle;
-    background: rgba(0, 0, 0, 0.6);
-}
+/* ── Settings Modal ── */
 
-#config-dialog {
-    width: 60;
-    max-width: 90%;
-    height: auto;
-    max-height: 80%;
-    background: #1B1B25;
-    border: round #838BBC;
-    padding: 1 2;
-}
-
-#config-title {
-    text-align: center;
-    text-style: bold;
-    color: #CAD3F6;
-    padding-bottom: 1;
-    border-bottom: solid #2e2e4a;
-    margin-bottom: 1;
-}
-
-#config-scroll {
-    height: auto;
-    max-height: 60%;
-}
-
-.config-section {
-    color: #CAD3F6;
-    text-style: bold;
-    margin-top: 1;
-    padding-bottom: 0;
-}
-
-.config-label {
-    color: #838BBC;
-    margin-top: 1;
-}
-
-.config-input {
-    margin: 0;
+/* Global overrides for settings inputs / selects */
+SettingsScreen Input {
     background: #13131b;
     border: tall #47475e;
     height: 3;
     padding: 0 1;
 }
 
-.config-input:focus {
+SettingsScreen Input:focus {
     border: tall #838BBC;
 }
 
-#vision-group {
-    height: auto;
-    padding: 0;
-    margin: 0;
+SettingsScreen Select {
+    background: #13131b;
+    border: tall #47475e;
+    height: 3;
 }
 
-#config-buttons {
-    height: auto;
-    margin-top: 1;
-    padding-top: 1;
-    border-top: solid #2e2e4a;
-    align: right middle;
+SettingsScreen Select:focus {
+    border: tall #838BBC;
 }
 
-#config-save-btn {
-    margin-right: 1;
+SettingsScreen SelectOverlay {
+    background: #22223a;
+    border: tall #47475e;
+}
+
+SettingsScreen SelectCurrent {
+    background: #13131b;
+    color: #CAD3F6;
+}
+
+SettingsScreen Switch {
+    background: #47475e;
+    height: auto;
+}
+
+SettingsScreen Switch.-on {
+    background: transparent;
+}
+
+SettingsScreen Button {
+    margin: 0 1 0 0;
 }

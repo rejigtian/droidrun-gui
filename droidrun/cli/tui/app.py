@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import time
 
-import asyncio
-
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Vertical
@@ -14,8 +12,8 @@ from textual import events
 from rich.text import Text
 
 from droidrun.cli.tui.commands import match_commands, resolve_command
-from droidrun.cli.tui.config_modal import ConfigModal
 from droidrun.cli.tui.event_handler import EventHandler
+from droidrun.cli.tui.settings import SettingsData, SettingsScreen
 from droidrun.cli.tui.widgets import InputBar, CommandDropdown, StatusBar
 
 
@@ -50,15 +48,15 @@ class DroidrunTUI(App):
         self._esc_last: float = 0.0
         self._ctrl_c_last: float = 0.0
 
-        self.device_serial: str = ""
-        self.provider: str = "GoogleGenAI"
-        self.model: str = "models/gemini-2.5-flash"
-        self.max_steps: int = 15
         self.reasoning: bool = False
-        self.manager_vision: bool = True
-        self.executor_vision: bool = False
-        self.codeact_vision: bool = False
-        self.save_trajectory: bool = False
+
+        # Load settings from user config
+        try:
+            from droidrun.config_manager import ConfigLoader
+            config = ConfigLoader.load()
+            self.settings = SettingsData.from_config(config)
+        except Exception:
+            self.settings = SettingsData()
 
     def compose(self) -> ComposeResult:
         yield Static(BANNER, id="banner")
@@ -94,10 +92,14 @@ class DroidrunTUI(App):
 
     def _sync_status_bar(self) -> None:
         status = self.query_one("#status-bar", StatusBar)
-        status.device_name = self.device_serial or "no device"
-        status.device_connected = bool(self.device_serial)
+        # Show model name in status bar (strip prefix like "models/")
+        model_display = self.settings.default_model
+        if "/" in model_display:
+            model_display = model_display.rsplit("/", 1)[-1]
+        status.device_name = model_display
+        status.device_connected = True
         status.mode = "reasoning" if self.reasoning else "fast"
-        status.max_steps = self.max_steps
+        status.max_steps = self.settings.max_steps
 
     def _update_hint(self) -> None:
         status = self.query_one("#status-bar", StatusBar)
@@ -195,34 +197,15 @@ class DroidrunTUI(App):
     # ── Command handlers ──
 
     def action_open_config(self) -> None:
-        modal = ConfigModal(
-            device_serial=self.device_serial,
-            provider=self.provider,
-            model=self.model,
-            max_steps=self.max_steps,
-            manager_vision=self.manager_vision,
-            executor_vision=self.executor_vision,
-            codeact_vision=self.codeact_vision,
-            save_trajectory=self.save_trajectory,
-        )
-        self.push_screen(modal, callback=self._on_config_dismissed)
+        modal = SettingsScreen(self.settings)
+        self.push_screen(modal, callback=self._on_settings_dismissed)
 
-    def _on_config_dismissed(self, values: dict | None) -> None:
-        if values is None:
+    def _on_settings_dismissed(self, result: SettingsData | None) -> None:
+        if result is None:
             return
 
-        self.device_serial = values["device_serial"]
-        self.provider = values["provider"]
-        self.model = values["model"]
-        try:
-            self.max_steps = int(values["max_steps"])
-        except (ValueError, TypeError):
-            pass
-        self.manager_vision = values["manager_vision"]
-        self.executor_vision = values["executor_vision"]
-        self.codeact_vision = values["codeact_vision"]
-        self.save_trajectory = values["save_trajectory"]
-
+        self.settings = result
+        self.settings.save_keys()
         self._sync_status_bar()
 
         if self._logs_visible:
@@ -312,38 +295,23 @@ class DroidrunTUI(App):
             config = ConfigLoader.load()
             config.logging.debug = True
 
-            if self.device_serial:
-                config.device.serial = self.device_serial
-            config.agent.max_steps = self.max_steps
+            # Apply settings to config
+            self.settings.apply_to_config(config)
+
             config.agent.reasoning = self.reasoning
-            config.agent.manager.vision = self.manager_vision
-            config.agent.executor.vision = self.executor_vision
-            config.agent.codeact.vision = self.codeact_vision
-            config.logging.save_trajectory = "action" if self.save_trajectory else "none"
 
             log.write(Text("  initializing...", style="#47475e"))
+            log.write(Text(
+                f"  {self.settings.default_provider} \u2022 {self.settings.default_model}",
+                style="#47475e",
+            ))
 
-            droid_kwargs = {"runtype": "tui"}
-
-            if self.provider and self.model:
-                from droidrun.agent.utils.llm_picker import load_llm
-
-                try:
-                    llm = load_llm(
-                        provider_name=self.provider,
-                        model_name=self.model,
-                        temperature=0.0,
-                    )
-                    droid_kwargs["llms"] = llm
-                    log.write(Text(f"  {self.provider} \u2022 {self.model}", style="#47475e"))
-                except Exception as e:
-                    log.write(Text(f"  llm error: {e}", style="#eed49f"))
-
+            # DroidAgent loads LLMs from config.llm_profiles via load_agent_llms
             droid_agent = DroidAgent(
                 goal=command,
                 config=config,
                 timeout=1000,
-                **droid_kwargs,
+                runtype="tui",
             )
 
             log.write(Text(""))
