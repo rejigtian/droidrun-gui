@@ -80,6 +80,13 @@ class DroidrunTUI(App):
         self._update_hint()
 
     def on_click(self, event: events.Click) -> None:
+        # Don't steal focus from the log (allows text selection)
+        try:
+            log = self.query_one("#log-display", RichLog)
+            if log in event.widget.ancestors_with_self:
+                return
+        except Exception:
+            pass
         self.query_one("#input-bar", InputBar).focus()
 
     # ── Status bar ──
@@ -250,7 +257,13 @@ class DroidrunTUI(App):
             self.exit()
         else:
             self._ctrl_c_last = now
-            self.notify("Press Ctrl+C again to quit", severity="warning", timeout=1.5)
+            status = self.query_one("#status-bar", StatusBar)
+            status.hint = "ctrl+c again to quit"
+            self.set_timer(1.5, self._reset_ctrl_c_hint)
+
+    def _reset_ctrl_c_hint(self) -> None:
+        if (time.monotonic() - self._ctrl_c_last) >= 1.0:
+            self._update_hint()
 
     # ── Log visibility ──
 
