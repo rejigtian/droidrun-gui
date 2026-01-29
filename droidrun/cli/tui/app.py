@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-import asyncio
 import time
-from pathlib import Path
+
+import asyncio
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Container
+from textual.containers import Container, Vertical
 from textual.widgets import Static, RichLog
+from textual import events
 from rich.text import Text
 
 from droidrun.cli.tui.commands import match_commands, resolve_command
@@ -26,18 +27,18 @@ BANNER = """[#CAD3F6]
 \u2588\u2588\u2588\u2588\u2588\u2588\u2554\u255d\u2588\u2588\u2551  \u2588\u2588\u2551\u255a\u2588\u2588\u2588\u2588\u2588\u2588\u2554\u255d\u2588\u2588\u2551\u2588\u2588\u2588\u2588\u2588\u2588\u2554\u255d\u2588\u2588\u2551  \u2588\u2588\u2551\u255a\u2588\u2588\u2588\u2588\u2588\u2588\u2554\u255d\u2588\u2588\u2551 \u255a\u2588\u2588\u2588\u2588\u2551
 \u255a\u2550\u2550\u2550\u2550\u2550\u255d \u255a\u2550\u255d  \u255a\u2550\u255d \u255a\u2550\u2550\u2550\u2550\u2550\u255d \u255a\u2550\u255d\u255a\u2550\u2550\u2550\u2550\u2550\u255d \u255a\u2550\u255d  \u255a\u2550\u255d \u255a\u2550\u2550\u2550\u2550\u2550\u255d \u255a\u2550\u255d  \u255a\u2550\u2550\u2550\u255d
 [/#CAD3F6]
-[#838BBC]Type a command to get started, or / for commands[/#838BBC]"""
+[#838BBC]Type a command or [bold]/[/bold] for options[/#838BBC]"""
 
 
 class DroidrunTUI(App):
-    """DroidRun Terminal User Interface."""
 
     CSS_PATH = "styles.tcss"
 
     BINDINGS = [
         Binding("ctrl+l", "clear_logs", "Clear Logs", show=False),
-        Binding("tab", "toggle_mode", "Toggle Mode", show=False),
         Binding("escape", "handle_esc", "Esc", show=False),
+        Binding("ctrl+c", "handle_ctrl_c", "Quit", show=False),
+        Binding("ctrl+z", "quit", "Quit", show=False),
     ]
 
     def __init__(self) -> None:
@@ -45,9 +46,10 @@ class DroidrunTUI(App):
         self.running = False
         self._cancel_requested = False
         self._logs_visible = False
+        self._dropdown_visible = False
         self._esc_last: float = 0.0
+        self._ctrl_c_last: float = 0.0
 
-        # Settings (loaded from config on first run)
         self.device_serial: str = ""
         self.provider: str = "GoogleGenAI"
         self.model: str = "models/gemini-2.5-flash"
@@ -64,15 +66,23 @@ class DroidrunTUI(App):
         with Container(id="log-container", classes="hidden"):
             yield RichLog(id="log-display", wrap=True, highlight=True, markup=True)
 
-        yield InputBar(placeholder=">", id="input-bar")
-        yield CommandDropdown(id="command-dropdown", classes="hidden")
-        yield StatusBar(id="status-bar")
+        with Vertical(id="bottom-area"):
+            yield InputBar(
+                placeholder="Type a command or / for options",
+                id="input-bar",
+            )
+            yield CommandDropdown(id="command-dropdown", classes="hidden")
+            yield StatusBar(id="status-bar")
 
     def on_mount(self) -> None:
         self.query_one("#input-bar", InputBar).focus()
         self._sync_status_bar()
+        self._update_hint()
 
-    # ── Status bar sync ──
+    def on_click(self, event: events.Click) -> None:
+        self.query_one("#input-bar", InputBar).focus()
+
+    # ── Status bar ──
 
     def _sync_status_bar(self) -> None:
         status = self.query_one("#status-bar", StatusBar)
@@ -81,14 +91,20 @@ class DroidrunTUI(App):
         status.mode = "reasoning" if self.reasoning else "fast"
         status.max_steps = self.max_steps
 
-    # ── Input handling ──
+    def _update_hint(self) -> None:
+        status = self.query_one("#status-bar", StatusBar)
+        if self.running:
+            status.hint = "esc to stop"
+        else:
+            status.hint = "tab: mode  /: commands"
+
+    # ── Input messages ──
 
     def on_input_bar_submitted(self, message: InputBar.Submitted) -> None:
         text = message.value.strip()
         if not text:
             return
 
-        # Hide dropdown if visible
         self._hide_dropdown()
 
         if text.startswith("/"):
@@ -98,6 +114,9 @@ class DroidrunTUI(App):
 
     def on_input_bar_slash_changed(self, message: InputBar.SlashChanged) -> None:
         commands = match_commands(message.query)
+        if not commands:
+            self._hide_dropdown()
+            return
         dropdown = self.query_one("#command-dropdown", CommandDropdown)
         dropdown.update_commands(commands)
         self._show_dropdown()
@@ -105,8 +124,28 @@ class DroidrunTUI(App):
     def on_input_bar_slash_exited(self, message: InputBar.SlashExited) -> None:
         self._hide_dropdown()
 
+    def on_input_bar_slash_select(self, message: InputBar.SlashSelect) -> None:
+        dropdown = self.query_one("#command-dropdown", CommandDropdown)
+        if dropdown.has_commands:
+            dropdown.select_highlighted()
+
+    def on_input_bar_slash_navigate(self, message: InputBar.SlashNavigate) -> None:
+        dropdown = self.query_one("#command-dropdown", CommandDropdown)
+        dropdown.move_highlight(message.direction)
+
+    def on_input_bar_tab_pressed(self, message: InputBar.TabPressed) -> None:
+        if self._dropdown_visible:
+            dropdown = self.query_one("#command-dropdown", CommandDropdown)
+            if dropdown.has_commands:
+                cmd = dropdown._commands[dropdown.highlighted]
+                input_bar = self.query_one("#input-bar", InputBar)
+                input_bar.value = f"/{cmd.name}"
+                input_bar.cursor_position = len(input_bar.value)
+        else:
+            self.reasoning = not self.reasoning
+            self._sync_status_bar()
+
     def on_command_dropdown_selected(self, message: CommandDropdown.Selected) -> None:
-        # Clear input bar, hide dropdown, execute command
         input_bar = self.query_one("#input-bar", InputBar)
         input_bar.value = ""
         self._hide_dropdown()
@@ -117,10 +156,14 @@ class DroidrunTUI(App):
     def _show_dropdown(self) -> None:
         self.query_one("#command-dropdown").remove_class("hidden")
         self.query_one("#status-bar").add_class("hidden")
+        self._dropdown_visible = True
+        self.query_one("#input-bar", InputBar).slash_mode = True
 
     def _hide_dropdown(self) -> None:
         self.query_one("#command-dropdown").add_class("hidden")
         self.query_one("#status-bar").remove_class("hidden")
+        self._dropdown_visible = False
+        self.query_one("#input-bar", InputBar).slash_mode = False
 
     # ── Slash commands ──
 
@@ -129,13 +172,12 @@ class DroidrunTUI(App):
         if not parts:
             return
 
-        cmd_name = parts[0]
-        cmd = resolve_command(cmd_name)
+        cmd = resolve_command(parts[0])
 
         if cmd is None:
-            log = self.query_one("#log-display", RichLog)
             self._show_logs()
-            log.write(Text(f"  Unknown command: /{cmd_name}", style="#ed8796"))
+            log = self.query_one("#log-display", RichLog)
+            log.write(Text(f"  unknown command: /{parts[0]}", style="#ed8796"))
             return
 
         handler = getattr(self, cmd.handler, None)
@@ -180,19 +222,15 @@ class DroidrunTUI(App):
             log.write(Text("  settings updated", style="#a6da95"))
 
     def action_open_device(self) -> None:
-        log = self.query_one("#log-display", RichLog)
         self._show_logs()
-        log.write(Text("  /device - coming soon", style="#838BBC"))
+        log = self.query_one("#log-display", RichLog)
+        log.write(Text("  /device \u2014 coming soon", style="#838BBC"))
 
     def action_clear_logs(self) -> None:
         log = self.query_one("#log-display", RichLog)
         log.clear()
 
-    # ── Bindings ──
-
-    def action_toggle_mode(self) -> None:
-        self.reasoning = not self.reasoning
-        self._sync_status_bar()
+    # ── Esc handling ──
 
     def action_handle_esc(self) -> None:
         now = time.monotonic()
@@ -200,13 +238,19 @@ class DroidrunTUI(App):
         self._esc_last = now
 
         if self.running and not double_esc:
-            # Single esc while running → stop agent
             self._cancel_requested = True
             log = self.query_one("#log-display", RichLog)
-            log.write(Text("  stopping agent...", style="#ed8796"))
+            log.write(Text("  stopping...", style="#ed8796"))
         elif double_esc:
-            # Double esc → clear input
             self.query_one("#input-bar", InputBar).clear_input()
+
+    def action_handle_ctrl_c(self) -> None:
+        now = time.monotonic()
+        if (now - self._ctrl_c_last) < 1.5:
+            self.exit()
+        else:
+            self._ctrl_c_last = now
+            self.notify("Press Ctrl+C again to quit", severity="warning", timeout=1.5)
 
     # ── Log visibility ──
 
@@ -221,22 +265,22 @@ class DroidrunTUI(App):
     async def _execute_command(self, command: str) -> None:
         if self.running:
             log = self.query_one("#log-display", RichLog)
-            log.write(Text("  A command is already running", style="#eed49f"))
+            log.write(Text("  already running", style="#eed49f"))
             return
 
         self.running = True
         self._cancel_requested = False
         input_bar = self.query_one("#input-bar", InputBar)
         input_bar.disabled = True
+        self._update_hint()
 
         self._show_logs()
 
         log = self.query_one("#log-display", RichLog)
         status = self.query_one("#status-bar", StatusBar)
 
-        log.write(Text(f"\n{'=' * 60}", style="#47475e"))
-        log.write(Text(f"  {command}", style="bold #CAD3F6"))
-        log.write(Text(f"{'=' * 60}\n", style="#47475e"))
+        log.write(Text(f"\n\u2500\u2500 {command} ", style="bold #CAD3F6"))
+        log.write(Text(""))
 
         status.is_running = True
         status.current_step = 0
@@ -260,7 +304,7 @@ class DroidrunTUI(App):
             config.agent.codeact.vision = self.codeact_vision
             config.logging.save_trajectory = "action" if self.save_trajectory else "none"
 
-            log.write(Text("  initializing agent...", style="#a6da95"))
+            log.write(Text("  initializing...", style="#47475e"))
 
             droid_kwargs = {"runtype": "tui"}
 
@@ -274,9 +318,9 @@ class DroidrunTUI(App):
                         temperature=0.0,
                     )
                     droid_kwargs["llms"] = llm
-                    log.write(Text(f"  {self.provider} / {self.model}", style="#838BBC"))
+                    log.write(Text(f"  {self.provider} \u2022 {self.model}", style="#47475e"))
                 except Exception as e:
-                    log.write(Text(f"  LLM load failed: {e}, using defaults", style="#eed49f"))
+                    log.write(Text(f"  llm error: {e}", style="#eed49f"))
 
             droid_agent = DroidAgent(
                 goal=command,
@@ -285,23 +329,23 @@ class DroidrunTUI(App):
                 **droid_kwargs,
             )
 
-            log.write(Text("  running...\n", style="#a6da95"))
+            log.write(Text(""))
 
             handler = droid_agent.run()
 
             async for event in handler.stream_events():
                 if self._cancel_requested:
-                    log.write(Text("\n  agent stopped by user", style="#ed8796"))
+                    log.write(Text("\n  stopped by user", style="#ed8796"))
                     break
                 event_handler.handle(event)
 
             if not self._cancel_requested:
                 result: ResultEvent = await handler
                 success = result.success
-                log.write(Text(f"\n  completed in {result.steps} steps", style="#8aadf4"))
+                log.write(Text(f"\n  {result.steps} steps", style="#47475e"))
 
         except Exception as e:
-            log.write(Text(f"\n  error: {e}", style="bold #ed8796"))
+            log.write(Text(f"\n  error: {e}", style="#ed8796"))
             import traceback
             for line in traceback.format_exc().split("\n"):
                 if line.strip():
@@ -309,13 +353,14 @@ class DroidrunTUI(App):
 
         finally:
             if success:
-                log.write(Text("\n  success", style="bold #a6da95"))
+                log.write(Text("  done", style="#a6da95"))
             else:
-                log.write(Text("\n  failed", style="bold #ed8796"))
-            log.write(Text(f"{'=' * 60}\n", style="#47475e"))
+                log.write(Text("  failed", style="#ed8796"))
+            log.write(Text(""))
 
             self.running = False
             self._cancel_requested = False
             status.is_running = False
             input_bar.disabled = False
             input_bar.focus()
+            self._update_hint()

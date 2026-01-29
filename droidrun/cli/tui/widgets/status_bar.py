@@ -1,4 +1,4 @@
-"""Status bar widget showing device, mode, and step count."""
+"""Status bar widget."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from rich.text import Text
 
 
 class StatusBar(Widget):
-    """Persistent status bar at the bottom of the TUI."""
+    can_focus = False
 
     device_name: reactive[str] = reactive("no device")
     device_connected: reactive[bool] = reactive(False)
@@ -17,35 +17,38 @@ class StatusBar(Widget):
     current_step: reactive[int] = reactive(0)
     max_steps: reactive[int] = reactive(15)
     is_running: reactive[bool] = reactive(False)
-
-    DEFAULT_CSS = """
-    StatusBar {
-        height: 1;
-        dock: bottom;
-        background: #22223a;
-        padding: 0 1;
-    }
-    """
+    hint: reactive[str] = reactive("")
 
     def render(self) -> RenderResult:
         bar = Text()
 
-        # Device indicator
+        # Device
         if self.device_connected:
-            bar.append(" \u25cf ", style="bold #a6da95")
+            bar.append("\u25cf ", style="#a6da95")
             bar.append(self.device_name, style="#a6da95")
         else:
-            bar.append(" \u25cf ", style="bold #ed8796")
+            bar.append("\u25cf ", style="#ed8796")
             bar.append(self.device_name, style="#ed8796")
 
-        bar.append("  \u2502  ", style="#47475e")
+        bar.append("  \u2502  ", style="#2e2e4a")
 
         # Mode
-        bar.append(self.mode, style="bold #CAD3F6")
+        bar.append(self.mode, style="#CAD3F6")
 
-        # Step count (only when running)
+        # Steps
         if self.is_running and self.max_steps > 0:
-            bar.append("  \u2502  ", style="#47475e")
-            bar.append(f"step {self.current_step}/{self.max_steps}", style="#f5a97f")
+            bar.append("  \u2502  ", style="#2e2e4a")
+            bar.append(f"{self.current_step}/{self.max_steps}", style="#f5a97f")
+
+        # Right-aligned hint
+        if self.hint:
+            try:
+                width = self.size.width
+                used = bar.cell_len
+                gap = max(1, width - used - len(self.hint) - 2)
+                bar.append(" " * gap)
+                bar.append(self.hint, style="#47475e")
+            except Exception:
+                pass
 
         return bar

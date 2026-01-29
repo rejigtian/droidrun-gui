@@ -7,7 +7,7 @@ Screen {
     width: 100%;
     content-align: center middle;
     text-align: center;
-    padding: 1 0;
+    height: 1fr;
 }
 
 #banner.hidden {
@@ -29,132 +29,133 @@ Screen {
     background: #13131b;
     border: none;
     padding: 0 1;
+    scrollbar-size: 1 1;
+    scrollbar-color: #47475e;
+    scrollbar-color-hover: #838BBC;
+    scrollbar-color-active: #CAD3F6;
+    scrollbar-background: #13131b;
+    scrollbar-background-hover: #13131b;
+    scrollbar-background-active: #13131b;
+}
+
+/* ── Bottom Area ── */
+#bottom-area {
+    dock: bottom;
+    height: auto;
+    padding: 0;
 }
 
 /* ── Input Bar ── */
-#input-bar {
-    dock: bottom;
-    height: auto;
-    padding: 0 1;
-    margin-bottom: 0;
-}
-
 InputBar {
     background: #1B1B25;
-    border: solid #47475e;
+    border: tall #47475e;
     height: 3;
+    margin: 0 1;
+    padding: 0 1;
 }
 
 InputBar:focus {
-    border: solid #838BBC;
+    border: tall #838BBC;
+}
+
+InputBar.-disabled {
+    opacity: 0.5;
 }
 
 /* ── Command Dropdown ── */
-#command-dropdown {
-    dock: bottom;
+CommandDropdown {
     height: auto;
-    max-height: 10;
+    max-height: 8;
     background: #22223a;
-    border: solid #47475e;
     margin: 0 1;
     padding: 0;
 }
 
-#command-dropdown.hidden {
+CommandDropdown.hidden {
     display: none;
-}
-
-.command-row {
-    height: 1;
-    padding: 0 1;
-    color: #838BBC;
-}
-
-.command-row.highlighted {
-    background: #2e2e4a;
-    color: #CAD3F6;
-}
-
-.command-name {
-    width: 16;
-    color: #CAD3F6;
-    text-style: bold;
-}
-
-.command-desc {
-    color: #838BBC;
 }
 
 /* ── Status Bar ── */
-#status-bar {
-    dock: bottom;
+StatusBar {
     height: 1;
-    background: #22223a;
+    background: #1B1B25;
     color: #838BBC;
-    padding: 0 1;
+    padding: 0 2;
+    border-top: solid #2e2e4a;
 }
 
-#status-bar.hidden {
+StatusBar.hidden {
     display: none;
-}
-
-.status-device-connected {
-    color: #a6da95;
-}
-
-.status-device-disconnected {
-    color: #ed8796;
-}
-
-.status-mode {
-    color: #CAD3F6;
-}
-
-.status-steps {
-    color: #f5a97f;
-}
-
-.status-separator {
-    color: #47475e;
 }
 
 /* ── Config Modal ── */
 ConfigModal {
     align: center middle;
+    background: rgba(0, 0, 0, 0.6);
 }
 
 #config-dialog {
-    width: 70;
+    width: 60;
     max-width: 90%;
     height: auto;
     max-height: 80%;
     background: #1B1B25;
-    border: solid #838BBC;
+    border: round #838BBC;
     padding: 1 2;
 }
 
-#config-dialog-title {
+#config-title {
     text-align: center;
     text-style: bold;
     color: #CAD3F6;
     padding-bottom: 1;
+    border-bottom: solid #2e2e4a;
+    margin-bottom: 1;
+}
+
+#config-scroll {
+    height: auto;
+    max-height: 60%;
+}
+
+.config-section {
+    color: #CAD3F6;
+    text-style: bold;
+    margin-top: 1;
+    padding-bottom: 0;
 }
 
 .config-label {
-    margin-top: 1;
     color: #838BBC;
+    margin-top: 1;
 }
 
 .config-input {
-    margin-bottom: 0;
+    margin: 0;
+    background: #13131b;
+    border: tall #47475e;
+    height: 3;
+    padding: 0 1;
+}
+
+.config-input:focus {
+    border: tall #838BBC;
+}
+
+#vision-group {
+    height: auto;
+    padding: 0;
+    margin: 0;
 }
 
 #config-buttons {
     height: auto;
     margin-top: 1;
-    align: center middle;
+    padding-top: 1;
+    border-top: solid #2e2e4a;
+    align: right middle;
 }
 
 #config-save-btn {
-    margin-right: 2;
+    margin-right: 1;
 }

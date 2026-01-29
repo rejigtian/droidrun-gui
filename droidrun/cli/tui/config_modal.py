@@ -3,51 +3,14 @@
 from __future__ import annotations
 
 from textual.app import ComposeResult
-from textual.containers import Vertical, Horizontal
+from textual.containers import Vertical, Horizontal, ScrollableContainer
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, Checkbox, Static
 
 
 class ConfigModal(ModalScreen[dict | None]):
-    """Modal overlay for editing agent configuration."""
 
     BINDINGS = [("escape", "cancel", "Close")]
-
-    DEFAULT_CSS = """
-    ConfigModal {
-        align: center middle;
-    }
-    #config-dialog {
-        width: 70;
-        max-width: 90%;
-        height: auto;
-        max-height: 80%;
-        background: #1B1B25;
-        border: solid #838BBC;
-        padding: 1 2;
-    }
-    #config-dialog-title {
-        text-align: center;
-        text-style: bold;
-        color: #CAD3F6;
-        padding-bottom: 1;
-    }
-    .config-label {
-        margin-top: 1;
-        color: #838BBC;
-    }
-    .config-input {
-        margin-bottom: 0;
-    }
-    #config-buttons {
-        height: auto;
-        margin-top: 1;
-        align: center middle;
-    }
-    #config-save-btn {
-        margin-right: 2;
-    }
-    """
 
     def __init__(
         self,
@@ -72,43 +35,52 @@ class ConfigModal(ModalScreen[dict | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="config-dialog"):
-            yield Static("Configuration", id="config-dialog-title")
+            yield Static("Configuration", id="config-title")
 
-            yield Label("Device Serial", classes="config-label")
-            yield Input(
-                value=self._device_serial,
-                placeholder="Leave empty for auto-detect",
-                id="cfg-device",
-                classes="config-input",
-            )
+            with ScrollableContainer(id="config-scroll"):
+                yield Label("Connection", classes="config-section")
 
-            yield Label("Provider", classes="config-label")
-            yield Input(
-                value=self._provider,
-                id="cfg-provider",
-                classes="config-input",
-            )
+                yield Label("Device Serial", classes="config-label")
+                yield Input(
+                    value=self._device_serial,
+                    placeholder="auto-detect",
+                    id="cfg-device",
+                    classes="config-input",
+                )
 
-            yield Label("Model", classes="config-label")
-            yield Input(
-                value=self._model,
-                id="cfg-model",
-                classes="config-input",
-            )
+                yield Label("LLM", classes="config-section")
 
-            yield Label("Max Steps", classes="config-label")
-            yield Input(
-                value=str(self._max_steps),
-                id="cfg-steps",
-                classes="config-input",
-            )
+                yield Label("Provider", classes="config-label")
+                yield Input(
+                    value=self._provider,
+                    id="cfg-provider",
+                    classes="config-input",
+                )
 
-            yield Label("Vision", classes="config-label")
-            yield Checkbox("Manager", id="cfg-manager-vision", value=self._manager_vision)
-            yield Checkbox("Executor", id="cfg-executor-vision", value=self._executor_vision)
-            yield Checkbox("CodeAct", id="cfg-codeact-vision", value=self._codeact_vision)
+                yield Label("Model", classes="config-label")
+                yield Input(
+                    value=self._model,
+                    id="cfg-model",
+                    classes="config-input",
+                )
 
-            yield Checkbox("Save Trajectory", id="cfg-trajectory", value=self._save_trajectory)
+                yield Label("Agent", classes="config-section")
+
+                yield Label("Max Steps", classes="config-label")
+                yield Input(
+                    value=str(self._max_steps),
+                    id="cfg-steps",
+                    classes="config-input",
+                )
+
+                yield Label("Vision", classes="config-section")
+                with Vertical(id="vision-group"):
+                    yield Checkbox("Manager", id="cfg-manager-vision", value=self._manager_vision)
+                    yield Checkbox("Executor", id="cfg-executor-vision", value=self._executor_vision)
+                    yield Checkbox("CodeAct", id="cfg-codeact-vision", value=self._codeact_vision)
+
+                yield Label("Logging", classes="config-section")
+                yield Checkbox("Save Trajectory", id="cfg-trajectory", value=self._save_trajectory)
 
             with Horizontal(id="config-buttons"):
                 yield Button("Save", variant="success", id="config-save-btn")
@@ -124,7 +96,6 @@ class ConfigModal(ModalScreen[dict | None]):
         self.dismiss(None)
 
     def _collect_values(self) -> dict:
-        """Collect current form values to pass through dismiss."""
         return {
             "device_serial": self.query_one("#cfg-device", Input).value.strip(),
             "provider": self.query_one("#cfg-provider", Input).value.strip(),
