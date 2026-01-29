@@ -30,7 +30,7 @@ BANNER = """[#CAD3F6]
 
 class DroidrunTUI(App):
 
-    CSS_PATH = "styles.tcss"
+    CSS_PATH = "css/app.tcss"
 
     BINDINGS = [
         Binding("ctrl+l", "clear_logs", "Clear Logs", show=False),

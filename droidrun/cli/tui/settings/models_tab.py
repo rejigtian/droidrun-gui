@@ -23,23 +23,7 @@ PROVIDER_OPTIONS = [(p, p) for p in PROVIDERS]
 class _KwargsRow(HorizontalGroup):
     """A single key-value pair row with a remove button."""
 
-    DEFAULT_CSS = """
-    _KwargsRow {
-        height: auto;
-        margin-bottom: 1;
-    }
-    _KwargsRow Input {
-        width: 1fr;
-        margin-right: 1;
-    }
-    _KwargsRow .kwarg-key {
-        width: 20;
-    }
-    _KwargsRow Button {
-        min-width: 3;
-        width: 3;
-    }
-    """
+    CSS_PATH = "../css/models_tab.tcss"
 
     def __init__(self, key: str, value: str, row_id: str) -> None:
         super().__init__()
@@ -56,15 +40,7 @@ class _KwargsRow(HorizontalGroup):
 class _KwargsEditor(VerticalGroup):
     """Editable key-value pair list."""
 
-    DEFAULT_CSS = """
-    _KwargsEditor {
-        height: auto;
-    }
-    _KwargsEditor .kwargs-add-btn {
-        min-width: 8;
-        margin-top: 1;
-    }
-    """
+    CSS_PATH = "../css/models_tab.tcss"
 
     def __init__(self, kwargs: dict[str, str], role: str) -> None:
         super().__init__()
@@ -108,14 +84,7 @@ class _KwargsEditor(VerticalGroup):
 class _ProfileCard(Section):
     """Full LLM config card for one agent role."""
 
-    DEFAULT_CSS = """
-    _ProfileCard .profile-fields {
-        height: auto;
-    }
-    _ProfileCard .hidden-field {
-        display: none;
-    }
-    """
+    CSS_PATH = "../css/models_tab.tcss"
 
     def __init__(self, role: str, profile: ProfileSettings) -> None:
         super().__init__(title=role.title())
@@ -222,17 +191,7 @@ class _ProfileCard(Section):
 class ModelsTab(VerticalGroup):
     """Content for the Models tab pane — per-agent profile cards."""
 
-    DEFAULT_CSS = """
-    ModelsTab #apply-all-btn {
-        color: #60a5fa;
-        min-width: 14;
-        margin-bottom: 1;
-    }
-    ModelsTab .kwargs-label {
-        color: #52525b;
-        margin-top: 1;
-    }
-    """
+    CSS_PATH = "../css/models_tab.tcss"
 
     def __init__(self, settings: SettingsData) -> None:
         super().__init__()

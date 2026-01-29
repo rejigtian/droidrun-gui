@@ -16,69 +16,12 @@ from droidrun.cli.tui.settings.models_tab import ModelsTab
 class SettingsScreen(ModalScreen[SettingsData | None]):
     """Tabbed settings modal."""
 
+    CSS_PATH = "../css/settings_screen.tcss"
+
     BINDINGS = [
         ("escape", "cancel", "Close"),
         ("ctrl+c", "handle_ctrl_c", "Quit"),
     ]
-
-    DEFAULT_CSS = """
-    SettingsScreen {
-        align: center middle;
-        background: rgba(0, 0, 0, 0.7);
-    }
-
-    #settings-dialog {
-        width: 80;
-        max-width: 95%;
-        height: 85%;
-        background: #0c0c0f;
-        border: round #27272a;
-        padding: 1 2;
-    }
-
-    #settings-tabs {
-        height: 1fr;
-    }
-
-    #settings-tabs ContentSwitcher {
-        height: 1fr;
-    }
-
-    #settings-tabs TabPane {
-        height: 100%;
-        overflow-y: auto;
-        padding: 1 0 0 0;
-    }
-
-    #settings-tabs Tabs {
-        background: #0c0c0f;
-    }
-
-    #settings-tabs Tab {
-        color: #52525b;
-        background: #0c0c0f;
-    }
-
-    #settings-tabs Tab.-active {
-        color: #f4f4f5;
-    }
-
-    #settings-tabs Underline {
-        color: #27272a;
-    }
-
-    #settings-tabs Tab:hover {
-        color: #a1a1aa;
-    }
-
-    #settings-buttons {
-        height: auto;
-        margin-top: 1;
-        padding-top: 1;
-        border-top: solid #27272a;
-        align: right middle;
-    }
-    """
 
     def __init__(self, settings: SettingsData) -> None:
         super().__init__()

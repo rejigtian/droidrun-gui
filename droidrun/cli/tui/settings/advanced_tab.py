@@ -19,11 +19,7 @@ TRACING_PROVIDERS = [
 class AdvancedTab(VerticalGroup):
     """Content for the Advanced tab pane."""
 
-    DEFAULT_CSS = """
-    AdvancedTab .hidden-field {
-        display: none;
-    }
-    """
+    CSS_PATH = "../css/advanced_tab.tcss"
 
     def __init__(self, settings: SettingsData) -> None:
         super().__init__()
