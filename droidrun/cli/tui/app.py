@@ -69,12 +69,12 @@ class DroidrunTUI(App):
             yield RichLog(id="log-display", wrap=True, highlight=True, markup=True)
 
         with Vertical(id="bottom-area"):
+            yield CommandDropdown(id="command-dropdown", classes="hidden")
+            yield DevicePicker(id="device-picker", classes="hidden")
             yield InputBar(
                 placeholder="Type a command or / for options",
                 id="input-bar",
             )
-            yield CommandDropdown(id="command-dropdown", classes="hidden")
-            yield DevicePicker(id="device-picker", classes="hidden")
             yield StatusBar(id="status-bar")
 
     def on_mount(self) -> None:
@@ -90,6 +90,8 @@ class DroidrunTUI(App):
             self.notify("Copied", timeout=1.5)
 
     def on_key(self, event: events.Key) -> None:
+        if self._device_pick_visible or self._dropdown_visible:
+            return
         input_bar = self.query_one("#input-bar", InputBar)
         if not input_bar.has_focus and event.is_printable:
             input_bar.focus()
@@ -255,49 +257,57 @@ class DroidrunTUI(App):
     def _show_device_picker(self) -> None:
         self.query_one("#device-picker").remove_class("hidden")
         self.query_one("#status-bar").add_class("hidden")
+        self.query_one("#input-bar", InputBar).disabled = True
         self._device_pick_visible = True
 
     def _hide_device_picker(self) -> None:
         self.query_one("#device-picker").add_class("hidden")
         self.query_one("#status-bar").remove_class("hidden")
         self._device_pick_visible = False
-        self.query_one("#input-bar", InputBar).focus()
+        input_bar = self.query_one("#input-bar", InputBar)
+        input_bar.disabled = False
+        input_bar.focus()
 
     def on_device_picker_device_selected(self, message: DevicePicker.DeviceSelected) -> None:
         picker = self.query_one("#device-picker", DevicePicker)
         picker.set_status("checking portal...")
         self.run_worker(self._check_device(message.serial), exclusive=True)
 
-    def on_device_picker_setup_confirmed(self, message: DevicePicker.SetupConfirmed) -> None:
+    def on_device_picker_option_selected(self, message: DevicePicker.OptionSelected) -> None:
         picker = self.query_one("#device-picker", DevicePicker)
-        picker.set_status("running setup...")
-        self.run_worker(self._run_device_setup(message.serial), exclusive=True)
+        if message.option_id == "setup":
+            # Hide picker but keep input disabled during setup
+            self.query_one("#device-picker").add_class("hidden")
+            self.query_one("#status-bar").remove_class("hidden")
+            self._device_pick_visible = False
+            self.run_worker(self._run_device_setup(message.serial), exclusive=True)
+        elif message.option_id == "back":
+            picker.set_devices(picker._devices)
+            picker.focus()
 
     def on_device_picker_cancelled(self, message: DevicePicker.Cancelled) -> None:
         self._hide_device_picker()
 
-    async def _check_device(self, serial: str) -> None:
+    async def _verify_portal(self, serial: str) -> None:
+        """Check portal connectivity. Raises on failure."""
         from async_adbutils import adb
         from droidrun.tools.android.portal_client import PortalClient
 
+        device_obj = await adb.device(serial)
+        portal = PortalClient(device_obj, prefer_tcp=self.settings.use_tcp)
+        await portal.connect()
+
+        result = await portal.ping()
+        if result.get("status") != "success":
+            raise Exception(result.get("message", "portal not responding"))
+
+    async def _check_device(self, serial: str) -> None:
+        """Check device from the picker flow — shows options on failure."""
         picker = self.query_one("#device-picker", DevicePicker)
+        picker.set_status("checking portal...")
 
         try:
-            device_obj = await adb.device(serial)
-            portal = PortalClient(device_obj, prefer_tcp=self.settings.use_tcp)
-            await portal.connect()
-
-            picker.set_status("querying a11y...")
-
-            state = await portal.get_state()
-
-            if "error" in state:
-                raise Exception(state.get("message", "portal returned error"))
-
-            required = ["a11y_tree", "phone_state", "device_context"]
-            missing = [k for k in required if k not in state]
-            if missing:
-                raise Exception(f"incompatible portal — missing {', '.join(missing)}")
+            await self._verify_portal(serial)
 
             # All good
             self.device_serial = serial
@@ -308,19 +318,122 @@ class DroidrunTUI(App):
             log.write(Text(f"  device ready: {serial}", style="#a6da95"))
 
         except Exception as e:
-            picker.set_prompt(serial, str(e))
+            picker.set_options(serial, str(e), [
+                ("setup", "Auto-install and set up DroidRun Portal"),
+                ("back", "Back to devices"),
+            ])
 
     async def _run_device_setup(self, serial: str) -> None:
-        from droidrun.cli.main import _setup_portal
+        import asyncio
+        import os
+        import tempfile
 
-        picker = self.query_one("#device-picker", DevicePicker)
+        import requests
+        from async_adbutils import adb
+        from droidrun.portal import (
+            get_compatible_portal_version,
+            enable_portal_accessibility,
+            ASSET_NAME,
+        )
 
+        self._show_logs()
+        log = self.query_one("#log-display", RichLog)
+        status = self.query_one("#status-bar", StatusBar)
+        status.hint = "installing portal..."
+
+        log.write(Text(f"\n── setup {serial} ", style="bold #CAD3F6"))
+        log.write(Text(""))
+
+        apk_tmp = None
         try:
-            await _setup_portal(path=None, device=serial, debug=False)
-            picker.set_status("setup done, verifying...")
-            await self._check_device(serial)
+            # Resolve device
+            device_obj = await adb.device(serial)
+
+            # Determine APK version (blocking HTTP call)
+            log.write(Text("  checking compatible version...", style="#47475e"))
+            from droidrun import __version__
+            portal_version, download_base, mapping_fetched = await asyncio.to_thread(
+                get_compatible_portal_version, __version__
+            )
+
+            # Build download URL
+            if portal_version:
+                log.write(Text(f"  downloading portal {portal_version}...", style="#60a5fa"))
+                url = f"{download_base}/{portal_version}/{ASSET_NAME}-{portal_version}.apk"
+            else:
+                if not mapping_fetched:
+                    log.write(Text("  version map unavailable, using latest", style="#facc15"))
+                log.write(Text("  downloading latest portal...", style="#60a5fa"))
+
+                from droidrun.portal import get_latest_release_assets
+                assets = await asyncio.to_thread(get_latest_release_assets)
+                url = None
+                for asset in assets:
+                    if "browser_download_url" in asset and asset.get("name", "").startswith(ASSET_NAME):
+                        url = asset["browser_download_url"]
+                        break
+                    elif "downloadUrl" in asset and os.path.basename(asset["downloadUrl"]).startswith(ASSET_NAME):
+                        url = asset["downloadUrl"]
+                        break
+                if not url:
+                    raise Exception("portal APK not found in latest release")
+
+            # Download APK in thread
+            def _download(download_url: str) -> str:
+                tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".apk")
+                r = requests.get(download_url, stream=True)
+                r.raise_for_status()
+                for chunk in r.iter_content(chunk_size=8192):
+                    if chunk:
+                        tmp.write(chunk)
+                tmp.close()
+                return tmp.name
+
+            apk_tmp = await asyncio.to_thread(_download, url)
+            log.write(Text("  downloaded", style="#a6da95"))
+
+            # Install
+            log.write(Text("  installing APK...", style="#60a5fa"))
+            await device_obj.install(apk_tmp, uninstall=True, flags=["-g"], silent=True)
+            log.write(Text("  APK installed", style="#a6da95"))
+
+            # Enable accessibility
+            log.write(Text("  enabling accessibility service...", style="#60a5fa"))
+            await enable_portal_accessibility(device_obj)
+            log.write(Text("  accessibility enabled", style="#a6da95"))
+
+            # Verify
+            log.write(Text("  verifying portal...", style="#47475e"))
+            await self._verify_portal(serial)
+
+            # Success — link device
+            self.device_serial = serial
+            self._sync_status_bar()
+            log.write(Text(f"  device ready: {serial}", style="#a6da95"))
+            log.write(Text(""))
+
         except Exception as e:
-            picker.set_prompt(serial, f"setup failed: {e}")
+            log.write(Text(f"  setup failed: {e}", style="#ed8796"))
+            log.write(Text(""))
+
+            # Re-show picker with retry options
+            picker = self.query_one("#device-picker", DevicePicker)
+            self._show_device_picker()
+            picker.set_options(serial, f"setup failed: {e}", [
+                ("setup", "Retry setup"),
+                ("back", "Back to devices"),
+            ])
+
+        else:
+            # Re-enable input only on success
+            input_bar = self.query_one("#input-bar", InputBar)
+            input_bar.disabled = False
+            input_bar.focus()
+
+        finally:
+            if apk_tmp and os.path.exists(apk_tmp):
+                os.unlink(apk_tmp)
+            status.hint = ""
 
     def action_clear_logs(self) -> None:
         log = self.query_one("#log-display", RichLog)

@@ -513,7 +513,7 @@ class PortalClient:
 
     async def ping(self) -> Dict[str, Any]:
         """
-        Test Portal connection.
+        Test Portal connection and verify state availability.
 
         Returns:
             Dictionary with status and connection details
@@ -528,14 +528,14 @@ class PortalClient:
                     if response.status_code == 200:
                         try:
                             tcp_response = response.json() if response.content else {}
-                            return {
+                            result = {
                                 "status": "success",
                                 "method": "tcp",
                                 "url": self.tcp_base_url,
                                 "response": tcp_response,
                             }
                         except json.JSONDecodeError:
-                            return {
+                            result = {
                                 "status": "success",
                                 "method": "tcp",
                                 "url": self.tcp_base_url,
@@ -556,7 +556,7 @@ class PortalClient:
                     "content query --uri content://com.droidrun.portal/state"
                 )
                 if "Row: 0 result=" in output:
-                    return {"status": "success", "method": "content_provider"}
+                    result = {"status": "success", "method": "content_provider"}
                 else:
                     return {
                         "status": "error",
@@ -569,3 +569,23 @@ class PortalClient:
                     "method": "content_provider",
                     "message": str(e),
                 }
+
+        # Verify state has the required keys
+        try:
+            state = await self.get_state()
+            required = ("a11y_tree", "phone_state", "device_context")
+            missing = [k for k in required if k not in state]
+            if missing:
+                return {
+                    "status": "error",
+                    "method": result.get("method", "unknown"),
+                    "message": f"incompatible portal — missing {', '.join(missing)}",
+                }
+        except Exception as e:
+            return {
+                "status": "error",
+                "method": result.get("method", "unknown"),
+                "message": f"state check failed: {e}",
+            }
+
+        return result
