@@ -106,6 +106,19 @@ CommandDropdown.hidden {
     display: none;
 }
 
+/* ── Device Picker ── */
+DevicePicker {
+    height: auto;
+    max-height: 10;
+    background: #18181b;
+    margin: 0 1;
+    padding: 0;
+}
+
+DevicePicker.hidden {
+    display: none;
+}
+
 /* ── Status Bar ── */
 StatusBar {
     height: 1;

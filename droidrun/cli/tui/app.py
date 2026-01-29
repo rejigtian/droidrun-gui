@@ -14,7 +14,7 @@ from rich.text import Text
 from droidrun.cli.tui.commands import match_commands, resolve_command
 from droidrun.cli.tui.event_handler import EventHandler
 from droidrun.cli.tui.settings import SettingsData, SettingsScreen
-from droidrun.cli.tui.widgets import InputBar, CommandDropdown, StatusBar
+from droidrun.cli.tui.widgets import InputBar, CommandDropdown, DevicePicker, StatusBar
 
 
 BANNER = """[#CAD3F6]
@@ -45,18 +45,22 @@ class DroidrunTUI(App):
         self._cancel_requested = False
         self._logs_visible = False
         self._dropdown_visible = False
+        self._device_pick_visible = False
         self._esc_last: float = 0.0
         self._ctrl_c_last: float = 0.0
 
         self.reasoning: bool = False
+        self.device_serial: str = ""
 
         # Load settings from user config
         try:
             from droidrun.config_manager import ConfigLoader
             config = ConfigLoader.load()
             self.settings = SettingsData.from_config(config)
+            self._config_serial = config.device.serial or ""
         except Exception:
             self.settings = SettingsData()
+            self._config_serial = ""
 
     def compose(self) -> ComposeResult:
         yield Static(BANNER, id="banner")
@@ -70,10 +74,12 @@ class DroidrunTUI(App):
                 id="input-bar",
             )
             yield CommandDropdown(id="command-dropdown", classes="hidden")
+            yield DevicePicker(id="device-picker", classes="hidden")
             yield StatusBar(id="status-bar")
 
     def on_mount(self) -> None:
         self.query_one("#input-bar", InputBar).focus()
+        self.device_serial = self._config_serial
         self._sync_status_bar()
         self._update_hint()
 
@@ -92,6 +98,7 @@ class DroidrunTUI(App):
 
     def _sync_status_bar(self) -> None:
         status = self.query_one("#status-bar", StatusBar)
+        status.device_serial = self.device_serial
         # Show model name from first profile in status bar
         first_profile = next(iter(self.settings.profiles.values()), None)
         if first_profile:
@@ -101,7 +108,6 @@ class DroidrunTUI(App):
         else:
             model_display = "no model"
         status.device_name = model_display
-        status.device_connected = True
         status.mode = "reasoning" if self.reasoning else "fast"
         status.max_steps = self.settings.max_steps
 
@@ -217,9 +223,104 @@ class DroidrunTUI(App):
             log.write(Text("  settings updated", style="#a6da95"))
 
     def action_open_device(self) -> None:
-        self._show_logs()
-        log = self.query_one("#log-display", RichLog)
-        log.write(Text("  /device \u2014 coming soon", style="#838BBC"))
+        self.run_worker(self._scan_devices(), exclusive=True)
+
+    async def _scan_devices(self) -> None:
+        from async_adbutils import adb
+
+        picker = self.query_one("#device-picker", DevicePicker)
+        picker.set_status("scanning...")
+        self._show_device_picker()
+
+        try:
+            devices = await adb.list()
+        except Exception:
+            devices = []
+
+        if not devices:
+            picker.set_status("no devices found")
+            return
+
+        entries = []
+        for d in devices:
+            try:
+                state = await d.get_state()
+            except Exception:
+                state = "unknown"
+            entries.append((d.serial, state))
+
+        picker.set_devices(entries)
+        picker.focus()
+
+    def _show_device_picker(self) -> None:
+        self.query_one("#device-picker").remove_class("hidden")
+        self.query_one("#status-bar").add_class("hidden")
+        self._device_pick_visible = True
+
+    def _hide_device_picker(self) -> None:
+        self.query_one("#device-picker").add_class("hidden")
+        self.query_one("#status-bar").remove_class("hidden")
+        self._device_pick_visible = False
+        self.query_one("#input-bar", InputBar).focus()
+
+    def on_device_picker_device_selected(self, message: DevicePicker.DeviceSelected) -> None:
+        picker = self.query_one("#device-picker", DevicePicker)
+        picker.set_status("checking portal...")
+        self.run_worker(self._check_device(message.serial), exclusive=True)
+
+    def on_device_picker_setup_confirmed(self, message: DevicePicker.SetupConfirmed) -> None:
+        picker = self.query_one("#device-picker", DevicePicker)
+        picker.set_status("running setup...")
+        self.run_worker(self._run_device_setup(message.serial), exclusive=True)
+
+    def on_device_picker_cancelled(self, message: DevicePicker.Cancelled) -> None:
+        self._hide_device_picker()
+
+    async def _check_device(self, serial: str) -> None:
+        from async_adbutils import adb
+        from droidrun.tools.android.portal_client import PortalClient
+
+        picker = self.query_one("#device-picker", DevicePicker)
+
+        try:
+            device_obj = await adb.device(serial)
+            portal = PortalClient(device_obj, prefer_tcp=self.settings.use_tcp)
+            await portal.connect()
+
+            picker.set_status("querying a11y...")
+
+            state = await portal.get_state()
+
+            if "error" in state:
+                raise Exception(state.get("message", "portal returned error"))
+
+            required = ["a11y_tree", "phone_state", "device_context"]
+            missing = [k for k in required if k not in state]
+            if missing:
+                raise Exception(f"incompatible portal — missing {', '.join(missing)}")
+
+            # All good
+            self.device_serial = serial
+            self._hide_device_picker()
+            self._sync_status_bar()
+            self._show_logs()
+            log = self.query_one("#log-display", RichLog)
+            log.write(Text(f"  device ready: {serial}", style="#a6da95"))
+
+        except Exception as e:
+            picker.set_prompt(serial, str(e))
+
+    async def _run_device_setup(self, serial: str) -> None:
+        from droidrun.cli.main import _setup_portal
+
+        picker = self.query_one("#device-picker", DevicePicker)
+
+        try:
+            await _setup_portal(path=None, device=serial, debug=False)
+            picker.set_status("setup done, verifying...")
+            await self._check_device(serial)
+        except Exception as e:
+            picker.set_prompt(serial, f"setup failed: {e}")
 
     def action_clear_logs(self) -> None:
         log = self.query_one("#log-display", RichLog)
@@ -231,6 +332,10 @@ class DroidrunTUI(App):
     # ── Esc handling ──
 
     def action_handle_esc(self) -> None:
+        if self._device_pick_visible:
+            self._hide_device_picker()
+            return
+
         now = time.monotonic()
         double_esc = (now - self._esc_last) < 0.3
         self._esc_last = now
@@ -303,6 +408,7 @@ class DroidrunTUI(App):
             self.settings.apply_to_config(config)
 
             config.agent.reasoning = self.reasoning
+            config.device.serial = self.device_serial or None
 
             log.write(Text("  initializing...", style="#47475e"))
             first_profile = next(iter(self.settings.profiles.values()), None)
