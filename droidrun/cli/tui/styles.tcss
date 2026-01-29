@@ -136,23 +136,46 @@ SettingsScreen Switch.-on {
     background: transparent;
 }
 
-SettingsScreen Rule {
-    display: none;
+SettingsScreen Button {
+    background: #363a4f;
+    color: #838BBC;
+    border: none;
+}
+
+SettingsScreen Button:hover {
+    background: #47475e;
+    color: #CAD3F6;
+    border: none;
+}
+
+SettingsScreen Button:focus {
+    border: none;
 }
 
 SettingsScreen #settings-save-btn {
-    background: #363a4f;
     color: #a6da95;
-    border: none;
     min-width: 12;
     margin-right: 1;
 }
 
+SettingsScreen #settings-save-btn:hover {
+    color: #c6f0b4;
+}
+
 SettingsScreen #settings-cancel-btn {
-    background: #363a4f;
-    color: #838BBC;
-    border: none;
     min-width: 12;
+}
+
+SettingsScreen ._KwargsRow Button {
+    min-width: 3;
+    width: 3;
+    background: transparent;
+    color: #ed8796;
+}
+
+SettingsScreen ._KwargsRow Button:hover {
+    background: transparent;
+    color: #ff5f6f;
 }
 
 /* ── Settings Modal — Section containers ── */

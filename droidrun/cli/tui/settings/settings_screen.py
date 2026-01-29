@@ -9,8 +9,7 @@ from textual.widgets import Button, TabbedContent, TabPane
 
 from droidrun.cli.tui.settings.agent_tab import AgentTab
 from droidrun.cli.tui.settings.advanced_tab import AdvancedTab
-from droidrun.cli.tui.settings.data import LLMSettings, SettingsData
-from droidrun.cli.tui.settings.keys_tab import KeysTab
+from droidrun.cli.tui.settings.data import SettingsData
 from droidrun.cli.tui.settings.models_tab import ModelsTab
 
 
@@ -87,8 +86,6 @@ class SettingsScreen(ModalScreen[SettingsData | None]):
             with TabbedContent(id="settings-tabs"):
                 with TabPane("Models", id="tab-models"):
                     yield ModelsTab(self._settings)
-                with TabPane("Keys", id="tab-keys"):
-                    yield KeysTab(self._settings)
                 with TabPane("Agent", id="tab-agent"):
                     yield AgentTab(self._settings)
                 with TabPane("Advanced", id="tab-advanced"):
@@ -109,39 +106,18 @@ class SettingsScreen(ModalScreen[SettingsData | None]):
 
     def _collect(self) -> SettingsData:
         """Collect all tab values into a SettingsData."""
-        models = self.query_one(ModelsTab).collect()
-        keys = self.query_one(KeysTab).collect()
+        profiles = self.query_one(ModelsTab).collect()
         agent = self.query_one(AgentTab).collect()
         advanced = self.query_one(AdvancedTab).collect()
 
-        # Parse temperature
-        try:
-            default_temp = float(models["default_temperature"])
-        except (ValueError, TypeError):
-            default_temp = self._settings.default_temperature
-
-        # Parse max steps
         try:
             max_steps = int(agent["max_steps"])
         except (ValueError, TypeError):
             max_steps = self._settings.max_steps
 
-        # Build per-agent LLM overrides
-        agent_llms: dict[str, LLMSettings] = {}
-        for role, data in models["agent_llms"].items():
-            agent_llms[role] = LLMSettings(
-                provider=data["provider"],
-                model=data["model"],
-            )
-
         return SettingsData(
-            default_provider=models["default_provider"],
-            default_model=models["default_model"],
-            default_temperature=default_temp,
-            agent_llms=agent_llms,
+            profiles=profiles,
             agent_prompts=agent.get("agent_prompts", {}),
-            api_keys=keys["api_keys"],
-            base_url=keys["base_url"],
             manager_vision=agent["manager_vision"],
             executor_vision=agent["executor_vision"],
             codeact_vision=agent["codeact_vision"],

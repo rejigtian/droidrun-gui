@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from droidrun.config_manager.config_manager import DroidrunConfig
@@ -20,45 +20,49 @@ PROVIDERS = [
 
 AGENT_ROLES = ["manager", "executor", "codeact", "scripter"]
 
+# Maps provider name to the env key slot used by save_env_keys/load_env_keys.
+# Providers not listed here store their api_key in kwargs instead.
+PROVIDER_ENV_KEY_SLOT: dict[str, str] = {
+    "GoogleGenAI": "google",
+    "OpenAI": "openai",
+    "Anthropic": "anthropic",
+}
+
+# Which fields are relevant per provider.
+PROVIDER_FIELDS: dict[str, dict[str, Any]] = {
+    "GoogleGenAI": {"api_key": True, "base_url": False},
+    "OpenAI":      {"api_key": True, "base_url": False},
+    "Anthropic":   {"api_key": True, "base_url": False},
+    "Ollama":      {"api_key": False, "base_url": True},
+    "OpenAILike":  {"api_key": True, "base_url": True},
+}
+
 
 @dataclass
-class LLMSettings:
-    """Per-agent LLM settings. Always populated with resolved values."""
+class ProfileSettings:
+    """Full LLM profile for one agent role."""
 
-    provider: str = ""
-    model: str = ""
+    provider: str = "GoogleGenAI"
+    model: str = "models/gemini-2.5-pro"
     temperature: float = 0.2
+    api_key: str = ""
+    base_url: str = ""
+    kwargs: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
 class SettingsData:
     """All TUI settings in one object."""
 
-    # Default LLM
-    default_provider: str = "GoogleGenAI"
-    default_model: str = "gemini-2.5-flash"
-    default_temperature: float = 0.2
-
-    # Per-agent LLM (always filled with resolved values)
-    agent_llms: dict[str, LLMSettings] = field(default_factory=lambda: {
-        role: LLMSettings() for role in AGENT_ROLES
+    # Per-agent LLM profiles (the real config, no fake global)
+    profiles: dict[str, ProfileSettings] = field(default_factory=lambda: {
+        role: ProfileSettings() for role in AGENT_ROLES
     })
 
     # Per-agent custom prompt paths
     agent_prompts: dict[str, str] = field(default_factory=lambda: {
         role: "" for role in AGENT_ROLES
     })
-
-    # API keys
-    api_keys: dict[str, str] = field(default_factory=lambda: {
-        "google": "",
-        "gemini": "",
-        "openai": "",
-        "anthropic": "",
-    })
-
-    # Base URL for OpenAILike / Ollama
-    base_url: str = ""
 
     # Agent
     manager_vision: bool = True
@@ -75,24 +79,37 @@ class SettingsData:
     @classmethod
     def from_config(cls, config: DroidrunConfig) -> SettingsData:
         """Build settings from a loaded DroidrunConfig."""
-        profiles = config.llm_profiles or {}
-        default_profile = profiles.get("codeact") or profiles.get("manager")
+        llm_profiles = config.llm_profiles or {}
+        env_keys = load_env_keys()
 
-        default_provider = default_profile.provider if default_profile else "GoogleGenAI"
-        default_model = default_profile.model if default_profile else "gemini-2.5-flash"
-        default_temp = default_profile.temperature if default_profile else 0.2
-
-        # Per-agent LLMs — always show the resolved value
-        agent_llms: dict[str, LLMSettings] = {}
+        profiles: dict[str, ProfileSettings] = {}
         for role in AGENT_ROLES:
-            profile = profiles.get(role)
-            agent_llms[role] = LLMSettings(
-                provider=profile.provider if profile else default_provider,
-                model=profile.model if profile else default_model,
-                temperature=profile.temperature if profile else default_temp,
-            )
+            lp = llm_profiles.get(role)
+            if lp:
+                # Determine API key source
+                provider = lp.provider
+                env_slot = PROVIDER_ENV_KEY_SLOT.get(provider)
+                if env_slot:
+                    api_key = env_keys.get(env_slot, "")
+                elif provider == "OpenAILike":
+                    api_key = lp.kwargs.get("api_key", "stub")
+                else:
+                    api_key = lp.kwargs.get("api_key", "")
 
-        # Per-agent custom prompt paths
+                # Build kwargs without api_key (shown separately)
+                kwargs = {k: str(v) for k, v in lp.kwargs.items() if k != "api_key"}
+
+                profiles[role] = ProfileSettings(
+                    provider=provider,
+                    model=lp.model,
+                    temperature=lp.temperature,
+                    api_key=api_key,
+                    base_url=lp.base_url or lp.api_base or "",
+                    kwargs=kwargs,
+                )
+            else:
+                profiles[role] = ProfileSettings()
+
         agent_prompts = {
             "manager": config.agent.manager.system_prompt,
             "executor": config.agent.executor.system_prompt,
@@ -100,20 +117,9 @@ class SettingsData:
             "scripter": config.agent.scripter.system_prompt,
         }
 
-        api_keys = load_env_keys()
-
-        base_url = ""
-        if default_profile:
-            base_url = default_profile.base_url or default_profile.api_base or ""
-
         return cls(
-            default_provider=default_provider,
-            default_model=default_model,
-            default_temperature=default_temp,
-            agent_llms=agent_llms,
+            profiles=profiles,
             agent_prompts=agent_prompts,
-            api_keys=api_keys,
-            base_url=base_url,
             manager_vision=config.agent.manager.vision,
             executor_vision=config.agent.executor.vision,
             codeact_vision=config.agent.codeact.vision,
@@ -128,7 +134,14 @@ class SettingsData:
         """Persist all settings: API keys to .env and config to config.yaml."""
         from droidrun.config_manager.loader import ConfigLoader
 
-        save_env_keys(self.api_keys)
+        # Save env-based API keys for all cloud providers that have a key set
+        env_keys: dict[str, str] = {}
+        for role, profile in self.profiles.items():
+            env_slot = PROVIDER_ENV_KEY_SLOT.get(profile.provider)
+            if env_slot and profile.api_key:
+                env_keys[env_slot] = profile.api_key
+        if env_keys:
+            save_env_keys(env_keys)
 
         try:
             config = ConfigLoader.load()
@@ -139,23 +152,56 @@ class SettingsData:
         self.apply_to_config(config)
         ConfigLoader.save(config)
 
-    def save_keys(self) -> None:
-        """Persist API keys to ~/.config/droidrun/.env and set as env vars."""
-        save_env_keys(self.api_keys)
+    @staticmethod
+    def _build_kwargs(ps: ProfileSettings) -> dict[str, Any]:
+        """Parse kwargs string values to typed values and inject api_key for OpenAILike."""
+        parsed: dict[str, Any] = {}
+        for k, v in ps.kwargs.items():
+            if not k:
+                continue
+            try:
+                parsed[k] = int(v)
+            except ValueError:
+                try:
+                    parsed[k] = float(v)
+                except ValueError:
+                    parsed[k] = v
+        if ps.provider == "OpenAILike":
+            parsed["api_key"] = ps.api_key or "stub"
+        return parsed
+
+    @staticmethod
+    def _apply_profile_to_llm(ps: ProfileSettings, cp: Any, update_model: bool = True) -> None:
+        """Write a ProfileSettings onto an LLMProfile config object."""
+        cp.provider = ps.provider
+        if update_model:
+            cp.model = ps.model
+        cp.temperature = ps.temperature
+        if ps.base_url:
+            cp.base_url = ps.base_url
+            if ps.provider == "OpenAILike":
+                cp.api_base = ps.base_url
+        else:
+            cp.base_url = None
+            cp.api_base = None
+        cp.kwargs = SettingsData._build_kwargs(ps)
 
     def apply_to_config(self, config: DroidrunConfig) -> None:
         """Apply all TUI settings onto a DroidrunConfig, in place."""
-        from droidrun.config_manager.config_manager import LLMProfile
+        for role, ps in self.profiles.items():
+            if role not in config.llm_profiles:
+                continue
+            self._apply_profile_to_llm(ps, config.llm_profiles[role])
 
-        # LLM profiles
-        for role in list(config.llm_profiles.keys()):
-            llm = self.agent_llms.get(role)
-            profile = config.llm_profiles[role]
-            profile.provider = llm.provider if llm else self.default_provider
-            profile.model = llm.model if llm else self.default_model
-            profile.temperature = llm.temperature if llm else self.default_temperature
-            if self.base_url:
-                profile.base_url = self.base_url
+        # Propagate codeact settings to hidden roles (text_manipulator, app_opener, structured_output)
+        # keeping their existing model (these are usually lighter models)
+        codeact_ps = self.profiles.get("codeact")
+        if codeact_ps:
+            for hidden_role in ("text_manipulator", "app_opener", "structured_output"):
+                if hidden_role in config.llm_profiles:
+                    self._apply_profile_to_llm(
+                        codeact_ps, config.llm_profiles[hidden_role], update_model=False
+                    )
 
         # Per-agent prompt paths
         prompt = self.agent_prompts.get("manager", "")

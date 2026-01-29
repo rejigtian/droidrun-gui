@@ -92,10 +92,14 @@ class DroidrunTUI(App):
 
     def _sync_status_bar(self) -> None:
         status = self.query_one("#status-bar", StatusBar)
-        # Show model name in status bar (strip prefix like "models/")
-        model_display = self.settings.default_model
-        if "/" in model_display:
-            model_display = model_display.rsplit("/", 1)[-1]
+        # Show model name from first profile in status bar
+        first_profile = next(iter(self.settings.profiles.values()), None)
+        if first_profile:
+            model_display = first_profile.model
+            if "/" in model_display:
+                model_display = model_display.rsplit("/", 1)[-1]
+        else:
+            model_display = "no model"
         status.device_name = model_display
         status.device_connected = True
         status.mode = "reasoning" if self.reasoning else "fast"
@@ -301,10 +305,12 @@ class DroidrunTUI(App):
             config.agent.reasoning = self.reasoning
 
             log.write(Text("  initializing...", style="#47475e"))
-            log.write(Text(
-                f"  {self.settings.default_provider} \u2022 {self.settings.default_model}",
-                style="#47475e",
-            ))
+            first_profile = next(iter(self.settings.profiles.values()), None)
+            if first_profile:
+                log.write(Text(
+                    f"  {first_profile.provider} \u2022 {first_profile.model}",
+                    style="#47475e",
+                ))
 
             # DroidAgent loads LLMs from config.llm_profiles via load_agent_llms
             droid_agent = DroidAgent(
