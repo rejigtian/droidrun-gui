@@ -16,20 +16,23 @@ from droidrun.cli.tui.settings.models_tab import ModelsTab
 class SettingsScreen(ModalScreen[SettingsData | None]):
     """Tabbed settings modal."""
 
-    BINDINGS = [("escape", "cancel", "Close")]
+    BINDINGS = [
+        ("escape", "cancel", "Close"),
+        ("ctrl+c", "handle_ctrl_c", "Quit"),
+    ]
 
     DEFAULT_CSS = """
     SettingsScreen {
         align: center middle;
-        background: rgba(0, 0, 0, 0.6);
+        background: rgba(0, 0, 0, 0.7);
     }
 
     #settings-dialog {
         width: 80;
         max-width: 95%;
         height: 85%;
-        background: #1B1B25;
-        border: round #838BBC;
+        background: #0c0c0f;
+        border: round #27272a;
         padding: 1 2;
     }
 
@@ -48,31 +51,31 @@ class SettingsScreen(ModalScreen[SettingsData | None]):
     }
 
     #settings-tabs Tabs {
-        background: #1B1B25;
+        background: #0c0c0f;
     }
 
     #settings-tabs Tab {
-        color: #838BBC;
-        background: #1B1B25;
+        color: #52525b;
+        background: #0c0c0f;
     }
 
     #settings-tabs Tab.-active {
-        color: #CAD3F6;
+        color: #f4f4f5;
     }
 
     #settings-tabs Underline {
-        color: #838BBC;
+        color: #27272a;
     }
 
     #settings-tabs Tab:hover {
-        color: #CAD3F6;
+        color: #a1a1aa;
     }
 
     #settings-buttons {
         height: auto;
         margin-top: 1;
         padding-top: 1;
-        border-top: solid #2e2e4a;
+        border-top: solid #27272a;
         align: right middle;
     }
     """
@@ -103,6 +106,9 @@ class SettingsScreen(ModalScreen[SettingsData | None]):
 
     def action_cancel(self) -> None:
         self.dismiss(None)
+
+    def action_handle_ctrl_c(self) -> None:
+        self.app.action_handle_ctrl_c()
 
     def _collect(self) -> SettingsData:
         """Collect all tab values into a SettingsData."""

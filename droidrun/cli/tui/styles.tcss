@@ -1,8 +1,31 @@
+/*
+ * DroidRun TUI — Dark theme
+ *
+ * Layer hierarchy (darkest → lightest):
+ *   L0  #09090b  — screen base
+ *   L1  #0c0c0f  — log area
+ *   L2  #111116  — modal background, cards
+ *   L3  #18181b  — input/select fields
+ *   L4  #27272a  — hover, elevated surfaces
+ *   L5  #3f3f46  — borders on focus, active
+ *
+ * Text:
+ *   primary    #f4f4f5
+ *   secondary  #a1a1aa
+ *   muted      #52525b
+ *
+ * Accent:
+ *   blue       #60a5fa
+ *   green      #4ade80
+ *   red        #f87171
+ *   yellow     #facc15
+ */
+
 Screen {
-    background: #1B1B25;
+    background: #09090b;
 }
 
-/* ── Toast (top right) ── */
+/* ── Toast ── */
 ToastRack {
     dock: top;
     align: right top;
@@ -34,16 +57,16 @@ ToastRack {
 
 #log-display {
     height: 100%;
-    background: #13131b;
+    background: #0c0c0f;
     border: none;
     padding: 0 1;
     scrollbar-size: 1 1;
-    scrollbar-color: #47475e;
-    scrollbar-color-hover: #838BBC;
-    scrollbar-color-active: #CAD3F6;
-    scrollbar-background: #13131b;
-    scrollbar-background-hover: #13131b;
-    scrollbar-background-active: #13131b;
+    scrollbar-color: #3f3f46;
+    scrollbar-color-hover: #60a5fa;
+    scrollbar-color-active: #f4f4f5;
+    scrollbar-background: #0c0c0f;
+    scrollbar-background-hover: #0c0c0f;
+    scrollbar-background-active: #0c0c0f;
 }
 
 /* ── Bottom Area ── */
@@ -55,26 +78,26 @@ ToastRack {
 
 /* ── Input Bar ── */
 InputBar {
-    background: #1B1B25;
-    border: tall #47475e;
+    background: #09090b;
+    border: tall #27272a;
     height: 3;
     margin: 0 1;
     padding: 0 1;
 }
 
 InputBar:focus {
-    border: tall #838BBC;
+    border: tall #60a5fa;
 }
 
 InputBar.-disabled {
-    opacity: 0.5;
+    opacity: 0.4;
 }
 
 /* ── Command Dropdown ── */
 CommandDropdown {
     height: auto;
     max-height: 8;
-    background: #22223a;
+    background: #18181b;
     margin: 0 1;
     padding: 0;
 }
@@ -86,8 +109,8 @@ CommandDropdown.hidden {
 /* ── Status Bar ── */
 StatusBar {
     height: 1;
-    background: #1B1B25;
-    color: #838BBC;
+    background: #09090b;
+    color: #a1a1aa;
     padding: 0 2;
 }
 
@@ -95,72 +118,103 @@ StatusBar.hidden {
     display: none;
 }
 
-/* ── Settings Modal — widget overrides ── */
+/* ═══════════════════════════════════════════
+   Settings Modal
+   ═══════════════════════════════════════════ */
+
+/* ── Input ── */
 
 SettingsScreen Input {
-    background: #13131b;
-    border: tall #2e2e4a;
+    background: #18181b;
+    border: tall #27272a;
     height: 3;
     padding: 0 1;
+    color: #f4f4f5;
 }
 
 SettingsScreen Input:hover {
-    border: tall #47475e;
+    border: tall #3f3f46;
 }
 
 SettingsScreen Input:focus {
-    border: tall #838BBC;
+    border: tall #60a5fa;
 }
+
+/* ── Select ── */
 
 SettingsScreen Select {
     height: auto;
 }
 
 SettingsScreen SelectCurrent {
-    background: #13131b;
-    border: tall #2e2e4a;
-    color: #CAD3F6;
+    background: #18181b;
+    border: tall #27272a;
+    color: #f4f4f5;
 }
 
 SettingsScreen Select:hover > SelectCurrent {
-    background: #1a1a2a;
-    border: tall #47475e;
+    border: tall #3f3f46;
 }
 
 SettingsScreen SelectCurrent:hover {
-    background: #1a1a2a;
-    border: tall #47475e;
+    border: tall #3f3f46;
 }
 
 SettingsScreen Select:focus > SelectCurrent {
-    border: tall #838BBC;
+    border: tall #60a5fa;
 }
 
 SettingsScreen SelectOverlay {
-    background: #22223a;
-    border: tall #47475e;
+    background: #18181b;
+    border: tall #27272a;
 }
 
 SettingsScreen SelectOverlay > .option-list--option-highlighted {
-    background: #363a4f;
-    color: #CAD3F6;
+    background: #27272a;
+    color: #f4f4f5;
 }
 
 SettingsScreen SelectOverlay > .option-list--option-hover {
-    background: #2e2e4a;
-    color: #CAD3F6;
+    background: #27272a;
+    color: #f4f4f5;
 }
 
+/* ── BoolToggle ── */
+
+SettingsScreen BoolToggle {
+    width: 1fr;
+    height: 3;
+    content-align: left middle;
+    background: #18181b;
+    color: #52525b;
+    border: tall #27272a;
+    padding: 0 1;
+}
+
+SettingsScreen BoolToggle.-on {
+    color: #4ade80;
+    border: tall #27272a;
+}
+
+SettingsScreen BoolToggle:hover {
+    border: tall #3f3f46;
+}
+
+SettingsScreen BoolToggle.-on:hover {
+    border: tall #3f3f46;
+}
+
+/* ── Buttons ── */
 
 SettingsScreen Button {
-    background: #363a4f;
-    color: #838BBC;
+    background: #27272a;
+    color: #a1a1aa;
     border: none;
 }
 
 SettingsScreen Button:hover {
-    background: #47475e;
-    color: #CAD3F6;
+    background: #3f3f46;
+    color: #f4f4f5;
     border: none;
 }
 
@@ -169,13 +223,13 @@ SettingsScreen Button:focus {
 }
 
 SettingsScreen #settings-save-btn {
-    color: #a6da95;
+    color: #4ade80;
     min-width: 12;
     margin-right: 1;
 }
 
 SettingsScreen #settings-save-btn:hover {
-    color: #c6f0b4;
+    color: #86efac;
 }
 
 SettingsScreen #settings-cancel-btn {
@@ -186,38 +240,40 @@ SettingsScreen ._KwargsRow Button {
     min-width: 3;
     width: 3;
     background: transparent;
-    color: #ed8796;
+    color: #f87171;
 }
 
 SettingsScreen ._KwargsRow Button:hover {
     background: transparent;
-    color: #ff5f6f;
+    color: #fca5a5;
 }
 
-/* ── Settings Modal — Section containers ── */
+/* ── Sections ── */
 
 SettingsScreen Section {
-    background: #1e1e2e;
-    border: round #2e2e4a;
-    border-title-color: #CAD3F6;
+    background: #111116;
+    border: round #27272a;
+    border-title-color: #f4f4f5;
     border-title-style: bold;
-    border-subtitle-color: #47475e;
+    border-subtitle-color: #52525b;
     padding: 1 2;
     margin-bottom: 1;
     height: auto;
 }
 
-/* ── Settings Modal — tab pane scrollbar ── */
+/* ── Tab pane scrollbar ── */
 
 SettingsScreen TabPane {
     scrollbar-size: 1 1;
-    scrollbar-color: #47475e;
-    scrollbar-color-hover: #838BBC;
-    scrollbar-color-active: #CAD3F6;
+    scrollbar-color: #3f3f46;
+    scrollbar-color-hover: #60a5fa;
+    scrollbar-color-active: #f4f4f5;
     scrollbar-background: transparent;
     scrollbar-background-hover: transparent;
     scrollbar-background-active: transparent;
 }
+
+/* ── Field layout ── */
 
 SettingsScreen .field-row {
     height: auto;
@@ -227,7 +283,7 @@ SettingsScreen .field-row {
 SettingsScreen .field-label {
     width: 16;
     padding-top: 1;
-    color: #838BBC;
+    color: #a1a1aa;
 }
 
 SettingsScreen .field-input {
@@ -237,28 +293,3 @@ SettingsScreen .field-input {
 SettingsScreen .field-select {
     width: 1fr;
 }
-
-SettingsScreen BoolToggle {
-    width: 1fr;
-    height: 3;
-    content-align: left middle;
-    background: #13131b;
-    color: #636380;
-    border: tall #2e2e4a;
-    padding: 0 1;
-}
-
-SettingsScreen BoolToggle.-on {
-    color: #a6da95;
-    border: tall #3a4a3a;
-}
-
-SettingsScreen BoolToggle:hover {
-    background: #1a1a2a;
-    border: tall #47475e;
-}
-
-SettingsScreen BoolToggle.-on:hover {
-    border: tall #4a5a4a;
-}
-

@@ -48,13 +48,13 @@ class EventHandler:
         elif isinstance(event, ScripterThinkingEvent):
             self._scripter(event)
         elif isinstance(event, TapActionEvent):
-            self.log.write(Text(f"  \u203a tap  {event.description}", style="#a6da95"))
+            self.log.write(Text(f"  › tap  {event.description}", style="#4ade80"))
         elif isinstance(event, SwipeActionEvent):
-            self.log.write(Text(f"  \u203a swipe  {event.description}", style="#a6da95"))
+            self.log.write(Text(f"  › swipe  {event.description}", style="#4ade80"))
         elif isinstance(event, InputTextActionEvent):
-            self.log.write(Text(f"  \u203a input  {event.text}", style="#a6da95"))
+            self.log.write(Text(f"  › input  {event.text}", style="#4ade80"))
         elif isinstance(event, ScreenshotEvent):
-            self.log.write(Text("  \u203a screenshot", style="#47475e"))
+            self.log.write(Text("  › screenshot", style="#3f3f46"))
         elif isinstance(event, ExecutorResultEvent):
             self._step_count += 1
             self.status_bar.current_step = self._step_count
@@ -64,45 +64,45 @@ class EventHandler:
 
     def _manager_plan(self, event: ManagerPlanDetailsEvent) -> None:
         if event.plan:
-            self.log.write(Text(f"  \u25b8 {event.plan}", style="#8aadf4"))
+            self.log.write(Text(f"  ▸ {event.plan}", style="#60a5fa"))
         if event.subgoal:
-            self.log.write(Text(f"    \u2192 {event.subgoal}", style="#eed49f"))
+            self.log.write(Text(f"    → {event.subgoal}", style="#facc15"))
         if event.thought:
-            self.log.write(Text(f"    {event.thought}", style="#47475e"))
+            self.log.write(Text(f"    {event.thought}", style="#52525b"))
 
     def _executor_action(self, event: ExecutorActionEvent) -> None:
         if event.description:
-            self.log.write(Text(f"  \u25b8 {event.description}", style="#a6da95"))
+            self.log.write(Text(f"  ▸ {event.description}", style="#4ade80"))
         if event.thought:
-            self.log.write(Text(f"    {event.thought}", style="#47475e"))
+            self.log.write(Text(f"    {event.thought}", style="#52525b"))
 
     def _codeact_response(self, event: CodeActResponseEvent) -> None:
         self._step_count += 1
         self.status_bar.current_step = self._step_count
         if event.thought:
-            self.log.write(Text(f"    {event.thought}", style="#47475e"))
+            self.log.write(Text(f"    {event.thought}", style="#52525b"))
         if event.code:
-            self.log.write(Text("  $ code", style="#8aadf4"))
+            self.log.write(Text("  $ code", style="#60a5fa"))
             for line in event.code.split("\n"):
                 if line.strip():
-                    self.log.write(Text(f"    {line}", style="#8aadf4 dim"))
+                    self.log.write(Text(f"    {line}", style="#60a5fa dim"))
 
     def _codeact_output(self, event: CodeActOutputEvent) -> None:
         if event.output:
-            self.log.write(Text(f"  > {event.output}", style="#cad3f5"))
+            self.log.write(Text(f"  > {event.output}", style="#f4f4f5"))
 
     def _codeact_end(self, event: CodeActEndEvent) -> None:
-        style = "#a6da95" if event.success else "#ed8796"
+        style = "#4ade80" if event.success else "#f87171"
         status = "done" if event.success else "failed"
         self.log.write(
-            Text(f"  \u25a0 {status}: {event.reason} ({event.code_executions} runs)", style=style)
+            Text(f"  ■ {status}: {event.reason} ({event.code_executions} runs)", style=style)
         )
 
     def _scripter(self, event: ScripterThinkingEvent) -> None:
         if event.thought:
-            self.log.write(Text(f"    {event.thought}", style="#c6a0f6 dim"))
+            self.log.write(Text(f"    {event.thought}", style="#c084fc dim"))
         if event.code:
-            self.log.write(Text("  $ script", style="#c6a0f6"))
+            self.log.write(Text("  $ script", style="#c084fc"))
             for line in event.code.split("\n")[:5]:
                 if line.strip():
-                    self.log.write(Text(f"    {line}", style="#c6a0f6 dim"))
+                    self.log.write(Text(f"    {line}", style="#c084fc dim"))

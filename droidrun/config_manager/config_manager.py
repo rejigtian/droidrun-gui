@@ -16,7 +16,7 @@ class LLMProfile:
     """LLM profile configuration."""
 
     provider: str = "GoogleGenAI"
-    model: str = "models/gemini-2.0-flash-exp"
+    model: str = "gemini-2.5-pro"
     temperature: float = 0.2
     base_url: Optional[str] = None
     api_base: Optional[str] = None
@@ -204,43 +204,43 @@ class DroidrunConfig:
         return {
             "manager": LLMProfile(
                 provider="GoogleGenAI",
-                model="models/gemini-2.5-pro",
+                model="gemini-2.5-pro",
                 temperature=0.2,
                 kwargs={},
             ),
             "executor": LLMProfile(
                 provider="GoogleGenAI",
-                model="models/gemini-2.5-pro",
+                model="gemini-2.5-pro",
                 temperature=0.1,
                 kwargs={},
             ),
             "codeact": LLMProfile(
                 provider="GoogleGenAI",
-                model="models/gemini-2.5-pro",
+                model="gemini-2.5-pro",
                 temperature=0.2,
                 kwargs={},
             ),
             "text_manipulator": LLMProfile(
                 provider="GoogleGenAI",
-                model="models/gemini-2.5-pro",
+                model="gemini-2.5-pro",
                 temperature=0.3,
                 kwargs={},
             ),
             "app_opener": LLMProfile(
                 provider="GoogleGenAI",
-                model="models/gemini-2.5-pro",
+                model="gemini-2.5-pro",
                 temperature=0.0,
                 kwargs={},
             ),
             "scripter": LLMProfile(
                 provider="GoogleGenAI",
-                model="models/gemini-2.5-flash",
+                model="gemini-2.5-flash",
                 temperature=0.1,
                 kwargs={},
             ),
             "structured_output": LLMProfile(
                 provider="GoogleGenAI",
-                model="models/gemini-2.5-flash",
+                model="gemini-2.5-flash",
                 temperature=0.0,
                 kwargs={},
             ),

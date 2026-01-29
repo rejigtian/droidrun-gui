@@ -123,6 +123,9 @@ class _ProfileCard(Section):
         self._profile = profile
 
     def compose(self) -> ComposeResult:
+        if self._role == "manager":
+            yield Button("Apply to all", id="apply-all-btn")
+
         pf = PROVIDER_FIELDS.get(self._profile.provider, {})
 
         with VerticalGroup(classes="profile-fields"):
@@ -221,12 +224,12 @@ class ModelsTab(VerticalGroup):
 
     DEFAULT_CSS = """
     ModelsTab #apply-all-btn {
-        color: #8aadf4;
-        min-width: 16;
+        color: #60a5fa;
+        min-width: 14;
         margin-bottom: 1;
     }
     ModelsTab .kwargs-label {
-        color: #47475e;
+        color: #52525b;
         margin-top: 1;
     }
     """
@@ -236,7 +239,6 @@ class ModelsTab(VerticalGroup):
         self.settings = settings
 
     def compose(self) -> ComposeResult:
-        yield Button("Apply first to all", id="apply-all-btn")
         for role in AGENT_ROLES:
             profile = self.settings.profiles.get(role, ProfileSettings())
             yield _ProfileCard(role, profile)
