@@ -104,6 +104,10 @@ SettingsScreen Input {
     padding: 0 1;
 }
 
+SettingsScreen Input:hover {
+    border: tall #47475e;
+}
+
 SettingsScreen Input:focus {
     border: tall #838BBC;
 }
@@ -118,6 +122,16 @@ SettingsScreen SelectCurrent {
     color: #CAD3F6;
 }
 
+SettingsScreen Select:hover > SelectCurrent {
+    background: #1a1a2a;
+    border: tall #47475e;
+}
+
+SettingsScreen SelectCurrent:hover {
+    background: #1a1a2a;
+    border: tall #47475e;
+}
+
 SettingsScreen Select:focus > SelectCurrent {
     border: tall #838BBC;
 }
@@ -127,14 +141,16 @@ SettingsScreen SelectOverlay {
     border: tall #47475e;
 }
 
-SettingsScreen Switch {
-    background: #47475e;
-    height: auto;
+SettingsScreen SelectOverlay > .option-list--option-highlighted {
+    background: #363a4f;
+    color: #CAD3F6;
 }
 
-SettingsScreen Switch.-on {
-    background: transparent;
+SettingsScreen SelectOverlay > .option-list--option-hover {
+    background: #2e2e4a;
+    color: #CAD3F6;
 }
+
 
 SettingsScreen Button {
     background: #363a4f;
@@ -222,13 +238,27 @@ SettingsScreen .field-select {
     width: 1fr;
 }
 
-SettingsScreen .switch-row {
-    height: auto;
-    margin-bottom: 1;
+SettingsScreen BoolToggle {
+    width: 1fr;
+    height: 3;
+    content-align: left middle;
+    background: #13131b;
+    color: #636380;
+    border: tall #2e2e4a;
+    padding: 0 1;
 }
 
-SettingsScreen .switch-label {
-    width: 16;
-    padding-top: 0;
-    color: #838BBC;
+SettingsScreen BoolToggle.-on {
+    color: #a6da95;
+    border: tall #3a4a3a;
 }
+
+SettingsScreen BoolToggle:hover {
+    background: #1a1a2a;
+    border: tall #47475e;
+}
+
+SettingsScreen BoolToggle.-on:hover {
+    border: tall #4a5a4a;
+}
+

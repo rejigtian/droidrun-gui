@@ -73,8 +73,19 @@ class SettingsData:
     # Advanced
     use_tcp: bool = False
     save_trajectory: bool = False
+    trajectory_gifs: bool = True
     tracing_enabled: bool = False
     tracing_provider: str = "phoenix"
+
+    # Langfuse
+    langfuse_host: str = ""
+    langfuse_public_key: str = ""
+    langfuse_secret_key: str = ""
+    langfuse_screenshots: bool = False
+
+    # Timing
+    after_sleep_action: float = 1.0
+    wait_for_stable_ui: float = 0.3
 
     @classmethod
     def from_config(cls, config: DroidrunConfig) -> SettingsData:
@@ -126,8 +137,15 @@ class SettingsData:
             max_steps=config.agent.max_steps,
             use_tcp=config.device.use_tcp,
             save_trajectory=config.logging.save_trajectory != "none",
+            trajectory_gifs=config.logging.trajectory_gifs,
             tracing_enabled=config.tracing.enabled,
             tracing_provider=config.tracing.provider,
+            langfuse_host=config.tracing.langfuse_host,
+            langfuse_public_key=config.tracing.langfuse_public_key,
+            langfuse_secret_key=config.tracing.langfuse_secret_key,
+            langfuse_screenshots=config.tracing.langfuse_screenshots,
+            after_sleep_action=config.agent.after_sleep_action,
+            wait_for_stable_ui=config.agent.wait_for_stable_ui,
         )
 
     def save(self) -> None:
@@ -228,7 +246,16 @@ class SettingsData:
 
         # Logging
         config.logging.save_trajectory = "action" if self.save_trajectory else "none"
+        config.logging.trajectory_gifs = self.trajectory_gifs
 
         # Tracing
         config.tracing.enabled = self.tracing_enabled
         config.tracing.provider = self.tracing_provider
+        config.tracing.langfuse_host = self.langfuse_host
+        config.tracing.langfuse_public_key = self.langfuse_public_key
+        config.tracing.langfuse_secret_key = self.langfuse_secret_key
+        config.tracing.langfuse_screenshots = self.langfuse_screenshots
+
+        # Timing
+        config.agent.after_sleep_action = self.after_sleep_action
+        config.agent.wait_for_stable_ui = self.wait_for_stable_ui

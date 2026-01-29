@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.containers import HorizontalGroup, VerticalGroup
-from textual.widgets import Input, Label, Switch
+from textual.widgets import Input, Label
 
 from droidrun.cli.tui.settings.data import AGENT_ROLES, SettingsData
-from droidrun.cli.tui.settings.section import Section
+from droidrun.cli.tui.settings.section import BoolToggle, Section
 
 
 class AgentTab(VerticalGroup):
@@ -19,17 +19,17 @@ class AgentTab(VerticalGroup):
 
     def compose(self) -> ComposeResult:
         with Section("Vision", hint="send screenshots to the LLM"):
-            with HorizontalGroup(classes="switch-row"):
-                yield Label("Manager", classes="switch-label")
-                yield Switch(value=self.settings.manager_vision, id="vision-manager")
+            with HorizontalGroup(classes="field-row"):
+                yield Label("Manager", classes="field-label")
+                yield BoolToggle(value=self.settings.manager_vision, id="vision-manager")
 
-            with HorizontalGroup(classes="switch-row"):
-                yield Label("Executor", classes="switch-label")
-                yield Switch(value=self.settings.executor_vision, id="vision-executor")
+            with HorizontalGroup(classes="field-row"):
+                yield Label("Executor", classes="field-label")
+                yield BoolToggle(value=self.settings.executor_vision, id="vision-executor")
 
-            with HorizontalGroup(classes="switch-row"):
-                yield Label("CodeAct", classes="switch-label")
-                yield Switch(value=self.settings.codeact_vision, id="vision-codeact")
+            with HorizontalGroup(classes="field-row"):
+                yield Label("CodeAct", classes="field-label")
+                yield BoolToggle(value=self.settings.codeact_vision, id="vision-codeact")
 
         with Section("Steps"):
             with HorizontalGroup(classes="field-row"):
@@ -53,9 +53,9 @@ class AgentTab(VerticalGroup):
     def collect(self) -> dict:
         """Collect current agent settings."""
         return {
-            "manager_vision": self.query_one("#vision-manager", Switch).value,
-            "executor_vision": self.query_one("#vision-executor", Switch).value,
-            "codeact_vision": self.query_one("#vision-codeact", Switch).value,
+            "manager_vision": self.query_one("#vision-manager", BoolToggle).value,
+            "executor_vision": self.query_one("#vision-executor", BoolToggle).value,
+            "codeact_vision": self.query_one("#vision-codeact", BoolToggle).value,
             "max_steps": self.query_one("#max-steps", Input).value.strip(),
             "agent_prompts": {
                 role: self.query_one(f"#prompt-{role}", Input).value.strip()

@@ -124,6 +124,13 @@ class SettingsScreen(ModalScreen[SettingsData | None]):
             max_steps=max_steps,
             use_tcp=advanced["use_tcp"],
             save_trajectory=advanced["save_trajectory"],
+            trajectory_gifs=advanced["trajectory_gifs"],
             tracing_enabled=advanced["tracing_enabled"],
             tracing_provider=advanced["tracing_provider"],
+            langfuse_host=advanced["langfuse_host"],
+            langfuse_public_key=advanced["langfuse_public_key"],
+            langfuse_secret_key=advanced["langfuse_secret_key"],
+            langfuse_screenshots=advanced["langfuse_screenshots"],
+            after_sleep_action=advanced["after_sleep_action"],
+            wait_for_stable_ui=advanced["wait_for_stable_ui"],
         )
