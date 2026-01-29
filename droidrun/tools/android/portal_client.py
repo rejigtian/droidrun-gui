@@ -113,8 +113,18 @@ class PortalClient:
                 self.tcp_available = True
                 logger.debug(f"✓ TCP mode enabled: {self.tcp_base_url}")
             else:
-                logger.warning("TCP unavailable, using content provider fallback")
-                self.tcp_available = False
+                # Step 3b: Try enabling the HTTP server via content provider
+                logger.debug("TCP ping failed, trying to enable Portal HTTP server...")
+                await self.device.shell(
+                    'content insert --uri content://com.droidrun.portal/toggle_socket_server --bind enabled:b:true'
+                )
+                await asyncio.sleep(1)
+                if await self._test_connection():
+                    self.tcp_available = True
+                    logger.debug(f"✓ TCP mode enabled after starting server: {self.tcp_base_url}")
+                else:
+                    logger.warning("TCP unavailable, using content provider fallback")
+                    self.tcp_available = False
 
         except Exception as e:
             logger.warning(f"TCP unavailable ({e}), using content provider fallback")

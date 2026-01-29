@@ -132,11 +132,13 @@ droidrun "Enable 2FA" \
 
 | Provider | Install | Environment Variable |
 |----------|---------|---------------------|
-| GoogleGenAI | `uv pip install 'droidrun[google]'` | `GOOGLE_API_KEY` |
-| OpenAI | `uv pip install 'droidrun[openai]'` | `OPENAI_API_KEY` |
+| GoogleGenAI | Included by default | `GOOGLE_API_KEY` |
+| OpenAI | Included by default | `OPENAI_API_KEY` |
+| OpenAILike | Included by default | Varies by provider |
+| OpenRouter | Included by default | `OPENROUTER_API_KEY` |
+| Ollama | Included by default | None (local) |
 | Anthropic | `uv pip install 'droidrun[anthropic]'` | `ANTHROPIC_API_KEY` |
 | DeepSeek | `uv pip install 'droidrun[deepseek]'` | `DEEPSEEK_API_KEY` |
-| Ollama | `uv pip install 'droidrun[ollama]'` | None (local) |
 
   </Tab>
 
