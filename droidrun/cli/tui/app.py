@@ -79,6 +79,12 @@ class DroidrunTUI(App):
         self._sync_status_bar()
         self._update_hint()
 
+    def on_text_selected(self, event: events.TextSelected) -> None:
+        text = self.screen.get_selected_text()
+        if text:
+            self.copy_to_clipboard(text)
+            self.notify("Copied", timeout=1.5)
+
     def on_key(self, event: events.Key) -> None:
         input_bar = self.query_one("#input-bar", InputBar)
         if not input_bar.has_focus and event.is_printable:
@@ -98,7 +104,7 @@ class DroidrunTUI(App):
         if self.running:
             status.hint = "esc to stop"
         else:
-            status.hint = "tab: mode  /: commands"
+            status.hint = ""
 
     # ── Input messages ──
 
@@ -231,6 +237,9 @@ class DroidrunTUI(App):
     def action_clear_logs(self) -> None:
         log = self.query_one("#log-display", RichLog)
         log.clear()
+        self.query_one("#log-container").add_class("hidden")
+        self.query_one("#banner").remove_class("hidden")
+        self._logs_visible = False
 
     # ── Esc handling ──
 

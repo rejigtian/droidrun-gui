@@ -2,6 +2,14 @@ Screen {
     background: #1B1B25;
 }
 
+/* ── Toast (top right) ── */
+ToastRack {
+    dock: top;
+    align: right top;
+    margin-top: 1;
+    margin-bottom: 0;
+}
+
 /* ── Banner ── */
 #banner {
     width: 100%;
