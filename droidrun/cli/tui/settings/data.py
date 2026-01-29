@@ -23,11 +23,11 @@ AGENT_ROLES = ["manager", "executor", "codeact", "scripter"]
 
 @dataclass
 class LLMSettings:
-    """Per-agent LLM override. Empty strings mean 'use default'."""
+    """Per-agent LLM settings. Always populated with resolved values."""
 
     provider: str = ""
     model: str = ""
-    temperature: float | None = None
+    temperature: float = 0.2
 
 
 @dataclass
@@ -39,9 +39,14 @@ class SettingsData:
     default_model: str = "gemini-2.5-flash"
     default_temperature: float = 0.2
 
-    # Per-agent overrides
+    # Per-agent LLM (always filled with resolved values)
     agent_llms: dict[str, LLMSettings] = field(default_factory=lambda: {
         role: LLMSettings() for role in AGENT_ROLES
+    })
+
+    # Per-agent custom prompt paths
+    agent_prompts: dict[str, str] = field(default_factory=lambda: {
+        role: "" for role in AGENT_ROLES
     })
 
     # API keys
@@ -63,7 +68,6 @@ class SettingsData:
 
     # Advanced
     use_tcp: bool = False
-    prompt_directory: str = ""
     save_trajectory: bool = False
     tracing_enabled: bool = False
     tracing_provider: str = "phoenix"
@@ -71,7 +75,6 @@ class SettingsData:
     @classmethod
     def from_config(cls, config: DroidrunConfig) -> SettingsData:
         """Build settings from a loaded DroidrunConfig."""
-        # Read default from the first available profile or fall back
         profiles = config.llm_profiles or {}
         default_profile = profiles.get("codeact") or profiles.get("manager")
 
@@ -79,22 +82,26 @@ class SettingsData:
         default_model = default_profile.model if default_profile else "gemini-2.5-flash"
         default_temp = default_profile.temperature if default_profile else 0.2
 
-        # Per-agent overrides
+        # Per-agent LLMs — always show the resolved value
         agent_llms: dict[str, LLMSettings] = {}
         for role in AGENT_ROLES:
             profile = profiles.get(role)
-            if profile and (profile.provider != default_provider or profile.model != default_model):
-                agent_llms[role] = LLMSettings(
-                    provider=profile.provider,
-                    model=profile.model,
-                    temperature=profile.temperature if profile.temperature != default_temp else None,
-                )
-            else:
-                agent_llms[role] = LLMSettings()
+            agent_llms[role] = LLMSettings(
+                provider=profile.provider if profile else default_provider,
+                model=profile.model if profile else default_model,
+                temperature=profile.temperature if profile else default_temp,
+            )
+
+        # Per-agent custom prompt paths
+        agent_prompts = {
+            "manager": config.agent.manager.system_prompt,
+            "executor": config.agent.executor.system_prompt,
+            "codeact": config.agent.codeact.system_prompt,
+            "scripter": config.agent.scripter.system_prompt,
+        }
 
         api_keys = load_env_keys()
 
-        # Read base_url from default profile
         base_url = ""
         if default_profile:
             base_url = default_profile.base_url or default_profile.api_base or ""
@@ -104,6 +111,7 @@ class SettingsData:
             default_model=default_model,
             default_temperature=default_temp,
             agent_llms=agent_llms,
+            agent_prompts=agent_prompts,
             api_keys=api_keys,
             base_url=base_url,
             manager_vision=config.agent.manager.vision,
@@ -111,7 +119,6 @@ class SettingsData:
             codeact_vision=config.agent.codeact.vision,
             max_steps=config.agent.max_steps,
             use_tcp=config.device.use_tcp,
-            prompt_directory="",
             save_trajectory=config.logging.save_trajectory != "none",
             tracing_enabled=config.tracing.enabled,
             tracing_provider=config.tracing.provider,
@@ -122,27 +129,32 @@ class SettingsData:
         save_env_keys(self.api_keys)
 
     def apply_to_config(self, config: DroidrunConfig) -> None:
-        """Apply all TUI settings onto a DroidrunConfig, in place.
-
-        After this, DroidAgent can be created with just `config=config`
-        and it will load LLMs from profiles via load_agent_llms → load_llm.
-        """
+        """Apply all TUI settings onto a DroidrunConfig, in place."""
         from droidrun.config_manager.config_manager import LLMProfile
 
-        # LLM profiles — update every profile in the config
-        all_roles = list(config.llm_profiles.keys())
-        for role in all_roles:
-            provider = self._resolve_provider(role)
-            model = self._resolve_model(role)
-            temp = self._resolve_temperature(role)
-
+        # LLM profiles
+        for role in list(config.llm_profiles.keys()):
+            llm = self.agent_llms.get(role)
             profile = config.llm_profiles[role]
-            profile.provider = provider
-            profile.model = model
-            profile.temperature = temp
-
+            profile.provider = llm.provider if llm else self.default_provider
+            profile.model = llm.model if llm else self.default_model
+            profile.temperature = llm.temperature if llm else self.default_temperature
             if self.base_url:
                 profile.base_url = self.base_url
+
+        # Per-agent prompt paths
+        prompt = self.agent_prompts.get("manager", "")
+        if prompt:
+            config.agent.manager.system_prompt = prompt
+        prompt = self.agent_prompts.get("executor", "")
+        if prompt:
+            config.agent.executor.system_prompt = prompt
+        prompt = self.agent_prompts.get("codeact", "")
+        if prompt:
+            config.agent.codeact.system_prompt = prompt
+        prompt = self.agent_prompts.get("scripter", "")
+        if prompt:
+            config.agent.scripter.system_prompt = prompt
 
         # Agent
         config.agent.max_steps = self.max_steps
@@ -159,21 +171,3 @@ class SettingsData:
         # Tracing
         config.tracing.enabled = self.tracing_enabled
         config.tracing.provider = self.tracing_provider
-
-    def _resolve_provider(self, role: str) -> str:
-        override = self.agent_llms.get(role)
-        if override and override.provider:
-            return override.provider
-        return self.default_provider
-
-    def _resolve_model(self, role: str) -> str:
-        override = self.agent_llms.get(role)
-        if override and override.model:
-            return override.model
-        return self.default_model
-
-    def _resolve_temperature(self, role: str) -> float:
-        override = self.agent_llms.get(role)
-        if override and override.temperature is not None:
-            return override.temperature
-        return self.default_temperature

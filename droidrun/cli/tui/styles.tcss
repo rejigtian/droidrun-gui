@@ -95,9 +95,8 @@ StatusBar.hidden {
     display: none;
 }
 
-/* ── Settings Modal ── */
+/* ── Settings Modal — widget overrides ── */
 
-/* Global overrides for settings inputs / selects */
 SettingsScreen Input {
     background: #13131b;
     border: tall #47475e;
@@ -138,6 +137,65 @@ SettingsScreen Switch.-on {
     background: transparent;
 }
 
-SettingsScreen Button {
-    margin: 0 1 0 0;
+SettingsScreen Rule {
+    color: #2e2e4a;
+    margin: 1 0;
+}
+
+SettingsScreen #settings-save-btn {
+    background: #363a4f;
+    color: #a6da95;
+    border: none;
+    min-width: 12;
+    margin-right: 1;
+}
+
+SettingsScreen #settings-cancel-btn {
+    background: #363a4f;
+    color: #838BBC;
+    border: none;
+    min-width: 12;
+}
+
+/* ── Settings Modal — shared tab styles ── */
+
+SettingsScreen .section-title {
+    color: #CAD3F6;
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+SettingsScreen .section-hint {
+    color: #47475e;
+    margin-bottom: 1;
+}
+
+SettingsScreen .field-row {
+    height: auto;
+    margin-bottom: 1;
+}
+
+SettingsScreen .field-label {
+    width: 14;
+    padding-top: 1;
+    color: #838BBC;
+}
+
+SettingsScreen .field-input {
+    width: 1fr;
+}
+
+SettingsScreen .field-select {
+    width: 1fr;
+}
+
+SettingsScreen .switch-row {
+    height: auto;
+    margin-bottom: 1;
+}
+
+SettingsScreen .switch-label {
+    width: 14;
+    padding-top: 0;
+    color: #838BBC;
 }

@@ -1,56 +1,16 @@
-"""Agent tab — per-agent vision toggles and max steps."""
+"""Agent tab — vision, max steps, per-agent prompt paths."""
 
 from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Input, Label, Static, Switch
+from textual.widgets import Input, Label, Rule, Static, Switch
 
-from droidrun.cli.tui.settings.data import SettingsData
+from droidrun.cli.tui.settings.data import AGENT_ROLES, SettingsData
 
 
 class AgentTab(Vertical):
     """Content for the Agent tab pane."""
-
-    DEFAULT_CSS = """
-    AgentTab {
-        padding: 1 2;
-    }
-    AgentTab .section-title {
-        color: #CAD3F6;
-        text-style: bold;
-        margin-bottom: 1;
-    }
-    AgentTab .section-hint {
-        color: #47475e;
-        margin-bottom: 1;
-    }
-    AgentTab .switch-row {
-        height: auto;
-        margin-bottom: 1;
-    }
-    AgentTab .switch-label {
-        width: 14;
-        padding-top: 0;
-        color: #838BBC;
-    }
-    AgentTab .field-row {
-        height: auto;
-        margin-bottom: 1;
-    }
-    AgentTab .field-label {
-        width: 14;
-        padding-top: 1;
-        color: #838BBC;
-    }
-    AgentTab .field-input {
-        width: 16;
-    }
-    AgentTab .separator {
-        color: #2e2e4a;
-        margin: 1 0;
-    }
-    """
 
     def __init__(self, settings: SettingsData) -> None:
         super().__init__()
@@ -72,7 +32,7 @@ class AgentTab(Vertical):
             yield Label("CodeAct", classes="switch-label")
             yield Switch(value=self.settings.codeact_vision, id="vision-codeact")
 
-        yield Static("─" * 50, classes="separator")
+        yield Rule()
         yield Static("Steps", classes="section-title")
 
         with Horizontal(classes="field-row"):
@@ -83,6 +43,19 @@ class AgentTab(Vertical):
                 classes="field-input",
             )
 
+        yield Rule()
+        yield Static("Prompts", classes="section-title")
+        yield Static("system prompt path per agent", classes="section-hint")
+
+        for role in AGENT_ROLES:
+            with Horizontal(classes="field-row"):
+                yield Label(role.title(), classes="field-label")
+                yield Input(
+                    value=self.settings.agent_prompts.get(role, ""),
+                    id=f"prompt-{role}",
+                    classes="field-input",
+                )
+
     def collect(self) -> dict:
         """Collect current agent settings."""
         return {
@@ -90,4 +63,8 @@ class AgentTab(Vertical):
             "executor_vision": self.query_one("#vision-executor", Switch).value,
             "codeact_vision": self.query_one("#vision-codeact", Switch).value,
             "max_steps": self.query_one("#max-steps", Input).value.strip(),
+            "agent_prompts": {
+                role: self.query_one(f"#prompt-{role}", Input).value.strip()
+                for role in AGENT_ROLES
+            },
         }

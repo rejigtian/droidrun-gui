@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-from copy import deepcopy
-
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Static, TabbedContent, TabPane
+from textual.widgets import Button, TabbedContent, TabPane
 
 from droidrun.cli.tui.settings.agent_tab import AgentTab
 from droidrun.cli.tui.settings.advanced_tab import AdvancedTab
@@ -30,25 +28,45 @@ class SettingsScreen(ModalScreen[SettingsData | None]):
     #settings-dialog {
         width: 80;
         max-width: 95%;
-        height: auto;
-        max-height: 85%;
+        height: 85%;
         background: #1B1B25;
         border: round #838BBC;
         padding: 1 2;
     }
 
-    #settings-title {
-        text-align: center;
-        text-style: bold;
-        color: #CAD3F6;
-        padding-bottom: 1;
-        border-bottom: solid #2e2e4a;
-        margin-bottom: 1;
+    #settings-tabs {
+        height: 1fr;
     }
 
-    #settings-tabs {
-        height: auto;
-        max-height: 70%;
+    #settings-tabs ContentSwitcher {
+        height: 1fr;
+    }
+
+    #settings-tabs TabPane {
+        height: 100%;
+        overflow-y: auto;
+        padding: 0;
+    }
+
+    #settings-tabs Tabs {
+        background: #1B1B25;
+    }
+
+    #settings-tabs Tab {
+        color: #838BBC;
+        background: #1B1B25;
+    }
+
+    #settings-tabs Tab.-active {
+        color: #CAD3F6;
+    }
+
+    #settings-tabs Underline {
+        color: #838BBC;
+    }
+
+    #settings-tabs Tab:hover {
+        color: #CAD3F6;
     }
 
     #settings-buttons {
@@ -58,35 +76,6 @@ class SettingsScreen(ModalScreen[SettingsData | None]):
         border-top: solid #2e2e4a;
         align: right middle;
     }
-
-    #settings-save-btn {
-        margin-right: 1;
-    }
-
-    /* Tab styling overrides */
-    #settings-tabs ContentSwitcher {
-        height: auto;
-    }
-    #settings-tabs TabPane {
-        height: auto;
-        padding: 0;
-    }
-    #settings-tabs Tabs {
-        background: #1B1B25;
-    }
-    #settings-tabs Tab {
-        color: #838BBC;
-        background: #1B1B25;
-    }
-    #settings-tabs Tab.-active {
-        color: #CAD3F6;
-    }
-    #settings-tabs Underline {
-        color: #838BBC;
-    }
-    #settings-tabs Tab:hover {
-        color: #CAD3F6;
-    }
     """
 
     def __init__(self, settings: SettingsData) -> None:
@@ -95,8 +84,6 @@ class SettingsScreen(ModalScreen[SettingsData | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="settings-dialog"):
-            yield Static("Settings", id="settings-title")
-
             with TabbedContent(id="settings-tabs"):
                 with TabPane("Models", id="tab-models"):
                     yield ModelsTab(self._settings)
@@ -152,6 +139,7 @@ class SettingsScreen(ModalScreen[SettingsData | None]):
             default_model=models["default_model"],
             default_temperature=default_temp,
             agent_llms=agent_llms,
+            agent_prompts=agent.get("agent_prompts", {}),
             api_keys=keys["api_keys"],
             base_url=keys["base_url"],
             manager_vision=agent["manager_vision"],
@@ -159,7 +147,6 @@ class SettingsScreen(ModalScreen[SettingsData | None]):
             codeact_vision=agent["codeact_vision"],
             max_steps=max_steps,
             use_tcp=advanced["use_tcp"],
-            prompt_directory=advanced["prompt_directory"],
             save_trajectory=advanced["save_trajectory"],
             tracing_enabled=advanced["tracing_enabled"],
             tracing_provider=advanced["tracing_provider"],

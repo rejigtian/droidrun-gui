@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Input, Label, Select, Static
+from textual.widgets import Input, Label, Rule, Select, Static
 
 from droidrun.cli.tui.settings.data import AGENT_ROLES, PROVIDERS, SettingsData
 
@@ -13,7 +13,7 @@ PROVIDER_OPTIONS = [(p, p) for p in PROVIDERS]
 
 
 class _AgentRow(Horizontal):
-    """A single per-agent override row: label + provider + model."""
+    """A single per-agent row: label + provider + model."""
 
     DEFAULT_CSS = """
     _AgentRow {
@@ -44,54 +44,18 @@ class _AgentRow(Horizontal):
         yield Label(self.role.title(), classes="agent-label")
         yield Select(
             PROVIDER_OPTIONS,
-            value=self._provider if self._provider else Select.BLANK,
-            allow_blank=True,
-            prompt="default",
+            value=self._provider,
+            allow_blank=False,
             id=f"agent-provider-{self.role}",
         )
         yield Input(
             value=self._model,
-            placeholder="default",
             id=f"agent-model-{self.role}",
         )
 
 
 class ModelsTab(Vertical):
     """Content for the Models tab pane."""
-
-    DEFAULT_CSS = """
-    ModelsTab {
-        padding: 1 2;
-    }
-    ModelsTab .section-title {
-        color: #CAD3F6;
-        text-style: bold;
-        margin-bottom: 1;
-    }
-    ModelsTab .section-hint {
-        color: #47475e;
-        margin-bottom: 1;
-    }
-    ModelsTab .field-row {
-        height: auto;
-        margin-bottom: 1;
-    }
-    ModelsTab .field-label {
-        width: 14;
-        padding-top: 1;
-        color: #838BBC;
-    }
-    ModelsTab .field-input {
-        width: 1fr;
-    }
-    ModelsTab .field-select {
-        width: 1fr;
-    }
-    ModelsTab .separator {
-        color: #2e2e4a;
-        margin: 1 0;
-    }
-    """
 
     def __init__(self, settings: SettingsData) -> None:
         super().__init__()
@@ -126,16 +90,15 @@ class ModelsTab(Vertical):
                 classes="field-input",
             )
 
-        yield Static("─" * 50, classes="separator")
-        yield Static("Per-Agent Overrides", classes="section-title")
-        yield Static("leave empty to use default", classes="section-hint")
+        yield Rule()
+        yield Static("Per-Agent", classes="section-title")
 
         for role in AGENT_ROLES:
             override = self.settings.agent_llms.get(role)
             yield _AgentRow(
                 role=role,
-                provider=override.provider if override else "",
-                model=override.model if override else "",
+                provider=override.provider if override else self.settings.default_provider,
+                model=override.model if override else self.settings.default_model,
             )
 
     def collect(self) -> dict:
@@ -146,13 +109,9 @@ class ModelsTab(Vertical):
             "default_temperature": self.query_one("#default-temperature", Input).value.strip(),
             "agent_llms": {
                 role: {
-                    "provider": self._get_agent_provider(role),
+                    "provider": str(self.query_one(f"#agent-provider-{role}", Select).value),
                     "model": self.query_one(f"#agent-model-{role}", Input).value.strip(),
                 }
                 for role in AGENT_ROLES
             },
         }
-
-    def _get_agent_provider(self, role: str) -> str:
-        sel = self.query_one(f"#agent-provider-{role}", Select)
-        return str(sel.value) if sel.value != Select.BLANK else ""
