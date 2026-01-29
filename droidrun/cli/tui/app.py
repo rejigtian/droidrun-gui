@@ -205,7 +205,7 @@ class DroidrunTUI(App):
             return
 
         self.settings = result
-        self.settings.save_keys()
+        self.settings.save()
         self._sync_status_bar()
 
         if self._logs_visible:

@@ -124,6 +124,21 @@ class SettingsData:
             tracing_provider=config.tracing.provider,
         )
 
+    def save(self) -> None:
+        """Persist all settings: API keys to .env and config to config.yaml."""
+        from droidrun.config_manager.loader import ConfigLoader
+
+        save_env_keys(self.api_keys)
+
+        try:
+            config = ConfigLoader.load()
+        except Exception:
+            from droidrun.config_manager.config_manager import DroidrunConfig
+            config = DroidrunConfig()
+
+        self.apply_to_config(config)
+        ConfigLoader.save(config)
+
     def save_keys(self) -> None:
         """Persist API keys to ~/.config/droidrun/.env and set as env vars."""
         save_env_keys(self.api_keys)

@@ -99,7 +99,7 @@ StatusBar.hidden {
 
 SettingsScreen Input {
     background: #13131b;
-    border: tall #47475e;
+    border: tall #2e2e4a;
     height: 3;
     padding: 0 1;
 }
@@ -109,23 +109,22 @@ SettingsScreen Input:focus {
 }
 
 SettingsScreen Select {
-    background: #13131b;
-    border: tall #47475e;
-    height: 3;
+    height: auto;
 }
 
-SettingsScreen Select:focus {
+SettingsScreen SelectCurrent {
+    background: #13131b;
+    border: tall #2e2e4a;
+    color: #CAD3F6;
+}
+
+SettingsScreen Select:focus > SelectCurrent {
     border: tall #838BBC;
 }
 
 SettingsScreen SelectOverlay {
     background: #22223a;
     border: tall #47475e;
-}
-
-SettingsScreen SelectCurrent {
-    background: #13131b;
-    color: #CAD3F6;
 }
 
 SettingsScreen Switch {
@@ -138,8 +137,7 @@ SettingsScreen Switch.-on {
 }
 
 SettingsScreen Rule {
-    color: #2e2e4a;
-    margin: 1 0;
+    display: none;
 }
 
 SettingsScreen #settings-save-btn {
@@ -157,17 +155,29 @@ SettingsScreen #settings-cancel-btn {
     min-width: 12;
 }
 
-/* ── Settings Modal — shared tab styles ── */
+/* ── Settings Modal — Section containers ── */
 
-SettingsScreen .section-title {
-    color: #CAD3F6;
-    text-style: bold;
+SettingsScreen Section {
+    background: #1e1e2e;
+    border: round #2e2e4a;
+    border-title-color: #CAD3F6;
+    border-title-style: bold;
+    border-subtitle-color: #47475e;
+    padding: 1 2;
     margin-bottom: 1;
+    height: auto;
 }
 
-SettingsScreen .section-hint {
-    color: #47475e;
-    margin-bottom: 1;
+/* ── Settings Modal — tab pane scrollbar ── */
+
+SettingsScreen TabPane {
+    scrollbar-size: 1 1;
+    scrollbar-color: #47475e;
+    scrollbar-color-hover: #838BBC;
+    scrollbar-color-active: #CAD3F6;
+    scrollbar-background: transparent;
+    scrollbar-background-hover: transparent;
+    scrollbar-background-active: transparent;
 }
 
 SettingsScreen .field-row {
@@ -176,7 +186,7 @@ SettingsScreen .field-row {
 }
 
 SettingsScreen .field-label {
-    width: 14;
+    width: 16;
     padding-top: 1;
     color: #838BBC;
 }
@@ -195,7 +205,7 @@ SettingsScreen .switch-row {
 }
 
 SettingsScreen .switch-label {
-    width: 14;
+    width: 16;
     padding-top: 0;
     color: #838BBC;
 }

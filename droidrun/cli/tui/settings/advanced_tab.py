@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical
-from textual.widgets import Label, Rule, Select, Static, Switch
+from textual.containers import HorizontalGroup, VerticalGroup
+from textual.widgets import Label, Select, Switch
 
 from droidrun.cli.tui.settings.data import SettingsData
+from droidrun.cli.tui.settings.section import Section
 
 TRACING_PROVIDERS = [
     ("Phoenix", "phoenix"),
@@ -14,7 +15,7 @@ TRACING_PROVIDERS = [
 ]
 
 
-class AdvancedTab(Vertical):
+class AdvancedTab(VerticalGroup):
     """Content for the Advanced tab pane."""
 
     def __init__(self, settings: SettingsData) -> None:
@@ -22,35 +23,30 @@ class AdvancedTab(Vertical):
         self.settings = settings
 
     def compose(self) -> ComposeResult:
-        yield Static("Connection", classes="section-title")
+        with Section("Connection"):
+            with HorizontalGroup(classes="switch-row"):
+                yield Label("Use TCP", classes="switch-label")
+                yield Switch(value=self.settings.use_tcp, id="use-tcp")
 
-        with Horizontal(classes="switch-row"):
-            yield Label("Use TCP", classes="switch-label")
-            yield Switch(value=self.settings.use_tcp, id="use-tcp")
+        with Section("Logging"):
+            with HorizontalGroup(classes="switch-row"):
+                yield Label("Trajectory", classes="switch-label")
+                yield Switch(value=self.settings.save_trajectory, id="save-trajectory")
 
-        yield Rule()
-        yield Static("Logging", classes="section-title")
+        with Section("Tracing"):
+            with HorizontalGroup(classes="switch-row"):
+                yield Label("Enabled", classes="switch-label")
+                yield Switch(value=self.settings.tracing_enabled, id="tracing-enabled")
 
-        with Horizontal(classes="switch-row"):
-            yield Label("Trajectory", classes="switch-label")
-            yield Switch(value=self.settings.save_trajectory, id="save-trajectory")
-
-        yield Rule()
-        yield Static("Tracing", classes="section-title")
-
-        with Horizontal(classes="switch-row"):
-            yield Label("Enabled", classes="switch-label")
-            yield Switch(value=self.settings.tracing_enabled, id="tracing-enabled")
-
-        with Horizontal(classes="field-row"):
-            yield Label("Provider", classes="field-label")
-            yield Select(
-                TRACING_PROVIDERS,
-                value=self.settings.tracing_provider,
-                allow_blank=False,
-                id="tracing-provider",
-                classes="field-select",
-            )
+            with HorizontalGroup(classes="field-row"):
+                yield Label("Provider", classes="field-label")
+                yield Select(
+                    TRACING_PROVIDERS,
+                    value=self.settings.tracing_provider,
+                    allow_blank=False,
+                    id="tracing-provider",
+                    classes="field-select",
+                )
 
     def collect(self) -> dict:
         """Collect current advanced settings."""

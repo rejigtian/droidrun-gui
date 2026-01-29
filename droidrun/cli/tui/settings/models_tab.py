@@ -3,16 +3,17 @@
 from __future__ import annotations
 
 from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical
-from textual.widgets import Input, Label, Rule, Select, Static
+from textual.containers import HorizontalGroup, VerticalGroup
+from textual.widgets import Input, Label, Select
 
 from droidrun.cli.tui.settings.data import AGENT_ROLES, PROVIDERS, SettingsData
+from droidrun.cli.tui.settings.section import Section
 
 
 PROVIDER_OPTIONS = [(p, p) for p in PROVIDERS]
 
 
-class _AgentRow(Horizontal):
+class _AgentRow(HorizontalGroup):
     """A single per-agent row: label + provider + model."""
 
     DEFAULT_CSS = """
@@ -21,7 +22,7 @@ class _AgentRow(Horizontal):
         margin-bottom: 1;
     }
     _AgentRow .agent-label {
-        width: 12;
+        width: 16;
         padding-top: 1;
         color: #838BBC;
     }
@@ -54,7 +55,7 @@ class _AgentRow(Horizontal):
         )
 
 
-class ModelsTab(Vertical):
+class ModelsTab(VerticalGroup):
     """Content for the Models tab pane."""
 
     def __init__(self, settings: SettingsData) -> None:
@@ -62,44 +63,41 @@ class ModelsTab(Vertical):
         self.settings = settings
 
     def compose(self) -> ComposeResult:
-        yield Static("Default", classes="section-title")
+        with Section("Default Model"):
+            with HorizontalGroup(classes="field-row"):
+                yield Label("Provider", classes="field-label")
+                yield Select(
+                    PROVIDER_OPTIONS,
+                    value=self.settings.default_provider,
+                    allow_blank=False,
+                    id="default-provider",
+                    classes="field-select",
+                )
 
-        with Horizontal(classes="field-row"):
-            yield Label("Provider", classes="field-label")
-            yield Select(
-                PROVIDER_OPTIONS,
-                value=self.settings.default_provider,
-                allow_blank=False,
-                id="default-provider",
-                classes="field-select",
-            )
+            with HorizontalGroup(classes="field-row"):
+                yield Label("Model", classes="field-label")
+                yield Input(
+                    value=self.settings.default_model,
+                    id="default-model",
+                    classes="field-input",
+                )
 
-        with Horizontal(classes="field-row"):
-            yield Label("Model", classes="field-label")
-            yield Input(
-                value=self.settings.default_model,
-                id="default-model",
-                classes="field-input",
-            )
+            with HorizontalGroup(classes="field-row"):
+                yield Label("Temperature", classes="field-label")
+                yield Input(
+                    value=str(self.settings.default_temperature),
+                    id="default-temperature",
+                    classes="field-input",
+                )
 
-        with Horizontal(classes="field-row"):
-            yield Label("Temperature", classes="field-label")
-            yield Input(
-                value=str(self.settings.default_temperature),
-                id="default-temperature",
-                classes="field-input",
-            )
-
-        yield Rule()
-        yield Static("Per-Agent", classes="section-title")
-
-        for role in AGENT_ROLES:
-            override = self.settings.agent_llms.get(role)
-            yield _AgentRow(
-                role=role,
-                provider=override.provider if override else self.settings.default_provider,
-                model=override.model if override else self.settings.default_model,
-            )
+        with Section("Per-Agent Models"):
+            for role in AGENT_ROLES:
+                override = self.settings.agent_llms.get(role)
+                yield _AgentRow(
+                    role=role,
+                    provider=override.provider if override else self.settings.default_provider,
+                    model=override.model if override else self.settings.default_model,
+                )
 
     def collect(self) -> dict:
         """Collect current values from the tab."""

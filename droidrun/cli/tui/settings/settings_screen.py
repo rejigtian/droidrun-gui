@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical
+from textual.containers import HorizontalGroup, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Button, TabbedContent, TabPane
 
@@ -45,7 +45,7 @@ class SettingsScreen(ModalScreen[SettingsData | None]):
     #settings-tabs TabPane {
         height: 100%;
         overflow-y: auto;
-        padding: 0;
+        padding: 1 0 0 0;
     }
 
     #settings-tabs Tabs {
@@ -94,7 +94,7 @@ class SettingsScreen(ModalScreen[SettingsData | None]):
                 with TabPane("Advanced", id="tab-advanced"):
                     yield AdvancedTab(self._settings)
 
-            with Horizontal(id="settings-buttons"):
+            with HorizontalGroup(id="settings-buttons"):
                 yield Button("Save", variant="success", id="settings-save-btn")
                 yield Button("Cancel", variant="default", id="settings-cancel-btn")
 
