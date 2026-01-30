@@ -2,9 +2,20 @@
 Droidrun - A framework for controlling Android devices through LLM agents.
 """
 
+import logging
 from importlib.metadata import version
 
 __version__ = version("droidrun")
+
+# Attach a default CLILogHandler so that every consumer (CLI, TUI, SDK,
+# tools-only) gets visible output without explicit setup.  CLI and TUI
+# replace this with their own handler via ``configure_logging()``.
+from droidrun.log_handlers import CLILogHandler
+
+_logger = logging.getLogger("droidrun")
+_logger.addHandler(CLILogHandler())
+_logger.setLevel(logging.INFO)
+_logger.propagate = False
 
 # Import main classes for easier access
 from droidrun.agent import ResultEvent

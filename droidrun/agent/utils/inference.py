@@ -98,10 +98,10 @@ async def _stream_response(llm, messages: list, timeout: float) -> ChatResponse:
         async for chunk in await llm.astream_chat(messages=messages):
             delta = chunk.delta or ""
             if delta:
-                print(delta, end="", flush=True)
+                logger.info(delta, extra={"stream": True})
             content += delta
             last_chunk = chunk
-        print()  # Newline after streaming complete
+        logger.info("", extra={"stream_end": True})
 
     await asyncio.wait_for(stream_chunks(), timeout=timeout)
 
@@ -196,10 +196,10 @@ async def _stream_complete_response(
         async for chunk in await llm.astream_complete(prompt):
             delta = chunk.delta or ""
             if delta:
-                print(delta, end="", flush=True)
+                logger.info(delta, extra={"stream": True})
             content += delta
             last_chunk = chunk
-        print()  # Newline after streaming complete
+        logger.info("", extra={"stream_end": True})
 
     await asyncio.wait_for(stream_chunks(), timeout=timeout)
 

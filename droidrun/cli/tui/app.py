@@ -12,7 +12,8 @@ from textual.worker import Worker, WorkerState
 from textual import events
 
 from droidrun.cli.tui.commands import match_commands, resolve_command
-from droidrun.cli.tui.event_handler import EventHandler
+from droidrun.cli.event_handler import EventHandler
+from droidrun.log_handlers import TUILogHandler, configure_logging
 from droidrun.cli.tui.settings import SettingsData, SettingsScreen
 from droidrun.cli.tui.widgets import InputBar, CommandDropdown, DevicePicker, LogView, StatusBar
 
@@ -560,7 +561,17 @@ class DroidrunTUI(App):
         status.is_running = True
         status.current_step = 0
 
-        event_handler = EventHandler(log, status)
+        # Set up TUI logging handler with step-increment callback
+        _step_count = 0
+
+        def _on_step():
+            nonlocal _step_count
+            _step_count += 1
+            status.current_step = _step_count
+
+        tui_handler = TUILogHandler(on_step=_on_step)
+        configure_logging(debug=self._debug_logs, handler=tui_handler)
+        event_handler = EventHandler()
         success = False
 
         try:

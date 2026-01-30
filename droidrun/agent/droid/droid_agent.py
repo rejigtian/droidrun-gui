@@ -101,26 +101,29 @@ class DroidAgent(Workflow):
     @staticmethod
     def _configure_default_logging(debug: bool = False):
         """
-        Configure default logging for DroidAgent if no handlers are present.
-        This ensures logs are visible when using DroidAgent directly.
-        """
-        # Only configure if no handlers exist (avoid duplicate configuration)
-        if not logger.handlers:
-            # Create a console handler
-            handler = logging.StreamHandler()
+        Configure default logging for DroidAgent if no real handler is present.
 
-            # Set format
-            if debug:
-                formatter = logging.Formatter(
+        The package-level ``__init__`` attaches a default CLILogHandler.
+        If something else already replaced it (CLI / TUI call
+        ``configure_logging``), this is a no-op.  If nothing is attached
+        (e.g. only NullHandler), we set up CLILogHandler so SDK users
+        always get visible output.
+        """
+        has_real_handler = any(
+            not isinstance(h, logging.NullHandler) for h in logger.handlers
+        )
+        if not has_real_handler:
+            from droidrun.log_handlers import CLILogHandler, configure_logging
+
+            handler = CLILogHandler()
+            handler.setFormatter(
+                logging.Formatter(
                     "%(asctime)s %(levelname)s: %(message)s", "%H:%M:%S"
                 )
-            else:
-                formatter = logging.Formatter("%(message)s")
-
-            handler.setFormatter(formatter)
-            logger.addHandler(handler)
-            logger.setLevel(logging.DEBUG if debug else logging.INFO)
-            logger.propagate = False
+                if debug
+                else logging.Formatter("%(message)s")
+            )
+            configure_logging(debug=debug, handler=handler)
 
     def __init__(
         self,
