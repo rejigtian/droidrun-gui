@@ -59,7 +59,7 @@ ToastRack {
     height: 100%;
     background: #0c0c0f;
     border: none;
-    padding: 0 1;
+    padding: 0;
     scrollbar-size: 1 1;
     scrollbar-color: #3f3f46;
     scrollbar-color-hover: #60a5fa;
@@ -67,6 +67,10 @@ ToastRack {
     scrollbar-background: #0c0c0f;
     scrollbar-background-hover: #0c0c0f;
     scrollbar-background-active: #0c0c0f;
+}
+
+#log-display:focus {
+    border: none;
 }
 
 /* ── Bottom Area ── */
