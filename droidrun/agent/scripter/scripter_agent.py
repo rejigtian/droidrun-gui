@@ -263,7 +263,7 @@ class ScripterAgent(Workflow):
 
         code = ev.code
         logger.debug("⚡ Executing script...")
-        logger.debug(f"Code:\n```python\n{code}\n```")
+        logger.debug(f"Code:\n<python>\n{code}\n</python>")
 
         try:
             # Execute with timeout from config
@@ -306,7 +306,7 @@ class ScripterAgent(Workflow):
         self.message_history.append(
             {
                 "role": "user",
-                "content": [{"text": f"Execution Result:\n```\n{output}\n```"}],
+                "content": [{"text": f"Execution Result:\n<result>\n{output}\n</result>"}],
             }
         )
 
