@@ -63,35 +63,27 @@ def to_chat_messages(messages: list[dict]) -> list[ChatMessage]:
 
 def extract_code_and_thought(response_text: str) -> Tuple[Optional[str], str]:
     """
-    Extract code from Markdown blocks (```python ... ```) and the surrounding text (thought).
+    Extract code from <python>...</python> tags and the surrounding text (thought).
 
     Returns:
         Tuple[Optional[code_string], thought_string]
     """
-    first_backticks = response_text.find("```")
-    if first_backticks == -1:
+    open_tag = "<python>"
+    close_tag = "</python>"
+
+    open_idx = response_text.find(open_tag)
+    if open_idx == -1:
         return None, response_text.strip()
 
-    last_backticks = response_text.rfind("```")
-    if first_backticks == last_backticks:
+    close_idx = response_text.rfind(close_tag)
+    if close_idx == -1:
         return None, response_text.strip()
 
-    code_block = response_text[first_backticks : last_backticks + 3]
-
-    if code_block.startswith("```python"):
-        code_content = code_block[9:]
-    elif code_block.startswith("```py"):
-        code_content = code_block[5:]
-    else:
-        code_content = code_block[3:]
-
-    if code_content.endswith("```"):
-        code_content = code_content[:-3]
-
+    code_content = response_text[open_idx + len(open_tag) : close_idx]
     extracted_code = code_content.strip()
 
-    thought_before = response_text[:first_backticks].strip()
-    thought_after = response_text[last_backticks + 3 :].strip()
+    thought_before = response_text[:open_idx].strip()
+    thought_after = response_text[close_idx + len(close_tag) :].strip()
     thought_text = (thought_before + " " + thought_after).strip()
 
     return extracted_code, thought_text

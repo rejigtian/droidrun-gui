@@ -65,7 +65,7 @@ async def run_text_manipulation_agent(
     system_prompt = (
         "You are CODEACT_TEXT_AGENT, a constrained Python code generator for editing text in an Android text box.\n"
         "You will be given: (1) the current text in the focused text box as ORIGINAL, and (2) a TASK that describes how to modify it.\n\n"
-        "Your job is to output ONLY a single Python code block in ```python format that:\n"
+        "Your job is to output ONLY a single Python code block in <python></python> format that:\n"
         "- Defines NO new functions, classes, or imports.\n"
         "- Uses ONLY the provided function input_text(text: str).\n"
         "- Builds the final content in a triple-quoted big string assigned to a variable of your choice, e.g.:\n"
@@ -73,7 +73,7 @@ async def run_text_manipulation_agent(
         "- Includes ORIGINAL in the new_text if needed to fulfill the TASK.\n"
         "- Calls input_text(new_text) exactly once to clear the field and input the new content.\n\n"
         "STRICT FORMAT RULES:\n"
-        "- Respond with ONLY a fenced Python code block: ```python\n<code>\n```\n"
+        "- Respond with ONLY a Python code block: <python>\n<code>\n</python>\n"
         "- Do NOT print anything. Do NOT use input().\n"
         "- Do NOT import any modules. Do NOT define additional functions or classes.\n"
         "- Do NOT access files, network, or system.\n"
@@ -95,13 +95,13 @@ async def run_text_manipulation_agent(
     error_correction_prompt = (
         "You are CODEACT_TEXT_AGENT, correcting your previous code that had execution errors.\n\n"
         "The code you generated previously failed with this error:\n{error_message}\n\n"
-        "Please fix the code and output ONLY a new Python code block in ```python format.\n"
+        "Please fix the code and output ONLY a new Python code block in <python></python> format.\n"
         "Follow the same rules as before:\n"
         "- Use ONLY the provided function input_text(text: str)\n"
         "- Build the final content in a triple-quoted big string\n"
         "- Include ORIGINAL in the new_text if needed\n"
         "- Call input_text(new_text) exactly once\n"
-        "- Respond with ONLY a fenced Python code block\n"
+        "- Respond with ONLY a <python></python> code block\n"
         "If you are unsure about the ORIGINAL, use it by referencing ORIGINAL variable so you dont make mistake with white space or new line characters"
         "below is ORIGINAL use it by referencing ORIGINAL variable or directly typing it out:\n<ORIGINAL>{current_text}</ORIGINAL>\n"
     )
@@ -130,14 +130,14 @@ async def run_text_manipulation_agent(
 
     for attempt in range(max_retries + 1):  # +1 for initial attempt
         # Call the LLM with current messages
-        logger.info("[bright_cyan]✏️ TextManipulator response:[/bright_cyan]")
+        logger.info("✏️ TextManipulator response:", extra={"color": "cyan"})
         response_message = (
             await acall_with_retries(llm, messages, stream=stream)
         ).message
         content = response_message.content
         messages.append(response_message)
 
-        # Extract code from ```python blocks
+        # Extract code from <python> blocks
         code = _extract_python_code(content)
         if not code:
             # Fallback: if no code block found, use entire response as code
@@ -163,35 +163,23 @@ async def run_text_manipulation_agent(
 
 
 def _extract_python_code(text: str) -> str:
-    """Extract Python code from ```python fenced blocks using simple string operations."""
+    """Extract Python code from <python>...</python> tags."""
     if not text:
         return ""
 
-    # Try different variations of code block markers
-    patterns = [
-        # ```python with newlines
-        ("```python\n", "\n```"),
-        # ```python without newlines
-        ("```python", "```"),
-        # Generic ``` with newlines
-        ("```\n", "\n```"),
-        # Generic ``` without newlines
-        ("```", "```"),
-    ]
+    open_tag = "<python>"
+    close_tag = "</python>"
 
-    for start_marker, end_marker in patterns:
-        if start_marker in text and end_marker in text:
-            # Find the start position after the marker
-            start_idx = text.find(start_marker) + len(start_marker)
-            # Find the end position before the marker
-            end_idx = text.find(end_marker, start_idx)
-            if end_idx != -1:
-                code = text[start_idx:end_idx].strip()
-                # Only return if we actually extracted some code
-                if code:
-                    return code
+    open_idx = text.find(open_tag)
+    if open_idx == -1:
+        return ""
 
-    return ""
+    close_idx = text.find(close_tag, open_idx + len(open_tag))
+    if close_idx == -1:
+        return ""
+
+    code = text[open_idx + len(open_tag) : close_idx].strip()
+    return code
 
 
 def _execute_sandbox(code: str, original_text: str) -> tuple[str, str]:

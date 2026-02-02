@@ -466,7 +466,7 @@ class ManagerAgent(Workflow):
         chat_messages = to_chat_messages(messages)
 
         try:
-            logger.info("[cyan]📋 Manager response:[/cyan]")
+            logger.info("📋 Manager response:", extra={"color": "cyan"})
             response = await acall_with_retries(
                 self.llm, chat_messages, stream=self.agent_config.streaming
             )

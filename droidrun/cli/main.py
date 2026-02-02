@@ -20,7 +20,8 @@ from rich.panel import Panel
 from rich.text import Text
 
 from droidrun import ResultEvent, DroidAgent
-from droidrun.cli.logs import LogHandler
+from droidrun.log_handlers import CLILogHandler, configure_logging
+from droidrun.cli.event_handler import EventHandler
 from droidrun.config_manager import ConfigLoader, DroidrunConfig
 from droidrun.macro.cli import macro_cli
 from droidrun import __version__
@@ -46,22 +47,15 @@ os.environ["GRPC_ENABLE_FORK_SUPPORT"] = "false"
 console = Console()
 
 
-def configure_logging(goal: str, debug: bool, rich_text: bool = True):
-    logger = logging.getLogger("droidrun")
-    logger.handlers = []
-
-    handler = LogHandler(goal, rich_text=rich_text)
+def _setup_cli_logging(debug: bool) -> None:
+    """Configure the droidrun logger with a CLILogHandler."""
+    handler = CLILogHandler()
     handler.setFormatter(
         logging.Formatter("%(levelname)s %(name)s %(message)s", "%H:%M:%S")
         if debug
-        else logging.Formatter("%(message)s", "%H:%M:%S")
+        else logging.Formatter("%(message)s")
     )
-    logger.addHandler(handler)
-
-    logger.setLevel(logging.DEBUG if debug else logging.INFO)
-    logger.propagate = False
-
-    return handler
+    configure_logging(debug=debug, handler=handler)
 
 
 def coro(f):
@@ -136,184 +130,172 @@ async def run_command(
     else:
         console.print("\n✨ Try DroidRun Cloud: https://cloud.droidrun.ai/sign-in\n")
 
-    # Initialize logging first (use config default if debug not specified)
+    # Initialize logging
     debug_mode = debug if debug is not None else config.logging.debug
-    log_handler = configure_logging(command, debug_mode, config.logging.rich_text)
+    _setup_cli_logging(debug_mode)
     logger = logging.getLogger("droidrun")
 
-    log_handler.update_step("Initializing...")
+    try:
+        logger.info(f"🚀 Starting: {command}")
+        print_telemetry_message()
 
-    with log_handler.render():
-        try:
-            logger.info(f"🚀 Starting: {command}")
-            print_telemetry_message()
+        # ================================================================
+        # STEP 1: Apply CLI overrides via direct mutation
+        # ================================================================
 
-            # ================================================================
-            # STEP 1: Apply CLI overrides via direct mutation
-            # ================================================================
+        # Vision overrides
+        if vision is not None:
+            # --vision flag overrides all agents
+            config.agent.manager.vision = vision
+            config.agent.executor.vision = vision
+            config.agent.codeact.vision = vision
+            logger.debug(f"CLI override: vision={vision} (all agents)")
+        else:
+            # Apply individual agent vision overrides
+            if manager_vision is not None:
+                config.agent.manager.vision = manager_vision
+            if executor_vision is not None:
+                config.agent.executor.vision = executor_vision
+            if codeact_vision is not None:
+                config.agent.codeact.vision = codeact_vision
 
-            # Vision overrides
-            if vision is not None:
-                # --vision flag overrides all agents
-                config.agent.manager.vision = vision
-                config.agent.executor.vision = vision
-                config.agent.codeact.vision = vision
-                logger.debug(f"CLI override: vision={vision} (all agents)")
-            else:
-                # Apply individual agent vision overrides
-                if manager_vision is not None:
-                    config.agent.manager.vision = manager_vision
-                if executor_vision is not None:
-                    config.agent.executor.vision = executor_vision
-                if codeact_vision is not None:
-                    config.agent.codeact.vision = codeact_vision
+        # Agent overrides
+        if steps is not None:
+            config.agent.max_steps = steps
+        if reasoning is not None:
+            config.agent.reasoning = reasoning
+        if stream is not None:
+            config.agent.streaming = stream
 
-            # Agent overrides
-            if steps is not None:
-                config.agent.max_steps = steps
-            if reasoning is not None:
-                config.agent.reasoning = reasoning
-            if stream is not None:
-                config.agent.streaming = stream
+        # Device overrides
+        if device is not None:
+            config.device.serial = device
+        if tcp is not None:
+            config.device.use_tcp = tcp
 
-            # Device overrides
-            if device is not None:
-                config.device.serial = device
-            if tcp is not None:
-                config.device.use_tcp = tcp
+        # Logging overrides
+        if debug is not None:
+            config.logging.debug = debug
+        if save_trajectory is not None:
+            config.logging.save_trajectory = save_trajectory
 
-            # Logging overrides
-            if debug is not None:
-                config.logging.debug = debug
-            if save_trajectory is not None:
-                config.logging.save_trajectory = save_trajectory
+        # Tracing overrides
+        if tracing is not None:
+            config.tracing.enabled = tracing
 
-            # Tracing overrides
-            if tracing is not None:
-                config.tracing.enabled = tracing
+        # Platform overrides
+        if ios:
+            config.device.platform = "ios"
 
-            # Platform overrides
-            if ios:
-                config.device.platform = "ios"
+        # ================================================================
+        # STEP 2: Initialize DroidAgent with config
+        # ================================================================
 
-            # ================================================================
-            # STEP 2: Initialize DroidAgent with config
-            # ================================================================
+        mode = (
+            "planning with reasoning"
+            if config.agent.reasoning
+            else "direct execution"
+        )
+        logger.info(f"🤖 Agent mode: {mode}")
+        logger.info(
+            f"👁️  Vision settings: Manager={config.agent.manager.vision}, "
+            f"Executor={config.agent.executor.vision}, CodeAct={config.agent.codeact.vision}"
+        )
 
-            log_handler.update_step("Initializing DroidAgent...")
+        if config.tracing.enabled:
+            logger.info("🔍 Tracing enabled")
 
-            mode = (
-                "planning with reasoning"
-                if config.agent.reasoning
-                else "direct execution"
-            )
-            logger.info(f"🤖 Agent mode: {mode}")
-            logger.info(
-                f"👁️  Vision settings: Manager={config.agent.manager.vision}, "
-                f"Executor={config.agent.executor.vision}, CodeAct={config.agent.codeact.vision}"
-            )
+        # Build DroidAgent kwargs for LLM loading
+        droid_agent_kwargs = {"runtype": "cli"}
+        llm = None
 
-            if config.tracing.enabled:
-                logger.info("🔍 Tracing enabled")
+        if provider or model:
+            assert (
+                provider and model
+            ), "Either both provider and model must be provided or none of them"
+            llm_kwargs = {}
+            if temperature is not None:
+                llm_kwargs["temperature"] = temperature
+            if base_url is not None:
+                llm_kwargs["base_url"] = base_url
+            if api_base is not None:
+                llm_kwargs["api_base"] = api_base
+            llm = load_llm(provider, model=model, **llm_kwargs, **kwargs)
+        else:
+            if temperature is not None:
+                droid_agent_kwargs["temperature"] = temperature
+            if base_url is not None:
+                droid_agent_kwargs["base_url"] = base_url
+            if api_base is not None:
+                droid_agent_kwargs["api_base"] = api_base
 
-            # Build DroidAgent kwargs for LLM loading
-            droid_agent_kwargs = {"runtype": "cli"}
-            llm = None
-
-            if provider or model:
-                assert (
-                    provider and model
-                ), "Either both provider and model must be provided or none of them"
-                llm_kwargs = {}
-                if temperature is not None:
-                    llm_kwargs["temperature"] = temperature
-                if base_url is not None:
-                    llm_kwargs["base_url"] = base_url
-                if api_base is not None:
-                    llm_kwargs["api_base"] = api_base
-                llm = load_llm(provider, model=model, **llm_kwargs, **kwargs)
-            else:
-                if temperature is not None:
-                    droid_agent_kwargs["temperature"] = temperature
-                if base_url is not None:
-                    droid_agent_kwargs["base_url"] = base_url
-                if api_base is not None:
-                    droid_agent_kwargs["api_base"] = api_base
-
-            if not ios:
-                try:
-                    device_obj = await adb.device(config.device.serial)
-                    if device_obj:
-                        portal_version = await get_portal_version(device_obj)
-
-                        if not portal_version or portal_version < "0.4.1":
-                            logger.warning(
-                                f"⚠️  Portal version {portal_version} is outdated"
-                            )
-                            console.print(
-                                f"\n[yellow]Portal version {portal_version} < 0.4.1. Running setup...[/]\n"
-                            )
-
-                            await _setup_portal(
-                                path=None, device=config.device.serial, debug=debug_mode
-                            )
-
-                    else:
-                        logger.debug("Could not get portal version, skipping check")
-                except Exception as e:
-                    logger.warning(f"Version check failed: {e}")
-
-            droid_agent = DroidAgent(
-                goal=command,
-                llms=llm,
-                config=config,
-                timeout=1000,
-                **droid_agent_kwargs,
-            )
-
-            # ================================================================
-            # STEP 3: Run agent
-            # ================================================================
-
-            logger.debug("▶️  Starting agent execution...")
-            logger.debug("Press Ctrl+C to stop")
-            log_handler.update_step("Running agent...")
-
+        if not ios:
             try:
-                handler = droid_agent.run()
+                device_obj = await adb.device(config.device.serial)
+                if device_obj:
+                    portal_version = await get_portal_version(device_obj)
 
-                async for event in handler.stream_events():
-                    log_handler.handle_event(event)
-                result: ResultEvent = await handler
-                return result.success
+                    if not portal_version or portal_version < "0.4.1":
+                        logger.warning(
+                            f"⚠️  Portal version {portal_version} is outdated"
+                        )
+                        console.print(
+                            f"\n[yellow]Portal version {portal_version} < 0.4.1. Running setup...[/]\n"
+                        )
 
-            except KeyboardInterrupt:
-                log_handler.is_completed = True
-                log_handler.is_success = False
-                log_handler.current_step = "Stopped by user"
-                logger.info("⏹️ Stopped by user")
-                return False
+                        await _setup_portal(
+                            path=None, device=config.device.serial, debug=debug_mode
+                        )
 
+                else:
+                    logger.debug("Could not get portal version, skipping check")
             except Exception as e:
-                log_handler.is_completed = True
-                log_handler.is_success = False
-                log_handler.current_step = f"Error: {e}"
-                logger.error(f"💥 Error: {e}")
-                if config.logging.debug:
-                    import traceback
+                logger.warning(f"Version check failed: {e}")
 
-                    logger.debug(traceback.format_exc())
-                return False
+        droid_agent = DroidAgent(
+            goal=command,
+            llms=llm,
+            config=config,
+            timeout=1000,
+            **droid_agent_kwargs,
+        )
+
+        # ================================================================
+        # STEP 3: Run agent
+        # ================================================================
+
+        logger.debug("▶️  Starting agent execution...")
+        logger.debug("Press Ctrl+C to stop")
+
+        event_handler = EventHandler()
+
+        try:
+            handler = droid_agent.run()
+
+            async for event in handler.stream_events():
+                event_handler.handle(event)
+            result: ResultEvent = await handler
+            return result.success
+
+        except KeyboardInterrupt:
+            logger.info("⏹️ Stopped by user")
+            return False
 
         except Exception as e:
-            log_handler.current_step = f"Error: {e}"
-            logger.error(f"💥 Setup error: {e}")
-            debug_mode = debug if debug is not None else config.logging.debug
-            if debug_mode:
+            logger.error(f"💥 Error: {e}")
+            if config.logging.debug:
                 import traceback
 
                 logger.debug(traceback.format_exc())
             return False
+
+    except Exception as e:
+        logger.error(f"💥 Setup error: {e}")
+        if debug_mode:
+            import traceback
+
+            logger.debug(traceback.format_exc())
+        return False
 
 
 class DroidRunCLI(click.Group):
@@ -735,127 +717,115 @@ async def test(
 ):
     config = ConfigLoader.load(config_path)
 
-    # Initialize logging first (use config default if debug not specified)
+    # Initialize logging
     debug_mode = debug if debug is not None else config.logging.debug
-    log_handler = configure_logging(command, debug_mode, config.logging.rich_text)
+    _setup_cli_logging(debug_mode)
     logger = logging.getLogger("droidrun")
 
-    log_handler.update_step("Initializing...")
+    try:
+        logger.info(f"🚀 Starting: {command}")
+        print_telemetry_message()
 
-    with log_handler.render():
+        # ================================================================
+        # STEP 1: Apply CLI overrides via direct mutation
+        # ================================================================
+
+        # Vision overrides
+        if vision is not None:
+            # --vision flag overrides all agents
+            config.agent.manager.vision = vision
+            config.agent.executor.vision = vision
+            config.agent.codeact.vision = vision
+            logger.debug(f"CLI override: vision={vision} (all agents)")
+
+        # Agent overrides
+        if steps is not None:
+            config.agent.max_steps = steps
+        if reasoning is not None:
+            config.agent.reasoning = reasoning
+
+        # Device overrides
+        if device is not None:
+            config.device.serial = device
+        if use_tcp is not None:
+            config.device.use_tcp = use_tcp
+
+        # Logging overrides
+        if debug is not None:
+            config.logging.debug = debug
+        if save_trajectory is not None:
+            config.logging.save_trajectory = save_trajectory
+
+        # Tracing overrides
+        if tracing is not None:
+            config.tracing.enabled = tracing
+
+        # Platform overrides
+        if ios:
+            config.device.platform = "ios"
+
+        # ================================================================
+        # STEP 2: Initialize DroidAgent with config
+        # ================================================================
+
+        mode = (
+            "planning with reasoning"
+            if config.agent.reasoning
+            else "direct execution"
+        )
+        logger.info(f"🤖 Agent mode: {mode}")
+        logger.info(
+            f"👁️  Vision settings: Manager={config.agent.manager.vision}, "
+            f"Executor={config.agent.executor.vision}, CodeAct={config.agent.codeact.vision}"
+        )
+
+        if config.tracing.enabled:
+            logger.info("🔍 Tracing enabled")
+
+        # Build DroidAgent kwargs for LLM loading
+        droid_agent_kwargs = {}
+        if temperature is not None:
+            droid_agent_kwargs["temperature"] = temperature
+
+        droid_agent = DroidAgent(
+            goal=command,
+            config=config,
+            timeout=1000,
+            **droid_agent_kwargs,
+        )
+
+        # ================================================================
+        # STEP 3: Run agent
+        # ================================================================
+
+        logger.debug("▶️  Starting agent execution...")
+        logger.debug("Press Ctrl+C to stop")
+
+        event_handler = EventHandler()
+
         try:
-            logger.info(f"🚀 Starting: {command}")
-            print_telemetry_message()
+            handler = droid_agent.run()
 
-            # ================================================================
-            # STEP 1: Apply CLI overrides via direct mutation
-            # ================================================================
+            async for event in handler.stream_events():
+                event_handler.handle(event)
+            result = await handler  # noqa: F841
 
-            # Vision overrides
-            if vision is not None:
-                # --vision flag overrides all agents
-                config.agent.manager.vision = vision
-                config.agent.executor.vision = vision
-                config.agent.codeact.vision = vision
-                logger.debug(f"CLI override: vision={vision} (all agents)")
-
-            # Agent overrides
-            if steps is not None:
-                config.agent.max_steps = steps
-            if reasoning is not None:
-                config.agent.reasoning = reasoning
-
-            # Device overrides
-            if device is not None:
-                config.device.serial = device
-            if use_tcp is not None:
-                config.device.use_tcp = use_tcp
-
-            # Logging overrides
-            if debug is not None:
-                config.logging.debug = debug
-            if save_trajectory is not None:
-                config.logging.save_trajectory = save_trajectory
-
-            # Tracing overrides
-            if tracing is not None:
-                config.tracing.enabled = tracing
-
-            # Platform overrides
-            if ios:
-                config.device.platform = "ios"
-
-            # ================================================================
-            # STEP 2: Initialize DroidAgent with config
-            # ================================================================
-
-            log_handler.update_step("Initializing DroidAgent...")
-
-            mode = (
-                "planning with reasoning"
-                if config.agent.reasoning
-                else "direct execution"
-            )
-            logger.info(f"🤖 Agent mode: {mode}")
-            logger.info(
-                f"👁️  Vision settings: Manager={config.agent.manager.vision}, "
-                f"Executor={config.agent.executor.vision}, CodeAct={config.agent.codeact.vision}"
-            )
-
-            if config.tracing.enabled:
-                logger.info("🔍 Tracing enabled")
-
-            # Build DroidAgent kwargs for LLM loading
-            droid_agent_kwargs = {}
-            if temperature is not None:
-                droid_agent_kwargs["temperature"] = temperature
-
-            droid_agent = DroidAgent(
-                goal=command,
-                config=config,
-                timeout=1000,
-                **droid_agent_kwargs,
-            )
-
-            # ================================================================
-            # STEP 3: Run agent
-            # ================================================================
-
-            logger.debug("▶️  Starting agent execution...")
-            logger.debug("Press Ctrl+C to stop")
-            log_handler.update_step("Running agent...")
-
-            try:
-                handler = droid_agent.run()
-
-                async for event in handler.stream_events():
-                    log_handler.handle_event(event)
-                result = await handler  # noqa: F841
-
-            except KeyboardInterrupt:
-                log_handler.is_completed = True
-                log_handler.is_success = False
-                log_handler.current_step = "Stopped by user"
-                logger.info("⏹️ Stopped by user")
-
-            except Exception as e:
-                log_handler.is_completed = True
-                log_handler.is_success = False
-                log_handler.current_step = f"Error: {e}"
-                logger.error(f"💥 Error: {e}")
-                if config.logging.debug:
-                    import traceback
-
-                    logger.debug(traceback.format_exc())
+        except KeyboardInterrupt:
+            logger.info("⏹️ Stopped by user")
 
         except Exception as e:
-            log_handler.current_step = f"Error: {e}"
-            logger.error(f"💥 Setup error: {e}")
-            debug_mode = debug if debug is not None else config.logging.debug
-            if debug_mode:
+            logger.error(f"💥 Error: {e}")
+            if config.logging.debug:
                 import traceback
 
                 logger.debug(traceback.format_exc())
+
+    except Exception as e:
+        logger.error(f"💥 Setup error: {e}")
+        if debug_mode:
+            import traceback
+
+            logger.debug(traceback.format_exc())
 
 
 if __name__ == "__main__":

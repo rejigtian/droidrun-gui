@@ -1,0 +1,44 @@
+/* _KwargsRow */
+_KwargsRow {
+    height: auto;
+    margin-bottom: 1;
+}
+_KwargsRow Input {
+    width: 1fr;
+    margin-right: 1;
+}
+_KwargsRow .kwarg-key {
+    width: 20;
+}
+_KwargsRow Button {
+    min-width: 3;
+    width: 3;
+}
+
+/* _KwargsEditor */
+_KwargsEditor {
+    height: auto;
+}
+_KwargsEditor .kwargs-add-btn {
+    min-width: 8;
+    margin-top: 1;
+}
+
+/* _ProfileCard */
+_ProfileCard .profile-fields {
+    height: auto;
+}
+_ProfileCard .hidden-field {
+    display: none;
+}
+
+/* ModelsTab */
+ModelsTab #apply-all-btn {
+    color: #60a5fa;
+    min-width: 14;
+    margin-bottom: 1;
+}
+ModelsTab .kwargs-label {
+    color: #52525b;
+    margin-top: 1;
+}

@@ -340,7 +340,7 @@ class CodeActAgent(Workflow):
         chat_messages = to_chat_messages(messages_to_send)
 
         # Call LLM
-        logger.info("[yellow]CodeAct response:[/yellow]")
+        logger.info("CodeAct response:", extra={"color": "yellow"})
         response = await acall_with_retries(
             self.llm, chat_messages, stream=self.agent_config.streaming
         )
@@ -403,7 +403,7 @@ class CodeActAgent(Workflow):
             no_code_text = (
                 "No code was provided. If you want to mark task as complete "
                 "(whether it failed or succeeded), use complete(success: bool, reason: str) "
-                "function within a code block ```python\n```."
+                "function within a <python></python> code block."
             )
             self.shared_state.message_history.append({"role": "user", "content": [{"text": no_code_text}]})
             return CodeActInputEvent()
@@ -414,7 +414,7 @@ class CodeActAgent(Workflow):
     ) -> CodeActOutputEvent | CodeActEndEvent:
         """Execute the code and return result."""
         code = ev.code
-        logger.debug(f"Executing:\n```\n{code}\n```")
+        logger.debug(f"Executing:\n<python>\n{code}\n</python>")
 
         try:
             self.code_exec_counter += 1
@@ -423,7 +423,7 @@ class CodeActAgent(Workflow):
                 code,
                 timeout=self.config.execution_timeout,
             )
-            logger.info("[dim]💡 Execution result:[/dim]")
+            logger.info("💡 Execution result:", extra={"color": "dim"})
             logger.info(f"{result}")
             await asyncio.sleep(self.agent_config.after_sleep_action)
 
@@ -474,7 +474,7 @@ class CodeActAgent(Workflow):
         output = ev.output or "Code executed, but produced no output."
 
         # Add execution output as user message
-        observation_text = f"Execution Result:\n```\n{output}\n```"
+        observation_text = f"Execution Result:\n<result>\n{output}\n</result>"
         self.shared_state.message_history.append({"role": "user", "content": [{"text": observation_text}]})
 
         return CodeActInputEvent()

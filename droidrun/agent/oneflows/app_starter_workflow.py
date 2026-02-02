@@ -77,7 +77,7 @@ Return ONLY a JSON object with the following structure:
 Choose the most appropriate app based on the description. Return the package name of the best match."""
 
         # Get LLM response
-        logger.info("[blue]📱 AppOpener response:[/blue]")
+        logger.info("📱 AppOpener response:", extra={"color": "blue"})
         response = await acomplete_with_retries(self.llm, prompt, stream=self.stream)
         response_text = response.text.strip()
 
