@@ -14,8 +14,6 @@ class StatusBar(Widget):
     device_serial: reactive[str] = reactive("")
     device_name: reactive[str] = reactive("no model")
     mode: reactive[str] = reactive("fast")
-    current_step: reactive[int] = reactive(0)
-    max_steps: reactive[int] = reactive(15)
     is_running: reactive[bool] = reactive(False)
     hint: reactive[str] = reactive("")
 
@@ -39,11 +37,6 @@ class StatusBar(Widget):
 
         # Mode
         bar.append(self.mode, style="#CAD3F6")
-
-        # Steps
-        if self.is_running and self.max_steps > 0:
-            bar.append("  \u2502  ", style="#2e2e4a")
-            bar.append(f"{self.current_step}/{self.max_steps}", style="#f5a97f")
 
         # Right-aligned hint
         if self.hint:

@@ -95,20 +95,14 @@ class EventHandler:
                 logger.debug(f"❌ {event.summary} ({error_msg})", extra={"color": "red"})
 
         elif isinstance(event, ExecutorResultEvent):
-            logger.debug(
-                "Step complete",
-                extra={"step_increment": True, "color": "magenta"},
-            )
+            logger.debug("Step complete", extra={"color": "magenta"})
 
         # ── CodeAct events (direct mode) ────────────────────────────
         elif isinstance(event, CodeActInputEvent):
             logger.debug("💬 Task input received...")
 
         elif isinstance(event, CodeActResponseEvent):
-            logger.debug(
-                "CodeAct response",
-                extra={"step_increment": True, "color": "magenta"},
-            )
+            logger.debug("CodeAct response", extra={"color": "magenta"})
             if event.thought:
                 preview = event.thought[:150] + "..." if len(event.thought) > 150 else event.thought
                 logger.debug(f"🧠 Thinking: {preview}", extra={"color": "cyan"})

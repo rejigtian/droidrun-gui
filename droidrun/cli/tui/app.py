@@ -121,7 +121,6 @@ class DroidrunTUI(App):
             model_display = "no model"
         status.device_name = model_display
         status.mode = "reasoning" if self.reasoning else "fast"
-        status.max_steps = self.settings.max_steps
 
     def _update_hint(self) -> None:
         status = self.query_one("#status-bar", StatusBar)
@@ -580,16 +579,9 @@ class DroidrunTUI(App):
         log.append("")
 
         status.is_running = True
-        status.current_step = 0
 
-        # Set up TUI logging handler with step-increment and record callbacks
-        _step_count = 0
+        # Set up TUI logging handler
         _stream_buf: list[str] = []
-
-        def _on_step():
-            nonlocal _step_count
-            _step_count += 1
-            status.current_step = _step_count
 
         def _on_record(rec: dict) -> None:
             style = COLOR_HEX.get(rec.get("color")) or DEFAULT_LOG_STYLE
@@ -606,7 +598,7 @@ class DroidrunTUI(App):
                     _stream_buf.clear()
                 log.append(f"  {rec['msg']}", style=style)
 
-        tui_handler = TUILogHandler(on_step=_on_step, on_record=_on_record)
+        tui_handler = TUILogHandler(on_record=_on_record)
         configure_logging(debug=self._debug_logs, handler=tui_handler)
         event_handler = EventHandler()
         success = False

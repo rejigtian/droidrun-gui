@@ -4,10 +4,9 @@ Logging handlers for DroidRun.
 Provides CLILogHandler (Rich colored terminal output) and TUILogHandler
 (record buffer for deferred Textual rendering). Both support extra params:
 
-    color:          logger.info("msg", extra={"color": "blue"})
-    stream:         logger.info(token, extra={"stream": True})
-    stream_end:     logger.info("", extra={"stream_end": True})
-    step_increment: logger.debug("...", extra={"step_increment": True})
+    color:      logger.info("msg", extra={"color": "blue"})
+    stream:     logger.info(token, extra={"stream": True})
+    stream_end: logger.info("", extra={"stream_end": True})
 """
 
 import logging
@@ -57,13 +56,11 @@ class TUILogHandler(logging.Handler):
     """Captures log records for TUI rendering.
 
     Args:
-        on_step: Optional callback invoked when a step-increment record arrives.
         on_record: Optional callback invoked for every record with the record dict.
     """
 
-    def __init__(self, on_step=None, on_record=None, level: int = logging.NOTSET) -> None:
+    def __init__(self, on_record=None, level: int = logging.NOTSET) -> None:
         super().__init__(level)
-        self.on_step = on_step
         self.on_record = on_record
         self.records: list[dict] = []
 
@@ -73,7 +70,6 @@ class TUILogHandler(logging.Handler):
             color = getattr(record, "color", None)
             stream = getattr(record, "stream", False)
             stream_end = getattr(record, "stream_end", False)
-            step_increment = getattr(record, "step_increment", False)
 
             rec = {
                 "msg": msg,
@@ -86,8 +82,5 @@ class TUILogHandler(logging.Handler):
 
             if self.on_record:
                 self.on_record(rec)
-
-            if step_increment and self.on_step:
-                self.on_step()
         except Exception:
             self.handleError(record)
