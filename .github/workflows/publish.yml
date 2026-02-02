@@ -2,8 +2,27 @@ name: Publish Python 🐍 distribution 📦 to PyPI and TestPyPI
 on: push
 
 jobs:
+  version-check:
+    name: Check version matches tag
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Compare tag to pyproject.toml version
+      run: |
+        TAG="${GITHUB_REF#refs/tags/v}"
+        VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml)
+        if [ "$TAG" != "$VERSION" ]; then
+          echo "::error::Tag v$TAG does not match pyproject.toml version $VERSION"
+          exit 1
+        fi
+        echo "Version check passed: v$VERSION"
+
   build:
     name: Build distribution 📦
+    needs:
+    - version-check
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -29,7 +48,6 @@ jobs:
 
   publish-to-testpypi:
     name: Publish Python 🐍 distribution 📦 to TestPyPI
-    # Only runs on tags
     if: startsWith(github.ref, 'refs/tags/v')
     needs:
     - build
@@ -53,14 +71,13 @@ jobs:
   publish-to-pypi:
     name: >-
       Publish Python 🐍 distribution 📦 to PyPI
-    # Only runs on production tags (v*)
     if: startsWith(github.ref, 'refs/tags/v')
     needs:
     - build
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/droidrun 
+      url: https://pypi.org/p/droidrun
     permissions:
       id-token: write
     steps:
