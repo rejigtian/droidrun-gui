@@ -495,12 +495,10 @@ async def fix_enable_accessibility(device: AdbDevice, debug: bool) -> bool:
 
 async def run_doctor(
     device_serial: str | None = None,
-    tcp: bool | None = None,
     debug: bool = False,
 ) -> None:
     """Run all doctor checks and auto-fix where possible."""
     debug = debug or False
-    use_tcp = tcp if tcp is not None else False
 
     console.print("\n[bold]DroidRun Doctor[/]\n")
 
@@ -515,10 +513,6 @@ async def run_doctor(
     r_config, config = await check_config(debug)
     _print_result(r_config, debug)
     results.append(r_config)
-
-    # Load use_tcp from config if not explicitly set
-    if tcp is None and config:
-        use_tcp = getattr(getattr(config, "device", None), "use_tcp", False) or False
 
     # Load serial from config if not provided
     if device_serial is None and config:
