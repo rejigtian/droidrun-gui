@@ -66,6 +66,7 @@ class DroidrunTUI(App):
 
         self.reasoning: bool = False
         self.device_serial: str = ""
+        self._pending_input: str | None = None  # e.g. "steps" — next submit goes to handler
 
         # Load settings from user config
         try:
@@ -211,11 +212,15 @@ class DroidrunTUI(App):
     def on_input_bar_submitted(self, message: InputBar.Submitted) -> None:
         text = message.value.strip()
         if not text:
+            if self._pending_input:
+                self._cancel_pending_input()
             return
 
         self._hide_dropdown()
 
-        if text.startswith("/"):
+        if self._pending_input:
+            self._handle_pending_input(text)
+        elif text.startswith("/"):
             self._handle_slash_command(text[1:])
         else:
             self.run_worker(self._execute_command(text), exclusive=True)
@@ -290,9 +295,92 @@ class DroidrunTUI(App):
 
         handler = getattr(self, cmd.handler, None)
         if handler:
-            handler()
+            args = parts[1:]
+            handler(*args) if args else handler()
+
+    # ── Pending input ──
+
+    def _start_pending_input(self, kind: str, prompt: str, placeholder: str = "") -> None:
+        self._pending_input = kind
+        picker = self.query_one("#device-picker", DevicePicker)
+        picker.set_status(prompt)
+        self.query_one("#device-picker").remove_class("hidden")
+        self.query_one("#status-bar").add_class("hidden")
+        input_bar = self.query_one("#input-bar", InputBar)
+        input_bar.placeholder = placeholder
+        input_bar.focus()
+
+    def _cancel_pending_input(self) -> None:
+        self._pending_input = None
+        self.query_one("#device-picker").add_class("hidden")
+        self.query_one("#status-bar").remove_class("hidden")
+        input_bar = self.query_one("#input-bar", InputBar)
+        input_bar.placeholder = "Type a command or / for options"
+        input_bar.focus()
+
+    def _handle_pending_input(self, text: str) -> None:
+        kind = self._pending_input
+        self._cancel_pending_input()
+
+        if kind == "steps":
+            self._apply_steps(text)
 
     # ── Command handlers ──
+
+    def action_toggle_debug(self) -> None:
+        self.settings.debug = not self.settings.debug
+        self._show_logs()
+        log = self.query_one("#log-display", LogView)
+        state = "on" if self.settings.debug else "off"
+        log.append(f"  debug logging {state}")
+
+    def action_show_help(self) -> None:
+        self._show_logs()
+        log = self.query_one("#log-display", LogView)
+        log.append("")
+        log.append("  commands", style="#CAD3F6")
+        log.append("    /config       open settings")
+        log.append("    /devices      select device")
+        log.append("    /steps [n]    set max steps")
+        log.append("    /debug        toggle debug logging")
+        log.append("    /copy         copy log to clipboard")
+        log.append("    /clear        clear log output")
+        log.append("")
+        log.append("  keys", style="#CAD3F6")
+        log.append("    tab           toggle reasoning/fast mode")
+        log.append("    up/down       command history")
+        log.append("    ctrl+l        clear logs")
+        log.append("    ctrl+shift+c  copy logs")
+        log.append("    esc           stop running agent")
+        log.append("    double esc    clear input")
+        log.append("    ctrl+c ×2     quit")
+        log.append("")
+
+    def action_set_steps(self, *args: str) -> None:
+        if args:
+            self._apply_steps(args[0])
+        else:
+            self._start_pending_input(
+                "steps",
+                f"How many steps should the agent take? (current: {self.settings.max_steps})",
+                placeholder="Enter number of steps",
+            )
+
+    def _apply_steps(self, value: str) -> None:
+        try:
+            n = int(value)
+            if n < 1:
+                raise ValueError
+        except (ValueError, TypeError):
+            self._show_logs()
+            log = self.query_one("#log-display", LogView)
+            log.append(f"  invalid steps: {value}")
+            return
+
+        self.settings.max_steps = n
+        self._show_logs()
+        log = self.query_one("#log-display", LogView)
+        log.append(f"  max steps set to {n}")
 
     def action_open_config(self) -> None:
         modal = SettingsScreen(self.settings)
@@ -566,6 +654,10 @@ class DroidrunTUI(App):
     # ── Esc handling ──
 
     def action_handle_esc(self) -> None:
+        if self._pending_input:
+            self._cancel_pending_input()
+            return
+
         if self._device_pick_visible:
             self._hide_device_picker()
             return
