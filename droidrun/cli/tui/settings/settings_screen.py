@@ -72,6 +72,7 @@ class SettingsScreen(ModalScreen[SettingsData | None]):
             codeact_vision=agent["codeact_vision"],
             max_steps=max_steps,
             use_tcp=advanced["use_tcp"],
+            debug=advanced["debug"],
             save_trajectory=advanced["save_trajectory"],
             trajectory_gifs=advanced["trajectory_gifs"],
             tracing_enabled=advanced["tracing_enabled"],

@@ -33,6 +33,10 @@ class AdvancedTab(VerticalGroup):
 
         with Section("Logging"):
             with HorizontalGroup(classes="field-row"):
+                yield Label("Debug", classes="field-label")
+                yield BoolToggle(value=self.settings.debug, id="debug-logging")
+
+            with HorizontalGroup(classes="field-row"):
                 yield Label("Trajectory", classes="field-label")
                 yield BoolToggle(value=self.settings.save_trajectory, id="save-trajectory")
 
@@ -131,6 +135,7 @@ class AdvancedTab(VerticalGroup):
 
         return {
             "use_tcp": self.query_one("#use-tcp", BoolToggle).value,
+            "debug": self.query_one("#debug-logging", BoolToggle).value,
             "save_trajectory": self.query_one("#save-trajectory", BoolToggle).value,
             "trajectory_gifs": self.query_one("#trajectory-gifs", BoolToggle).value,
             "tracing_enabled": self.query_one("#tracing-enabled", BoolToggle).value,

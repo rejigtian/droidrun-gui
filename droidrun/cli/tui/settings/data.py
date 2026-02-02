@@ -72,6 +72,7 @@ class SettingsData:
 
     # Advanced
     use_tcp: bool = False
+    debug: bool = False
     save_trajectory: bool = False
     trajectory_gifs: bool = True
     tracing_enabled: bool = False
@@ -136,6 +137,7 @@ class SettingsData:
             codeact_vision=config.agent.codeact.vision,
             max_steps=config.agent.max_steps,
             use_tcp=config.device.use_tcp,
+            debug=config.logging.debug,
             save_trajectory=config.logging.save_trajectory != "none",
             trajectory_gifs=config.logging.trajectory_gifs,
             tracing_enabled=config.tracing.enabled,
@@ -245,6 +247,7 @@ class SettingsData:
         config.device.use_tcp = self.use_tcp
 
         # Logging
+        config.logging.debug = self.debug
         config.logging.save_trajectory = "action" if self.save_trajectory else "none"
         config.logging.trajectory_gifs = self.trajectory_gifs
 

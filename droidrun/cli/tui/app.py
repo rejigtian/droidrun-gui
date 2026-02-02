@@ -66,7 +66,6 @@ class DroidrunTUI(App):
 
         self.reasoning: bool = False
         self.device_serial: str = ""
-        self._debug_logs: bool = False
 
         # Load settings from user config
         try:
@@ -148,7 +147,7 @@ class DroidrunTUI(App):
     # ── Debug ──
 
     def _dbg(self, msg: str) -> None:
-        if not self._debug_logs:
+        if not self.settings.debug:
             return
         ts = time.strftime("%H:%M:%S", time.localtime())
         ms = f"{time.time() % 1:.3f}"[1:]  # .XXX
@@ -599,7 +598,7 @@ class DroidrunTUI(App):
                 log.append(f"  {rec['msg']}", style=style)
 
         tui_handler = TUILogHandler(on_record=_on_record)
-        configure_logging(debug=self._debug_logs, handler=tui_handler)
+        configure_logging(debug=self.settings.debug, handler=tui_handler)
         event_handler = EventHandler()
         success = False
 
@@ -608,7 +607,6 @@ class DroidrunTUI(App):
             from droidrun.config_manager import ConfigLoader
 
             config = ConfigLoader.load()
-            config.logging.debug = True
 
             # Apply settings to config
             self.settings.apply_to_config(config)
