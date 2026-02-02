@@ -16,7 +16,9 @@ class Command:
 
 
 COMMANDS: list[Command] = [
-    Command("config", "Configure agent settings", "action_open_config", aliases=["settings"]),
+    Command(
+        "config", "Configure agent settings", "action_open_config", aliases=["settings"]
+    ),
     Command("copy", "Copy log to clipboard", "action_copy_logs"),
     Command("debug", "Toggle debug logging", "action_toggle_debug"),
     Command("devices", "Select connected device", "action_open_device"),

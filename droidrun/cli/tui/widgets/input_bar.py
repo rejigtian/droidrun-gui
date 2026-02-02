@@ -24,10 +24,12 @@ class InputBar(Input):
 
     class SlashSelect(Message):
         """Enter pressed while dropdown is visible."""
+
         pass
 
     class SlashNavigate(Message):
         """Up/Down pressed while dropdown is visible."""
+
         def __init__(self, direction: int) -> None:
             super().__init__()
             self.direction = direction

@@ -107,13 +107,15 @@ def filter_empty_messages(messages: list[dict]) -> list[dict]:
     return [msg for msg in messages if has_content(msg)]
 
 
-def limit_history(messages: list[dict], max_messages: int, preserve_first: bool = True) -> list[dict]:
+def limit_history(
+    messages: list[dict], max_messages: int, preserve_first: bool = True
+) -> list[dict]:
     if len(messages) <= max_messages:
         return messages
 
     if preserve_first and messages:
         first = messages[0]
-        tail = messages[-max_messages + 1:]
+        tail = messages[-max_messages + 1 :]
         if first not in tail:
             return [first] + tail
         return tail

@@ -32,7 +32,12 @@ class _KwargsRow(HorizontalGroup):
         self._row_id = row_id
 
     def compose(self) -> ComposeResult:
-        yield Input(value=self._key, placeholder="key", classes="kwarg-key", id=f"kk-{self._row_id}")
+        yield Input(
+            value=self._key,
+            placeholder="key",
+            classes="kwarg-key",
+            id=f"kk-{self._row_id}",
+        )
         yield Input(value=self._value, placeholder="value", id=f"kv-{self._row_id}")
         yield Button("×", id=f"kr-{self._row_id}")
 

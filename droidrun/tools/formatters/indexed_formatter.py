@@ -75,9 +75,7 @@ class IndexedFormatter(TreeFormatter):
                 f"Current Clickable UI elements{coord_note}:\n{schema}:\n{formatted_ui}"
             )
         else:
-            ui_elements_text = (
-                f"Current Clickable UI elements{coord_note}:\n{schema}:\nNo UI elements found"
-            )
+            ui_elements_text = f"Current Clickable UI elements{coord_note}:\n{schema}:\nNo UI elements found"
         return ui_elements_text
 
     @staticmethod
@@ -153,7 +151,9 @@ class IndexedFormatter(TreeFormatter):
         bounds_str = f"{bounds.get('left', 0)},{bounds.get('top', 0)},{bounds.get('right', 0)},{bounds.get('bottom', 0)}"
 
         if self.use_normalized and self.screen_width and self.screen_height:
-            bounds_str = bounds_to_normalized(bounds_str, self.screen_width, self.screen_height)
+            bounds_str = bounds_to_normalized(
+                bounds_str, self.screen_width, self.screen_height
+            )
 
         text = (
             node.get("text")

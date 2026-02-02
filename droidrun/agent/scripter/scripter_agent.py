@@ -306,7 +306,9 @@ class ScripterAgent(Workflow):
         self.message_history.append(
             {
                 "role": "user",
-                "content": [{"text": f"Execution Result:\n<result>\n{output}\n</result>"}],
+                "content": [
+                    {"text": f"Execution Result:\n<result>\n{output}\n</result>"}
+                ],
             }
         )
 

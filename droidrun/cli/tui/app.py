@@ -15,18 +15,24 @@ from droidrun.cli.tui.commands import match_commands, resolve_command
 from droidrun.cli.event_handler import EventHandler
 from droidrun.log_handlers import TUILogHandler, configure_logging
 from droidrun.cli.tui.settings import SettingsData, SettingsScreen
-from droidrun.cli.tui.widgets import InputBar, CommandDropdown, DevicePicker, LogView, StatusBar
+from droidrun.cli.tui.widgets import (
+    InputBar,
+    CommandDropdown,
+    DevicePicker,
+    LogView,
+    StatusBar,
+)
 
 # Map basic color names (from EventHandler) to TUI hex palette
 COLOR_HEX = {
-    "blue":    "#b7bdf8",
-    "cyan":    "#CAD3F6",
-    "green":   "#a6da95",
-    "red":     "#ed8796",
-    "yellow":  "#f5a97f",
+    "blue": "#b7bdf8",
+    "cyan": "#CAD3F6",
+    "green": "#a6da95",
+    "red": "#ed8796",
+    "yellow": "#f5a97f",
     "magenta": "#838BBC",
-    "white":   "#a1a1aa",
-    "dim":     "#71717a",
+    "white": "#a1a1aa",
+    "dim": "#71717a",
 }
 DEFAULT_LOG_STYLE = "#a1a1aa"
 
@@ -68,11 +74,14 @@ class DroidrunTUI(App):
         self.reasoning: bool = False
         self.device_serial: str = ""
         self._device_connected: bool = False  # tracks portal health
-        self._pending_input: str | None = None  # e.g. "steps" — next submit goes to handler
+        self._pending_input: str | None = (
+            None  # e.g. "steps" — next submit goes to handler
+        )
 
         # Load settings from user config
         try:
             from droidrun.config_manager import ConfigLoader
+
             config = ConfigLoader.load()
             self.settings = SettingsData.from_config(config)
             self._config_serial = config.device.serial or ""
@@ -220,7 +229,9 @@ class DroidrunTUI(App):
                 # Was connected, now lost
                 self._device_connected = False
                 self._sync_status_bar()
-                logger.warning(f"Device disconnected: {serial}", extra={"color": "yellow"})
+                logger.warning(
+                    f"Device disconnected: {serial}", extra={"color": "yellow"}
+                )
 
             # Try to reconnect
             try:
@@ -351,7 +362,9 @@ class DroidrunTUI(App):
 
     # ── Pending input ──
 
-    def _start_pending_input(self, kind: str, prompt: str, placeholder: str = "") -> None:
+    def _start_pending_input(
+        self, kind: str, prompt: str, placeholder: str = ""
+    ) -> None:
         self._pending_input = kind
         picker = self.query_one("#device-picker", DevicePicker)
         picker.set_status(prompt)
@@ -520,13 +533,17 @@ class DroidrunTUI(App):
         input_bar.disabled = False
         input_bar.focus()
 
-    def on_device_picker_device_selected(self, message: DevicePicker.DeviceSelected) -> None:
+    def on_device_picker_device_selected(
+        self, message: DevicePicker.DeviceSelected
+    ) -> None:
         self._dbg(f"device_selected serial={message.serial}")
         picker = self.query_one("#device-picker", DevicePicker)
         picker.set_status("checking portal...")
         self.run_worker(self._check_device(message.serial), exclusive=True)
 
-    def on_device_picker_option_selected(self, message: DevicePicker.OptionSelected) -> None:
+    def on_device_picker_option_selected(
+        self, message: DevicePicker.OptionSelected
+    ) -> None:
         self._dbg(f"option_selected id={message.option_id} serial={message.serial}")
         picker = self.query_one("#device-picker", DevicePicker)
         if message.option_id == "setup":
@@ -554,7 +571,9 @@ class DroidrunTUI(App):
         result = await portal.ping()
 
         status = result.get("status")
-        self._dbg(f"verify_portal serial={serial} tcp={portal.tcp_available} status={status}")
+        self._dbg(
+            f"verify_portal serial={serial} tcp={portal.tcp_available} status={status}"
+        )
 
         if status != "success":
             raise Exception(result.get("message", "portal not responding"))
@@ -580,10 +599,14 @@ class DroidrunTUI(App):
 
         except Exception as e:
             self._dbg(f"_check_device failed: {e}")
-            picker.set_options(serial, "DroidRun Portal is not set up on this device", [
-                ("setup", "Auto-install and set up DroidRun Portal"),
-                ("back", "Back to devices"),
-            ])
+            picker.set_options(
+                serial,
+                "DroidRun Portal is not set up on this device",
+                [
+                    ("setup", "Auto-install and set up DroidRun Portal"),
+                    ("back", "Back to devices"),
+                ],
+            )
 
     async def _run_device_setup(self, serial: str) -> None:
         self._dbg(f"_run_device_setup ENTER serial={serial}")
@@ -619,10 +642,13 @@ class DroidrunTUI(App):
             # Determine APK version (blocking HTTP call)
             log.append("  checking compatible version...")
             from droidrun import __version__
+
             portal_version, download_base, mapping_fetched = await asyncio.to_thread(
                 get_compatible_portal_version, __version__
             )
-            self._dbg(f"_run_device_setup version={portal_version} fetched={mapping_fetched}")
+            self._dbg(
+                f"_run_device_setup version={portal_version} fetched={mapping_fetched}"
+            )
 
             # Build download URL
             if portal_version:
@@ -634,13 +660,18 @@ class DroidrunTUI(App):
                 log.append("  downloading latest portal...")
 
                 from droidrun.portal import get_latest_release_assets
+
                 assets = await asyncio.to_thread(get_latest_release_assets)
                 url = None
                 for asset in assets:
-                    if "browser_download_url" in asset and asset.get("name", "").startswith(ASSET_NAME):
+                    if "browser_download_url" in asset and asset.get(
+                        "name", ""
+                    ).startswith(ASSET_NAME):
                         url = asset["browser_download_url"]
                         break
-                    elif "downloadUrl" in asset and os.path.basename(asset["downloadUrl"]).startswith(ASSET_NAME):
+                    elif "downloadUrl" in asset and os.path.basename(
+                        asset["downloadUrl"]
+                    ).startswith(ASSET_NAME):
                         url = asset["downloadUrl"]
                         break
                 if not url:
@@ -692,6 +723,7 @@ class DroidrunTUI(App):
         except Exception as e:
             self._dbg(f"_run_device_setup FAILED: {type(e).__name__}: {e}")
             import traceback
+
             for line in traceback.format_exc().splitlines():
                 if line.strip():
                     self._dbg(f"  {line}")
@@ -701,10 +733,14 @@ class DroidrunTUI(App):
             # Re-show picker with retry options
             picker = self.query_one("#device-picker", DevicePicker)
             self._show_device_picker()
-            picker.set_options(serial, f"setup failed: {e}", [
-                ("setup", "Retry setup"),
-                ("back", "Back to devices"),
-            ])
+            picker.set_options(
+                serial,
+                f"setup failed: {e}",
+                [
+                    ("setup", "Retry setup"),
+                    ("back", "Back to devices"),
+                ],
+            )
 
         else:
             # Re-enable input only on success
@@ -715,6 +751,7 @@ class DroidrunTUI(App):
         finally:
             if apk_tmp:
                 import os
+
                 if os.path.exists(apk_tmp):
                     os.unlink(apk_tmp)
             status.hint = ""
@@ -843,7 +880,10 @@ class DroidrunTUI(App):
             log.append("  initializing...", style="#838BBC")
             first_profile = next(iter(self.settings.profiles.values()), None)
             if first_profile:
-                log.append(f"  {first_profile.provider} \u2022 {first_profile.model}", style="#838BBC")
+                log.append(
+                    f"  {first_profile.provider} \u2022 {first_profile.model}",
+                    style="#838BBC",
+                )
 
             # DroidAgent loads LLMs from config.llm_profiles via load_agent_llms
             droid_agent = DroidAgent(
@@ -871,6 +911,7 @@ class DroidrunTUI(App):
         except Exception as e:
             log.append(f"\n  error: {e}", style="#ed8796")
             import traceback
+
             for line in traceback.format_exc().split("\n"):
                 if line.strip():
                     log.append(f"  {line}", style="#ed8796")

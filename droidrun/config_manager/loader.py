@@ -15,6 +15,7 @@ from .migrations import CURRENT_VERSION, migrate
 
 class OutdatedConfigError(Exception):
     """Raised when user config is missing _version field."""
+
     pass
 
 

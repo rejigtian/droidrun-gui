@@ -53,13 +53,17 @@ def _version_in_range(version: str, range_str: str) -> bool:
         return False
 
 
-def get_compatible_portal_version(droidrun_version: str, debug: bool = False) -> tuple[str | None, str, bool]:
+def get_compatible_portal_version(
+    droidrun_version: str, debug: bool = False
+) -> tuple[str | None, str, bool]:
     mapping = get_version_mapping(debug)
     if mapping is None:
         return (None, "", False)
 
     mappings = mapping.get("mappings", {})
-    download_base = mapping.get("download_base", "https://github.com/droidrun/droidrun-portal/releases/download")
+    download_base = mapping.get(
+        "download_base", "https://github.com/droidrun/droidrun-portal/releases/download"
+    )
 
     # Try exact match first
     if droidrun_version in mappings:
@@ -74,7 +78,9 @@ def get_compatible_portal_version(droidrun_version: str, debug: bool = False) ->
 
 
 @contextlib.contextmanager
-def download_versioned_portal_apk(version: str, download_base: str, debug: bool = False):
+def download_versioned_portal_apk(
+    version: str, download_base: str, debug: bool = False
+):
     """Download a specific Portal APK version."""
     console = Console()
     asset_url = f"{download_base}/{version}/{ASSET_NAME}-{version}.apk"

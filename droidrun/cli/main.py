@@ -192,9 +192,7 @@ async def run_command(
         # ================================================================
 
         mode = (
-            "planning with reasoning"
-            if config.agent.reasoning
-            else "direct execution"
+            "planning with reasoning" if config.agent.reasoning else "direct execution"
         )
         logger.info(f"🤖 Agent mode: {mode}")
         logger.info(
@@ -523,7 +521,13 @@ async def disconnect(serial: str):
         console.print(f"[red]Error disconnecting from device: {e}[/]")
 
 
-async def _setup_portal(path: str | None, device: str | None, debug: bool, latest: bool = False, specific_version: str | None = None):
+async def _setup_portal(
+    path: str | None,
+    device: str | None,
+    debug: bool,
+    latest: bool = False,
+    specific_version: str | None = None,
+):
     """Internal async function to install and enable the DroidRun Portal on a device."""
     try:
         if not device:
@@ -548,20 +552,29 @@ async def _setup_portal(path: str | None, device: str | None, debug: bool, lates
         elif specific_version:
             version = specific_version.lstrip("v")
             version = f"v{version}"
-            download_base = "https://github.com/droidrun/droidrun-portal/releases/download"
+            download_base = (
+                "https://github.com/droidrun/droidrun-portal/releases/download"
+            )
             apk_context = download_versioned_portal_apk(version, download_base, debug)
         elif latest:
             console.print("[bold blue]Downloading latest Portal APK...[/]")
             apk_context = download_portal_apk(debug)
         else:
             from droidrun import __version__
-            portal_version, download_base, mapping_fetched = get_compatible_portal_version(__version__, debug)
+
+            portal_version, download_base, mapping_fetched = (
+                get_compatible_portal_version(__version__, debug)
+            )
 
             if portal_version:
-                apk_context = download_versioned_portal_apk(portal_version, download_base, debug)
+                apk_context = download_versioned_portal_apk(
+                    portal_version, download_base, debug
+                )
             else:
                 if not mapping_fetched:
-                    console.print("[yellow]Could not fetch version mapping, falling back to latest...[/]")
+                    console.print(
+                        "[yellow]Could not fetch version mapping, falling back to latest...[/]"
+                    )
                 apk_context = download_portal_apk(debug)
 
         with apk_context as apk_path:
@@ -635,18 +648,28 @@ async def _setup_portal(path: str | None, device: str | None, debug: bool, lates
     default=None,
 )
 @click.option(
-    "--portal-version", "-pv",
+    "--portal-version",
+    "-pv",
     help="Specific Portal version to install (e.g., 0.4.7)",
     default=None,
 )
 @click.option(
-    "--latest", is_flag=True, help="Install latest Portal instead of compatible version", default=False
+    "--latest",
+    is_flag=True,
+    help="Install latest Portal instead of compatible version",
+    default=False,
 )
 @click.option(
     "--debug", is_flag=True, help="Enable verbose debug logging", default=False
 )
 @coro
-async def setup(path: str | None, device: str | None, portal_version: str | None, latest: bool, debug: bool):
+async def setup(
+    path: str | None,
+    device: str | None,
+    portal_version: str | None,
+    latest: bool,
+    debug: bool,
+):
     """Install and enable the DroidRun Portal on a device."""
     await _setup_portal(path, device, debug, latest, portal_version)
 
@@ -693,6 +716,7 @@ async def ping(device: str | None, tcp: bool | None, debug: bool | None):
 # Add macro commands as a subgroup
 cli.add_command(macro_cli, name="macro")
 
+
 @cli.command()
 @click.option("--device", "-d", help="Device serial number or IP address", default=None)
 @click.option("--debug/--no-debug", default=None, help="Enable verbose debug output")
@@ -700,6 +724,7 @@ cli.add_command(macro_cli, name="macro")
 async def doctor(device: str | None, debug: bool | None):
     """Check system health and diagnose issues."""
     from droidrun.cli.doctor import run_doctor
+
     await run_doctor(device, debug if debug is not None else False)
 
 
@@ -779,9 +804,7 @@ async def test(
         # ================================================================
 
         mode = (
-            "planning with reasoning"
-            if config.agent.reasoning
-            else "direct execution"
+            "planning with reasoning" if config.agent.reasoning else "direct execution"
         )
         logger.info(f"🤖 Agent mode: {mode}")
         logger.info(

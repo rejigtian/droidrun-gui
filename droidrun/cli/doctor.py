@@ -84,7 +84,9 @@ async def check_sdk_version(debug: bool) -> CheckResult:
                 data = resp.json()
                 # Handle both GitHub API formats
                 if "release" in data:
-                    tag = data["release"].get("tag", data["release"].get("tag_name", ""))
+                    tag = data["release"].get(
+                        "tag", data["release"].get("tag_name", "")
+                    )
                 else:
                     tag = data.get("tag_name", "")
                 latest = tag.lstrip("v")
@@ -94,7 +96,9 @@ async def check_sdk_version(debug: bool) -> CheckResult:
 
     if latest is None:
         return CheckResult(
-            "SDK Version", Status.WARN, f"{current} (could not check latest)",
+            "SDK Version",
+            Status.WARN,
+            f"{current} (could not check latest)",
             detail="GitHub API unreachable",
         )
 
@@ -103,7 +107,8 @@ async def check_sdk_version(debug: bool) -> CheckResult:
 
     if current_t < latest_t:
         return CheckResult(
-            "SDK Version", Status.WARN,
+            "SDK Version",
+            Status.WARN,
             f"{current} (latest: {latest})",
             detail="pip install --upgrade droidrun",
         )
@@ -122,29 +127,48 @@ async def check_config(debug: bool) -> tuple[CheckResult, Any]:
         # Will be created on first load
         try:
             config = ConfigLoader.load()
-            return CheckResult(
-                "Config", Status.PASS, f"{config_path} (created)",
-            ), config
+            return (
+                CheckResult(
+                    "Config",
+                    Status.PASS,
+                    f"{config_path} (created)",
+                ),
+                config,
+            )
         except Exception as e:
-            return CheckResult(
-                "Config", Status.FAIL, "failed to create default config",
-                detail=str(e),
-            ), None
+            return (
+                CheckResult(
+                    "Config",
+                    Status.FAIL,
+                    "failed to create default config",
+                    detail=str(e),
+                ),
+                None,
+            )
 
     try:
         config = ConfigLoader.load()
         return CheckResult("Config", Status.PASS, str(config_path)), config
     except OutdatedConfigError:
-        return CheckResult(
-            "Config", Status.FAIL, f"{config_path} (outdated, missing _version)",
-            detail="See: droidrun config_example.yaml",
-        ), None
+        return (
+            CheckResult(
+                "Config",
+                Status.FAIL,
+                f"{config_path} (outdated, missing _version)",
+                detail="See: droidrun config_example.yaml",
+            ),
+            None,
+        )
     except Exception as e:
-        return CheckResult(
-            "Config", Status.FAIL, f"failed to load: {e}",
-            detail=str(config_path),
-        ), None
-
+        return (
+            CheckResult(
+                "Config",
+                Status.FAIL,
+                f"failed to load: {e}",
+                detail=str(config_path),
+            ),
+            None,
+        )
 
 
 async def check_adb(debug: bool) -> CheckResult:
@@ -152,7 +176,9 @@ async def check_adb(debug: bool) -> CheckResult:
     adb_path = shutil.which("adb")
     if not adb_path:
         return CheckResult(
-            "ADB", Status.FAIL, "adb not found in PATH",
+            "ADB",
+            Status.FAIL,
+            "adb not found in PATH",
             detail="Install Android SDK Platform Tools",
         )
 
@@ -160,29 +186,45 @@ async def check_adb(debug: bool) -> CheckResult:
         devices = await adb.list()
         count = len(devices)
         return CheckResult(
-            "ADB", Status.PASS, f"found, {count} device(s)",
+            "ADB",
+            Status.PASS,
+            f"found, {count} device(s)",
             detail=adb_path,
         )
     except Exception as e:
         return CheckResult(
-            "ADB", Status.FAIL, f"adb found but server error: {e}",
+            "ADB",
+            Status.FAIL,
+            f"adb found but server error: {e}",
             detail=adb_path,
         )
 
 
-async def check_device(serial: str | None, debug: bool) -> tuple[CheckResult, AdbDevice | None]:
+async def check_device(
+    serial: str | None, debug: bool
+) -> tuple[CheckResult, AdbDevice | None]:
     """Check device connection."""
     try:
         device = await adb.device(serial)
         state = await device.get_state()
         if state == "device":
-            return CheckResult(
-                "Device", Status.PASS, f"{device.serial} (online)",
-            ), device
+            return (
+                CheckResult(
+                    "Device",
+                    Status.PASS,
+                    f"{device.serial} (online)",
+                ),
+                device,
+            )
         else:
-            return CheckResult(
-                "Device", Status.FAIL, f"{device.serial} (state: {state})",
-            ), None
+            return (
+                CheckResult(
+                    "Device",
+                    Status.FAIL,
+                    f"{device.serial} (state: {state})",
+                ),
+                None,
+            )
     except Exception as e:
         msg = str(e)
         if "no devices" in msg.lower() or "not found" in msg.lower():
@@ -190,7 +232,9 @@ async def check_device(serial: str | None, debug: bool) -> tuple[CheckResult, Ad
         return CheckResult("Device", Status.FAIL, str(e)), None
 
 
-async def check_portal_installed(device: AdbDevice, debug: bool) -> tuple[CheckResult, bool]:
+async def check_portal_installed(
+    device: AdbDevice, debug: bool
+) -> tuple[CheckResult, bool]:
     """Check if Portal APK is installed. Returns (result, is_installed)."""
     try:
         packages = await device.list_packages()
@@ -211,7 +255,9 @@ def _get_latest_portal_version() -> str | None:
             if resp.status_code == 200:
                 data = resp.json()
                 if "release" in data:
-                    tag = data["release"].get("tag", data["release"].get("tag_name", ""))
+                    tag = data["release"].get(
+                        "tag", data["release"].get("tag_name", "")
+                    )
                 else:
                     tag = data.get("tag_name", "")
                 return tag.lstrip("v").strip() if tag else None
@@ -220,7 +266,9 @@ def _get_latest_portal_version() -> str | None:
     return None
 
 
-async def check_portal_version(device: AdbDevice, debug: bool) -> tuple[CheckResult, str | None, str | None, str | None]:
+async def check_portal_version(
+    device: AdbDevice, debug: bool
+) -> tuple[CheckResult, str | None, str | None, str | None]:
     """Check portal version and compatibility. Returns (result, installed_ver, expected_ver, download_base)."""
     # Get installed version
     installed = None
@@ -237,15 +285,24 @@ async def check_portal_version(device: AdbDevice, debug: bool) -> tuple[CheckRes
         pass
 
     if not installed:
-        return CheckResult(
-            "Portal Version", Status.WARN, "could not read version",
-        ), None, None, None
+        return (
+            CheckResult(
+                "Portal Version",
+                Status.WARN,
+                "could not read version",
+            ),
+            None,
+            None,
+            None,
+        )
 
     # Get latest portal version from GitHub
     latest_portal = _get_latest_portal_version()
 
     # Get expected (compatible) version from version mapping
-    expected, download_base, mapping_fetched = get_compatible_portal_version(__version__, debug)
+    expected, download_base, mapping_fetched = get_compatible_portal_version(
+        __version__, debug
+    )
 
     installed_t = _parse_version_tuple(installed)
 
@@ -262,36 +319,64 @@ async def check_portal_version(device: AdbDevice, debug: bool) -> tuple[CheckRes
         if installed_t < latest_t:
             parts.append(f"latest: {latest_portal}")
 
-    msg = " → ".join(parts[:1]) + (" (" + ", ".join(parts[1:]) + ")" if len(parts) > 1 else "")
+    msg = " → ".join(parts[:1]) + (
+        " (" + ", ".join(parts[1:]) + ")" if len(parts) > 1 else ""
+    )
 
     # Determine status
     if expected:
         expected_t = _parse_version_tuple(expected)
         if installed_t != expected_t:
-            return CheckResult("Portal Version", Status.WARN, msg), installed, expected, download_base
+            return (
+                CheckResult("Portal Version", Status.WARN, msg),
+                installed,
+                expected,
+                download_base,
+            )
 
     if latest_portal:
         latest_t = _parse_version_tuple(latest_portal)
         if installed_t < latest_t:
             # Outdated but no specific compatible version required — warn
-            return CheckResult(
-                "Portal Version", Status.WARN, msg,
-                detail=f"pip install --upgrade droidrun, then droidrun setup",
-            ), installed, expected, download_base
+            return (
+                CheckResult(
+                    "Portal Version",
+                    Status.WARN,
+                    msg,
+                    detail=f"pip install --upgrade droidrun, then droidrun setup",
+                ),
+                installed,
+                expected,
+                download_base,
+            )
 
     if not mapping_fetched and not latest_portal:
-        return CheckResult(
-            "Portal Version", Status.WARN,
-            f"v{installed} (could not check latest)",
-        ), installed, None, None
+        return (
+            CheckResult(
+                "Portal Version",
+                Status.WARN,
+                f"v{installed} (could not check latest)",
+            ),
+            installed,
+            None,
+            None,
+        )
 
-    return CheckResult(
-        "Portal Version", Status.PASS,
-        f"v{installed} (up to date)",
-    ), installed, expected, download_base
+    return (
+        CheckResult(
+            "Portal Version",
+            Status.PASS,
+            f"v{installed} (up to date)",
+        ),
+        installed,
+        expected,
+        download_base,
+    )
 
 
-async def check_accessibility(device: AdbDevice, debug: bool) -> tuple[CheckResult, bool]:
+async def check_accessibility(
+    device: AdbDevice, debug: bool
+) -> tuple[CheckResult, bool]:
     """Check accessibility service. Returns (result, is_enabled)."""
     try:
         enabled = await check_portal_accessibility(device, debug=debug)
@@ -313,7 +398,9 @@ async def check_content_provider(device: AdbDevice, debug: bool) -> CheckResult:
             return CheckResult("Content Provider", Status.PASS, "reachable")
         else:
             return CheckResult(
-                "Content Provider", Status.FAIL, "invalid response",
+                "Content Provider",
+                Status.FAIL,
+                "invalid response",
                 detail=state[:100] if debug else "",
             )
     except Exception as e:
@@ -329,12 +416,14 @@ async def check_tcp(device: AdbDevice, debug: bool) -> CheckResult:
     # Step 1: Enable socket server via content provider
     try:
         await device.shell(
-            'content insert --uri content://com.droidrun.portal/toggle_socket_server --bind enabled:b:true'
+            "content insert --uri content://com.droidrun.portal/toggle_socket_server --bind enabled:b:true"
         )
         steps.append("server enabled")
     except Exception as e:
         return CheckResult(
-            "TCP Mode", Status.FAIL, "failed to enable socket server",
+            "TCP Mode",
+            Status.FAIL,
+            "failed to enable socket server",
             detail=str(e),
         )
 
@@ -349,7 +438,10 @@ async def check_tcp(device: AdbDevice, debug: bool) -> CheckResult:
         async for fwd in device.forward_list():
             forwards.append(fwd)
         for fwd in forwards:
-            if fwd.serial == device.serial and fwd.remote == f"tcp:{PORTAL_REMOTE_PORT}":
+            if (
+                fwd.serial == device.serial
+                and fwd.remote == f"tcp:{PORTAL_REMOTE_PORT}"
+            ):
                 match = re.search(r"tcp:(\d+)", fwd.local)
                 if match:
                     local_port = int(match.group(1))
@@ -361,7 +453,9 @@ async def check_tcp(device: AdbDevice, debug: bool) -> CheckResult:
             steps.append(f"forwarded :{local_port}")
     except Exception as e:
         return CheckResult(
-            "TCP Mode", Status.FAIL, "port forward failed",
+            "TCP Mode",
+            Status.FAIL,
+            "port forward failed",
             detail=str(e),
         )
 
@@ -372,25 +466,30 @@ async def check_tcp(device: AdbDevice, debug: bool) -> CheckResult:
             if resp.status_code == 200:
                 steps.append("ping ok")
                 return CheckResult(
-                    "TCP Mode", Status.PASS,
+                    "TCP Mode",
+                    Status.PASS,
                     f"localhost:{local_port}",
                     detail=", ".join(steps),
                 )
             else:
                 return CheckResult(
-                    "TCP Mode", Status.FAIL,
+                    "TCP Mode",
+                    Status.FAIL,
                     f"ping returned {resp.status_code}",
                     detail=", ".join(steps),
                 )
     except Exception as e:
         return CheckResult(
-            "TCP Mode", Status.FAIL,
+            "TCP Mode",
+            Status.FAIL,
             f"ping failed: {e}",
             detail=", ".join(steps),
         )
 
 
-async def check_portal_state(device: AdbDevice, use_tcp: bool, debug: bool) -> tuple[CheckResult, Any]:
+async def check_portal_state(
+    device: AdbDevice, use_tcp: bool, debug: bool
+) -> tuple[CheckResult, Any]:
     """Fetch full state and verify a11y_tree, phone_state, device_context are present."""
     from droidrun.tools.android.portal_client import PortalClient
 
@@ -402,26 +501,38 @@ async def check_portal_state(device: AdbDevice, use_tcp: bool, debug: bool) -> t
         state = await portal.get_state()
 
         if isinstance(state, dict) and state.get("error"):
-            return CheckResult(
-                "Portal State", Status.FAIL,
-                f"error: {state.get('message', state.get('error'))}",
-            ), portal
+            return (
+                CheckResult(
+                    "Portal State",
+                    Status.FAIL,
+                    f"error: {state.get('message', state.get('error'))}",
+                ),
+                portal,
+            )
 
         required = ("a11y_tree", "phone_state", "device_context")
         present = [k for k in required if k in state]
         missing = [k for k in required if k not in state]
 
         if missing:
-            return CheckResult(
-                "Portal State", Status.FAIL,
-                f"missing: {', '.join(missing)}",
-                detail=f"present: {', '.join(present)} (via {method})",
-            ), portal
+            return (
+                CheckResult(
+                    "Portal State",
+                    Status.FAIL,
+                    f"missing: {', '.join(missing)}",
+                    detail=f"present: {', '.join(present)} (via {method})",
+                ),
+                portal,
+            )
         else:
-            return CheckResult(
-                "Portal State", Status.PASS,
-                f"a11y_tree, phone_state, device_context (via {method})",
-            ), portal
+            return (
+                CheckResult(
+                    "Portal State",
+                    Status.PASS,
+                    f"a11y_tree, phone_state, device_context (via {method})",
+                ),
+                portal,
+            )
     except Exception as e:
         return CheckResult("Portal State", Status.FAIL, str(e)), None
 
@@ -433,16 +544,21 @@ async def check_screenshot(portal: Any, debug: bool) -> CheckResult:
         if data and len(data) > 0:
             size_kb = len(data) / 1024
             return CheckResult(
-                "Screenshot", Status.PASS,
+                "Screenshot",
+                Status.PASS,
                 f"ok ({size_kb:.0f} KB)",
             )
         else:
             return CheckResult(
-                "Screenshot", Status.FAIL, "empty response",
+                "Screenshot",
+                Status.FAIL,
+                "empty response",
             )
     except Exception as e:
         return CheckResult(
-            "Screenshot", Status.FAIL, f"capture failed: {e}",
+            "Screenshot",
+            Status.FAIL,
+            f"capture failed: {e}",
         )
 
 
@@ -455,7 +571,9 @@ async def check_keyboard(device: AdbDevice, debug: bool) -> CheckResult:
             return CheckResult("Keyboard", Status.PASS, "available")
         else:
             return CheckResult(
-                "Keyboard", Status.WARN, "not listed",
+                "Keyboard",
+                Status.WARN,
+                "not listed",
                 detail="Will be set up automatically when needed",
             )
     except Exception as e:
@@ -476,15 +594,21 @@ async def fix_enable_accessibility(device: AdbDevice, debug: bool) -> bool:
             console.print("  [green]  accessibility enabled[/]")
             return True
         else:
-            console.print("  [yellow]  auto-enable may have failed, opening settings...[/]")
+            console.print(
+                "  [yellow]  auto-enable may have failed, opening settings...[/]"
+            )
             await device.shell("am start -a android.settings.ACCESSIBILITY_SETTINGS")
-            console.print(f"  [yellow]  please enable {PORTAL_PACKAGE_NAME} manually[/]")
+            console.print(
+                f"  [yellow]  please enable {PORTAL_PACKAGE_NAME} manually[/]"
+            )
             return False
     except Exception as e:
         console.print(f"  [red]  failed: {e}[/]")
         try:
             await device.shell("am start -a android.settings.ACCESSIBILITY_SETTINGS")
-            console.print(f"  [yellow]  please enable {PORTAL_PACKAGE_NAME} manually[/]")
+            console.print(
+                f"  [yellow]  please enable {PORTAL_PACKAGE_NAME} manually[/]"
+            )
         except Exception:
             pass
         return False
@@ -541,6 +665,7 @@ async def run_doctor(
     if not is_installed:
         # Auto-fix: run setup
         from droidrun.cli.main import _setup_portal
+
         await _setup_portal(path=None, device=device.serial, debug=debug)
         # Re-check
         r_portal, is_installed = await check_portal_installed(device, debug)
@@ -557,6 +682,7 @@ async def run_doctor(
         # Auto-fix: run setup to install compatible version
         console.print("  [blue]→ Updating portal...[/]")
         from droidrun.cli.main import _setup_portal
+
         await _setup_portal(path=None, device=device.serial, debug=debug)
         # Wait for portal service to initialize after install
         console.print("  [dim]  waiting for portal to start...[/]")
@@ -566,7 +692,9 @@ async def run_doctor(
         if r_version.status == Status.PASS:
             console.print("  [green]  portal updated[/]")
         else:
-            console.print("  [yellow]  update may not have resolved the version mismatch[/]")
+            console.print(
+                "  [yellow]  update may not have resolved the version mismatch[/]"
+            )
     results.append(r_version)
 
     # 8. Accessibility

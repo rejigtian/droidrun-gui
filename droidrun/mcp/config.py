@@ -7,6 +7,7 @@ from typing import Dict, List, Optional
 @dataclass
 class MCPServerConfig:
     """Configuration for a single MCP server."""
+
     command: str = ""
     args: List[str] = field(default_factory=list)
     env: Dict[str, str] = field(default_factory=dict)
@@ -19,5 +20,6 @@ class MCPServerConfig:
 @dataclass
 class MCPConfig:
     """MCP client configuration."""
+
     enabled: bool = False
     servers: Dict[str, MCPServerConfig] = field(default_factory=dict)

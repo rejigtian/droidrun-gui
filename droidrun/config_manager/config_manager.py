@@ -175,8 +175,6 @@ class CredentialsConfig:
     file_path: str = "config/credentials.yaml"
 
 
-
-
 @dataclass
 class DroidrunConfig:
     """Complete DroidRun configuration schema."""
@@ -268,19 +266,29 @@ class DroidrunConfig:
         agent_data = data.get("agent", {})
 
         codeact_data = agent_data.get("codeact", {})
-        codeact_config = CodeActConfig(**codeact_data) if codeact_data else CodeActConfig()
+        codeact_config = (
+            CodeActConfig(**codeact_data) if codeact_data else CodeActConfig()
+        )
 
         manager_data = agent_data.get("manager", {})
-        manager_config = ManagerConfig(**manager_data) if manager_data else ManagerConfig()
+        manager_config = (
+            ManagerConfig(**manager_data) if manager_data else ManagerConfig()
+        )
 
         executor_data = agent_data.get("executor", {})
-        executor_config = ExecutorConfig(**executor_data) if executor_data else ExecutorConfig()
+        executor_config = (
+            ExecutorConfig(**executor_data) if executor_data else ExecutorConfig()
+        )
 
         script_data = agent_data.get("scripter", {})
-        scripter_config = ScripterConfig(**script_data) if script_data else ScripterConfig()
+        scripter_config = (
+            ScripterConfig(**script_data) if script_data else ScripterConfig()
+        )
 
         app_cards_data = agent_data.get("app_cards", {})
-        app_cards_config = AppCardConfig(**app_cards_data) if app_cards_data else AppCardConfig()
+        app_cards_config = (
+            AppCardConfig(**app_cards_data) if app_cards_data else AppCardConfig()
+        )
 
         agent_config = AgentConfig(
             name=agent_data.get("name", "droidrun"),
@@ -289,7 +297,9 @@ class DroidrunConfig:
             streaming=agent_data.get("streaming", False),
             after_sleep_action=agent_data.get("after_sleep_action", 1.0),
             wait_for_stable_ui=agent_data.get("wait_for_stable_ui", 0.3),
-            use_normalized_coordinates=agent_data.get("use_normalized_coordinates", False),
+            use_normalized_coordinates=agent_data.get(
+                "use_normalized_coordinates", False
+            ),
             codeact=codeact_config,
             manager=manager_config,
             executor=executor_config,
@@ -298,7 +308,11 @@ class DroidrunConfig:
         )
 
         safe_exec_data = data.get("safe_execution", {})
-        safe_execution_config = SafeExecutionConfig(**safe_exec_data) if safe_exec_data else SafeExecutionConfig()
+        safe_execution_config = (
+            SafeExecutionConfig(**safe_exec_data)
+            if safe_exec_data
+            else SafeExecutionConfig()
+        )
 
         # External agents config - just pass through as-is
         external_agents = data.get("external_agents", {})

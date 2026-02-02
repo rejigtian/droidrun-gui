@@ -71,7 +71,9 @@ async def system_button(button: str, *, tools: "Tools" = None, **kwargs) -> str:
     button_lower = button.lower()
 
     if button_lower not in button_map:
-        return f"Error: Unknown system button '{button}'. Valid options: back, home, enter"
+        return (
+            f"Error: Unknown system button '{button}'. Valid options: back, home, enter"
+        )
 
     keycode = button_map[button_lower]
     return await tools.press_key(keycode)
@@ -92,7 +94,9 @@ async def swipe(
     if not isinstance(coordinate, list) or len(coordinate) != 2:
         raise ValueError(f"coordinate must be a list of 2 integers, got: {coordinate}")
     if not isinstance(coordinate2, list) or len(coordinate2) != 2:
-        raise ValueError(f"coordinate2 must be a list of 2 integers, got: {coordinate2}")
+        raise ValueError(
+            f"coordinate2 must be a list of 2 integers, got: {coordinate2}"
+        )
 
     start_x, start_y = tools.convert_point(*coordinate)
     end_x, end_y = tools.convert_point(*coordinate2)

@@ -255,7 +255,9 @@ class ExecutorAgent(Workflow):
             ctx.write_event_to_stream(event)
             return event
 
-        success, error, summary = await self._execute_action(action_dict, ev.description)
+        success, error, summary = await self._execute_action(
+            action_dict, ev.description
+        )
 
         await asyncio.sleep(self.agent_config.after_sleep_action)
 
@@ -272,7 +274,6 @@ class ExecutorAgent(Workflow):
         ctx.write_event_to_stream(event)
         return event
 
-
     async def _execute_action(
         self, action_dict: dict, description: str
     ) -> tuple[bool, str, str]:
@@ -287,18 +288,30 @@ class ExecutorAgent(Workflow):
             if action_type == "click":
                 index = action_dict.get("index")
                 if index is None:
-                    return False, "Missing 'index' parameter", "Failed: click requires index"
+                    return (
+                        False,
+                        "Missing 'index' parameter",
+                        "Failed: click requires index",
+                    )
                 await click(index, tools=self.tools_instance)
                 return True, "", f"Clicked element at index {index}"
 
             elif action_type == "long_press":
                 index = action_dict.get("index")
                 if index is None:
-                    return False, "Missing 'index' parameter", "Failed: long_press requires index"
+                    return (
+                        False,
+                        "Missing 'index' parameter",
+                        "Failed: long_press requires index",
+                    )
                 success = await long_press(index, tools=self.tools_instance)
                 if success:
                     return True, "", f"Long pressed element at index {index}"
-                return False, "Long press failed", f"Failed to long press at index {index}"
+                return (
+                    False,
+                    "Long press failed",
+                    f"Failed to long press at index {index}",
+                )
 
             elif action_type == "click_at":
                 x, y = action_dict.get("x"), action_dict.get("y")
@@ -311,14 +324,22 @@ class ExecutorAgent(Workflow):
                 x1, y1 = action_dict.get("x1"), action_dict.get("y1")
                 x2, y2 = action_dict.get("x2"), action_dict.get("y2")
                 if None in (x1, y1, x2, y2):
-                    return False, "Missing coordinates", "Failed: click_area requires x1, y1, x2, y2"
+                    return (
+                        False,
+                        "Missing coordinates",
+                        "Failed: click_area requires x1, y1, x2, y2",
+                    )
                 result = await click_area(x1, y1, x2, y2, tools=self.tools_instance)
                 return True, "", result
 
             elif action_type == "long_press_at":
                 x, y = action_dict.get("x"), action_dict.get("y")
                 if x is None or y is None:
-                    return False, "Missing x or y", "Failed: long_press_at requires x and y"
+                    return (
+                        False,
+                        "Missing x or y",
+                        "Failed: long_press_at requires x and y",
+                    )
                 success = await long_press_at(x, y, tools=self.tools_instance)
                 if success:
                     return True, "", f"Long pressed at ({x}, {y})"
@@ -329,14 +350,22 @@ class ExecutorAgent(Workflow):
                 index = action_dict.get("index", -1)
                 clear = action_dict.get("clear", False)
                 if text is None:
-                    return False, "Missing 'text' parameter", "Failed: type requires text"
+                    return (
+                        False,
+                        "Missing 'text' parameter",
+                        "Failed: type requires text",
+                    )
                 await type(text, index, clear=clear, tools=self.tools_instance)
                 return True, "", f"Typed '{text}' into element at index {index}"
 
             elif action_type == "system_button":
                 button = action_dict.get("button")
                 if button is None:
-                    return False, "Missing 'button' parameter", "Failed: system_button requires button"
+                    return (
+                        False,
+                        "Missing 'button' parameter",
+                        "Failed: system_button requires button",
+                    )
                 result = await system_button(button, tools=self.tools_instance)
                 if "Error" in result:
                     return False, result, f"Failed to press {button} button"
@@ -348,38 +377,72 @@ class ExecutorAgent(Workflow):
                 duration = action_dict.get("duration", 1.0)
 
                 if coordinate is None or coordinate2 is None:
-                    return False, "Missing coordinate parameters", "Failed: swipe requires coordinates"
+                    return (
+                        False,
+                        "Missing coordinate parameters",
+                        "Failed: swipe requires coordinates",
+                    )
 
                 if not isinstance(coordinate, list) or len(coordinate) != 2:
-                    return False, f"Invalid coordinate: {coordinate}", "Failed: coordinate must be [x, y]"
+                    return (
+                        False,
+                        f"Invalid coordinate: {coordinate}",
+                        "Failed: coordinate must be [x, y]",
+                    )
                 if not isinstance(coordinate2, list) or len(coordinate2) != 2:
-                    return False, f"Invalid coordinate2: {coordinate2}", "Failed: coordinate2 must be [x, y]"
+                    return (
+                        False,
+                        f"Invalid coordinate2: {coordinate2}",
+                        "Failed: coordinate2 must be [x, y]",
+                    )
 
-                success = await swipe(coordinate, coordinate2, duration, tools=self.tools_instance)
+                success = await swipe(
+                    coordinate, coordinate2, duration, tools=self.tools_instance
+                )
                 if success:
                     return True, "", f"Swiped from {coordinate} to {coordinate2}"
-                return False, "Swipe failed", f"Failed to swipe from {coordinate} to {coordinate2}"
+                return (
+                    False,
+                    "Swipe failed",
+                    f"Failed to swipe from {coordinate} to {coordinate2}",
+                )
 
             elif action_type == "wait":
                 duration = action_dict.get("duration")
                 if duration is None:
-                    return False, "Missing 'duration' parameter", "Failed: wait requires duration"
+                    return (
+                        False,
+                        "Missing 'duration' parameter",
+                        "Failed: wait requires duration",
+                    )
                 await wait(duration)
                 return True, "", f"Waited for {duration} seconds"
 
             elif action_type == "open_app":
                 text = action_dict.get("text")
                 if text is None:
-                    return False, "Missing 'text' parameter", "Failed: open_app requires text"
+                    return (
+                        False,
+                        "Missing 'text' parameter",
+                        "Failed: open_app requires text",
+                    )
                 await open_app(text, tools=self.tools_instance)
                 return True, "", f"Opened app: {text}"
 
             else:
-                return False, f"Unknown action type: {action_type}", f"Failed: unknown action '{action_type}'"
+                return (
+                    False,
+                    f"Unknown action type: {action_type}",
+                    f"Failed: unknown action '{action_type}'",
+                )
 
         except Exception as e:
             logger.error(f"Exception during action execution: {e}", exc_info=True)
-            return False, f"Exception: {str(e)}", f"Failed to execute {action_type}: {str(e)}"
+            return (
+                False,
+                f"Exception: {str(e)}",
+                f"Failed to execute {action_type}: {str(e)}",
+            )
 
     async def _execute_custom_tool(
         self, action_type: str, action_dict: dict

@@ -492,9 +492,13 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
             if span.name in ("DroidAgent.run", "ManagerAgent.run", "ExecutorAgent.run"):
                 if "input.value" in span._attributes:
                     del span._attributes["input.value"]
-            elif span.name.endswith((".chat", ".achat", ".stream_chat", ".astream_chat")):
+            elif span.name.endswith(
+                (".chat", ".achat", ".stream_chat", ".astream_chat")
+            ):
                 self._format_chat(span)
-            elif span.name.endswith((".complete", ".acomplete", ".stream_complete", ".astream_complete")):
+            elif span.name.endswith(
+                (".complete", ".acomplete", ".stream_complete", ".astream_complete")
+            ):
                 self._format_complete(span)
             elif span.name == "droidrun.screenshot":
                 self._process_screenshot_span(span)

@@ -136,9 +136,7 @@ class DevicePicker(Widget):
             event.prevent_default()
             if self._options:
                 option_id, _ = self._options[self._options_highlighted]
-                self.post_message(
-                    self.OptionSelected(self._options_serial, option_id)
-                )
+                self.post_message(self.OptionSelected(self._options_serial, option_id))
         elif event.key == "escape":
             event.stop()
             event.prevent_default()

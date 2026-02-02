@@ -19,6 +19,7 @@ logger = logging.getLogger("droidrun")
 @dataclass
 class MCPToolInfo:
     """Cached metadata about an MCP tool."""
+
     server_name: str
     original_name: str
     description: str
@@ -49,10 +50,14 @@ class MCPClientManager:
                 logger.warning(f"MCP '{server_name}': discovery failed: {e}")
 
         if self._tools:
-            logger.info(f"MCP: discovered {len(self._tools)} tools from {len(self._server_tools)} servers")
+            logger.info(
+                f"MCP: discovered {len(self._tools)} tools from {len(self._server_tools)} servers"
+            )
         return self._tools
 
-    async def _discover_server_tools(self, server_name: str, config: "MCPServerConfig") -> None:
+    async def _discover_server_tools(
+        self, server_name: str, config: "MCPServerConfig"
+    ) -> None:
         """Connect temporarily to fetch tool schemas."""
         server_params = StdioServerParameters(
             command=config.command,

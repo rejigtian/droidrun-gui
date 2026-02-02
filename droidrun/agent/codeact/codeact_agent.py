@@ -241,7 +241,9 @@ class CodeActAgent(Workflow):
             for idx, item in enumerate(remembered_info, 1):
                 memory_text += f"{idx}. {item}\n"
             # Append to first user message
-            self.shared_state.message_history[0]["content"].append({"text": memory_text})
+            self.shared_state.message_history[0]["content"].append(
+                {"text": memory_text}
+            )
 
         return CodeActInputEvent()
 
@@ -319,7 +321,9 @@ class CodeActAgent(Workflow):
             ctx.write_event_to_stream(RecordUIStateEvent(ui_state=a11y_tree))
 
             # Add device state to last user message
-            self.shared_state.message_history[-1]["content"].append({"text": f"\n{formatted_text}\n"})
+            self.shared_state.message_history[-1]["content"].append(
+                {"text": f"\n{formatted_text}\n"}
+            )
 
         except Exception as e:
             logger.warning(f"⚠️ Error retrieving state from the connected device: {e}")
@@ -328,11 +332,15 @@ class CodeActAgent(Workflow):
 
         # Add screenshot to message if vision enabled
         if self.vision and screenshot:
-            self.shared_state.message_history[-1]["content"].append({"image": screenshot})
+            self.shared_state.message_history[-1]["content"].append(
+                {"image": screenshot}
+            )
 
         # Limit history and prepare for LLM
         limited_history = limit_history(
-            self.shared_state.message_history, LLM_HISTORY_LIMIT * 2, preserve_first=True
+            self.shared_state.message_history,
+            LLM_HISTORY_LIMIT * 2,
+            preserve_first=True,
         )
 
         # Build final messages: system + history
@@ -361,7 +369,9 @@ class CodeActAgent(Workflow):
 
         # Store assistant response
         response_text = response.message.content
-        self.shared_state.message_history.append({"role": "assistant", "content": [{"text": response_text}]})
+        self.shared_state.message_history.append(
+            {"role": "assistant", "content": [{"text": response_text}]}
+        )
         self.shared_state.step_number += 1
 
         # Extract thought and code
@@ -374,7 +384,6 @@ class CodeActAgent(Workflow):
         ctx.write_event_to_stream(event)
         return event
 
-
     @step
     async def handle_llm_output(
         self, ctx: Context, ev: CodeActResponseEvent
@@ -383,14 +392,18 @@ class CodeActAgent(Workflow):
         if not ev.thought:
             logger.warning("LLM provided code without thoughts.")
             # Add reminder to get thoughts
-            goal = self.shared_state.message_history[0]["content"][0].get("text", "")[:200]
+            goal = self.shared_state.message_history[0]["content"][0].get("text", "")[
+                :200
+            ]
             no_thoughts_text = (
                 "Your previous response provided code without explaining your reasoning first. "
                 "Remember to always describe your thought process and plan *before* providing the code block.\n\n"
                 "The code you provided will be executed below.\n\n"
                 f"Now, describe the next step you will take to address the original goal."
             )
-            self.shared_state.message_history.append({"role": "user", "content": [{"text": no_thoughts_text}]})
+            self.shared_state.message_history.append(
+                {"role": "user", "content": [{"text": no_thoughts_text}]}
+            )
         else:
             logger.debug(f"Reasoning: {ev.thought}")
 
@@ -405,7 +418,9 @@ class CodeActAgent(Workflow):
                 "(whether it failed or succeeded), use complete(success: bool, reason: str) "
                 "function within a <python></python> code block."
             )
-            self.shared_state.message_history.append({"role": "user", "content": [{"text": no_code_text}]})
+            self.shared_state.message_history.append(
+                {"role": "user", "content": [{"text": no_code_text}]}
+            )
             return CodeActInputEvent()
 
     @step
@@ -475,7 +490,9 @@ class CodeActAgent(Workflow):
 
         # Add execution output as user message
         observation_text = f"Execution Result:\n<result>\n{output}\n</result>"
-        self.shared_state.message_history.append({"role": "user", "content": [{"text": observation_text}]})
+        self.shared_state.message_history.append(
+            {"role": "user", "content": [{"text": observation_text}]}
+        )
 
         return CodeActInputEvent()
 

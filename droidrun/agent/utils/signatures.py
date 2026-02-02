@@ -73,7 +73,9 @@ def filter_atomic_actions(disabled_tools: List[str]) -> Dict[str, Any]:
     """Filter ATOMIC_ACTION_SIGNATURES by removing disabled tools."""
     if not disabled_tools:
         return ATOMIC_ACTION_SIGNATURES.copy()
-    return {k: v for k, v in ATOMIC_ACTION_SIGNATURES.items() if k not in disabled_tools}
+    return {
+        k: v for k, v in ATOMIC_ACTION_SIGNATURES.items() if k not in disabled_tools
+    }
 
 
 def filter_custom_tools(
@@ -142,7 +144,9 @@ async def build_custom_tools(credential_manager=None) -> dict:
     custom_tools.update(credential_tools)
 
     if credential_tools:
-        logger.debug(f"Built {len(credential_tools)} credential tools: {list(credential_tools.keys())}")
+        logger.debug(
+            f"Built {len(credential_tools)} credential tools: {list(credential_tools.keys())}"
+        )
 
     custom_tools["open_app"] = {
         "arguments": ["text"],

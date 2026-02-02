@@ -58,7 +58,10 @@ class AppStarter(Workflow):
 
         # Format apps list for LLM
         apps_list = "\n".join(
-            [f"- {app['label']} (package: {app['package_name'] if 'package_name' in app else app['package']})" for app in apps]
+            [
+                f"- {app['label']} (package: {app['package_name'] if 'package_name' in app else app['package']})"
+                for app in apps
+            ]
         )
 
         # Construct prompt for LLM

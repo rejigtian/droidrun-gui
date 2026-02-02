@@ -116,12 +116,14 @@ class PortalClient:
                 # Step 3b: Try enabling the HTTP server via content provider
                 logger.debug("TCP ping failed, trying to enable Portal HTTP server...")
                 await self.device.shell(
-                    'content insert --uri content://com.droidrun.portal/toggle_socket_server --bind enabled:b:true'
+                    "content insert --uri content://com.droidrun.portal/toggle_socket_server --bind enabled:b:true"
                 )
                 await asyncio.sleep(1)
                 if await self._test_connection():
                     self.tcp_available = True
-                    logger.debug(f"✓ TCP mode enabled after starting server: {self.tcp_base_url}")
+                    logger.debug(
+                        f"✓ TCP mode enabled after starting server: {self.tcp_base_url}"
+                    )
                 else:
                     logger.warning("TCP unavailable, using content provider fallback")
                     self.tcp_available = False
@@ -197,7 +199,11 @@ class PortalClient:
                     # Handle nested "result" or "data" field with JSON string (backward compatible)
                     if isinstance(json_data, dict):
                         # Check for 'result' first (new portal format), then 'data' (legacy)
-                        inner_key = "result" if "result" in json_data else "data" if "data" in json_data else None
+                        inner_key = (
+                            "result"
+                            if "result" in json_data
+                            else "data" if "data" in json_data else None
+                        )
                         if inner_key:
                             inner_value = json_data[inner_key]
                             if isinstance(inner_value, str):
@@ -249,7 +255,11 @@ class PortalClient:
                     # Handle nested "result" or "data" field (backward compatible)
                     if isinstance(data, dict):
                         # Check for 'result' first (new portal format), then 'data' (legacy)
-                        inner_key = "result" if "result" in data else "data" if "data" in data else None
+                        inner_key = (
+                            "result"
+                            if "result" in data
+                            else "data" if "data" in data else None
+                        )
                         if inner_key:
                             inner_value = data[inner_key]
                             if isinstance(inner_value, str):
@@ -286,7 +296,11 @@ class PortalClient:
             # Handle nested "result" or "data" field if present (backward compatible)
             if isinstance(state_data, dict):
                 # Check for 'result' first (new portal format), then 'data' (legacy)
-                inner_key = "result" if "result" in state_data else "data" if "data" in state_data else None
+                inner_key = (
+                    "result"
+                    if "result" in state_data
+                    else "data" if "data" in state_data else None
+                )
                 if inner_key:
                     inner_value = state_data[inner_key]
                     if isinstance(inner_value, str):
@@ -392,7 +406,11 @@ class PortalClient:
                     data = response.json()
                     # Check for 'result' first (new portal format), then 'data' (legacy)
                     if data.get("status") == "success":
-                        inner_key = "result" if "result" in data else "data" if "data" in data else None
+                        inner_key = (
+                            "result"
+                            if "result" in data
+                            else "data" if "data" in data else None
+                        )
                         if inner_key:
                             logger.debug("Screenshot taken via TCP")
                             return base64.b64decode(data[inner_key])
@@ -454,12 +472,18 @@ class PortalClient:
                     packages_list = packages_data["packages"]
                 else:
                     # May be wrapped in result/data
-                    inner_key = "result" if "result" in packages_data else "data" if "data" in packages_data else None
+                    inner_key = (
+                        "result"
+                        if "result" in packages_data
+                        else "data" if "data" in packages_data else None
+                    )
                     if inner_key:
                         inner_value = packages_data[inner_key]
                         if isinstance(inner_value, list):
                             packages_list = inner_value
-                        elif isinstance(inner_value, dict) and "packages" in inner_value:
+                        elif (
+                            isinstance(inner_value, dict) and "packages" in inner_value
+                        ):
                             packages_list = inner_value["packages"]
 
             if not packages_list:
@@ -498,7 +522,11 @@ class PortalClient:
                     if response.status_code == 200:
                         data = response.json()
                         # Check for 'result' first (new portal format), then 'data' (legacy)
-                        inner_key = "result" if "result" in data else "data" if "data" in data else None
+                        inner_key = (
+                            "result"
+                            if "result" in data
+                            else "data" if "data" in data else None
+                        )
                         if inner_key:
                             return data[inner_key]
                         return data.get("status", "unknown")
@@ -513,7 +541,11 @@ class PortalClient:
             result = self._parse_content_provider_output(output)
             if result:
                 # Check for 'result' first (new portal format), then 'data' (legacy)
-                inner_key = "result" if "result" in result else "data" if "data" in result else None
+                inner_key = (
+                    "result"
+                    if "result" in result
+                    else "data" if "data" in result else None
+                )
                 if inner_key:
                     return result[inner_key]
         except Exception:

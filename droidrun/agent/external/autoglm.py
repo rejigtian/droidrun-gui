@@ -38,11 +38,23 @@ logger = logging.getLogger("droidrun")
 def get_system_prompt_zh() -> str:
     """Get Chinese system prompt with current date (matches original prompts_zh.py)."""
     from datetime import datetime
+
     today = datetime.today()
-    weekday_names = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
+    weekday_names = [
+        "星期一",
+        "星期二",
+        "星期三",
+        "星期四",
+        "星期五",
+        "星期六",
+        "星期日",
+    ]
     weekday = weekday_names[today.weekday()]
     formatted_date = today.strftime("%Y年%m月%d日") + " " + weekday
-    return "今天的日期是: " + formatted_date + """
+    return (
+        "今天的日期是: "
+        + formatted_date
+        + """
 你是一个智能体分析专家，可以根据操作历史和当前状态图执行一系列操作来完成任务。
 你必须严格按照要求输出以下格式：
 <think>{think}</think>
@@ -106,14 +118,19 @@ def get_system_prompt_zh() -> str:
 17. 如果没有合适的搜索结果，可能是因为搜索页面不对，请返回到搜索页面的上一级尝试重新搜索，如果尝试三次返回上一级搜索后仍然没有符合要求的结果，执行 finish(message="原因")。
 18. 在结束任务前请一定要仔细检查任务是否完整准确的完成，如果出现错选、漏选、多选的情况，请返回之前的步骤进行纠正。
 """
+    )
 
 
 def get_system_prompt_en() -> str:
     """Get English system prompt with current date (matches original prompts_en.py)."""
     from datetime import datetime
+
     today = datetime.today()
     formatted_date = today.strftime("%Y-%m-%d, %A")
-    return "The current date: " + formatted_date + """
+    return (
+        "The current date: "
+        + formatted_date
+        + """
 # Setup
 You are a professional Android operation agent assistant that can fulfill the user's high-level instructions. Given a screenshot of the Android interface at each step, you first analyze the situation, then plan the best course of action using Python-style pseudo-code.
 
@@ -181,6 +198,7 @@ REMEMBER:
 - Only ONE LINE of action in <answer> part per response: Each step must contain exactly one line of executable code.
 - Generate execution code strictly according to format requirements.
 """
+    )
 
 
 def get_system_prompt(lang: str = "cn") -> str:
@@ -198,6 +216,7 @@ def get_system_prompt(lang: str = "cn") -> str:
     else:
         return get_system_prompt_en()
 
+
 # =============================================================================
 # Default Configuration (agent-specific only, NOT LLM)
 # =============================================================================
@@ -213,9 +232,11 @@ DEFAULT_CONFIG: Dict[str, Any] = {
 # Timing Configuration (matches original Open-AutoGLM)
 # =============================================================================
 
+
 @dataclass
 class ActionTimingConfig:
     """Configuration for action handler timing delays."""
+
     keyboard_switch_delay: float = 1.0
     text_clear_delay: float = 1.0
     text_input_delay: float = 1.0
@@ -225,6 +246,7 @@ class ActionTimingConfig:
 @dataclass
 class DeviceTimingConfig:
     """Configuration for device operation timing delays."""
+
     default_tap_delay: float = 1.0
     default_double_tap_delay: float = 1.0
     double_tap_interval: float = 0.1
@@ -238,6 +260,7 @@ class DeviceTimingConfig:
 @dataclass
 class TimingConfig:
     """Master timing configuration."""
+
     action: ActionTimingConfig = field(default_factory=ActionTimingConfig)
     device: DeviceTimingConfig = field(default_factory=DeviceTimingConfig)
 
@@ -249,9 +272,11 @@ TIMING_CONFIG = TimingConfig()
 # Screenshot Data Class (matches original Open-AutoGLM)
 # =============================================================================
 
+
 @dataclass
 class Screenshot:
     """Represents a captured screenshot (matches original interface)."""
+
     base64_data: str
     width: int
     height: int
@@ -261,6 +286,7 @@ class Screenshot:
 # =============================================================================
 # Device Factory Wrapper (wraps DroidRun tools to match original interface)
 # =============================================================================
+
 
 class DeviceFactoryWrapper:
     """
@@ -343,17 +369,22 @@ class DeviceFactoryWrapper:
             return self.tools.current_package
 
         # Try to extract from clickable elements
-        if hasattr(self.tools, "clickable_elements_cache") and self.tools.clickable_elements_cache:
-            first_elem = self.tools.clickable_elements_cache[0] if self.tools.clickable_elements_cache else {}
+        if (
+            hasattr(self.tools, "clickable_elements_cache")
+            and self.tools.clickable_elements_cache
+        ):
+            first_elem = (
+                self.tools.clickable_elements_cache[0]
+                if self.tools.clickable_elements_cache
+                else {}
+            )
             pkg = first_elem.get("package", "")
             if pkg:
                 return pkg
 
         return self._current_app
 
-    async def tap(
-        self, x: int, y: int, delay: Optional[float] = None
-    ) -> None:
+    async def tap(self, x: int, y: int, delay: Optional[float] = None) -> None:
         """
         Tap at coordinates with post-action delay.
 
@@ -368,9 +399,7 @@ class DeviceFactoryWrapper:
         await self.tools.tap_by_coordinates(x, y)
         await asyncio.sleep(delay)
 
-    async def double_tap(
-        self, x: int, y: int, delay: Optional[float] = None
-    ) -> None:
+    async def double_tap(self, x: int, y: int, delay: Optional[float] = None) -> None:
         """
         Double tap at coordinates.
 
@@ -498,6 +527,7 @@ class DeviceFactoryWrapper:
 # Message Builder (matches original Open-AutoGLM)
 # =============================================================================
 
+
 class MessageBuilder:
     """Helper class for building OpenAI-compatible conversation messages."""
 
@@ -518,10 +548,12 @@ class MessageBuilder:
         content: List[Dict[str, Any]] = []
 
         if image_base64:
-            content.append({
-                "type": "image_url",
-                "image_url": {"url": f"data:image/png;base64,{image_base64}"},
-            })
+            content.append(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{image_base64}"},
+                }
+            )
 
         content.append({"type": "text", "text": text})
 
@@ -552,9 +584,11 @@ class MessageBuilder:
 # Action Parsing (matches original Open-AutoGLM)
 # =============================================================================
 
+
 @dataclass
 class ActionResult:
     """Result of an action execution (matches original Open-AutoGLM)."""
+
     success: bool
     should_finish: bool
     message: Optional[str] = None
@@ -583,9 +617,9 @@ def parse_action(response: str) -> Dict[str, Any]:
             # Use AST parsing instead of eval for safety
             try:
                 # Escape special characters (newlines, tabs, etc.) for valid Python syntax
-                response = response.replace('\n', '\\n')
-                response = response.replace('\r', '\\r')
-                response = response.replace('\t', '\\t')
+                response = response.replace("\n", "\\n")
+                response = response.replace("\r", "\\r")
+                response = response.replace("\t", "\\t")
 
                 tree = ast.parse(response, mode="eval")
                 if not isinstance(tree.body, ast.Call):
@@ -661,6 +695,7 @@ def parse_response(content: str) -> Tuple[str, str]:
 # =============================================================================
 # Action Handler (matches original Open-AutoGLM)
 # =============================================================================
+
 
 class ActionHandler:
     """
@@ -758,7 +793,9 @@ class ActionHandler:
         }
         return handlers.get(action_name)
 
-    async def _handle_launch(self, action: Dict, width: int, height: int) -> ActionResult:
+    async def _handle_launch(
+        self, action: Dict, width: int, height: int
+    ) -> ActionResult:
         """Handle app launch action."""
         app_name = action.get("app")
         if not app_name:
@@ -795,7 +832,9 @@ class ActionHandler:
         await self.device.type_text(text)
         return ActionResult(True, False)
 
-    async def _handle_swipe(self, action: Dict, width: int, height: int) -> ActionResult:
+    async def _handle_swipe(
+        self, action: Dict, width: int, height: int
+    ) -> ActionResult:
         """Handle swipe action."""
         start = action.get("start")
         end = action.get("end")
@@ -819,7 +858,9 @@ class ActionHandler:
         await self.device.home()
         return ActionResult(True, False)
 
-    async def _handle_double_tap(self, action: Dict, width: int, height: int) -> ActionResult:
+    async def _handle_double_tap(
+        self, action: Dict, width: int, height: int
+    ) -> ActionResult:
         """Handle double tap action."""
         element = action.get("element")
         if not element:
@@ -829,7 +870,9 @@ class ActionHandler:
         await self.device.double_tap(x, y)
         return ActionResult(True, False)
 
-    async def _handle_long_press(self, action: Dict, width: int, height: int) -> ActionResult:
+    async def _handle_long_press(
+        self, action: Dict, width: int, height: int
+    ) -> ActionResult:
         """Handle long press action."""
         element = action.get("element")
         if not element:
@@ -850,7 +893,9 @@ class ActionHandler:
         await asyncio.sleep(duration)
         return ActionResult(True, False)
 
-    async def _handle_takeover(self, action: Dict, width: int, height: int) -> ActionResult:
+    async def _handle_takeover(
+        self, action: Dict, width: int, height: int
+    ) -> ActionResult:
         """Handle takeover request (login, captcha, etc.)."""
         message = action.get("message", "User intervention required")
         self.takeover_callback(message)
@@ -862,13 +907,17 @@ class ActionHandler:
         # Implementation depends on specific requirements
         return ActionResult(True, False)
 
-    async def _handle_call_api(self, action: Dict, width: int, height: int) -> ActionResult:
+    async def _handle_call_api(
+        self, action: Dict, width: int, height: int
+    ) -> ActionResult:
         """Handle API call action (placeholder for summarization)."""
         # This action is typically used for content summarization
         # Implementation depends on specific requirements
         return ActionResult(True, False)
 
-    async def _handle_interact(self, action: Dict, width: int, height: int) -> ActionResult:
+    async def _handle_interact(
+        self, action: Dict, width: int, height: int
+    ) -> ActionResult:
         """Handle interaction request (user choice needed)."""
         # This action signals that user input is needed
         return ActionResult(True, False, message="User interaction required")
@@ -888,6 +937,7 @@ class ActionHandler:
 # =============================================================================
 # Main Entry Point
 # =============================================================================
+
 
 async def run(
     tools,
@@ -981,15 +1031,15 @@ async def run(
             # First step: system message + user message with task + screen info
             context.append(MessageBuilder.create_system_message(system_prompt))
             text_content = f"{instruction}\n\n{screen_info}"
-            context.append(MessageBuilder.create_user_message(
-                text_content, screenshot.base64_data
-            ))
+            context.append(
+                MessageBuilder.create_user_message(text_content, screenshot.base64_data)
+            )
         else:
             # Subsequent steps: user message with screen info
             text_content = f"** Screen Info **\n\n{screen_info}"
-            context.append(MessageBuilder.create_user_message(
-                text_content, screenshot.base64_data
-            ))
+            context.append(
+                MessageBuilder.create_user_message(text_content, screenshot.base64_data)
+            )
 
         # Convert to LlamaIndex format and call LLM
         try:
@@ -1037,7 +1087,9 @@ async def run(
             logger.info(f"⚡ {action_name} {start} → {end}")
         elif action_name == "Type":
             text = action.get("text", "")[:30]
-            logger.info(f"⚡ {action_name}: \"{text}{'...' if len(action.get('text', '')) > 30 else ''}\"")
+            logger.info(
+                f"⚡ {action_name}: \"{text}{'...' if len(action.get('text', '')) > 30 else ''}\""
+            )
         elif action_name == "Launch":
             logger.info(f"⚡ {action_name}: {action.get('app', '')}")
         elif action_name == "finish":

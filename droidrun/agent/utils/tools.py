@@ -41,7 +41,11 @@ async def create_tools_from_config(
             if not devices:
                 raise ValueError("No connected Android devices found.")
             device_serial = devices[0].serial
-        return AdbTools(serial=device_serial, use_tcp=device_config.use_tcp, vision_enabled=vision_enabled)
+        return AdbTools(
+            serial=device_serial,
+            use_tcp=device_config.use_tcp,
+            vision_enabled=vision_enabled,
+        )
     else:
         # iOS: require explicit device URL
         if device_serial is None:

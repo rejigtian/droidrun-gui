@@ -27,10 +27,15 @@ class MobileRunTools(Tools):
         self.device_id = device_id
         self.display_id = display_id
         if not user_id:
-            self.mobilerun = AsyncMobilerun(api_key=api_key, base_url=base_url, timeout=10.0)
+            self.mobilerun = AsyncMobilerun(
+                api_key=api_key, base_url=base_url, timeout=10.0
+            )
         else:
             self.mobilerun = AsyncMobilerun(
-                api_key="x", base_url=base_url, timeout=10.0, default_headers={"X-User-ID": user_id}
+                api_key="x",
+                base_url=base_url,
+                timeout=10.0,
+                default_headers={"X-User-ID": user_id},
             )
 
         # Instance‐level cache for clickable elements (index-based tapping)
@@ -76,8 +81,10 @@ class MobileRunTools(Tools):
             self.raw_tree_cache, combined_data["device_context"]
         )
 
-        formatted_text, focused_text, a11y_tree, phone_state = self.tree_formatter.format(
-            self.filtered_tree_cache, combined_data["phone_state"]
+        formatted_text, focused_text, a11y_tree, phone_state = (
+            self.tree_formatter.format(
+                self.filtered_tree_cache, combined_data["phone_state"]
+            )
         )
 
         self.clickable_elements_cache = a11y_tree
@@ -110,11 +117,14 @@ class MobileRunTools(Tools):
     async def tap_on_index(self, index: int) -> str:
         """Tap at the largest visible region, avoiding overlapping elements."""
         try:
+
             def find_element_by_index(elements, target_index):
                 for item in elements:
                     if item.get("index") == target_index:
                         return item
-                    result = find_element_by_index(item.get("children", []), target_index)
+                    result = find_element_by_index(
+                        item.get("children", []), target_index
+                    )
                     if result:
                         return result
                 return None
@@ -151,7 +161,9 @@ class MobileRunTools(Tools):
 
             point = find_clear_point(target_bounds, blockers)
             if not point:
-                raise ValueError(f"Element {index} is fully obscured by overlapping elements")
+                raise ValueError(
+                    f"Element {index} is fully obscured by overlapping elements"
+                )
 
             x, y = point
             await self.mobilerun.devices.actions.tap(
@@ -190,7 +202,12 @@ class MobileRunTools(Tools):
 
     @Tools.ui_action
     async def drag(
-        self, start_x: int, start_y: int, end_x: int, end_y: int, duration_ms: int = 3000
+        self,
+        start_x: int,
+        start_y: int,
+        end_x: int,
+        end_y: int,
+        duration_ms: int = 3000,
     ) -> bool:
         print("Error: Drag is not implemented yet")
         return False
@@ -205,7 +222,10 @@ class MobileRunTools(Tools):
                 )
 
             await self.mobilerun.devices.keyboard.write(
-                self.device_id, text=text, clear=clear, x_device_display_id=self.display_id
+                self.device_id,
+                text=text,
+                clear=clear,
+                x_device_display_id=self.display_id,
             )
         except Exception as e:
             print(f"Error: {str(e)}")
@@ -235,7 +255,11 @@ class MobileRunTools(Tools):
             ok = None
 
         if ok is not None:
-            return f"Pressed key {keycode}" if ok else f"Error: Failed to press key {keycode}"
+            return (
+                f"Pressed key {keycode}"
+                if ok
+                else f"Error: Failed to press key {keycode}"
+            )
 
         try:
             await self.mobilerun.devices.keyboard.key(
@@ -296,7 +320,10 @@ class MobileRunTools(Tools):
             else:
                 act = activity
             await self.mobilerun.devices.apps.start(
-                package, device_id=self.device_id, activity=act, x_device_display_id=self.display_id
+                package,
+                device_id=self.device_id,
+                activity=act,
+                x_device_display_id=self.display_id,
             )
         except Exception as e:
             print(f"Error: {str(e)}")

@@ -21,15 +21,21 @@ class AgentTab(VerticalGroup):
         with Section("Vision", hint="send screenshots to the LLM"):
             with HorizontalGroup(classes="field-row"):
                 yield Label("Manager", classes="field-label")
-                yield BoolToggle(value=self.settings.manager_vision, id="vision-manager")
+                yield BoolToggle(
+                    value=self.settings.manager_vision, id="vision-manager"
+                )
 
             with HorizontalGroup(classes="field-row"):
                 yield Label("Executor", classes="field-label")
-                yield BoolToggle(value=self.settings.executor_vision, id="vision-executor")
+                yield BoolToggle(
+                    value=self.settings.executor_vision, id="vision-executor"
+                )
 
             with HorizontalGroup(classes="field-row"):
                 yield Label("CodeAct", classes="field-label")
-                yield BoolToggle(value=self.settings.codeact_vision, id="vision-codeact")
+                yield BoolToggle(
+                    value=self.settings.codeact_vision, id="vision-codeact"
+                )
 
         with Section("Steps"):
             with HorizontalGroup(classes="field-row"):

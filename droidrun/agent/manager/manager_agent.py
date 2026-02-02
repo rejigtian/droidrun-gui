@@ -125,7 +125,9 @@ class ManagerAgent(Workflow):
             )
         elif mode == "composite":
             if not self.app_card_config.server_url:
-                logger.warning("Composite mode but no server_url, falling back to local")
+                logger.warning(
+                    "Composite mode but no server_url, falling back to local"
+                )
                 return LocalAppCardProvider(
                     app_cards_dir=self.app_card_config.app_cards_dir
                 )
@@ -263,7 +265,9 @@ class ManagerAgent(Workflow):
 
             # Add script result if available
             if self.shared_state.last_scripter_message:
-                status = "SUCCESS" if self.shared_state.last_scripter_success else "FAILED"
+                status = (
+                    "SUCCESS" if self.shared_state.last_scripter_success else "FAILED"
+                )
                 script_context = (
                     f'\n<script_result status="{status}">\n'
                     f"{self.shared_state.last_scripter_message}\n"

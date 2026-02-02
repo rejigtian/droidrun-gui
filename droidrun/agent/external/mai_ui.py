@@ -407,38 +407,52 @@ def build_messages(
             if should_include_image and image_idx < len(history_images):
                 # Add image before assistant response
                 encoded = bytes_to_base64(history_images[image_idx])
-                messages.append({
-                    "role": "user",
-                    "content": [{
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/png;base64,{encoded}"},
-                    }],
-                })
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/png;base64,{encoded}"
+                                },
+                            }
+                        ],
+                    }
+                )
                 image_idx += 1
 
             # Add assistant response
             history_response = mem2response(step)
-            messages.append({
-                "role": "assistant",
-                "content": [{"type": "text", "text": history_response}],
-            })
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": history_response}],
+                }
+            )
 
             # Add ask_user_response if present (matches MAI-UI behavior)
             if step.ask_user_response:
-                messages.append({
-                    "role": "user",
-                    "content": [{"type": "text", "text": step.ask_user_response}],
-                })
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": [{"type": "text", "text": step.ask_user_response}],
+                    }
+                )
 
     # Add current screenshot
     current_encoded = bytes_to_base64(current_screenshot_bytes)
-    messages.append({
-        "role": "user",
-        "content": [{
-            "type": "image_url",
-            "image_url": {"url": f"data:image/png;base64,{current_encoded}"},
-        }],
-    })
+    messages.append(
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{current_encoded}"},
+                }
+            ],
+        }
+    )
 
     return messages
 
@@ -499,7 +513,11 @@ async def execute_action(
         elif action_type == "type":
             text = action.get("text", "")
             result = await tools.input_text(text)
-            return True, f"type '{text[:30]}...': {result}" if len(text) > 30 else f"type '{text}': {result}"
+            return True, (
+                f"type '{text[:30]}...': {result}"
+                if len(text) > 30
+                else f"type '{text}': {result}"
+            )
 
         elif action_type == "swipe":
             direction = action.get("direction", "up")
@@ -638,8 +656,7 @@ async def run(
 
     if "model" not in llm_cfg:
         raise ValueError(
-            "MAI-UI requires 'llm.model' to be specified. "
-            "Example: model: mai-ui-8b"
+            "MAI-UI requires 'llm.model' to be specified. " "Example: model: mai-ui-8b"
         )
 
     # Load LLM - pass config directly to load_llm

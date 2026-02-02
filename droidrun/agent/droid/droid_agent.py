@@ -117,9 +117,7 @@ class DroidAgent(Workflow):
 
             handler = CLILogHandler()
             handler.setFormatter(
-                logging.Formatter(
-                    "%(asctime)s %(levelname)s: %(message)s", "%H:%M:%S"
-                )
+                logging.Formatter("%(asctime)s %(levelname)s: %(message)s", "%H:%M:%S")
                 if debug
                 else logging.Formatter("%(message)s")
             )
@@ -225,8 +223,12 @@ class DroidAgent(Workflow):
         # Check if using external agent - skip LLM loading
         self._using_external_agent = self.config.agent.name != "droidrun"
         logger.debug(f"DEBUG __init__: config.agent.name = {self.config.agent.name}")
-        logger.debug(f"DEBUG __init__: config.external_agents = {self.config.external_agents}")
-        logger.debug(f"DEBUG __init__: _using_external_agent = {self._using_external_agent}")
+        logger.debug(
+            f"DEBUG __init__: config.external_agents = {self.config.external_agents}"
+        )
+        logger.debug(
+            f"DEBUG __init__: _using_external_agent = {self._using_external_agent}"
+        )
 
         self.timeout = timeout
 
@@ -263,7 +265,9 @@ class DroidAgent(Workflow):
                 self.text_manipulator_llm = llms.get("text_manipulator")
                 self.app_opener_llm = llms.get("app_opener")
                 self.scripter_llm = llms.get("scripter", self.codeact_llm)
-                self.structured_output_llm = llms.get("structured_output", self.codeact_llm)
+                self.structured_output_llm = llms.get(
+                    "structured_output", self.codeact_llm
+                )
 
                 logger.debug("📚 Using agent-specific LLMs from dictionary")
             else:
@@ -544,7 +548,9 @@ class DroidAgent(Workflow):
             self.tools_instance.app_opener_llm = self.app_opener_llm
             self.tools_instance.text_manipulator_llm = self.text_manipulator_llm
             self.tools_instance.streaming = self.config.agent.streaming
-            self.tools_instance.use_normalized = self.config.agent.use_normalized_coordinates
+            self.tools_instance.use_normalized = (
+                self.config.agent.use_normalized_coordinates
+            )
 
         # Update sub-agents with tools (outside the if block - works for both auto-created and pre-provided)
         if self.config.agent.reasoning and self.executor_agent:
@@ -698,7 +704,6 @@ class DroidAgent(Workflow):
         # Continue to Executor with current subgoal
         logger.debug(f"▶️  Proceeding to Executor with subgoal: {ev.current_subgoal}")
         return ExecutorInputEvent(current_subgoal=ev.current_subgoal)
-
 
     @step
     async def run_text_manipulator(

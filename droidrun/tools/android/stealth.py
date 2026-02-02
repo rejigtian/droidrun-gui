@@ -306,11 +306,14 @@ class StealthAdbTools(AdbTools):
         """Tap on element by index, avoiding overlapping elements."""
         await self._ensure_connected()
         try:
+
             def find_element_by_index(elements, target_index):
                 for item in elements:
                     if item.get("index") == target_index:
                         return item
-                    result = find_element_by_index(item.get("children", []), target_index)
+                    result = find_element_by_index(
+                        item.get("children", []), target_index
+                    )
                     if result:
                         return result
                 return None
@@ -348,7 +351,9 @@ class StealthAdbTools(AdbTools):
 
             point = find_clear_point(target_bounds, blockers)
             if not point:
-                raise ValueError(f"Element {index} is fully obscured by overlapping elements")
+                raise ValueError(
+                    f"Element {index} is fully obscured by overlapping elements"
+                )
 
             cx, cy = point
 

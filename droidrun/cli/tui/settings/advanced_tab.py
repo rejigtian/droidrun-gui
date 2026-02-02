@@ -38,16 +38,22 @@ class AdvancedTab(VerticalGroup):
 
             with HorizontalGroup(classes="field-row"):
                 yield Label("Trajectory", classes="field-label")
-                yield BoolToggle(value=self.settings.save_trajectory, id="save-trajectory")
+                yield BoolToggle(
+                    value=self.settings.save_trajectory, id="save-trajectory"
+                )
 
             with HorizontalGroup(classes="field-row"):
                 yield Label("GIFs", classes="field-label")
-                yield BoolToggle(value=self.settings.trajectory_gifs, id="trajectory-gifs")
+                yield BoolToggle(
+                    value=self.settings.trajectory_gifs, id="trajectory-gifs"
+                )
 
         with Section("Tracing"):
             with HorizontalGroup(classes="field-row"):
                 yield Label("Enabled", classes="field-label")
-                yield BoolToggle(value=self.settings.tracing_enabled, id="tracing-enabled")
+                yield BoolToggle(
+                    value=self.settings.tracing_enabled, id="tracing-enabled"
+                )
 
             with HorizontalGroup(classes="field-row"):
                 yield Label("Provider", classes="field-label")
@@ -59,7 +65,11 @@ class AdvancedTab(VerticalGroup):
                     classes="field-select",
                 )
 
-            langfuse_cls = "field-row" if self.settings.tracing_provider == "langfuse" else "field-row hidden-field"
+            langfuse_cls = (
+                "field-row"
+                if self.settings.tracing_provider == "langfuse"
+                else "field-row hidden-field"
+            )
 
             with HorizontalGroup(classes=langfuse_cls, id="row-langfuse-host"):
                 yield Label("Host", classes="field-label")
@@ -89,7 +99,9 @@ class AdvancedTab(VerticalGroup):
 
             with HorizontalGroup(classes=langfuse_cls, id="row-langfuse-screenshots"):
                 yield Label("Screenshots", classes="field-label")
-                yield BoolToggle(value=self.settings.langfuse_screenshots, id="langfuse-screenshots")
+                yield BoolToggle(
+                    value=self.settings.langfuse_screenshots, id="langfuse-screenshots"
+                )
 
         with Section("Timing"):
             with HorizontalGroup(classes="field-row"):
@@ -113,7 +125,12 @@ class AdvancedTab(VerticalGroup):
     @on(Select.Changed, "#tracing-provider")
     def _on_provider_changed(self, event: Select.Changed) -> None:
         is_langfuse = str(event.value) == "langfuse"
-        for row_id in ("row-langfuse-host", "row-langfuse-pk", "row-langfuse-sk", "row-langfuse-screenshots"):
+        for row_id in (
+            "row-langfuse-host",
+            "row-langfuse-pk",
+            "row-langfuse-sk",
+            "row-langfuse-screenshots",
+        ):
             row = self.query_one(f"#{row_id}")
             if is_langfuse:
                 row.remove_class("hidden-field")
@@ -143,7 +160,9 @@ class AdvancedTab(VerticalGroup):
             "langfuse_host": self.query_one("#langfuse-host", Input).value.strip(),
             "langfuse_public_key": self.query_one("#langfuse-pk", Input).value.strip(),
             "langfuse_secret_key": self.query_one("#langfuse-sk", Input).value.strip(),
-            "langfuse_screenshots": self.query_one("#langfuse-screenshots", BoolToggle).value,
+            "langfuse_screenshots": self.query_one(
+                "#langfuse-screenshots", BoolToggle
+            ).value,
             "after_sleep_action": after_sleep,
             "wait_for_stable_ui": wait_stable,
         }

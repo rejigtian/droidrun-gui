@@ -31,10 +31,10 @@ PROVIDER_ENV_KEY_SLOT: dict[str, str] = {
 # Which fields are relevant per provider.
 PROVIDER_FIELDS: dict[str, dict[str, Any]] = {
     "GoogleGenAI": {"api_key": True, "base_url": False},
-    "OpenAI":      {"api_key": True, "base_url": False},
-    "Anthropic":   {"api_key": True, "base_url": False},
-    "Ollama":      {"api_key": False, "base_url": True},
-    "OpenAILike":  {"api_key": True, "base_url": True},
+    "OpenAI": {"api_key": True, "base_url": False},
+    "Anthropic": {"api_key": True, "base_url": False},
+    "Ollama": {"api_key": False, "base_url": True},
+    "OpenAILike": {"api_key": True, "base_url": True},
 }
 
 
@@ -55,14 +55,14 @@ class SettingsData:
     """All TUI settings in one object."""
 
     # Per-agent LLM profiles (the real config, no fake global)
-    profiles: dict[str, ProfileSettings] = field(default_factory=lambda: {
-        role: ProfileSettings() for role in AGENT_ROLES
-    })
+    profiles: dict[str, ProfileSettings] = field(
+        default_factory=lambda: {role: ProfileSettings() for role in AGENT_ROLES}
+    )
 
     # Per-agent custom prompt paths
-    agent_prompts: dict[str, str] = field(default_factory=lambda: {
-        role: "" for role in AGENT_ROLES
-    })
+    agent_prompts: dict[str, str] = field(
+        default_factory=lambda: {role: "" for role in AGENT_ROLES}
+    )
 
     # Agent
     manager_vision: bool = True
@@ -167,6 +167,7 @@ class SettingsData:
             config = ConfigLoader.load()
         except Exception:
             from droidrun.config_manager.config_manager import DroidrunConfig
+
             config = DroidrunConfig()
 
         self.apply_to_config(config)
@@ -191,7 +192,9 @@ class SettingsData:
         return parsed
 
     @staticmethod
-    def _apply_profile_to_llm(ps: ProfileSettings, cp: Any, update_model: bool = True) -> None:
+    def _apply_profile_to_llm(
+        ps: ProfileSettings, cp: Any, update_model: bool = True
+    ) -> None:
         """Write a ProfileSettings onto an LLMProfile config object."""
         cp.provider = ps.provider
         if update_model:
