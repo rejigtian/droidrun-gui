@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+from collections import deque
+
 from textual.widgets import RichLog
 from rich.text import Text
+
+MAX_LOG_LINES = 10_000
 
 
 class LogView(RichLog):
@@ -18,9 +22,10 @@ class LogView(RichLog):
             wrap=True,
             markup=False,
             auto_scroll=True,
+            max_lines=MAX_LOG_LINES,
             **kwargs,
         )
-        self._plain_lines: list[str] = []
+        self._plain_lines: deque[str] = deque(maxlen=MAX_LOG_LINES)
 
     def append(self, line: str, style: str | None = None) -> None:
         """Append a line of text with optional color style."""
