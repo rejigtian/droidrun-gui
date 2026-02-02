@@ -66,6 +66,7 @@ class DroidrunTUI(App):
 
         self.reasoning: bool = False
         self.device_serial: str = ""
+        self._device_connected: bool = False  # tracks portal health
         self._pending_input: str | None = None  # e.g. "steps" — next submit goes to handler
 
         # Load settings from user config
@@ -98,6 +99,7 @@ class DroidrunTUI(App):
         self._sync_status_bar()
         self._update_hint()
         self.run_worker(self._autoconnect(), group="autoconnect", exclusive=True)
+        self.set_interval(5, self._health_check_tick, name="health-check")
 
     def on_key(self, event: events.Key) -> None:
         if self._device_pick_visible or self._dropdown_visible:
@@ -111,6 +113,7 @@ class DroidrunTUI(App):
     def _sync_status_bar(self) -> None:
         status = self.query_one("#status-bar", StatusBar)
         status.device_serial = self.device_serial
+        status.device_connected = self._device_connected
         # Show model name from first profile in status bar
         first_profile = next(iter(self.settings.profiles.values()), None)
         if first_profile:
@@ -167,6 +170,7 @@ class DroidrunTUI(App):
             try:
                 await self._verify_portal(serial)
                 self.device_serial = serial
+                self._device_connected = True
                 self._sync_status_bar()
                 status.hint = ""
                 return
@@ -179,6 +183,48 @@ class DroidrunTUI(App):
             self._sync_status_bar()
 
         status.hint = ""
+
+    # ── Health check ──
+
+    def _health_check_tick(self) -> None:
+        """Called every 5s by set_interval. Kicks off async health check."""
+        if not self.device_serial:
+            return
+        self.run_worker(self._health_check(), group="health", exclusive=True)
+
+    async def _health_check(self) -> None:
+        """Ping the current device. Handle disconnect/reconnect."""
+        import logging
+
+        logger = logging.getLogger("droidrun")
+        serial = self.device_serial
+        if not serial:
+            return
+
+        try:
+            await self._verify_portal(serial)
+
+            if not self._device_connected:
+                # Was disconnected, now back
+                self._device_connected = True
+                self._sync_status_bar()
+                logger.info(f"Device reconnected: {serial}", extra={"color": "green"})
+
+        except Exception:
+            if self._device_connected:
+                # Was connected, now lost
+                self._device_connected = False
+                self._sync_status_bar()
+                logger.warning(f"Device disconnected: {serial}", extra={"color": "yellow"})
+
+            # Try to reconnect
+            try:
+                await self._verify_portal(serial)
+                self._device_connected = True
+                self._sync_status_bar()
+                logger.info(f"Device reconnected: {serial}", extra={"color": "green"})
+            except Exception:
+                pass
 
     # ── Worker crash recovery ──
 
@@ -490,6 +536,7 @@ class DroidrunTUI(App):
 
             # All good
             self.device_serial = serial
+            self._device_connected = True
             self._hide_device_picker()
             self._sync_status_bar()
             self._show_logs()
@@ -602,6 +649,7 @@ class DroidrunTUI(App):
 
             # Success — link device
             self.device_serial = serial
+            self._device_connected = True
             self._sync_status_bar()
             log.append(f"  device ready: {serial}")
             log.append("")
