@@ -94,9 +94,9 @@ class DroidrunTUI(App):
 
     def on_mount(self) -> None:
         self.query_one("#input-bar", InputBar).focus()
-        self.device_serial = self._config_serial
         self._sync_status_bar()
         self._update_hint()
+        self.run_worker(self._autoconnect(), group="autoconnect", exclusive=True)
 
     def on_key(self, event: events.Key) -> None:
         if self._device_pick_visible or self._dropdown_visible:
@@ -127,6 +127,57 @@ class DroidrunTUI(App):
             status.hint = "esc to stop"
         else:
             status.hint = ""
+
+    # ── Autoconnect ──
+
+    async def _autoconnect(self) -> None:
+        """Silently find and verify a device on startup."""
+        from async_adbutils import adb
+
+        status = self.query_one("#status-bar", StatusBar)
+        status.hint = "connecting..."
+
+        try:
+            devices = await adb.list()
+        except Exception:
+            status.hint = ""
+            return
+
+        # Filter to online devices
+        available: list[str] = []
+        for d in devices:
+            if getattr(d, "state", None) == "device":
+                available.append(d.serial)
+
+        if not available:
+            status.hint = ""
+            return
+
+        # Config serial gets priority, then the rest
+        candidates = []
+        if self._config_serial and self._config_serial in available:
+            candidates.append(self._config_serial)
+        for s in available:
+            if s not in candidates:
+                candidates.append(s)
+
+        # Try each until portal responds
+        for serial in candidates:
+            try:
+                await self._verify_portal(serial)
+                self.device_serial = serial
+                self._sync_status_bar()
+                status.hint = ""
+                return
+            except Exception:
+                continue
+
+        # No portal found — use config serial if it's online (device exists but no portal)
+        if self._config_serial and self._config_serial in available:
+            self.device_serial = self._config_serial
+            self._sync_status_bar()
+
+        status.hint = ""
 
     # ── Worker crash recovery ──
 
@@ -280,10 +331,7 @@ class DroidrunTUI(App):
 
         entries = []
         for d in devices:
-            try:
-                state = await d.get_state()
-            except Exception:
-                state = "unknown"
+            state = getattr(d, "state", "unknown")
             entries.append((d.serial, state))
 
         picker.set_devices(entries)
@@ -582,6 +630,10 @@ class DroidrunTUI(App):
         # Set up TUI logging handler
         _stream_buf: list[str] = []
 
+        def _append_indented(msg: str, style: str) -> None:
+            for line in msg.split("\n"):
+                log.append(f"  {line}", style=style)
+
         def _on_record(rec: dict) -> None:
             style = COLOR_HEX.get(rec.get("color")) or DEFAULT_LOG_STYLE
 
@@ -589,13 +641,13 @@ class DroidrunTUI(App):
                 _stream_buf.append(rec["msg"])
             elif rec["stream_end"]:
                 if _stream_buf:
-                    log.append("  " + "".join(_stream_buf), style=style)
+                    _append_indented("".join(_stream_buf), style)
                     _stream_buf.clear()
             else:
                 if _stream_buf:
-                    log.append("  " + "".join(_stream_buf), style=style)
+                    _append_indented("".join(_stream_buf), style)
                     _stream_buf.clear()
-                log.append(f"  {rec['msg']}", style=style)
+                _append_indented(rec["msg"], style)
 
         tui_handler = TUILogHandler(on_record=_on_record)
         configure_logging(debug=self.settings.debug, handler=tui_handler)
