@@ -176,6 +176,16 @@ class ExecutorAgent(Workflow):
                 self.llm, chat_messages, stream=self.agent_config.streaming
             )
             response_text = str(response)
+        except ValueError as e:
+            logger.warning(f"Executor LLM returned empty response: {e}")
+            error_response = (
+                "### Thought\nExecutor failed to respond, try again\n"
+                '### Action\n{"action": "invalid"}\n'
+                "### Description\nExecutor failed to respond, try again"
+            )
+            event = ExecutorResponseEvent(response=error_response, usage=None)
+            ctx.write_event_to_stream(event)
+            return event
         except Exception as e:
             raise RuntimeError(f"Error calling LLM in executor: {e}") from e
 
