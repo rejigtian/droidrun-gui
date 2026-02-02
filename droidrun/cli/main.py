@@ -694,6 +694,16 @@ async def ping(device: str | None, tcp: bool | None, debug: bool | None):
 cli.add_command(macro_cli, name="macro")
 
 @cli.command()
+@click.option("--device", "-d", help="Device serial number or IP address", default=None)
+@click.option("--debug/--no-debug", default=None, help="Enable verbose debug output")
+@coro
+async def doctor(device: str | None, debug: bool | None):
+    """Check system health and diagnose issues."""
+    from droidrun.cli.doctor import run_doctor
+    await run_doctor(device, debug if debug is not None else False)
+
+
+@cli.command()
 def tui():
     """Launch the DroidRun Terminal User Interface."""
     from droidrun.cli.tui import run_tui
