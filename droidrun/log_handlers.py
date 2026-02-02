@@ -54,15 +54,17 @@ class CLILogHandler(logging.Handler):
 
 
 class TUILogHandler(logging.Handler):
-    """Captures log records for TUI rendering (rendering deferred).
+    """Captures log records for TUI rendering.
 
     Args:
         on_step: Optional callback invoked when a step-increment record arrives.
+        on_record: Optional callback invoked for every record with the record dict.
     """
 
-    def __init__(self, on_step=None, level: int = logging.NOTSET) -> None:
+    def __init__(self, on_step=None, on_record=None, level: int = logging.NOTSET) -> None:
         super().__init__(level)
         self.on_step = on_step
+        self.on_record = on_record
         self.records: list[dict] = []
 
     def emit(self, record: logging.LogRecord) -> None:
@@ -73,13 +75,17 @@ class TUILogHandler(logging.Handler):
             stream_end = getattr(record, "stream_end", False)
             step_increment = getattr(record, "step_increment", False)
 
-            self.records.append({
+            rec = {
                 "msg": msg,
                 "color": color,
                 "stream": stream,
                 "stream_end": stream_end,
                 "level": record.levelno,
-            })
+            }
+            self.records.append(rec)
+
+            if self.on_record:
+                self.on_record(rec)
 
             if step_increment and self.on_step:
                 self.on_step()

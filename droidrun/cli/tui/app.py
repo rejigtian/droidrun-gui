@@ -17,6 +17,18 @@ from droidrun.log_handlers import TUILogHandler, configure_logging
 from droidrun.cli.tui.settings import SettingsData, SettingsScreen
 from droidrun.cli.tui.widgets import InputBar, CommandDropdown, DevicePicker, LogView, StatusBar
 
+# Map basic color names (from EventHandler) to TUI hex palette
+COLOR_HEX = {
+    "blue":    "#b7bdf8",
+    "cyan":    "#CAD3F6",
+    "green":   "#a6da95",
+    "red":     "#ed8796",
+    "yellow":  "#f5a97f",
+    "magenta": "#838BBC",
+    "white":   "#a1a1aa",
+}
+DEFAULT_LOG_STYLE = "#a1a1aa"
+
 
 BANNER = """[#CAD3F6]
 \u2588\u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2588\u2588\u2588\u2588\u2557  \u2588\u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2557\u2588\u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2557   \u2588\u2588\u2557\u2588\u2588\u2588\u2557   \u2588\u2588\u2557
@@ -35,6 +47,7 @@ class DroidrunTUI(App):
 
     BINDINGS = [
         Binding("ctrl+l", "clear_logs", "Clear Logs", show=False),
+        Binding("ctrl+shift+c", "copy_logs", "Copy Logs", show=False),
         Binding("escape", "handle_esc", "Esc", show=False),
         Binding("ctrl+c", "handle_ctrl_c", "Quit", show=False),
         Binding("ctrl+z", "quit", "Quit", show=False),
@@ -496,6 +509,13 @@ class DroidrunTUI(App):
         self.query_one("#banner").remove_class("hidden")
         self._logs_visible = False
 
+    def action_copy_logs(self) -> None:
+        log = self.query_one("#log-display", LogView)
+        text = log.get_plain_text()
+        if text:
+            self.copy_to_clipboard(text)
+            self.notify("Copied", timeout=1.5)
+
     # ── Esc handling ──
 
     def action_handle_esc(self) -> None:
@@ -555,21 +575,37 @@ class DroidrunTUI(App):
         log = self.query_one("#log-display", LogView)
         status = self.query_one("#status-bar", StatusBar)
 
-        log.append(f"\n\u2500\u2500 {command}")
+        log.append(f"\n\u2500\u2500 {command}", style="#CAD3F6")
         log.append("")
 
         status.is_running = True
         status.current_step = 0
 
-        # Set up TUI logging handler with step-increment callback
+        # Set up TUI logging handler with step-increment and record callbacks
         _step_count = 0
+        _stream_buf: list[str] = []
 
         def _on_step():
             nonlocal _step_count
             _step_count += 1
             status.current_step = _step_count
 
-        tui_handler = TUILogHandler(on_step=_on_step)
+        def _on_record(rec: dict) -> None:
+            style = COLOR_HEX.get(rec.get("color")) or DEFAULT_LOG_STYLE
+
+            if rec["stream"]:
+                _stream_buf.append(rec["msg"])
+            elif rec["stream_end"]:
+                if _stream_buf:
+                    log.append("  " + "".join(_stream_buf), style=style)
+                    _stream_buf.clear()
+            else:
+                if _stream_buf:
+                    log.append("  " + "".join(_stream_buf), style=style)
+                    _stream_buf.clear()
+                log.append(f"  {rec['msg']}", style=style)
+
+        tui_handler = TUILogHandler(on_step=_on_step, on_record=_on_record)
         configure_logging(debug=self._debug_logs, handler=tui_handler)
         event_handler = EventHandler()
         success = False
@@ -587,10 +623,10 @@ class DroidrunTUI(App):
             config.agent.reasoning = self.reasoning
             config.device.serial = self.device_serial or None
 
-            log.append("  initializing...")
+            log.append("  initializing...", style="#838BBC")
             first_profile = next(iter(self.settings.profiles.values()), None)
             if first_profile:
-                log.append(f"  {first_profile.provider} \u2022 {first_profile.model}")
+                log.append(f"  {first_profile.provider} \u2022 {first_profile.model}", style="#838BBC")
 
             # DroidAgent loads LLMs from config.llm_profiles via load_agent_llms
             droid_agent = DroidAgent(
@@ -613,20 +649,20 @@ class DroidrunTUI(App):
             if not self._cancel_requested:
                 result: ResultEvent = await handler
                 success = result.success
-                log.append(f"\n  {result.steps} steps")
+                log.append(f"\n  {result.steps} steps", style="#838BBC")
 
         except Exception as e:
-            log.append(f"\n  error: {e}")
+            log.append(f"\n  error: {e}", style="#ed8796")
             import traceback
             for line in traceback.format_exc().split("\n"):
                 if line.strip():
-                    log.append(f"  {line}")
+                    log.append(f"  {line}", style="#ed8796")
 
         finally:
             if success:
-                log.append("  done")
+                log.append("  done", style="#a6da95")
             else:
-                log.append("  failed")
+                log.append("  failed", style="#ed8796")
             log.append("")
 
             self.running = False

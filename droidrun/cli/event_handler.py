@@ -67,37 +67,37 @@ class EventHandler:
         elif isinstance(event, ManagerPlanDetailsEvent):
             if event.thought:
                 preview = event.thought[:120] + "..." if len(event.thought) > 120 else event.thought
-                logger.debug(f"💭 Thought: {preview}")
+                logger.debug(f"💭 Thought: {preview}", extra={"color": "cyan"})
             if event.subgoal:
                 preview = event.subgoal[:150] + "..." if len(event.subgoal) > 150 else event.subgoal
-                logger.debug(f"📋 Next step: {preview}")
+                logger.debug(f"📋 Next step: {preview}", extra={"color": "yellow"})
             if event.answer:
                 preview = event.answer[:200] + "..." if len(event.answer) > 200 else event.answer
-                logger.debug(f"💬 Answer: {preview}")
+                logger.debug(f"💬 Answer: {preview}", extra={"color": "green"})
             if event.plan:
-                logger.debug(f"▸ {event.plan}")
+                logger.debug(f"▸ {event.plan}", extra={"color": "yellow"})
             if event.memory_update:
-                logger.debug(f"🧠 Memory: {event.memory_update[:100]}...")
+                logger.debug(f"🧠 Memory: {event.memory_update[:100]}...", extra={"color": "cyan"})
 
         # ── Executor events (reasoning mode) ────────────────────────
         elif isinstance(event, ExecutorActionEvent):
             if event.description:
-                logger.debug(f"🎯 Action: {event.description}")
+                logger.debug(f"🎯 Action: {event.description}", extra={"color": "yellow"})
             if event.thought:
                 preview = event.thought[:120] + "..." if len(event.thought) > 120 else event.thought
-                logger.debug(f"💭 Reasoning: {preview}")
+                logger.debug(f"💭 Reasoning: {preview}", extra={"color": "cyan"})
 
         elif isinstance(event, ExecutorActionResultEvent):
             if event.success:
-                logger.debug(f"✅ {event.summary}")
+                logger.debug(f"✅ {event.summary}", extra={"color": "green"})
             else:
                 error_msg = event.error or "Unknown error"
-                logger.debug(f"❌ {event.summary} ({error_msg})")
+                logger.debug(f"❌ {event.summary} ({error_msg})", extra={"color": "red"})
 
         elif isinstance(event, ExecutorResultEvent):
             logger.debug(
                 "Step complete",
-                extra={"step_increment": True},
+                extra={"step_increment": True, "color": "magenta"},
             )
 
         # ── CodeAct events (direct mode) ────────────────────────────
@@ -107,68 +107,67 @@ class EventHandler:
         elif isinstance(event, CodeActResponseEvent):
             logger.debug(
                 "CodeAct response",
-                extra={"step_increment": True},
+                extra={"step_increment": True, "color": "magenta"},
             )
             if event.thought:
                 preview = event.thought[:150] + "..." if len(event.thought) > 150 else event.thought
-                logger.debug(f"🧠 Thinking: {preview}")
+                logger.debug(f"🧠 Thinking: {preview}", extra={"color": "cyan"})
             if event.code:
-                logger.debug("💻 Executing action code")
-                logger.debug(f"{event.code}")
+                logger.debug("💻 Executing action code", extra={"color": "yellow"})
+                logger.debug(f"{event.code}", extra={"color": "blue"})
 
         elif isinstance(event, CodeActCodeEvent):
-            logger.debug("⚡ Executing action...")
+            logger.debug("⚡ Executing action...", extra={"color": "yellow"})
 
         elif isinstance(event, CodeActOutputEvent):
             if event.output:
                 output = str(event.output)
                 preview = output[:100] + "..." if len(output) > 100 else output
                 if "Error" in output or "Exception" in output:
-                    logger.debug(f"❌ Action error: {preview}")
+                    logger.debug(f"❌ Action error: {preview}", extra={"color": "red"})
                 else:
-                    logger.debug(f"⚡ Action result: {preview}")
+                    logger.debug(f"⚡ Action result: {preview}", extra={"color": "green"})
 
         elif isinstance(event, CodeActEndEvent):
             status = "done" if event.success else "failed"
-            logger.debug(f"■ {status}: {event.reason} ({event.code_executions} runs)")
+            color = "green" if event.success else "red"
+            logger.debug(f"■ {status}: {event.reason} ({event.code_executions} runs)", extra={"color": color})
 
         # ── Scripter events ─────────────────────────────────────────
         elif isinstance(event, ScripterThinkingEvent):
             if event.thought:
-                logger.debug(f"    {event.thought}")
+                logger.debug(f"    {event.thought}", extra={"color": "cyan"})
             if event.code:
-                logger.debug("  $ script")
+                logger.debug("  $ script", extra={"color": "blue"})
                 for line in event.code.split("\n")[:5]:
                     if line.strip():
-                        logger.debug(f"    {line}")
+                        logger.debug(f"    {line}", extra={"color": "blue"})
 
         # ── Macro / action events ───────────────────────────────────
         elif isinstance(event, TapActionEvent):
-            logger.debug(f"› tap  {event.description}")
+            logger.debug(f"› tap  {event.description}", extra={"color": "white"})
 
         elif isinstance(event, SwipeActionEvent):
-            logger.debug(f"› swipe  {event.description}")
+            logger.debug(f"› swipe  {event.description}", extra={"color": "white"})
 
         elif isinstance(event, InputTextActionEvent):
-            logger.debug(f"› input  {event.text}")
+            logger.debug(f"› input  {event.text}", extra={"color": "white"})
 
         # ── Droid coordination events ───────────────────────────────
         elif isinstance(event, CodeActExecuteEvent):
-            logger.debug("🔧 Starting task execution...")
+            logger.debug("🔧 Starting task execution...", extra={"color": "magenta"})
 
         elif isinstance(event, CodeActResultEvent):
-            if hasattr(event, "success") and hasattr(event, "reason"):
-                if event.success:
-                    logger.debug(f"Task result: {event.reason}")
-                else:
-                    logger.debug(f"Task failed: {event.reason}")
+            if event.success:
+                logger.debug(f"Task result: {event.reason}", extra={"color": "green"})
+            else:
+                logger.debug(f"Task failed: {event.reason}", extra={"color": "red"})
 
         elif isinstance(event, FinalizeEvent):
-            if hasattr(event, "success") and hasattr(event, "reason"):
-                if event.success:
-                    logger.info(f"🎉 Goal achieved: {event.reason}")
-                else:
-                    logger.info(f"❌ Goal failed: {event.reason}")
+            if event.success:
+                logger.info(f"🎉 Goal achieved: {event.reason}", extra={"color": "green"})
+            else:
+                logger.info(f"❌ Goal failed: {event.reason}", extra={"color": "red"})
 
         # ── Fallback ────────────────────────────────────────────────
         else:
