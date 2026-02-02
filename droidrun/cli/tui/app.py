@@ -842,6 +842,10 @@ class DroidrunTUI(App):
                     log.append(f"  {line}", style="#ed8796")
 
         finally:
+            if _stream_buf:
+                log.append("  " + "".join(_stream_buf))
+                _stream_buf.clear()
+
             if success:
                 log.append("  done", style="#a6da95")
             else:
