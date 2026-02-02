@@ -44,6 +44,7 @@ BANNER = """[#CAD3F6]
 
 class DroidrunTUI(App):
 
+    ALLOW_SELECT = False
     CSS_PATH = "css/app.tcss"
 
     BINDINGS = [

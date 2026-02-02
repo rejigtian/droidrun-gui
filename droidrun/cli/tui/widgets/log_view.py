@@ -17,6 +17,8 @@ class LogView(RichLog):
     Maintains a parallel plain-text buffer for clipboard copy.
     """
 
+    ALLOW_SELECT = False
+
     def __init__(self, **kwargs) -> None:
         super().__init__(
             wrap=True,

@@ -9,7 +9,7 @@ SettingsScreen {
     height: 85%;
     background: #0c0c0f;
     border: round #27272a;
-    padding: 1 2;
+    padding: 0 2;
 }
 
 #settings-tabs {
@@ -23,7 +23,7 @@ SettingsScreen {
 #settings-tabs TabPane {
     height: 100%;
     overflow-y: auto;
-    padding: 1 0 0 0;
+    padding: 0;
 }
 
 #settings-tabs Tabs {
@@ -49,8 +49,8 @@ SettingsScreen {
 
 #settings-buttons {
     height: auto;
-    margin-top: 1;
-    padding-top: 1;
+    margin-top: 0;
+    padding-top: 0;
     border-top: solid #27272a;
     align: right middle;
 }
