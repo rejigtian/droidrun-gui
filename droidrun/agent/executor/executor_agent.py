@@ -171,7 +171,7 @@ class ExecutorAgent(Workflow):
         chat_messages = to_chat_messages(messages)
 
         try:
-            logger.info("[green]Executor response:[/green]")
+            logger.info("Executor response:", extra={"color": "green"})
             response = await acall_with_retries(
                 self.llm, chat_messages, stream=self.agent_config.streaming
             )

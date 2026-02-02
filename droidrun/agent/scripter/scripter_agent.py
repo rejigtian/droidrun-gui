@@ -183,7 +183,7 @@ class ScripterAgent(Workflow):
         chat_messages = chat_utils.to_chat_messages(self.message_history)
 
         try:
-            logger.info("[magenta]🐍 Scripter response:[/magenta]")
+            logger.info("🐍 Scripter response:", extra={"color": "magenta"})
             response = await acall_with_retries(
                 self.llm, chat_messages, stream=self.agent_config.streaming
             )
@@ -273,7 +273,7 @@ class ScripterAgent(Workflow):
                 timeout=self.config.execution_timeout,
             )
 
-            logger.info("[dim]💡 Execution result:[/dim]")
+            logger.info("💡 Execution result:", extra={"color": "dim"})
             logger.info(f"{result}")
 
             # Continue loop (completion detected in handle_llm_output)

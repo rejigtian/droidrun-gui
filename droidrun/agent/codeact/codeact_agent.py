@@ -340,7 +340,7 @@ class CodeActAgent(Workflow):
         chat_messages = to_chat_messages(messages_to_send)
 
         # Call LLM
-        logger.info("[yellow]CodeAct response:[/yellow]")
+        logger.info("CodeAct response:", extra={"color": "yellow"})
         response = await acall_with_retries(
             self.llm, chat_messages, stream=self.agent_config.streaming
         )
@@ -423,7 +423,7 @@ class CodeActAgent(Workflow):
                 code,
                 timeout=self.config.execution_timeout,
             )
-            logger.info("[dim]💡 Execution result:[/dim]")
+            logger.info("💡 Execution result:", extra={"color": "dim"})
             logger.info(f"{result}")
             await asyncio.sleep(self.agent_config.after_sleep_action)
 

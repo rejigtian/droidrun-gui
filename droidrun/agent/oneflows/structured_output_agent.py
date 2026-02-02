@@ -53,9 +53,7 @@ class StructuredOutputAgent(Workflow):
             )
 
             # Use structured_predict to extract data
-            logger.info(
-                "[bright_magenta]🔍 StructuredOutput response:[/bright_magenta]"
-            )
+            logger.info("🔍 StructuredOutput response:", extra={"color": "magenta"})
             structured_output = await astructured_predict_with_retries(
                 self.llm, self.pydantic_model, prompt, text=self.answer_text
             )

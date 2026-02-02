@@ -759,8 +759,7 @@ async def run(
         if action_type == "ask_user":
             # Get user input via stdin
             question = action_json.get("text", "Please provide input:")
-            logger.info(f"Agent asks: {question}")
-            print(f"\n🤖 Agent asks: {question}")
+            logger.info(f"🤖 Agent asks: {question}")
             user_response = input("Your response: ").strip()
             logger.info(f"User response: {user_response}")
 

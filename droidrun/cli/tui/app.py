@@ -26,6 +26,7 @@ COLOR_HEX = {
     "yellow":  "#f5a97f",
     "magenta": "#838BBC",
     "white":   "#a1a1aa",
+    "dim":     "#71717a",
 }
 DEFAULT_LOG_STYLE = "#a1a1aa"
 
