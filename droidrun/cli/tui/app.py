@@ -106,8 +106,12 @@ class DroidrunTUI(App):
         if self._device_pick_visible or self._dropdown_visible:
             return
         input_bar = self.query_one("#input-bar", InputBar)
-        if not input_bar.has_focus and event.is_printable:
+        if not input_bar.has_focus and event.is_printable and event.character:
             input_bar.focus()
+            input_bar.value += event.character
+            input_bar.cursor_position = len(input_bar.value)
+            event.prevent_default()
+            event.stop()
 
     # ── Status bar ──
 
@@ -541,19 +545,18 @@ class DroidrunTUI(App):
 
     async def _verify_portal(self, serial: str) -> None:
         """Check portal connectivity. Raises on failure."""
-        self._dbg(f"_verify_portal start serial={serial} use_tcp={self.settings.use_tcp}")
         from async_adbutils import adb
         from droidrun.tools.android.portal_client import PortalClient
 
         device_obj = await adb.device(serial)
-        self._dbg("_verify_portal got device")
         portal = PortalClient(device_obj, prefer_tcp=self.settings.use_tcp)
         await portal.connect()
-        self._dbg(f"_verify_portal connected tcp_available={portal.tcp_available}")
-
         result = await portal.ping()
-        self._dbg(f"_verify_portal ping result={result}")
-        if result.get("status") != "success":
+
+        status = result.get("status")
+        self._dbg(f"verify_portal serial={serial} tcp={portal.tcp_available} status={status}")
+
+        if status != "success":
             raise Exception(result.get("message", "portal not responding"))
 
     async def _check_device(self, serial: str) -> None:
