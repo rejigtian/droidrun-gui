@@ -1,3 +1,8 @@
+---
+title: 'Migration Guide: v3 to v4'
+description: 'Migrate your Droidrun projects from v3 to v4 with this step-by-step guide.'
+---
+
 This guide will help you migrate your Droidrun projects from v3 to v4. Version 4 introduces significant changes to installation, configuration, and API design that improve developer experience and simplify usage.
 
 ---
@@ -584,7 +589,7 @@ agent = DroidAgent(
         "app_opener": OpenAI(model="gpt-4o-mini"),            # App launching
         "scripter": Gemini(model="models/gemini-2.5-flash"),  # Off-device scripts
         "structured_output": Gemini(model="models/gemini-2.5-flash"),  # Output extraction
-     }
+    }
 )
 ```
 
@@ -614,7 +619,7 @@ agent = DroidAgent(
 ```
 
 Variables are accessible throughout execution in `shared_state.custom_variables` and can be used in custom tools or referenced by agents.
- **→ See [Custom Variables Documentation](/features/custom-variables)** for usage patterns.
+**→ See [Custom Variables Documentation](/features/custom-variables)** for usage patterns.
 
 ---
 

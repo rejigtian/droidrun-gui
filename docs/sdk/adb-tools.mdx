@@ -109,7 +109,7 @@ print(result)
 
 **Notes:**
 - Call `get_state()` first to populate the clickable elements cache
-- Returns descriptive error message (not raises exception) if element index is invalid
+- Returns a descriptive error message (does not raise an exception) if the element index is invalid
 - Error message includes up to 20 available indices to help with debugging
 - Automatically searches nested children for the target index
 - Returns detailed information about tapped element including text, class, type, and child content
@@ -299,7 +299,7 @@ result = await tools.input_text("Hello\nWorld")  # Multiline text
 - Call `get_state()` first to populate element cache if using `index` parameter
 - Emits InputTextActionEvent when context is set for trajectory tracking
 - Uses `@Tools.ui_action` decorator for automatic screenshot capture
-- Text longer than 50 characters is truncated in result message (but fully input to device)
+- Text longer than 50 characters is truncated in the result message (but fully sent to the device)
 
 <a id="droidrun.tools.adb.AdbTools.back"></a>
 
@@ -778,7 +778,7 @@ tools.complete(success=False, reason="Could not find contact 'John' in contacts 
 - If `success=False`, `reason` is required (raises ValueError if not provided)
 - If `success=True` and no reason provided, defaults to "Task completed successfully."
 - Uses `@Tools.ui_action` decorator for automatic screenshot capture
-- This does not terminate execution, it only sets completion flags
+- This does not terminate execution; it only sets completion flags
 
 ---
 

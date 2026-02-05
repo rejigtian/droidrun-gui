@@ -15,7 +15,7 @@ class Tools(ABC)
 Abstract base class for all device control tools.
 
 This class defines the contract that all tool implementations must follow. It provides:
-- 14 abstract methods for device interaction (UI, apps, state, memory)
+- 16 abstract methods for device interaction (UI, apps, state, memory)
 - `@ui_action` decorator for automatic trajectory recording
 - Consistent interface across platforms (Android, iOS)
 
@@ -25,7 +25,7 @@ All implementations must provide these methods to ensure compatibility with Droi
 
 ## Quick Reference
 
-**14 Abstract Methods:**
+**16 Abstract Methods:**
 - `get_state()`, `get_date()`, `tap_by_index()`, `swipe()`, `drag()`, `input_text()`, `back()`, `press_key()`, `start_app()`, `take_screenshot()`, `list_packages()`, `get_apps()`, `remember()`, `get_memory()`, `complete()`, `_extract_element_coordinates_by_index()`
 
 **Key Attributes:**
@@ -49,7 +49,7 @@ The Tools architecture follows a 2-layer pattern:
 
 **Key Components:**
 
-- **Tools ABC**: Defines 14 abstract methods that all implementations must provide
+- **Tools ABC**: Defines 16 abstract methods that all implementations must provide
 - **@ui_action decorator**: Automatically captures screenshots and UI states when `save_trajectories="action"`
 - **Portal integration**: Android uses `PortalClient` (TCP or content provider), iOS uses HTTP API
 
@@ -190,7 +190,7 @@ notifications = tools.read_notifications()
 
 ### Creating New Tool Implementations
 
-To create a custom Tools implementation, you must implement all 14 abstract methods:
+To create a custom Tools implementation, you must implement all 16 abstract methods:
 
 ```python
 from droidrun.tools import Tools

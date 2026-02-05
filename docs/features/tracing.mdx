@@ -33,7 +33,7 @@ Use tracing to debug agent behavior, monitor token usage, and analyze execution 
 
 ### Arize Phoenix Tracing
 
-### Setup
+#### Setup
 
 **1. Install Phoenix:**
 
@@ -86,7 +86,7 @@ Navigate to `http://localhost:6006` to see:
 
 For more on using Phoenix, see the [Arize Phoenix documentation](https://docs.arize.com/phoenix).
 
-**Phoenix Configuration**
+#### Phoenix Configuration
 
 Set environment variables to customize Phoenix:
 
@@ -108,7 +108,7 @@ Environment variable names are lowercase: `phoenix_url` and `phoenix_project_nam
 
 Langfuse provides LLM observability with features like session tracking, user analytics, and cost monitoring.
 
-**Setup**
+#### Setup
 
 **1. Get Langfuse credentials:**
 - **Cloud**: Sign up at [cloud.langfuse.com](https://cloud.langfuse.com)
@@ -168,7 +168,7 @@ For more on using Langfuse, see the [Langfuse documentation](https://langfuse.co
 
 ## Trajectory Recording
 
-Trajectory recording saves screenshots and UI state locally for offline debugging and analysis. Unlike telemetry (sent to PostHog) and tracing (sent to Phoenix), trajectories stay on your machine.
+Trajectory recording saves screenshots and UI state locally for offline debugging and analysis. Unlike telemetry (sent to PostHog) and tracing (sent to Phoenix or Langfuse), trajectories stay on your machine.
 
 ### Recording Levels
 

@@ -331,7 +331,7 @@ Combining tools instance, shared state, and credentials:
 ```python
 import requests
 
-def send_authenticated_request(
+async def send_authenticated_request(
     url: str,
     data: str,
     *,
@@ -339,7 +339,7 @@ def send_authenticated_request(
     shared_state=None,
     **kwargs
 ) -> str:
-    """Send authenticated API request with credential."""
+    """Send authenticated API request with credentials."""
     try:
         # Access credentials via tools instance
         if not tools or not hasattr(tools, 'credential_manager'):
