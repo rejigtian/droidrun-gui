@@ -422,7 +422,7 @@ contact = result.structured_output  # Typed Pydantic object
 print(f"Name: {contact.name}, Phone: {contact.phone}")
 ```
 
-The agent automatically extracts structured data into your Pydantic model after completing the task. **→ See [Structured Output Documentation](/features/structured-output)** for detailed examples and best practices.
+The agent automatically extracts structured data into your Pydantic model after completing the task. **→ See [Structured Output Documentation](/v4/features/structured-output)** for detailed examples and best practices.
 
 ---
 
@@ -452,7 +452,7 @@ agent = DroidAgent(
 result = await agent.run()
 ```
 
-Credentials are never logged or exposed - agents use `type_secret()` to securely input sensitive data. You can also store credentials in a `config/credentials.yaml` file. **→ See [Credential Management Documentation](/features/credentials)** for YAML configuration and advanced usage.
+Credentials are never logged or exposed - agents use `type_secret()` to securely input sensitive data. You can also store credentials in a `config/credentials.yaml` file. **→ See [Credential Management Documentation](/v4/features/credentials)** for YAML configuration and advanced usage.
 
 ---
 
@@ -484,7 +484,7 @@ touch config/app_cards/chrome.md
 echo '{"com.android.chrome": "chrome.md"}' > config/app_cards/app_cards.json
 ```
 
-**→ See [App Instruction Cards Documentation](/features/app-cards)** for examples, best practices, and troubleshooting.
+**→ See [App Instruction Cards Documentation](/v4/features/app-cards)** for examples, best practices, and troubleshooting.
 
 ---
 
@@ -521,7 +521,7 @@ agent = DroidAgent(
 result = await agent.run()
 ```
 
-Custom tools can access device state, shared memory, and credentials. **→ See [Custom Tools Documentation](/features/custom-tools)** for accessing device state, API integration patterns, and advanced examples.
+Custom tools can access device state, shared memory, and credentials. **→ See [Custom Tools Documentation](/v4/features/custom-tools)** for accessing device state, API integration patterns, and advanced examples.
 
 ---
 
@@ -562,7 +562,7 @@ config = DroidrunConfig(
 agent = DroidAgent(goal="Complex task", config=config)
 ```
 
-**→ See [Configuration Reference Documentation](/sdk/droid-agent)** for all available configuration classes and parameters.
+**→ See [Configuration Reference Documentation](/v4/sdk/droid-agent)** for all available configuration classes and parameters.
 
 ---
 
@@ -593,7 +593,7 @@ agent = DroidAgent(
 )
 ```
 
-This allows you to optimize cost and performance by using appropriate models for each task. **→ See [SDK Configuration Documentation](/sdk/configuration)** for all LLM keys and configuration options.
+This allows you to optimize cost and performance by using appropriate models for each task. **→ See [SDK Configuration Documentation](/v4/sdk/configuration)** for all LLM keys and configuration options.
 
 ---
 
@@ -619,7 +619,7 @@ agent = DroidAgent(
 ```
 
 Variables are accessible throughout execution in `shared_state.custom_variables` and can be used in custom tools or referenced by agents.
-**→ See [Custom Variables Documentation](/features/custom-variables)** for usage patterns.
+**→ See [Custom Variables Documentation](/v4/features/custom-variables)** for usage patterns.
 
 ---
 
@@ -659,7 +659,7 @@ droidrun run "Open Settings" --save-trajectory step
 - Agent reasoning and decisions
 
 Trajectories are saved to `trajectories/` directory for offline debugging. 
-**→ See [Tracing Documentation](/features/tracing)** for Phoenix setup, configuration options, and trajectory analysis.
+**→ See [Tracing Documentation](/v4/features/tracing)** for Phoenix setup, configuration options, and trajectory analysis.
 
 ---
 

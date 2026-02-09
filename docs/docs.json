@@ -29,51 +29,51 @@
           {
             "group": "Introduction",
             "pages": [
-              "/overview",
-              "/quickstart"
+              "/v4/overview",
+              "/v4/quickstart"
             ]
           },
           {
             "group": "Features",
             "pages": [
-              "/features/structured-output",
-              "/features/credentials",
-              "/features/app-cards",
-              "/features/custom-tools",
-              "/features/custom-variables",
-              "/features/tracing",
-              "/features/telemetry"
+              "/v4/features/structured-output",
+              "/v4/features/credentials",
+              "/v4/features/app-cards",
+              "/v4/features/custom-tools",
+              "/v4/features/custom-variables",
+              "/v4/features/tracing",
+              "/v4/features/telemetry"
             ]
           },
           {
             "group": "Guides",
             "pages": [
-              "/guides/overview",
-              "/guides/device-setup",
-              "/guides/cli",
-              "/guides/docker",
-              "/guides/migration-v3-to-v4"
+              "/v4/guides/overview",
+              "/v4/guides/device-setup",
+              "/v4/guides/cli",
+              "/v4/guides/docker",
+              "/v4/guides/migration-v3-to-v4"
             ]
           },
           {
             "group": "Concepts",
             "pages": [
-              "/concepts/architecture",
-              "/concepts/scripter-agent",
-              "/concepts/shared-state",
-              "/concepts/events-and-workflows",
-              "/concepts/prompts"
+              "/v4/concepts/architecture",
+              "/v4/concepts/scripter-agent",
+              "/v4/concepts/shared-state",
+              "/v4/concepts/events-and-workflows",
+              "/v4/concepts/prompts"
             ]
           },
           {
             "group": "SDK Reference",
             "pages": [
-              "/sdk/reference",
-              "/sdk/droid-agent",
-              "/sdk/adb-tools",
-              "/sdk/ios-tools",
-              "/sdk/base-tools",
-              "/sdk/configuration"
+              "/v4/sdk/reference",
+              "/v4/sdk/droid-agent",
+              "/v4/sdk/adb-tools",
+              "/v4/sdk/ios-tools",
+              "/v4/sdk/base-tools",
+              "/v4/sdk/configuration"
             ]
           }
         ]

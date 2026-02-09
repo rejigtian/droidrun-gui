@@ -9,7 +9,7 @@ This guide will help you get Droidrun running in a Docker container, controlling
 
 Follow the steps below to ensure your host system is properly configured to mount the smartphone inside the container.
 
-1. Make sure you’ve completed the prerequisite steps in the [Quickstart](/quickstart). Then verify the ADB connection with `adb devices`. This should list your phone as “device” along with its Serial Number. If the phone appears as `unauthorized` make sure to accept the prompt on your phone.
+1. Make sure you’ve completed the prerequisite steps in the [Quickstart](/v4/quickstart). Then verify the ADB connection with `adb devices`. This should list your phone as “device” along with its Serial Number. If the phone appears as `unauthorized` make sure to accept the prompt on your phone.
 
 2. Confirm that the ADB keys have been correctly created. Check for an `.android` folder under your `$HOME` directory that contains: `adb.5037`, `adbkey`, and `adbkey.pub`.
 
@@ -65,7 +65,7 @@ Before running the container, note that the following options are always require
 | `--volume /dev/bus/usb:/dev/bus/usb` | Mounts the entire USB bus directory. | Provides access to all connected USB devices, enabling Droidrun to discover and interact with the phone. |
 | `--volume ~/.android:/home/droidrun/.android` | Mounts the host’s Android configuration directory into the container. | Stores ADB keys and settings so that once you grant permission on the host, Droidrun doesn’t prompt for it again inside the container. |
 
-The Docker image uses the `droidrun` entrypoint, which means you can use any of the CLI commands described in the [CLI Usage](/guides/cli) section and append it to the following base command:
+The Docker image uses the `droidrun` entrypoint, which means you can use any of the CLI commands described in the [CLI Usage](/v4/guides/cli) section and append it to the following base command:
 
 ```bash
 docker run \
@@ -138,4 +138,4 @@ docker run --group-add plugdev --device /dev/phone1/phone:/dev/phone --volume /d
 
 ## Next Steps
 
-- [CLI Usage](/guides/cli) - Dive into the various parameters and start building your own projects with Docker!
+- [CLI Usage](/v4/guides/cli) - Dive into the various parameters and start building your own projects with Docker!
