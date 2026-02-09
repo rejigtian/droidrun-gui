@@ -35,13 +35,17 @@ pip install 'droidrun[google,anthropic,openai,deepseek,ollama,dev]'
 
 **For CLI usage only:**
 ```bash
-uv tool install 'droidrun[google,anthropic,openai,deepseek,ollama,openrouter]'
+uv tool install droidrun
 ```
 
 **For CLI + Python integration:**
 ```bash
-uv pip install 'droidrun[google,anthropic,openai,deepseek,ollama,openrouter]'
+uv pip install droidrun
 ```
+
+<Note>
+Most LLM providers (Google Gemini, OpenAI, Ollama, OpenRouter) are included by default. For additional providers, install extras: `uv pip install 'droidrun[anthropic,deepseek]'`.
+</Note>
 
 Note: `droidrun` now provides a `--version` flag — verify your installation with `droidrun --version` after installing.
 
@@ -282,10 +286,13 @@ pip uninstall droidrun
 
 ```bash
 # For CLI + Python integration
-uv pip install 'droidrun[google,anthropic,openai,deepseek,ollama,openrouter]'
+uv pip install droidrun
 
 # Or for CLI only
-uv tool install 'droidrun[google,anthropic,openai,deepseek,ollama,openrouter]'
+uv tool install droidrun
+
+# For additional providers (Anthropic, DeepSeek)
+uv pip install 'droidrun[anthropic,deepseek]'
 ```
 
 ### Step 3: Create Configuration
