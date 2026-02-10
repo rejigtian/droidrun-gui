@@ -52,6 +52,8 @@ DroidRun is a powerful framework for controlling Android and iOS devices through
 
 ## 📦 Installation
 
+> **Note:** Python 3.14 is not currently supported. Please use Python 3.11 – 3.13.
+
 ```bash
 pip install droidrun
 ```
