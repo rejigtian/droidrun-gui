@@ -11,16 +11,6 @@ from llama_index.core.workflow import Event, StopEvent
 from pydantic import BaseModel
 
 
-class CodeActExecuteEvent(Event):
-    instruction: str
-
-
-class CodeActResultEvent(Event):
-    success: bool
-    reason: str
-    instruction: str
-
-
 class FastAgentExecuteEvent(Event):
     instruction: str
 

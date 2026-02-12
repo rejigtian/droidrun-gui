@@ -28,8 +28,6 @@ from droidrun.agent.common.events import (
     TapActionEvent,
 )
 from droidrun.agent.droid.events import (
-    CodeActExecuteEvent,
-    CodeActResultEvent,
     ExecutorResultEvent,
     FastAgentExecuteEvent,
     FastAgentResultEvent,
@@ -236,15 +234,6 @@ class EventHandler:
             logger.debug(f"› input  {event.text}", extra={"color": "white"})
 
         # ── Droid coordination events ───────────────────────────────
-        elif isinstance(event, CodeActExecuteEvent):
-            logger.debug("🔧 Starting task execution...", extra={"color": "magenta"})
-
-        elif isinstance(event, CodeActResultEvent):
-            if event.success:
-                logger.debug(f"Task result: {event.reason}", extra={"color": "green"})
-            else:
-                logger.debug(f"Task failed: {event.reason}", extra={"color": "red"})
-
         elif isinstance(event, FinalizeEvent):
             if event.success:
                 logger.info(

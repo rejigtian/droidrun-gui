@@ -20,8 +20,6 @@ from droidrun.agent.codeact import CodeActAgent, FastAgent
 from droidrun.agent.codeact.events import CodeActOutputEvent, FastAgentOutputEvent
 from droidrun.agent.common.events import MacroEvent, RecordUIStateEvent, ScreenshotEvent
 from droidrun.agent.droid.events import (
-    CodeActExecuteEvent,
-    CodeActResultEvent,
     ExecutorInputEvent,
     ExecutorResultEvent,
     FastAgentExecuteEvent,

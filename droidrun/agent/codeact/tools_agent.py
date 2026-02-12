@@ -360,12 +360,28 @@ class FastAgent(Workflow):
         # Parse tool calls from response
         thought, tool_calls = parse_tool_calls(response_text, self.param_types)
 
+        # Extract just the <function_calls> blocks for the event
+        tool_calls_xml = None
+        if tool_calls:
+            from droidrun.agent.codeact.xml_parser import OPEN_TAG, CLOSE_TAG
+
+            blocks = []
+            for part in response_text.split(OPEN_TAG)[1:]:
+                close_idx = part.find(CLOSE_TAG)
+                if close_idx != -1:
+                    blocks.append(OPEN_TAG + part[: close_idx + len(CLOSE_TAG)])
+            tool_calls_xml = "\n".join(blocks) if blocks else None
+
+        # Store tool calls in context for execute step (avoid re-parsing)
+        if tool_calls:
+            await ctx.store.set("pending_tool_calls", tool_calls)
+
         # Update unified state
         self.shared_state.last_thought = thought
 
         event = FastAgentResponseEvent(
             thought=thought,
-            code=response_text if tool_calls else None,
+            code=tool_calls_xml,
             usage=usage,
         )
         ctx.write_event_to_stream(event)
@@ -376,11 +392,7 @@ class FastAgent(Workflow):
         self, ctx: Context, ev: FastAgentResponseEvent
     ) -> FastAgentToolCallEvent | FastAgentInputEvent:
         """Route to execution or request tool call if missing."""
-        # Re-parse tool calls from the raw response stored in code field
-        if ev.code:
-            _, tool_calls = parse_tool_calls(ev.code, self.param_types)
-        else:
-            tool_calls = []
+        has_tool_calls = ev.code is not None
 
         if not ev.thought:
             logger.warning("LLM provided tool calls without reasoning.")
@@ -396,10 +408,8 @@ class FastAgent(Workflow):
         else:
             logger.debug(f"Reasoning: {ev.thought}")
 
-        if tool_calls:
-            # Store tool calls in context for execute step
-            await ctx.store.set("pending_tool_calls", tool_calls)
-            event = FastAgentToolCallEvent(tool_calls_repr=str(tool_calls))
+        if has_tool_calls:
+            event = FastAgentToolCallEvent(tool_calls_repr=ev.code)
             ctx.write_event_to_stream(event)
             return event
         else:
