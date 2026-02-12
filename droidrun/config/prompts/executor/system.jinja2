@@ -57,9 +57,9 @@ Text Related Operations:
 Execute the current subgoal mechanically. Do NOT examine the screen content or make decisions about what you see. Parse the current subgoal text to identify the required action and execute it exactly as written. You must choose your action from one of the atomic actions.
 
 #### Atomic Actions ####
-The atomic action functions are listed in the format of `action(arguments): description` as follows:
+The atomic action functions are listed in the format of `action(parameters): description` as follows:
 {% for action_name, action_info in atomic_actions.items() %}
-- {{ action_name }}({{ action_info.arguments|join(', ') }}): {{ action_info.description }}
+- {{ action_name }}({% for p, info in action_info.parameters.items() %}{{ p }}: {{ info.type }}{% if not info.get('required', True) %} = {{ info.get('default', 'None') }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}): {{ action_info.description }}
 {% endfor %}
 
 {% if available_secrets %}
@@ -103,7 +103,7 @@ Break down the current subgoal into: (1) What atomic action is required? (2) Wha
 
 ### Action ###
 Choose only one action or shortcut from the options provided.
-You must provide your decision using a valid JSON format specifying the `action` and the arguments of the action. For example, if you want to open an App, you should write {"action":"open_app", "text": "app name"}.
+You must provide your decision using a valid JSON format specifying the `action` and the parameters of the action. For example, if you want to open an App, you should write {"action":"open_app", "text": "app name"}.
 
 ### Description ###
 A brief description of the chosen action. Do not describe expected outcome.

@@ -1,46 +1,49 @@
+"""ToolsAgent — XML tool-calling agent for device interaction.
+
+Replaces CodeActAgent's Python code generation + exec() with a structured
+XML tool-calling protocol. The LLM emits <function_calls> blocks, the agent
+parses them, executes the tools, and feeds <function_results> back.
+
+Uses the same event system and workflow structure as CodeActAgent for
+compatibility with DroidAgent's execute_task() method.
+"""
+
 import asyncio
 import inspect
 import logging
 from typing import TYPE_CHECKING, Optional, Type
 
-from pydantic import BaseModel
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
 from opentelemetry import trace
+from pydantic import BaseModel
 
 from droidrun.agent.codeact.events import (
-    CodeActInputEvent,
-    CodeActResponseEvent,
-    CodeActCodeEvent,
-    CodeActOutputEvent,
-    CodeActEndEvent,
+    FastAgentEndEvent,
+    FastAgentInputEvent,
+    FastAgentOutputEvent,
+    FastAgentResponseEvent,
+    FastAgentToolCallEvent,
+)
+from droidrun.agent.codeact.xml_parser import (
+    ToolCall,
+    ToolResult,
+    build_param_types,
+    build_tool_definitions_xml,
+    format_tool_results,
+    parse_tool_calls,
 )
 from droidrun.agent.common.constants import LLM_HISTORY_LIMIT
 from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
 from droidrun.agent.usage import get_usage_from_response
-from droidrun.agent.utils.chat_utils import (
-    to_chat_messages,
-    extract_code_and_thought,
-    limit_history,
-)
-from droidrun.agent.utils.executer import ExecuterState, SimpleCodeExecutor
+from droidrun.agent.utils.chat_utils import limit_history, to_chat_messages
 from droidrun.agent.utils.inference import acall_with_retries
 from droidrun.agent.utils.prompt_resolver import PromptResolver
+from droidrun.agent.utils.signatures import ATOMIC_ACTION_SIGNATURES
 from droidrun.agent.utils.tracing_setup import record_langfuse_screenshot
-from droidrun.agent.utils.signatures import (
-    ATOMIC_ACTION_SIGNATURES,
-    build_custom_tool_descriptions,
-)
 from droidrun.config_manager.config_manager import AgentConfig, TracingConfig
-from droidrun.config_manager.path_resolver import PathResolver
 from droidrun.config_manager.prompt_loader import PromptLoader
 from droidrun.tools import Tools
-
-# Legacy codeact prompt paths (used when code_exec=true but config points to tools defaults)
-_LEGACY_SYSTEM_PROMPT = "config/prompts/codeact/system.jinja2"
-_LEGACY_USER_PROMPT = "config/prompts/codeact/user.jinja2"
-_TOOLS_SYSTEM_PROMPT = "config/prompts/codeact/tools_system.jinja2"
-_TOOLS_USER_PROMPT = "config/prompts/codeact/tools_user.jinja2"
 
 if TYPE_CHECKING:
     from droidrun.agent.droid import DroidAgentState
@@ -48,11 +51,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger("droidrun")
 
 
-class CodeActAgent(Workflow):
-    """
-    Agent that generates and executes Python code using atomic actions.
+class FastAgent(Workflow):
+    """Agent that uses XML tool-calling instead of code generation.
 
-    Uses ReAct cycle: Thought -> Code -> Observation -> repeat until complete().
+    Uses ReAct cycle: Thought -> Tool Call -> Observation -> repeat until complete().
     Messages stored as list[dict], converted to ChatMessage only for LLM calls.
     """
 
@@ -65,7 +67,6 @@ class CodeActAgent(Workflow):
         atomic_tools: dict = None,
         debug: bool = False,
         shared_state: Optional["DroidAgentState"] = None,
-        safe_execution_config=None,
         output_model: Type[BaseModel] | None = None,
         prompt_resolver: Optional[PromptResolver] = None,
         tracing_config: TracingConfig | None = None,
@@ -88,88 +89,58 @@ class CodeActAgent(Workflow):
         self.tracing_config = tracing_config
 
         self.system_prompt: dict | None = None
-        self.code_exec_counter = 0
+        self.tool_call_counter = 0
         self.remembered_info: list[str] | None = None
 
         # Build tool list from atomic + custom tools
         if atomic_tools is None:
             atomic_tools = ATOMIC_ACTION_SIGNATURES
 
+        self._atomic_tools = atomic_tools
+        self._custom_tools = custom_tools or {}
         merged_signatures = {**atomic_tools, **(custom_tools or {})}
 
+        # Build callable tool functions with tools/shared_state bound
         self.tool_list = {}
         for action_name, signature in merged_signatures.items():
             func = signature["function"]
             if inspect.iscoroutinefunction(func):
 
                 async def async_wrapper(
-                    *args, f=func, ti=tools_instance, ss=shared_state, **kwargs
+                    *a, f=func, ti=tools_instance, ss=shared_state, **kw
                 ):
-                    return await f(*args, tools=ti, shared_state=ss, **kwargs)
+                    return await f(*a, tools=ti, shared_state=ss, **kw)
 
                 self.tool_list[action_name] = async_wrapper
             else:
 
                 def sync_wrapper(
-                    *args, f=func, ti=tools_instance, ss=shared_state, **kwargs
+                    *a, f=func, ti=tools_instance, ss=shared_state, **kw
                 ):
-                    return f(*args, tools=ti, shared_state=ss, **kwargs)
+                    return f(*a, tools=ti, shared_state=ss, **kw)
 
                 self.tool_list[action_name] = sync_wrapper
 
         self.tool_list["remember"] = tools_instance.remember
         self.tool_list["complete"] = tools_instance.complete
 
-        # Build tool descriptions
-        self.tool_descriptions = build_custom_tool_descriptions(atomic_tools)
-        custom_descriptions = build_custom_tool_descriptions(custom_tools or {})
-        if custom_descriptions:
-            self.tool_descriptions += "\n" + custom_descriptions
-        self.tool_descriptions += (
-            "\n- remember(information: str): Remember information for later use"
+        # Build tool descriptions for system prompt
+        self.tool_descriptions = build_tool_definitions_xml(
+            atomic_tools, custom_tools
         )
-        self.tool_descriptions += (
-            "\n- complete(success: bool, reason: str): Mark task as complete"
-        )
+
+        # Build param type map for XML coercion
+        self.param_types = build_param_types(merged_signatures)
 
         self._available_secrets = []
         self._output_schema = None
         if self.output_model is not None:
             self._output_schema = self.output_model.model_json_schema()
 
-        # Initialize code executor
-        safe_mode = self.config.safe_execution
-        safe_config = safe_execution_config
-
-        self.executor = SimpleCodeExecutor(
-            locals={},
-            tools=self.tool_list,
-            globals={"__builtins__": __builtins__},
-            safe_mode=safe_mode,
-            allowed_modules=(
-                safe_config.get_allowed_modules() if safe_config and safe_mode else None
-            ),
-            blocked_modules=(
-                safe_config.get_blocked_modules() if safe_config and safe_mode else None
-            ),
-            allowed_builtins=(
-                safe_config.get_allowed_builtins()
-                if safe_config and safe_mode
-                else None
-            ),
-            blocked_builtins=(
-                safe_config.get_blocked_builtins()
-                if safe_config and safe_mode
-                else None
-            ),
-            event_loop=None,
-        )
-
-        logger.debug("CodeActAgent initialized.")
+        logger.debug("FastAgent initialized.")
 
     async def _build_system_prompt(self) -> dict:
         """Build system prompt message."""
-        # Build template context with available tools for conditional examples
         template_context = {
             "tool_descriptions": self.tool_descriptions,
             "available_secrets": self._available_secrets,
@@ -187,12 +158,8 @@ class CodeActAgent(Workflow):
                 template_context,
             )
         else:
-            # If config still points to tools template, use legacy codeact template
-            prompt_path = self.agent_config.fast_agent.system_prompt
-            if prompt_path == _TOOLS_SYSTEM_PROMPT:
-                prompt_path = _LEGACY_SYSTEM_PROMPT
             system_text = await PromptLoader.load_prompt(
-                str(PathResolver.resolve(prompt_path, must_exist=True)),
+                self.agent_config.get_fast_agent_system_prompt_path(),
                 template_context,
             )
         return {"role": "system", "content": [{"text": system_text}]}
@@ -206,28 +173,28 @@ class CodeActAgent(Workflow):
                 {
                     "goal": goal,
                     "variables": (
-                        self.shared_state.custom_variables if self.shared_state else {}
+                        self.shared_state.custom_variables
+                        if self.shared_state
+                        else {}
                     ),
                 },
             )
         else:
-            # If config still points to tools template, use legacy codeact template
-            prompt_path = self.agent_config.fast_agent.user_prompt
-            if prompt_path == _TOOLS_USER_PROMPT:
-                prompt_path = _LEGACY_USER_PROMPT
             user_text = await PromptLoader.load_prompt(
-                str(PathResolver.resolve(prompt_path, must_exist=True)),
+                self.agent_config.get_fast_agent_user_prompt_path(),
                 {
                     "goal": goal,
                     "variables": (
-                        self.shared_state.custom_variables if self.shared_state else {}
+                        self.shared_state.custom_variables
+                        if self.shared_state
+                        else {}
                     ),
                 },
             )
         return {"role": "user", "content": [{"text": user_text}]}
 
     @step
-    async def prepare_chat(self, ctx: Context, ev: StartEvent) -> CodeActInputEvent:
+    async def prepare_chat(self, ctx: Context, ev: StartEvent) -> FastAgentInputEvent:
         """Initialize message history with goal."""
         self.tools._set_context(ctx)
         logger.debug("Preparing chat for task execution...")
@@ -255,26 +222,25 @@ class CodeActAgent(Workflow):
             memory_text = "\n### Remembered Information:\n"
             for idx, item in enumerate(remembered_info, 1):
                 memory_text += f"{idx}. {item}\n"
-            # Append to first user message
             self.shared_state.message_history[0]["content"].append(
                 {"text": memory_text}
             )
 
-        return CodeActInputEvent()
+        return FastAgentInputEvent()
 
     @step
     async def handle_llm_input(
-        self, ctx: Context, ev: CodeActInputEvent
-    ) -> CodeActResponseEvent | CodeActEndEvent:
+        self, ctx: Context, ev: FastAgentInputEvent
+    ) -> FastAgentResponseEvent | FastAgentEndEvent:
         """Get device state, call LLM, return response."""
         ctx.write_event_to_stream(ev)
 
         # Check then bump step counter
         if self.shared_state.step_number >= self.max_steps:
-            event = CodeActEndEvent(
+            event = FastAgentEndEvent(
                 success=False,
                 reason=f"Reached max step count of {self.max_steps} steps",
-                code_executions=self.code_exec_counter,
+                tool_call_count=self.tool_call_counter,
             )
             ctx.write_event_to_stream(event)
             return event
@@ -311,7 +277,7 @@ class CodeActAgent(Workflow):
                         vision_enabled=self.vision,
                     )
                     await ctx.store.set("screenshot", screenshot)
-                    logger.debug("📸 Screenshot captured for CodeAct")
+                    logger.debug("📸 Screenshot captured for FastAgent")
             except Exception as e:
                 logger.warning(f"Failed to capture screenshot: {e}")
 
@@ -327,7 +293,7 @@ class CodeActAgent(Workflow):
             self.shared_state.a11y_tree = a11y_tree
             self.shared_state.phone_state = phone_state
 
-            # Extract and store package/app name (using unified update method)
+            # Extract and store package/app name
             self.shared_state.update_current_app(
                 package_name=phone_state.get("packageName", "Unknown"),
                 activity_name=phone_state.get("currentApp", "Unknown"),
@@ -342,7 +308,9 @@ class CodeActAgent(Workflow):
             )
 
         except Exception as e:
-            logger.warning(f"⚠️ Error retrieving state from the connected device: {e}")
+            logger.warning(
+                f"⚠️ Error retrieving state from the connected device: {e}"
+            )
             if self.debug:
                 logger.error("State retrieval error details:", exc_info=True)
 
@@ -364,16 +332,16 @@ class CodeActAgent(Workflow):
         chat_messages = to_chat_messages(messages_to_send)
 
         # Call LLM
-        logger.info("CodeAct response:", extra={"color": "yellow"})
+        logger.info("FastAgent response:", extra={"color": "yellow"})
         response = await acall_with_retries(
             self.llm, chat_messages, stream=self.agent_config.streaming
         )
 
         if response is None:
-            return CodeActEndEvent(
+            return FastAgentEndEvent(
                 success=False,
                 reason="LLM response is None. This is a critical error.",
-                code_executions=self.code_exec_counter,
+                tool_call_count=self.tool_call_counter,
             )
 
         # Extract usage
@@ -389,32 +357,38 @@ class CodeActAgent(Workflow):
             {"role": "assistant", "content": [{"text": response_text}]}
         )
 
-        # Extract thought and code
-        code, thought = extract_code_and_thought(response_text)
+        # Parse tool calls from response
+        thought, tool_calls = parse_tool_calls(response_text, self.param_types)
 
         # Update unified state
         self.shared_state.last_thought = thought
 
-        event = CodeActResponseEvent(thought=thought, code=code, usage=usage)
+        event = FastAgentResponseEvent(
+            thought=thought,
+            code=response_text if tool_calls else None,
+            usage=usage,
+        )
         ctx.write_event_to_stream(event)
         return event
 
     @step
     async def handle_llm_output(
-        self, ctx: Context, ev: CodeActResponseEvent
-    ) -> CodeActCodeEvent | CodeActInputEvent:
-        """Route to execution or request code if missing."""
+        self, ctx: Context, ev: FastAgentResponseEvent
+    ) -> FastAgentToolCallEvent | FastAgentInputEvent:
+        """Route to execution or request tool call if missing."""
+        # Re-parse tool calls from the raw response stored in code field
+        if ev.code:
+            _, tool_calls = parse_tool_calls(ev.code, self.param_types)
+        else:
+            tool_calls = []
+
         if not ev.thought:
-            logger.warning("LLM provided code without thoughts.")
-            # Add reminder to get thoughts
-            goal = self.shared_state.message_history[0]["content"][0].get("text", "")[
-                :200
-            ]
+            logger.warning("LLM provided tool calls without reasoning.")
             no_thoughts_text = (
-                "Your previous response provided code without explaining your reasoning first. "
-                "Remember to always describe your thought process and plan *before* providing the code block.\n\n"
-                "The code you provided will be executed below.\n\n"
-                f"Now, describe the next step you will take to address the original goal."
+                "Your previous response called tools without explaining your reasoning first. "
+                "Remember to always describe your thought process and plan *before* calling tools.\n\n"
+                "The tool calls you made will be executed below.\n\n"
+                "Now, describe the next step you will take to address the original goal."
             )
             self.shared_state.message_history.append(
                 {"role": "user", "content": [{"text": no_thoughts_text}]}
@@ -422,46 +396,54 @@ class CodeActAgent(Workflow):
         else:
             logger.debug(f"Reasoning: {ev.thought}")
 
-        if ev.code:
-            event = CodeActCodeEvent(code=ev.code)
+        if tool_calls:
+            # Store tool calls in context for execute step
+            await ctx.store.set("pending_tool_calls", tool_calls)
+            event = FastAgentToolCallEvent(tool_calls_repr=str(tool_calls))
             ctx.write_event_to_stream(event)
             return event
         else:
-            # No code - ask for it
-            no_code_text = (
-                "No code was provided. If you want to mark task as complete "
-                "(whether it failed or succeeded), use complete(success: bool, reason: str) "
-                "function within a <python></python> code block."
+            # No tool calls — ask for them
+            no_tools_text = (
+                "No tool calls were provided. If you want to mark the task as complete "
+                "(whether it failed or succeeded), use the `complete` tool:\n\n"
+                "<function_calls>\n"
+                '<invoke name="complete">\n'
+                '<parameter name="success">true</parameter>\n'
+                '<parameter name="reason">Explanation here</parameter>\n'
+                "</invoke>\n"
+                "</function_calls>"
             )
             self.shared_state.message_history.append(
-                {"role": "user", "content": [{"text": no_code_text}]}
+                {"role": "user", "content": [{"text": no_tools_text}]}
             )
-            return CodeActInputEvent()
+            return FastAgentInputEvent()
 
     @step
     async def execute_code(
-        self, ctx: Context, ev: CodeActCodeEvent
-    ) -> CodeActOutputEvent | CodeActEndEvent:
-        """Execute the code and return result."""
-        code = ev.code
-        logger.debug(f"Executing:\n<python>\n{code}\n</python>")
+        self, ctx: Context, ev: FastAgentToolCallEvent
+    ) -> FastAgentOutputEvent | FastAgentEndEvent:
+        """Execute parsed tool calls and return results."""
+        tool_calls = await ctx.store.get("pending_tool_calls", [])
 
-        try:
-            self.code_exec_counter += 1
-            result = await self.executor.execute(
-                ExecuterState(ui_state=await ctx.store.get("ui_state", None)),
-                code,
-                timeout=self.config.execution_timeout,
-            )
-            logger.info("💡 Execution result:", extra={"color": "dim"})
-            logger.info(f"{result}")
-            await asyncio.sleep(self.agent_config.after_sleep_action)
+        if not tool_calls:
+            event = FastAgentOutputEvent(output="No tool calls to execute.")
+            ctx.write_event_to_stream(event)
+            return event
 
-            # Check if complete() was called
+        results: list[ToolResult] = []
+
+        for call in tool_calls:
+            logger.debug(f"Executing: {call.name}({call.parameters})")
+            self.tool_call_counter += 1
+
+            result = await self._execute_tool_call(call)
+            results.append(result)
+
+            # Check if complete() was called successfully
             if self.tools.finished:
-                logger.debug("✅ Task marked as complete via complete() function")
+                logger.debug("✅ Task marked as complete via complete() tool")
 
-                # Validate completion state
                 success = (
                     self.tools.success if self.tools.success is not None else False
                 )
@@ -472,47 +454,79 @@ class CodeActAgent(Workflow):
                 )
                 self.tools.finished = False
 
-                event = CodeActEndEvent(
+                event = FastAgentEndEvent(
                     success=success,
                     reason=reason,
-                    code_executions=self.code_exec_counter,
+                    tool_call_count=self.tool_call_counter,
                 )
                 ctx.write_event_to_stream(event)
                 return event
 
-            # Update remembered info
-            self.remembered_info = self.tools.memory
+        # Format results
+        results_xml = format_tool_results(results)
+        logger.info("💡 Tool results:", extra={"color": "dim"})
+        logger.info(f"{results_xml}")
+        await asyncio.sleep(self.agent_config.after_sleep_action)
 
-            event = CodeActOutputEvent(output=str(result))
-            ctx.write_event_to_stream(event)
-            return event
+        # Update remembered info
+        self.remembered_info = self.tools.memory
 
+        event = FastAgentOutputEvent(output=results_xml)
+        ctx.write_event_to_stream(event)
+        return event
+
+    async def _execute_tool_call(self, call: ToolCall) -> ToolResult:
+        """Execute a single tool call and return the result."""
+        tool_func = self.tool_list.get(call.name)
+
+        if tool_func is None:
+            return ToolResult(
+                name=call.name,
+                output=f"Unknown tool: {call.name}. Available tools: {list(self.tool_list.keys())}",
+                is_error=True,
+            )
+
+        try:
+            if inspect.iscoroutinefunction(tool_func):
+                result = await tool_func(**call.parameters)
+            else:
+                result = tool_func(**call.parameters)
+
+            output = str(result) if result is not None else "Tool executed successfully."
+            return ToolResult(name=call.name, output=output)
+
+        except TypeError as e:
+            return ToolResult(
+                name=call.name,
+                output=f"Invalid arguments: {e}",
+                is_error=True,
+            )
         except Exception as e:
-            logger.error(f"💥 Action failed: {e}")
+            logger.error(f"💥 Tool {call.name} failed: {e}")
             if self.debug:
                 logger.error("Exception details:", exc_info=True)
-
-            event = CodeActOutputEvent(output=f"Error during execution: {e}")
-            ctx.write_event_to_stream(event)
-            return event
+            return ToolResult(
+                name=call.name,
+                output=f"Error: {type(e).__name__}: {e}",
+                is_error=True,
+            )
 
     @step
     async def handle_execution_result(
-        self, ctx: Context, ev: CodeActOutputEvent
-    ) -> CodeActInputEvent:
+        self, ctx: Context, ev: FastAgentOutputEvent
+    ) -> FastAgentInputEvent:
         """Add execution result to history and loop back."""
-        output = ev.output or "Code executed, but produced no output."
+        output = ev.output or "Tool executed, but produced no output."
 
-        # Add execution output as user message
-        observation_text = f"Execution Result:\n<result>\n{output}\n</result>"
+        # Add results as user message
         self.shared_state.message_history.append(
-            {"role": "user", "content": [{"text": observation_text}]}
+            {"role": "user", "content": [{"text": output}]}
         )
 
-        return CodeActInputEvent()
+        return FastAgentInputEvent()
 
     @step
-    async def finalize(self, ev: CodeActEndEvent, ctx: Context) -> StopEvent:
+    async def finalize(self, ev: FastAgentEndEvent, ctx: Context) -> StopEvent:
         self.tools.finished = False
         ctx.write_event_to_stream(ev)
 
@@ -520,6 +534,6 @@ class CodeActAgent(Workflow):
             result={
                 "success": ev.success,
                 "reason": ev.reason,
-                "code_executions": ev.code_executions,
+                "tool_call_count": ev.tool_call_count,
             }
         )

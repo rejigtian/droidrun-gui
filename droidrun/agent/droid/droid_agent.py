@@ -16,14 +16,16 @@ from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, 
 
 from workflows.events import Event
 from workflows.handler import WorkflowHandler
-from droidrun.agent.codeact import CodeActAgent
-from droidrun.agent.codeact.events import CodeActOutputEvent
+from droidrun.agent.codeact import CodeActAgent, FastAgent
+from droidrun.agent.codeact.events import CodeActOutputEvent, FastAgentOutputEvent
 from droidrun.agent.common.events import MacroEvent, RecordUIStateEvent, ScreenshotEvent
 from droidrun.agent.droid.events import (
     CodeActExecuteEvent,
     CodeActResultEvent,
     ExecutorInputEvent,
     ExecutorResultEvent,
+    FastAgentExecuteEvent,
+    FastAgentResultEvent,
     FinalizeEvent,
     ManagerInputEvent,
     ManagerPlanEvent,
@@ -152,7 +154,7 @@ class DroidAgent(Workflow):
             variables: Optional dict of custom variables accessible throughout execution
             output_model: Optional Pydantic model for structured output extraction from final answer
             prompts: Optional dict of custom Jinja2 prompt templates to override defaults.
-                    Keys: "codeact_system", "codeact_user", "manager_system", "executor_system", "scripter_system"
+                    Keys: "fast_agent_system", "fast_agent_user", "manager_system", "executor_system", "scripter_system"
                     Values: Jinja2 template strings (NOT file paths)
             timeout: Workflow timeout in seconds
         """
@@ -261,12 +263,12 @@ class DroidAgent(Workflow):
             if isinstance(llms, dict):
                 self.manager_llm = llms.get("manager")
                 self.executor_llm = llms.get("executor")
-                self.codeact_llm = llms.get("codeact")
+                self.fast_agent_llm = llms.get("fast_agent")
                 self.text_manipulator_llm = llms.get("text_manipulator")
                 self.app_opener_llm = llms.get("app_opener")
-                self.scripter_llm = llms.get("scripter", self.codeact_llm)
+                self.scripter_llm = llms.get("scripter", self.fast_agent_llm)
                 self.structured_output_llm = llms.get(
-                    "structured_output", self.codeact_llm
+                    "structured_output", self.fast_agent_llm
                 )
 
                 logger.debug("📚 Using agent-specific LLMs from dictionary")
@@ -274,7 +276,7 @@ class DroidAgent(Workflow):
                 logger.debug("📚 Using single LLM for all agents")
                 self.manager_llm = llms
                 self.executor_llm = llms
-                self.codeact_llm = llms
+                self.fast_agent_llm = llms
                 self.text_manipulator_llm = llms
                 self.app_opener_llm = llms
                 self.scripter_llm = llms
@@ -284,7 +286,7 @@ class DroidAgent(Workflow):
             logger.debug(f"🔄 Using external agent: {self.config.agent.name}")
             self.manager_llm = None
             self.executor_llm = None
-            self.codeact_llm = None
+            self.fast_agent_llm = None
             self.text_manipulator_llm = None
             self.app_opener_llm = None
             self.scripter_llm = None
@@ -360,8 +362,8 @@ class DroidAgent(Workflow):
                     "executor": (
                         self.executor_llm.class_name() if self.executor_llm else "None"
                     ),
-                    "codeact": (
-                        self.codeact_llm.class_name() if self.codeact_llm else "None"
+                    "fast_agent": (
+                        self.fast_agent_llm.class_name() if self.fast_agent_llm else "None"
                     ),
                     "text_manipulator": (
                         self.text_manipulator_llm.class_name()
@@ -380,7 +382,7 @@ class DroidAgent(Workflow):
                 vision={
                     "manager": self.config.agent.manager.vision,
                     "executor": self.config.agent.executor.vision,
-                    "codeact": self.config.agent.codeact.vision,
+                    "fast_agent": self.config.agent.fast_agent.vision,
                 },
                 reasoning=self.config.agent.reasoning,
                 enable_tracing=self.config.tracing.enabled,
@@ -401,10 +403,13 @@ class DroidAgent(Workflow):
 
     @step
     async def execute_task(
-        self, ctx: Context, ev: CodeActExecuteEvent
-    ) -> CodeActResultEvent:
+        self, ctx: Context, ev: FastAgentExecuteEvent
+    ) -> FastAgentResultEvent:
         """
-        Execute a single task using the CodeActAgent.
+        Execute a single task using CodeActAgent or FastAgent.
+
+        Uses FastAgent (XML tool-calling) by default.
+        Uses CodeActAgent (Python code exec) when codeact=true in config.
 
         Args:
             instruction: task of what the agent shall do
@@ -416,22 +421,39 @@ class DroidAgent(Workflow):
         logger.debug(f"🔧 Executing task: {ev.instruction}")
 
         try:
-            codeact_agent = CodeActAgent(
-                llm=self.codeact_llm,
-                agent_config=self.config.agent,
-                tools_instance=self.tools_instance,
-                custom_tools=self.custom_tools,
-                atomic_tools=self.atomic_tools,
-                debug=self.config.logging.debug,
-                shared_state=self.shared_state,
-                safe_execution_config=self.config.safe_execution,
-                output_model=self.output_model,
-                prompt_resolver=self.prompt_resolver,
-                timeout=self.timeout,
-                tracing_config=self.config.tracing,
-            )
+            if self.config.agent.fast_agent.codeact:
+                # Legacy mode: Python code generation + exec()
+                agent = CodeActAgent(
+                    llm=self.fast_agent_llm,
+                    agent_config=self.config.agent,
+                    tools_instance=self.tools_instance,
+                    custom_tools=self.custom_tools,
+                    atomic_tools=self.atomic_tools,
+                    debug=self.config.logging.debug,
+                    shared_state=self.shared_state,
+                    safe_execution_config=self.config.safe_execution,
+                    output_model=self.output_model,
+                    prompt_resolver=self.prompt_resolver,
+                    timeout=self.timeout,
+                    tracing_config=self.config.tracing,
+                )
+            else:
+                # Default mode: XML tool-calling (no code execution)
+                agent = FastAgent(
+                    llm=self.fast_agent_llm,
+                    agent_config=self.config.agent,
+                    tools_instance=self.tools_instance,
+                    custom_tools=self.custom_tools,
+                    atomic_tools=self.atomic_tools,
+                    debug=self.config.logging.debug,
+                    shared_state=self.shared_state,
+                    output_model=self.output_model,
+                    prompt_resolver=self.prompt_resolver,
+                    timeout=self.timeout,
+                    tracing_config=self.config.tracing,
+                )
 
-            handler = codeact_agent.run(
+            handler = agent.run(
                 input=ev.instruction,
                 remembered_info=self.tools_instance.memory,
             )
@@ -439,25 +461,24 @@ class DroidAgent(Workflow):
             async for nested_ev in handler.stream_events():
                 self.handle_stream_event(nested_ev, ctx)
 
-                if isinstance(nested_ev, CodeActOutputEvent):
+                if isinstance(nested_ev, (CodeActOutputEvent, FastAgentOutputEvent)):
                     if self.config.logging.save_trajectory != "none":
-                        self.shared_state.step_number += 1
                         self.trajectory_writer.write(
                             self.trajectory,
-                            stage=f"codeact_step_{self.shared_state.step_number}",
+                            stage=f"fast_agent_step_{self.shared_state.step_number}",
                         )
 
             result = await handler
 
             if "success" in result and result["success"]:
-                return CodeActResultEvent(
+                return FastAgentResultEvent(
                     success=True,
                     reason=result["reason"],
                     instruction=ev.instruction,
                 )
 
             else:
-                return CodeActResultEvent(
+                return FastAgentResultEvent(
                     success=False,
                     reason=result["reason"],
                     instruction=ev.instruction,
@@ -469,13 +490,13 @@ class DroidAgent(Workflow):
                 import traceback
 
                 logger.error(traceback.format_exc())
-            return CodeActResultEvent(
+            return FastAgentResultEvent(
                 success=False, reason=f"Error: {str(e)}", instruction=ev.instruction
             )
 
     @step
-    async def handle_codeact_execute(
-        self, ctx: Context, ev: CodeActResultEvent
+    async def handle_fast_agent_result(
+        self, ctx: Context, ev: FastAgentResultEvent
     ) -> FinalizeEvent:
         try:
             return FinalizeEvent(success=ev.success, reason=ev.reason)
@@ -494,7 +515,7 @@ class DroidAgent(Workflow):
     @step
     async def start_handler(
         self, ctx: Context, ev: StartEvent
-    ) -> CodeActExecuteEvent | ManagerInputEvent:
+    ) -> FastAgentExecuteEvent | ManagerInputEvent:
         logger.info(
             f"🚀 Running DroidAgent to achieve goal: {self.shared_state.instruction}"
         )
@@ -531,7 +552,7 @@ class DroidAgent(Workflow):
             if self.config.agent.reasoning:
                 vision_enabled = self.config.agent.manager.vision
             else:
-                vision_enabled = self.config.agent.codeact.vision
+                vision_enabled = self.config.agent.fast_agent.vision
 
             tools_instance, tools_config_resolved = await resolve_tools_instance(
                 tools=self.tools_fallback,
@@ -600,7 +621,7 @@ class DroidAgent(Workflow):
             logger.debug(
                 f"🔄 Direct execution mode - executing goal: {self.shared_state.instruction}"
             )
-            event = CodeActExecuteEvent(instruction=self.shared_state.instruction)
+            event = FastAgentExecuteEvent(instruction=self.shared_state.instruction)
             ctx.write_event_to_stream(event)
             return event
 
@@ -623,6 +644,7 @@ class DroidAgent(Workflow):
         Pre-flight checks for termination before running manager.
         The Manager analyzes current state and creates a plan with subgoals.
         """
+        # Check then bump step counter
         if self.shared_state.step_number >= self.config.agent.max_steps:
             logger.warning(f"⚠️ Reached maximum steps ({self.config.agent.max_steps})")
             return FinalizeEvent(
@@ -630,8 +652,9 @@ class DroidAgent(Workflow):
                 reason=f"Reached maximum steps ({self.config.agent.max_steps})",
             )
 
+        self.shared_state.step_number += 1
         logger.info(
-            f"🔄 Step {self.shared_state.step_number + 1}/{self.config.agent.max_steps}"
+            f"🔄 Step {self.shared_state.step_number}/{self.config.agent.max_steps}"
         )
 
         # Run Manager workflow
@@ -695,11 +718,24 @@ class DroidAgent(Workflow):
                     "⚠️ Found <script> in subgoal but not properly closed in plan, treating as regular subgoal"
                 )
         if "TEXT_TASK" in ev.current_subgoal:
-            return TextManipulatorInputEvent(
-                task=ev.current_subgoal.replace("TEXT_TASK:", "")
-                .replace("TEXT_TASK", "")
-                .strip()
-            )
+            if self.config.agent.fast_agent.codeact:
+                # Legacy mode: route to TextManipulator agent
+                return TextManipulatorInputEvent(
+                    task=ev.current_subgoal.replace("TEXT_TASK:", "")
+                    .replace("TEXT_TASK", "")
+                    .strip()
+                )
+            else:
+                # Tools mode: treat as regular subgoal for executor
+                logger.debug(
+                    "⚠️ TEXT_TASK in tools mode — routing to Executor instead of TextManipulator"
+                )
+                subgoal = (
+                    ev.current_subgoal.replace("TEXT_TASK:", "")
+                    .replace("TEXT_TASK", "")
+                    .strip()
+                )
+                return ExecutorInputEvent(current_subgoal=subgoal)
 
         # Continue to Executor with current subgoal
         logger.debug(f"▶️  Proceeding to Executor with subgoal: {ev.current_subgoal}")
@@ -793,8 +829,6 @@ class DroidAgent(Workflow):
             "success"
         ]
 
-        self.shared_state.step_number += 1
-
         if self.config.logging.save_trajectory != "none":
             self.trajectory_writer.write(
                 self.trajectory, stage=f"step_{self.shared_state.step_number}"
@@ -860,8 +894,6 @@ class DroidAgent(Workflow):
                 if self.shared_state.error_flag_plan:
                     logger.debug("✅ Error resolved - resetting error flag")
                 self.shared_state.error_flag_plan = False
-
-        self.shared_state.step_number += 1
 
         if self.config.logging.save_trajectory != "none":
             self.trajectory_writer.write(
@@ -933,9 +965,6 @@ class DroidAgent(Workflow):
             )
         else:
             logger.warning(f"⚠️ Script failed or reached max steps: {ev.message}")
-
-        # Increment DroidAgent step counter
-        self.shared_state.step_number += 1
 
         if self.config.logging.save_trajectory != "none":
             self.trajectory_writer.write(
@@ -1020,7 +1049,7 @@ class DroidAgent(Workflow):
                         vision_any = (
                             self.config.agent.manager.vision
                             or self.config.agent.executor.vision
-                            or self.config.agent.codeact.vision
+                            or self.config.agent.fast_agent.vision
                         )
                         parent_span = trace.get_current_span()
                         record_langfuse_screenshot(
@@ -1037,7 +1066,7 @@ class DroidAgent(Workflow):
                     vision_any = (
                         self.config.agent.manager.vision
                         or self.config.agent.executor.vision
-                        or self.config.agent.codeact.vision
+                        or self.config.agent.fast_agent.vision
                     )
                     parent_span = trace.get_current_span()
                     record_langfuse_screenshot(

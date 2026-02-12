@@ -311,19 +311,19 @@ def get_trajectory_statistics(
     execution_steps = sum(
         count
         for step_type, count in step_types.items()
-        if step_type.startswith("codeact_")
+        if step_type.startswith("fast_agent_")
     )
 
     # Count successful vs failed executions
     successful_executions = sum(
         1
         for step in trajectory_steps
-        if step.get("type") == "codeact_execution" and step.get("success", False)
+        if step.get("type") == "fast_agent_execution" and step.get("success", False)
     )
     failed_executions = sum(
         1
         for step in trajectory_steps
-        if step.get("type") == "codeact_execution" and not step.get("success", True)
+        if step.get("type") == "fast_agent_execution" and not step.get("success", True)
     )
 
     # Return statistics

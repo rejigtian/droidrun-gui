@@ -16,8 +16,8 @@ class PromptResolver:
     Resolves prompts from custom dict or falls back to file paths.
 
     Usage:
-        resolver = PromptResolver(custom_prompts={"codeact_system": "..."})
-        prompt = resolver.get_prompt("codeact_system", fallback_path="/path/to/prompt.j2")
+        resolver = PromptResolver(custom_prompts={"fast_agent_system": "..."})
+        prompt = resolver.get_prompt("fast_agent_system", fallback_path="/path/to/prompt.j2")
     """
 
     def __init__(self, custom_prompts: Optional[Dict[str, str]] = None):
@@ -26,7 +26,7 @@ class PromptResolver:
 
         Args:
             custom_prompts: Dict mapping prompt keys to Jinja2 template strings.
-                           Keys: "codeact_system", "codeact_user", "manager_system",
+                           Keys: "fast_agent_system", "fast_agent_user", "manager_system",
                                  "executor_system", "scripter_system"
         """
         self.custom_prompts = custom_prompts or {}
@@ -38,7 +38,7 @@ class PromptResolver:
         Get prompt by key, returning custom template or None if not found.
 
         Args:
-            prompt_key: Prompt identifier (e.g., "codeact_system", "manager_system")
+            prompt_key: Prompt identifier (e.g., "fast_agent_system", "manager_system")
             fallback_path: Optional file path (unused, for API compatibility)
 
         Returns:
@@ -59,8 +59,8 @@ class PromptResolver:
             List of valid prompt key strings
         """
         return [
-            "codeact_system",
-            "codeact_user",
+            "fast_agent_system",
+            "fast_agent_user",
             "manager_system",
             "executor_system",
             "scripter_system",

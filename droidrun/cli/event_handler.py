@@ -14,6 +14,11 @@ from droidrun.agent.codeact.events import (
     CodeActInputEvent,
     CodeActOutputEvent,
     CodeActResponseEvent,
+    FastAgentEndEvent,
+    FastAgentInputEvent,
+    FastAgentOutputEvent,
+    FastAgentResponseEvent,
+    FastAgentToolCallEvent,
 )
 from droidrun.agent.common.events import (
     InputTextActionEvent,
@@ -26,6 +31,8 @@ from droidrun.agent.droid.events import (
     CodeActExecuteEvent,
     CodeActResultEvent,
     ExecutorResultEvent,
+    FastAgentExecuteEvent,
+    FastAgentResultEvent,
     FinalizeEvent,
 )
 from droidrun.agent.executor.events import (
@@ -158,6 +165,55 @@ class EventHandler:
                 f"■ {status}: {event.reason} ({event.code_executions} runs)",
                 extra={"color": color},
             )
+
+        # ── FastAgent events (direct mode, XML tool-calling) ────────
+        elif isinstance(event, FastAgentInputEvent):
+            logger.debug("💬 Task input received...")
+
+        elif isinstance(event, FastAgentResponseEvent):
+            logger.debug("FastAgent response", extra={"color": "magenta"})
+            if event.thought:
+                preview = (
+                    event.thought[:150] + "..."
+                    if len(event.thought) > 150
+                    else event.thought
+                )
+                logger.debug(f"🧠 Thinking: {preview}", extra={"color": "cyan"})
+            if event.code:
+                logger.debug("💻 Executing action code", extra={"color": "yellow"})
+                logger.debug(f"{event.code}", extra={"color": "blue"})
+
+        elif isinstance(event, FastAgentToolCallEvent):
+            logger.debug("⚡ Executing tool calls...", extra={"color": "yellow"})
+
+        elif isinstance(event, FastAgentOutputEvent):
+            if event.output:
+                output = str(event.output)
+                preview = output[:100] + "..." if len(output) > 100 else output
+                if "Error" in output or "Exception" in output:
+                    logger.debug(f"❌ Action error: {preview}", extra={"color": "red"})
+                else:
+                    logger.debug(
+                        f"⚡ Action result: {preview}", extra={"color": "green"}
+                    )
+
+        elif isinstance(event, FastAgentEndEvent):
+            status = "done" if event.success else "failed"
+            color = "green" if event.success else "red"
+            logger.debug(
+                f"■ {status}: {event.reason} ({event.tool_call_count} runs)",
+                extra={"color": color},
+            )
+
+        # ── FastAgent coordination events ────────────────────────────
+        elif isinstance(event, FastAgentExecuteEvent):
+            logger.debug("🔧 Starting task execution...", extra={"color": "magenta"})
+
+        elif isinstance(event, FastAgentResultEvent):
+            if event.success:
+                logger.debug(f"Task result: {event.reason}", extra={"color": "green"})
+            else:
+                logger.debug(f"Task failed: {event.reason}", extra={"color": "red"})
 
         # ── Scripter events ─────────────────────────────────────────
         elif isinstance(event, ScripterThinkingEvent):

@@ -55,7 +55,7 @@ No actions have been taken yet.
 
 ### Available Actions
 {% for action_name, action_info in atomic_actions.items() %}
-- {{ action_name }}({{ action_info.arguments|join(', ') }}): {{ action_info.description }}
+- {{ action_name }}({% for p, info in action_info.parameters.items() %}{{ p }}: {{ info.type }}{% if not info.get('required', True) %} = {{ info.get('default', 'None') }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}): {{ action_info.description }}
 {% endfor %}
 
 ### Key Rules
@@ -72,7 +72,7 @@ No actions have been taken yet.
 What action and target does the subgoal specify?
 
 ### Action ###
-{"action": "action_name", "argument": "value"}
+{"action": "action_name", "param_name": "value"}
 
 ### Description ###
 One sentence describing the action you're taking.

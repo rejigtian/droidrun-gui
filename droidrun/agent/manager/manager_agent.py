@@ -178,7 +178,8 @@ class ManagerAgent(Workflow):
             "app_card": self.shared_state.app_card,
             "important_notes": "",  # TODO: implement
             "error_history": error_history,
-            "text_manipulation_enabled": has_text_to_modify,
+            "text_manipulation_enabled": has_text_to_modify
+            and self.agent_config.fast_agent.codeact,
             "custom_tools_descriptions": build_custom_tool_descriptions(
                 self.custom_tools
             ),

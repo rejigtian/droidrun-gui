@@ -197,7 +197,7 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
             vision_state = {
                 "manager": getattr(self.agent.config.agent.manager, "vision", False),
                 "executor": getattr(self.agent.config.agent.executor, "vision", False),
-                "codeact": getattr(self.agent.config.agent.codeact, "vision", False),
+                "fast_agent": getattr(self.agent.config.agent.fast_agent, "vision", False),
             }
             input_data["vision_enabled"] = any(vision_state.values())
             input_data["vision"] = vision_state
@@ -209,8 +209,8 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
                 if self.agent.config.agent.scripter.enabled:
                     llm_attrs.append("scripter_llm")
             else:
-                # Direct mode uses codeact
-                llm_attrs = ["codeact_llm"]
+                # Direct mode uses fast_agent
+                llm_attrs = ["fast_agent_llm"]
 
             # Add helper LLMs
             llm_attrs.extend(["text_manipulator_llm", "app_opener_llm"])

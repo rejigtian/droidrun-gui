@@ -18,7 +18,7 @@ PROVIDERS = [
     "OpenAILike",
 ]
 
-AGENT_ROLES = ["manager", "executor", "codeact", "scripter"]
+AGENT_ROLES = ["manager", "executor", "fast_agent", "scripter"]
 
 # Maps provider name to the env key slot used by save_env_keys/load_env_keys.
 # Providers not listed here store their api_key in kwargs instead.
@@ -67,7 +67,7 @@ class SettingsData:
     # Agent
     manager_vision: bool = True
     executor_vision: bool = False
-    codeact_vision: bool = False
+    fast_agent_vision: bool = False
     max_steps: int = 15
 
     # Advanced
@@ -125,7 +125,7 @@ class SettingsData:
         agent_prompts = {
             "manager": config.agent.manager.system_prompt,
             "executor": config.agent.executor.system_prompt,
-            "codeact": config.agent.codeact.system_prompt,
+            "fast_agent": config.agent.fast_agent.system_prompt,
             "scripter": config.agent.scripter.system_prompt,
         }
 
@@ -134,7 +134,7 @@ class SettingsData:
             agent_prompts=agent_prompts,
             manager_vision=config.agent.manager.vision,
             executor_vision=config.agent.executor.vision,
-            codeact_vision=config.agent.codeact.vision,
+            fast_agent_vision=config.agent.fast_agent.vision,
             max_steps=config.agent.max_steps,
             use_tcp=config.device.use_tcp,
             debug=config.logging.debug,
@@ -216,14 +216,14 @@ class SettingsData:
                 continue
             self._apply_profile_to_llm(ps, config.llm_profiles[role])
 
-        # Propagate codeact settings to hidden roles (text_manipulator, app_opener, structured_output)
+        # Propagate fast_agent settings to hidden roles (text_manipulator, app_opener, structured_output)
         # keeping their existing model (these are usually lighter models)
-        codeact_ps = self.profiles.get("codeact")
-        if codeact_ps:
+        fast_agent_ps = self.profiles.get("fast_agent")
+        if fast_agent_ps:
             for hidden_role in ("text_manipulator", "app_opener", "structured_output"):
                 if hidden_role in config.llm_profiles:
                     self._apply_profile_to_llm(
-                        codeact_ps, config.llm_profiles[hidden_role], update_model=False
+                        fast_agent_ps, config.llm_profiles[hidden_role], update_model=False
                     )
 
         # Per-agent prompt paths
@@ -233,9 +233,9 @@ class SettingsData:
         prompt = self.agent_prompts.get("executor", "")
         if prompt:
             config.agent.executor.system_prompt = prompt
-        prompt = self.agent_prompts.get("codeact", "")
+        prompt = self.agent_prompts.get("fast_agent", "")
         if prompt:
-            config.agent.codeact.system_prompt = prompt
+            config.agent.fast_agent.system_prompt = prompt
         prompt = self.agent_prompts.get("scripter", "")
         if prompt:
             config.agent.scripter.system_prompt = prompt
@@ -244,7 +244,7 @@ class SettingsData:
         config.agent.max_steps = self.max_steps
         config.agent.manager.vision = self.manager_vision
         config.agent.executor.vision = self.executor_vision
-        config.agent.codeact.vision = self.codeact_vision
+        config.agent.fast_agent.vision = self.fast_agent_vision
 
         # Device
         config.device.use_tcp = self.use_tcp

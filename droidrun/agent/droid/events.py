@@ -21,6 +21,16 @@ class CodeActResultEvent(Event):
     instruction: str
 
 
+class FastAgentExecuteEvent(Event):
+    instruction: str
+
+
+class FastAgentResultEvent(Event):
+    success: bool
+    reason: str
+    instruction: str
+
+
 # ============================================================================
 # Manager/Executor coordination events
 # ============================================================================

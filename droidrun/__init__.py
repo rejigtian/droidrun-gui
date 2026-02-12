@@ -27,7 +27,7 @@ from droidrun.config_manager import (
     # Agent configs
     AgentConfig,
     AppCardConfig,
-    CodeActConfig,
+    FastAgentConfig,
     CredentialsConfig,
     # Feature configs
     DeviceConfig,
@@ -65,7 +65,7 @@ __all__ = [
     # Configuration
     "DroidrunConfig",
     "AgentConfig",
-    "CodeActConfig",
+    "FastAgentConfig",
     "ManagerConfig",
     "ExecutorConfig",
     "ScripterConfig",
