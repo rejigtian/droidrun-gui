@@ -410,7 +410,7 @@ class FastAgent(Workflow):
                 "<function_calls>\n"
                 '<invoke name="complete">\n'
                 '<parameter name="success">true</parameter>\n'
-                '<parameter name="reason">Explanation here</parameter>\n'
+                '<parameter name="message">Explanation here</parameter>\n'
                 "</invoke>\n"
                 "</function_calls>"
             )
@@ -486,11 +486,16 @@ class FastAgent(Workflow):
                 is_error=True,
             )
 
+        params = call.parameters
+        # Remap 'message' -> 'reason' for complete() (LLM sees "message", function expects "reason")
+        if call.name == "complete" and "message" in params:
+            params = {**params, "reason": params.pop("message")}
+
         try:
             if inspect.iscoroutinefunction(tool_func):
-                result = await tool_func(**call.parameters)
+                result = await tool_func(**params)
             else:
-                result = tool_func(**call.parameters)
+                result = tool_func(**params)
 
             output = str(result) if result is not None else "Tool executed successfully."
             return ToolResult(name=call.name, output=output)

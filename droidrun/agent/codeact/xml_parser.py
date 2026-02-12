@@ -21,6 +21,7 @@ CLOSE_TAG = "</function_calls>"
 _BUILTIN_PARAM_TYPES: Dict[str, str] = {
     "success": "boolean",
     "reason": "string",
+    "message": "string",
     "information": "string",
 }
 
@@ -253,12 +254,12 @@ _BUILTIN_TOOLS = {
     "complete": {
         "parameters": {
             "success": {"type": "boolean", "required": True},
-            "reason": {"type": "string", "required": True},
+            "message": {"type": "string", "required": True},
         },
         "description": (
             "Mark task as complete. "
             "success=true if task succeeded, false if failed. "
-            "reason explains the outcome."
+            "message contains the result, answer, or explanation."
         ),
     },
 }

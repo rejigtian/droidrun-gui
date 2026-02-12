@@ -72,7 +72,7 @@ When done:
 <function_calls>
 <invoke name="complete">
 <parameter name="success">true</parameter>
-<parameter name="reason">Successfully enabled Wi-Fi in settings</parameter>
+<parameter name="message">Successfully enabled Wi-Fi in settings</parameter>
 </invoke>
 </function_calls>
 {% endif %}
@@ -98,6 +98,6 @@ When done:
 
 **Important:**
 - Collect ALL required data before calling complete()
-- Include this information in the `reason` parameter in a natural, readable format
+- Include this information in the `message` parameter in a natural, readable format
 - Do NOT output JSON - present data as plain text
 {% endif %}
