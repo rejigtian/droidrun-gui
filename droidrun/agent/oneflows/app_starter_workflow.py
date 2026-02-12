@@ -77,7 +77,12 @@ Return ONLY a JSON object with the following structure:
     "package": "com.example.package"
 }}
 
-Choose the most appropriate app based on the description. Return the package name of the best match."""
+If no app matches the user's request, return:
+{{
+    "package": null
+}}
+
+Choose the most appropriate app based on the description. Return the package name of the best match, or null if no app matches."""
 
         # Get LLM response
         logger.info("📱 AppOpener response:", extra={"color": "blue"})
@@ -96,8 +101,13 @@ Choose the most appropriate app based on the description. Return the package nam
                 result=f"Error parsing LLM response: {e}. Response: {response_text}"
             )
 
+        if not package_name:
+            logger.warning(f"No matching app found for: {app_description}")
+            return StopEvent(
+                result=f"Could not open app: no installed app matches '{app_description}'"
+            )
+
         logger.info(f"Starting app {package_name}")
-        logger.info(self.tools.__class__.__class__)
         result = await self.tools.start_app(package_name)
 
         return StopEvent(result=result)

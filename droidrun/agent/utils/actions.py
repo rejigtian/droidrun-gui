@@ -125,6 +125,7 @@ async def open_app(text: str, *, tools: "Tools" = None, **kwargs) -> str:
 
     result = await workflow.run(app_description=text)
     await asyncio.sleep(1)
+    print(result)
     return result
 
 

@@ -426,7 +426,9 @@ class ExecutorAgent(Workflow):
                         "Missing 'text' parameter",
                         "Failed: open_app requires text",
                     )
-                await open_app(text, tools=self.tools_instance)
+                result = await open_app(text, tools=self.tools_instance)
+                if isinstance(result, str) and "could not open app" in result.lower():
+                    return False, result, result
                 return True, "", f"Opened app: {text}"
 
             else:
