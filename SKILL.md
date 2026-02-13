@@ -48,38 +48,38 @@ Source code is at `droidrun/` (Python package). Key locations:
 
 ## Documentation
 
-Read the relevant file(s) from `docs/v4/` based on the user's question. Do not guess — always
+Read the relevant file(s) from `docs/v5/` based on the user's question. Do not guess — always
 read the doc before answering.
 
 | Topic | File |
 |-------|------|
-| Overview | docs/v4/overview.mdx |
-| Quickstart | docs/v4/quickstart.mdx |
+| Overview | docs/v5/overview.mdx |
+| Quickstart | docs/v5/quickstart.mdx |
 | **Concepts** | |
-| Architecture & agents | docs/v4/concepts/architecture.mdx |
-| Events & workflows | docs/v4/concepts/events-and-workflows.mdx |
-| Prompts | docs/v4/concepts/prompts.mdx |
-| Scripter agent | docs/v4/concepts/scripter-agent.mdx |
-| Shared state | docs/v4/concepts/shared-state.mdx |
+| Architecture & agents | docs/v5/concepts/architecture.mdx |
+| Events & workflows | docs/v5/concepts/events-and-workflows.mdx |
+| Prompts | docs/v5/concepts/prompts.mdx |
+| Scripter agent | docs/v5/concepts/scripter-agent.mdx |
+| Shared state | docs/v5/concepts/shared-state.mdx |
 | **Features** | |
-| App cards | docs/v4/features/app-cards.mdx |
-| Credentials | docs/v4/features/credentials.mdx |
-| Custom tools | docs/v4/features/custom-tools.mdx |
-| Custom variables | docs/v4/features/custom-variables.mdx |
-| Structured output | docs/v4/features/structured-output.mdx |
-| Telemetry | docs/v4/features/telemetry.mdx |
-| Tracing | docs/v4/features/tracing.mdx |
+| App cards | docs/v5/features/app-cards.mdx |
+| Credentials | docs/v5/features/credentials.mdx |
+| Custom tools | docs/v5/features/custom-tools.mdx |
+| Custom variables | docs/v5/features/custom-variables.mdx |
+| Structured output | docs/v5/features/structured-output.mdx |
+| Telemetry | docs/v5/features/telemetry.mdx |
+| Tracing | docs/v5/features/tracing.mdx |
 | **Guides** | |
-| CLI usage | docs/v4/guides/cli.mdx |
-| Device setup | docs/v4/guides/device-setup.mdx |
-| Docker | docs/v4/guides/docker.mdx |
-| Migration v3→v4 | docs/v4/guides/migration-v3-to-v4.mdx |
+| CLI usage | docs/v5/guides/cli.mdx |
+| Device setup | docs/v5/guides/device-setup.mdx |
+| Docker | docs/v5/guides/docker.mdx |
+| Migration v3→v4 | docs/v5/guides/migration-v3-to-v4.mdx |
 | **SDK** | |
-| DroidAgent | docs/v4/sdk/droid-agent.mdx |
-| ADB tools | docs/v4/sdk/adb-tools.mdx |
-| iOS tools | docs/v4/sdk/ios-tools.mdx |
-| Base tools | docs/v4/sdk/base-tools.mdx |
-| Configuration | docs/v4/sdk/configuration.mdx |
-| API reference | docs/v4/sdk/reference.mdx |
+| DroidAgent | docs/v5/sdk/droid-agent.mdx |
+| ADB tools | docs/v5/sdk/adb-tools.mdx |
+| iOS tools | docs/v5/sdk/ios-tools.mdx |
+| Base tools | docs/v5/sdk/base-tools.mdx |
+| Configuration | docs/v5/sdk/configuration.mdx |
+| API reference | docs/v5/sdk/reference.mdx |
 
 For deeper implementation details, check the source code directly in `droidrun/`.

@@ -1,0 +1,435 @@
+---
+title: "Event Streaming"
+description: "How to consume real-time events from DroidAgent execution."
+---
+
+## Overview
+
+DroidRun provides **real-time event streaming** that gives you visibility into agent execution as it happens. This allows you to build UIs, logging systems, or monitoring tools that react to agent actions in real-time.
+
+Under the hood, DroidRun uses [llama-index workflows](https://docs.llamaindex.ai/en/stable/understanding/workflows/) - an event-driven orchestration system that powers the agent architecture.
+
+## Basic Usage
+
+```python
+from droidrun.agent.droid import DroidAgent
+
+# Create and run agent
+agent = DroidAgent(goal="Open Gmail and check inbox", config=config)
+handler = agent.run()
+
+# Stream events in real-time
+async for event in handler.stream_events():
+    if isinstance(event, ManagerPlanDetailsEvent):
+        print(f"📋 Plan: {event.plan}")
+        print(f"🎯 Current subgoal: {event.current_subgoal}")
+
+    elif isinstance(event, ExecutorActionEvent):
+        print(f"⚡ Action: {event.description}")
+        print(f"💭 Thought: {event.thought}")
+
+    elif isinstance(event, ScreenshotEvent):
+        save_screenshot(event.screenshot, "screenshot.png")
+
+    elif isinstance(event, TaskThinkingEvent):
+        print(f"🐍 Generated code:")
+        if event.code:
+            print(event.code)
+        if event.thoughts:
+            print(f"💭 Thoughts: {event.thoughts}")
+
+# Wait for final result
+result = await handler
+print(f"✅ Success: {result.success}")
+print(f"📝 Reason: {result.reason}")
+```
+
+## Event Types
+
+<AccordionGroup>
+  <Accordion title="Workflow Coordination Events">
+Used for workflow coordination between DroidAgent and its child agents.
+
+```python
+# Main workflow
+class FastAgentExecuteEvent(Event):
+    instruction: str
+
+class FastAgentResultEvent(Event):
+    success: bool
+    reason: str
+    instruction: str
+
+class FinalizeEvent(Event):
+    success: bool
+    reason: str
+
+class ResultEvent(StopEvent):
+    success: bool
+    reason: str
+    steps: int
+    structured_output: BaseModel | None
+
+# Manager/Executor coordination
+class ManagerInputEvent(Event): pass
+class ManagerPlanEvent(Event):
+    plan: str
+    current_subgoal: str
+    thought: str
+    manager_answer: str
+    success: bool | None
+
+class ExecutorInputEvent(Event):
+    current_subgoal: str
+
+class ExecutorResultEvent(Event):
+    action: Dict
+    outcome: bool
+    error: str
+    summary: str
+    full_response: str
+
+# Scripter coordination
+class ScripterExecutorInputEvent(Event):
+    task: str
+
+class ScripterExecutorResultEvent(Event):
+    task: str
+    message: str
+    success: bool
+    code_executions: int
+
+# Text manipulation
+class TextManipulatorInputEvent(Event):
+    task: str
+
+class TextManipulatorResultEvent(Event):
+    task: str
+    text_to_type: str
+    code_ran: str
+```
+  </Accordion>
+
+  <Accordion title="Manager Events (Internal)">
+Internal to ManagerAgent, streamed to frontend/logging.
+
+```python
+class ManagerContextEvent(Event): pass
+
+class ManagerResponseEvent(Event):
+    output_planning: str
+    usage: Optional[UsageResult]
+
+class ManagerPlanDetailsEvent(Event):
+    plan: str
+    current_subgoal: str
+    thought: str
+    manager_answer: str
+    memory_update: str
+    success: bool | None
+    full_response: str
+```
+  </Accordion>
+
+  <Accordion title="Executor Events (Internal)">
+Internal to ExecutorAgent, streamed to frontend/logging.
+
+```python
+class ExecutorContextEvent(Event):
+    messages: list
+    subgoal: str
+
+class ExecutorResponseEvent(Event):
+    response_text: str
+    usage: Optional[UsageResult]
+
+class ExecutorActionEvent(Event):
+    action_json: str
+    thought: str
+    description: str
+    full_response: str
+
+class ExecutorActionResultEvent(Event):
+    action: Dict
+    outcome: bool
+    error: str
+    summary: str
+    thought: str
+    action_json: str
+    full_response: str
+```
+  </Accordion>
+
+  <Accordion title="FastAgent Events (Internal)">
+Internal to FastAgent, used in direct execution mode.
+
+```python
+class FastAgentInputEvent(Event):
+    pass
+
+class FastAgentResponseEvent(Event):
+    thought: str
+    code: Optional[str] = None
+    usage: Optional[UsageResult] = None
+
+class FastAgentToolCallEvent(Event):
+    tool_calls_repr: str
+
+class FastAgentOutputEvent(Event):
+    output: str
+
+class FastAgentEndEvent(Event):
+    success: bool
+    reason: str
+    tool_call_count: int = 0
+```
+  </Accordion>
+
+  <Accordion title="Scripter Events (Internal)">
+Internal to ScripterAgent, for off-device script execution.
+
+```python
+class ScripterInputEvent(Event):
+    input: List
+
+class ScripterThinkingEvent(Event):
+    thoughts: str
+    code: Optional[str]
+    full_response: str
+    usage: Optional[UsageResult]
+
+class ScripterExecutionEvent(Event):
+    code: str
+
+class ScripterExecutionResultEvent(Event):
+    output: str
+
+class ScripterEndEvent(Event):
+    message: str
+    success: bool
+    code_executions: int
+```
+  </Accordion>
+
+  <Accordion title="Action Recording Events">
+Emitted when actions are performed, used for macro recording and trajectory tracking.
+
+```python
+class MacroEvent(Event):  # Base class
+    action_type: str
+    description: str
+
+class TapActionEvent(MacroEvent):
+    x: int
+    y: int
+    element_index: int = None
+    element_text: str = ""
+    element_bounds: str = ""
+
+class SwipeActionEvent(MacroEvent):
+    start_x: int
+    start_y: int
+    end_x: int
+    end_y: int
+    duration_ms: int
+
+class DragActionEvent(MacroEvent):
+    start_x: int
+    start_y: int
+    end_x: int
+    end_y: int
+    duration_ms: int
+
+class InputTextActionEvent(MacroEvent):
+    text: str
+
+class KeyPressActionEvent(MacroEvent):
+    keycode: int
+    key_name: str = ""
+
+class StartAppEvent(MacroEvent):
+    package: str
+    activity: str = None
+
+class WaitEvent(MacroEvent):
+    duration: float
+```
+  </Accordion>
+
+  <Accordion title="Visual & Telemetry Events">
+```python
+# Visual events
+class ScreenshotEvent(Event):
+    screenshot: bytes
+
+class RecordUIStateEvent(Event):
+    ui_state: list[Dict[str, Any]]
+
+# Telemetry events (when enabled)
+class DroidAgentInitEvent(TelemetryEvent):
+    goal: str
+    llms: Dict[str, str]
+    tools: str
+    max_steps: int
+    timeout: int
+    vision: Dict[str, bool]
+    reasoning: bool
+    enable_tracing: bool
+    debug: bool
+    save_trajectories: str
+    runtype: str
+    custom_prompts: Optional[Dict[str, str]]
+
+class PackageVisitEvent(TelemetryEvent):
+    package_name: str
+    activity_name: str
+    step_number: int
+
+class DroidAgentFinalizeEvent(TelemetryEvent):
+    success: bool
+    reason: str
+    steps: int
+    unique_packages_count: int
+    unique_activities_count: int
+
+# Usage tracking
+class UsageResult(BaseModel):
+    request_tokens: int
+    response_tokens: int
+    total_tokens: int
+    requests: int
+```
+  </Accordion>
+</AccordionGroup>
+
+## Common Patterns
+
+### Building a Live UI
+
+```python
+async def run_with_ui(goal: str):
+    agent = DroidAgent(goal=goal, config=config)
+    handler = agent.run()
+
+    async for event in handler.stream_events():
+        if isinstance(event, ManagerPlanDetailsEvent):
+            ui.update_plan(event.plan)
+            ui.update_current_step(event.current_subgoal)
+
+        elif isinstance(event, ExecutorActionEvent):
+            ui.add_action_log(event.description, event.thought)
+
+        elif isinstance(event, ScreenshotEvent):
+            ui.update_screenshot(event.screenshot)
+
+    result = await handler
+    ui.show_completion(result.success, result.reason)
+```
+
+### Tracking Token Usage
+
+```python
+async def track_token_usage(goal: str):
+    agent = DroidAgent(goal=goal, config=config)
+    handler = agent.run()
+
+    total_tokens = 0
+    total_requests = 0
+
+    async for event in handler.stream_events():
+        # Check for events that contain usage information
+        if hasattr(event, 'usage') and event.usage:
+            total_tokens += event.usage.total_tokens
+            total_requests += event.usage.requests
+
+            print(f"LLM call - Input: {event.usage.request_tokens}, "
+                  f"Output: {event.usage.response_tokens}, "
+                  f"Total: {event.usage.total_tokens}")
+
+    result = await handler
+    print(f"\n📊 Total tokens used: {total_tokens}")
+    print(f"📊 Total LLM requests: {total_requests}")
+```
+
+### Logging and Monitoring
+
+```python
+import logging
+
+logger = logging.getLogger("droidrun.monitor")
+
+async def monitor_execution(goal: str):
+    agent = DroidAgent(goal=goal, config=config)
+    handler = agent.run()
+
+    start_time = time.time()
+    action_count = 0
+
+    async for event in handler.stream_events():
+        if isinstance(event, ExecutorActionEvent):
+            action_count += 1
+            logger.info(f"Action {action_count}: {event.description}")
+
+        elif isinstance(event, TaskExecutionResultEvent):
+            logger.info(f"Code execution result: {event.output}")
+
+    result = await handler
+    duration = time.time() - start_time
+
+    logger.info(f"Task completed in {duration:.2f}s with {action_count} actions")
+    logger.info(f"Result: {result.success} - {result.reason}")
+```
+
+## Notes
+
+### Event Streaming Behavior
+
+- Events are **streamed in real-time** as the agent executes
+- Not all events are emitted in every execution (depends on mode and actions)
+- All events are **Pydantic models** with full type safety
+- The `handler` object is **async** - always use `await handler` to get the final result
+
+### Event Emission by Mode
+
+**Reasoning Mode** (`reasoning=True`) emits:
+- Coordination: `ManagerInputEvent`, `ManagerPlanEvent`, `ExecutorInputEvent`, `ExecutorResultEvent`
+- Internal Manager: `ManagerContextEvent`, `ManagerResponseEvent`, `ManagerPlanDetailsEvent`
+- Internal Executor: `ExecutorContextEvent`, `ExecutorResponseEvent`, `ExecutorActionEvent`, `ExecutorActionResultEvent`
+- Actions: All action recording events (`TapActionEvent`, `SwipeActionEvent`, etc.)
+- Visual: `ScreenshotEvent`, `RecordUIStateEvent` (when enabled)
+
+**Direct Mode** (`reasoning=False`) emits:
+- Coordination: `FastAgentExecuteEvent`, `FastAgentResultEvent`
+- Internal FastAgent: `FastAgentInputEvent`, `FastAgentResponseEvent`, `FastAgentToolCallEvent`, `FastAgentOutputEvent`, `FastAgentEndEvent`
+- Actions: All action recording events
+- Visual: `ScreenshotEvent`, `RecordUIStateEvent` (when enabled)
+
+**ScripterAgent** (when triggered by `<script>` tags) emits:
+- Coordination: `ScripterExecutorInputEvent`, `ScripterExecutorResultEvent`
+- Internal Scripter: `ScripterInputEvent`, `ScripterThinkingEvent`, `ScripterExecutionEvent`, `ScripterExecutionResultEvent`, `ScripterEndEvent`
+
+**All Modes** emit:
+- Finalization: `FinalizeEvent`, `ResultEvent`
+- Telemetry: `DroidAgentInitEvent`, `PackageVisitEvent`, `DroidAgentFinalizeEvent` (when telemetry enabled)
+
+### Event Categories
+
+**Coordination Events** - Used for workflow routing between agents (minimal data)
+- Located in `droidrun/agent/droid/events.py`
+- Examples: `ManagerPlanEvent`, `ExecutorResultEvent`, `ScripterExecutorResultEvent`
+
+**Internal Events** - Used for streaming to frontend/logging (full debug data)
+- Located in agent-specific event files
+- Examples: `ManagerPlanDetailsEvent`, `ExecutorActionEvent`, `TaskThinkingEvent`
+
+**Action Recording Events** - Emitted when actions are performed (for macros/trajectories)
+- Located in `droidrun/agent/common/events.py`
+- Examples: `TapActionEvent`, `SwipeActionEvent`, `InputTextActionEvent`
+
+**Telemetry Events** - Captured for analytics (when enabled)
+- Located in `droidrun/telemetry/events.py`
+- Examples: `DroidAgentInitEvent`, `PackageVisitEvent`, `DroidAgentFinalizeEvent`
+
+## Learn More
+
+- [LlamaIndex Workflows](https://docs.llamaindex.ai/en/stable/understanding/workflows/) - The underlying orchestration system
