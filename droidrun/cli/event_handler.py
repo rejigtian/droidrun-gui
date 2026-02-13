@@ -203,16 +203,6 @@ class EventHandler:
                 extra={"color": color},
             )
 
-        # ── FastAgent coordination events ────────────────────────────
-        elif isinstance(event, FastAgentExecuteEvent):
-            logger.debug("🔧 Starting task execution...", extra={"color": "magenta"})
-
-        elif isinstance(event, FastAgentResultEvent):
-            if event.success:
-                logger.debug(f"Task result: {event.reason}", extra={"color": "green"})
-            else:
-                logger.debug(f"Task failed: {event.reason}", extra={"color": "red"})
-
         # ── Scripter events ─────────────────────────────────────────
         elif isinstance(event, ScripterThinkingEvent):
             if event.thought:
@@ -234,6 +224,15 @@ class EventHandler:
             logger.debug(f"› input  {event.text}", extra={"color": "white"})
 
         # ── Droid coordination events ───────────────────────────────
+        elif isinstance(event, FastAgentExecuteEvent):
+            logger.debug("🔧 Starting task execution...", extra={"color": "magenta"})
+
+        elif isinstance(event, FastAgentResultEvent):
+            if event.success:
+                logger.debug(f"Task result: {event.reason}", extra={"color": "green"})
+            else:
+                logger.debug(f"Task failed: {event.reason}", extra={"color": "red"})
+
         elif isinstance(event, FinalizeEvent):
             if event.success:
                 logger.info(
