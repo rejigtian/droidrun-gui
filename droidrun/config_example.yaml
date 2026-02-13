@@ -31,6 +31,9 @@ agent:
     # false (default) = uses XML tool-calling (safer, no code execution)
     # true = legacy code generation mode with exec()
     codeact: false
+    # Encourage batching multiple tool calls in a single response when safe
+    # Reduces round-trips by combining actions that don't depend on screen changes
+    batch_tools: true
     # System prompt path (relative or absolute)
     # Default points to tools agent prompt; legacy codeact prompt used automatically when codeact: true
     system_prompt: config/prompts/codeact/tools_system.jinja2

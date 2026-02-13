@@ -42,6 +42,7 @@ class LLMProfile:
 class FastAgentConfig:
     vision: bool = False
     codeact: bool = False
+    batch_tools: bool = True
     system_prompt: str = "config/prompts/codeact/tools_system.jinja2"
     user_prompt: str = "config/prompts/codeact/tools_user.jinja2"
     safe_execution: bool = False

@@ -149,6 +149,8 @@ class FastAgent(Workflow):
                 self.shared_state.custom_variables if self.shared_state else {}
             ),
             "output_schema": self._output_schema,
+            "batch_tools": self.config.batch_tools,
+            "vision": self.vision,
         }
 
         custom_system_prompt = self.prompt_resolver.get_prompt("fast_agent_system")
@@ -498,8 +500,8 @@ class FastAgent(Workflow):
 
         params = call.parameters
         # Remap 'message' -> 'reason' for complete() (LLM sees "message", function expects "reason")
-        if call.name == "complete" and "message" in params:
-            params = {**params, "reason": params.pop("message")}
+        if call.name == "complete" and "reason" not in params:
+            params["reason"] = params.pop("message", "")
 
         try:
             if inspect.iscoroutinefunction(tool_func):

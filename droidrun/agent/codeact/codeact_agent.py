@@ -118,7 +118,11 @@ class CodeActAgent(Workflow):
                 self.tool_list[action_name] = sync_wrapper
 
         self.tool_list["remember"] = tools_instance.remember
-        self.tool_list["complete"] = tools_instance.complete
+
+        async def _complete_wrapper(success: bool, message: str = "", reason: str = ""):
+            return await tools_instance.complete(success=success, reason=message or reason)
+
+        self.tool_list["complete"] = _complete_wrapper
 
         # Build tool descriptions
         self.tool_descriptions = build_custom_tool_descriptions(atomic_tools)
