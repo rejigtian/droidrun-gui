@@ -22,7 +22,7 @@ handler = agent.run()
 async for event in handler.stream_events():
     if isinstance(event, ManagerPlanDetailsEvent):
         print(f"📋 Plan: {event.plan}")
-        print(f"🎯 Current subgoal: {event.current_subgoal}")
+        print(f"🎯 Current subgoal: {event.subgoal}")
 
     elif isinstance(event, ExecutorActionEvent):
         print(f"⚡ Action: {event.description}")
@@ -31,12 +31,11 @@ async for event in handler.stream_events():
     elif isinstance(event, ScreenshotEvent):
         save_screenshot(event.screenshot, "screenshot.png")
 
-    elif isinstance(event, TaskThinkingEvent):
-        print(f"🐍 Generated code:")
+    elif isinstance(event, FastAgentResponseEvent):
         if event.code:
-            print(event.code)
-        if event.thoughts:
-            print(f"💭 Thoughts: {event.thoughts}")
+            print(f"🔧 Tool calls: {event.code}")
+        if event.thought:
+            print(f"💭 Thought: {event.thought}")
 
 # Wait for final result
 result = await handler
@@ -76,8 +75,8 @@ class ManagerPlanEvent(Event):
     plan: str
     current_subgoal: str
     thought: str
-    manager_answer: str
-    success: bool | None
+    manager_answer: str = ""
+    success: bool | None = None
 
 class ExecutorInputEvent(Event):
     current_subgoal: str
@@ -87,7 +86,6 @@ class ExecutorResultEvent(Event):
     outcome: bool
     error: str
     summary: str
-    full_response: str
 
 # Scripter coordination
 class ScripterExecutorInputEvent(Event):
@@ -122,12 +120,13 @@ class ManagerResponseEvent(Event):
 
 class ManagerPlanDetailsEvent(Event):
     plan: str
-    current_subgoal: str
+    subgoal: str
     thought: str
-    manager_answer: str
-    memory_update: str
-    success: bool | None
-    full_response: str
+    answer: str = ""
+    memory_update: str = ""
+    progress_summary: str = ""
+    success: bool | None = None
+    full_response: str = ""
 ```
   </Accordion>
 
@@ -136,12 +135,11 @@ Internal to ExecutorAgent, streamed to frontend/logging.
 
 ```python
 class ExecutorContextEvent(Event):
-    messages: list
     subgoal: str
 
 class ExecutorResponseEvent(Event):
-    response_text: str
-    usage: Optional[UsageResult]
+    response: str
+    usage: Optional[UsageResult] = None
 
 class ExecutorActionEvent(Event):
     action_json: str
@@ -151,12 +149,11 @@ class ExecutorActionEvent(Event):
 
 class ExecutorActionResultEvent(Event):
     action: Dict
-    outcome: bool
+    success: bool
     error: str
     summary: str
-    thought: str
-    action_json: str
-    full_response: str
+    thought: str = ""
+    full_response: str = ""
 ```
   </Accordion>
 
@@ -190,7 +187,7 @@ Internal to ScripterAgent, for off-device script execution.
 
 ```python
 class ScripterInputEvent(Event):
-    input: List
+    pass
 
 class ScripterThinkingEvent(Event):
     thoughts: str
@@ -314,7 +311,7 @@ async def run_with_ui(goal: str):
     async for event in handler.stream_events():
         if isinstance(event, ManagerPlanDetailsEvent):
             ui.update_plan(event.plan)
-            ui.update_current_step(event.current_subgoal)
+            ui.update_current_step(event.subgoal)
 
         elif isinstance(event, ExecutorActionEvent):
             ui.add_action_log(event.description, event.thought)
@@ -370,8 +367,8 @@ async def monitor_execution(goal: str):
             action_count += 1
             logger.info(f"Action {action_count}: {event.description}")
 
-        elif isinstance(event, TaskExecutionResultEvent):
-            logger.info(f"Code execution result: {event.output}")
+        elif isinstance(event, FastAgentOutputEvent):
+            logger.info(f"Tool execution result: {event.output}")
 
     result = await handler
     duration = time.time() - start_time
@@ -420,7 +417,7 @@ async def monitor_execution(goal: str):
 
 **Internal Events** - Used for streaming to frontend/logging (full debug data)
 - Located in agent-specific event files
-- Examples: `ManagerPlanDetailsEvent`, `ExecutorActionEvent`, `TaskThinkingEvent`
+- Examples: `ManagerPlanDetailsEvent`, `ExecutorActionEvent`, `FastAgentResponseEvent`
 
 **Action Recording Events** - Emitted when actions are performed (for macros/trajectories)
 - Located in `droidrun/agent/common/events.py`

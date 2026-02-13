@@ -137,7 +137,9 @@ def send_notification(title: str, *, tools=None, shared_state=None, **kwargs):
 
 custom_tools = {
     "send_notification": {
-        "arguments": ["title"],
+        "parameters": {
+            "title": {"type": "string", "required": True},
+        },
         "description": "Send a notification with title. Usage: {\"action\": \"send_notification\", \"title\": \"Alert\"}",
         "function": send_notification
     }

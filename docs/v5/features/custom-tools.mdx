@@ -33,7 +33,10 @@ def calculate_tax(amount: float, rate: float, **kwargs) -> str:
 
 custom_tools = {
     "calculate_tax": {
-        "arguments": ["amount", "rate"],
+        "parameters": {
+            "amount": {"type": "number", "required": True},
+            "rate": {"type": "number", "required": True},
+        },
         "description": "Calculate tax for a given amount and rate",
         "function": calculate_tax
     }
@@ -63,7 +66,10 @@ All custom tools follow this format:
 ```python
 custom_tools = {
     "tool_name": {
-        "arguments": ["arg1", "arg2"],           # Parameter names
+        "parameters": {                          # Parameter definitions
+            "arg1": {"type": "string", "required": True},
+            "arg2": {"type": "string", "required": True},
+        },
         "description": "Tool description...",    # For LLM prompt
         "function": callable_function            # Python function
     }
@@ -85,7 +91,7 @@ def tool_name(arg1: type, arg2: type, *, tools=None, shared_state=None, **kwargs
 ```
 
 **Key points:**
-- List only user arguments in `"arguments"` (not `tools` or `shared_state`)
+- List only user parameters in `"parameters"` (not `tools` or `shared_state`)
 - `tools` and `shared_state` are injected automatically as keyword arguments
 - Use `**kwargs` for forward compatibility
 - Return type should be `str`
@@ -113,7 +119,7 @@ def screenshot_and_count(*, tools=None, shared_state=None, **kwargs) -> str:
 
 custom_tools = {
     "screenshot_and_count": {
-        "arguments": [],
+        "parameters": {},
         "description": "Take screenshot and count UI elements on screen",
         "function": screenshot_and_count
     }
@@ -159,7 +165,9 @@ def check_action_history(action_name: str, *, tools=None, shared_state=None, **k
 
 custom_tools = {
     "check_action_history": {
-        "arguments": ["action_name"],
+        "parameters": {
+            "action_name": {"type": "string", "required": True},
+        },
         "description": "Check if a specific action was recently performed in agent history",
         "function": check_action_history
     }
@@ -206,7 +214,9 @@ def fetch_weather(city: str, **kwargs) -> str:
 
 custom_tools = {
     "fetch_weather": {
-        "arguments": ["city"],
+        "parameters": {
+            "city": {"type": "string", "required": True},
+        },
         "description": "Fetch current weather data for a given city",
         "function": fetch_weather
     }
@@ -232,7 +242,9 @@ def query_database(query: str, **kwargs) -> str:
 
 custom_tools = {
     "query_database": {
-        "arguments": ["query"],
+        "parameters": {
+            "query": {"type": "string", "required": True},
+        },
         "description": "Execute SQL query on local database and return results",
         "function": query_database
     }
@@ -256,7 +268,9 @@ async def fetch_async(url: str, **kwargs) -> str:
 
 custom_tools = {
     "fetch_async": {
-        "arguments": ["url"],
+        "parameters": {
+            "url": {"type": "string", "required": True},
+        },
         "description": "Asynchronously fetch data from a URL",
         "function": fetch_async
     }
@@ -362,7 +376,10 @@ async def send_authenticated_request(
 
 custom_tools = {
     "send_authenticated_request": {
-        "arguments": ["url", "data"],
+        "parameters": {
+            "url": {"type": "string", "required": True},
+            "data": {"type": "string", "required": True},
+        },
         "description": "Send authenticated API request using stored credentials",
         "function": send_authenticated_request
     }

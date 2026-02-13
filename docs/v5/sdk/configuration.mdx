@@ -57,6 +57,7 @@ AgentConfig(
     # Core settings
     max_steps=15,                    # Max execution steps
     reasoning=True,                 # Enable Manager/Executor workflow
+    streaming=True,                  # Stream LLM responses
     after_sleep_action=1.0,          # Wait after actions (seconds)
     wait_for_stable_ui=0.3,          # Wait for UI to stabilize (seconds)
     prompts_dir="config/prompts",    # Prompt templates directory
@@ -77,6 +78,7 @@ FastAgentConfig(
     system_prompt="system.jinja2",   # Filename in prompts_dir/codeact/
     user_prompt="user.jinja2",       # Filename in prompts_dir/codeact/
     codeact=False,                  # Legacy: enable CodeAct code-execution mode (default: XML tool-calling)
+    parallel_tools=True,            # Encourage multiple tool calls in a single response
 )
 ```
 
@@ -299,7 +301,9 @@ agent = DroidAgent(
     goal="...",
     custom_tools={
         "my_tool": {
-            "arguments": ["param"],
+            "parameters": {
+                "param": {"type": "string", "required": True},
+            },
             "description": "Tool description with usage example",
             "function": my_tool
         }
@@ -468,7 +472,10 @@ agent = DroidAgent(
     # Custom tools
     custom_tools={
         "send_email": {
-            "arguments": ["to", "subject"],
+            "parameters": {
+                "to": {"type": "string", "required": True},
+                "subject": {"type": "string", "required": True},
+            },
             "description": "Send email to recipient with subject",
             "function": send_email
         }
@@ -500,15 +507,18 @@ For CLI usage, create `config.yaml`:
 agent:
   max_steps: 15
   reasoning: false
+  streaming: true
   after_sleep_action: 1.0
   wait_for_stable_ui: 0.3
   prompts_dir: config/prompts
 
   fast_agent:
     vision: false
+    parallel_tools: true
     system_prompt: system.jinja2
     user_prompt: user.jinja2
     codeact: false  # Legacy: enable CodeAct code-execution mode (default: XML tool-calling)
+    parallel_tools: true  # Encourage multiple tool calls in a single response
 
   manager:
     vision: false

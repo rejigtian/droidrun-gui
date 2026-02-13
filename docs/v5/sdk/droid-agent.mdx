@@ -48,7 +48,7 @@ Initialize the DroidAgent wrapper.
   - `LLM`: Single LLM instance used for all agents
   - `None`: LLMs will be loaded from config.llm_profiles
 - `tools` _Tools | None_ - Pre-configured Tools instance (AdbTools or IOSTools). If None, tools will be created from config.
-- `custom_tools` _dict | None_ - Custom tool definitions. Format: `{"tool_name": {"signature": "...", "description": "...", "function": callable}}`. These are merged with auto-generated credential tools.
+- `custom_tools` _dict | None_ - Custom tool definitions. Format: `{"tool_name": {"parameters": {...}, "description": "...", "function": callable}}`. These are merged with auto-generated credential tools.
 - `credentials` _dict | None_ - Direct credential mapping `{"SECRET_ID": "value"}`. If None, credentials will be loaded from config.credentials if available.
 - `variables` _dict | None_ - Custom variables accessible throughout execution. Available in shared_state.custom_variables.
 - `output_model` _Type[BaseModel] | None_ - Pydantic model for structured output extraction from final answer. If provided, the final answer will be parsed into this model.
@@ -164,7 +164,9 @@ def search_database(query: str) -> str:
 
 custom_tools = {
     "search_database": {
-        "signature": "search_database(query: str) -> str",
+        "parameters": {
+            "query": {"type": "string", "required": True},
+        },
         "description": "Search the local database for information",
         "function": search_database
     }
@@ -310,6 +312,7 @@ DroidAgent emits various events during execution:
 - `InputTextActionEvent` - Text input
 - `KeyPressActionEvent` - Key press action
 - `StartAppEvent` - App launched
+- `WaitEvent` - Wait/sleep action
 
 **State Events:**
 - `ScreenshotEvent` - Screenshot captured
