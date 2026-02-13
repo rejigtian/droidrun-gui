@@ -149,7 +149,7 @@ class FastAgent(Workflow):
                 self.shared_state.custom_variables if self.shared_state else {}
             ),
             "output_schema": self._output_schema,
-            "batch_tools": self.config.batch_tools,
+            "parallel_tools": self.config.parallel_tools,
             "vision": self.vision,
         }
 

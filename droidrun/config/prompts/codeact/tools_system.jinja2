@@ -19,7 +19,7 @@ To call a tool, wrap it in <function_calls> tags:
 </function_calls>
 
 Multiple <invoke> blocks in one <function_calls> block are executed sequentially, in order.
-{% if batch_tools %}
+{% if parallel_tools %}
 Prefer combining actions in one block when targets are visible and won't move — e.g. type into a field then tap a button on the same dialog. Use separate calls when an action may change the screen.
 {% endif %}
 
@@ -53,7 +53,7 @@ Use `type_secret` to type these secrets into input fields without exposing their
 
 State what you'll do before making tool calls. Example:
 {% if 'click' in available_tools %}
-{% if batch_tools %}
+{% if parallel_tools %}
 
 Settings is open. I need to tap Wi-Fi at index 3. This will navigate to a new screen.
 
@@ -116,7 +116,7 @@ When done:
 
 ## Important Rules
 - State your intent before calling tools
-{% if batch_tools %}
+{% if parallel_tools %}
 - Batch multiple tool calls in one <function_calls> block when targets are visible and won't move. Use separate calls when an action may change the screen. After batching, verify the outcome from the updated state.
 {% else %}
 - Prefer one tool call per response so you can observe the result before acting again

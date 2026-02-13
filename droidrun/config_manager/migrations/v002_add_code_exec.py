@@ -21,7 +21,7 @@ def migrate(config: Dict[str, Any]) -> Dict[str, Any]:
     fast_agent = agent.setdefault("fast_agent", {})
 
     fast_agent.setdefault("codeact", False)
-    fast_agent.setdefault("batch_tools", True)
+    fast_agent.setdefault("parallel_tools", True)
 
     # Remove safe_execution and execution_timeout (now in top-level safe_execution)
     fast_agent.pop("safe_execution", None)
