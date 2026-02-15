@@ -236,32 +236,30 @@ class AdbTools(Tools):
 
             # Get the device and tap at the coordinates
             await self.device.click(x, y)
-            print(f"Tapped element with index {index} at coordinates ({x}, {y})")
 
-            # Emit coordinate action event for trajectory recording
+            # Find element details once
+            def find_element_by_index(elements, target_index):
+                """Recursively find an element with the given index."""
+                for item in elements:
+                    if item.get("index") == target_index:
+                        return item
+                    children = item.get("children", [])
+                    result = find_element_by_index(children, target_index)
+                    if result:
+                        return result
+                return None
+
+            element = find_element_by_index(self.clickable_elements_cache, index)
+            element_text = element.get("text", "No text") if element else "No text"
+            element_class = (
+                element.get("className", "Unknown class")
+                if element
+                else "Unknown class"
+            )
+
+            # Emit action event for trajectory recording
             if self._ctx:
-                # Find element again for event details
-                def find_element_by_index(elements, target_index):
-                    """Recursively find an element with the given index."""
-                    for item in elements:
-                        if item.get("index") == target_index:
-                            return item
-                        # Check children if present
-                        children = item.get("children", [])
-                        result = find_element_by_index(children, target_index)
-                        if result:
-                            return result
-                    return None
-
-                element = find_element_by_index(self.clickable_elements_cache, index)
-                element_text = element.get("text", "No text") if element else "No text"
-                element_class = (
-                    element.get("className", "Unknown class")
-                    if element
-                    else "Unknown class"
-                )
                 bounds_str = element.get("bounds", "") if element else ""
-
                 tap_event = TapActionEvent(
                     action_type="tap",
                     description=f"Tap element at index {index}: '{element_text}' ({element_class}) at coordinates ({x}, {y})",
@@ -273,33 +271,13 @@ class AdbTools(Tools):
                 )
                 self._ctx.write_event_to_stream(tap_event)
 
-            # Create a descriptive response
-            def find_element_by_index(elements, target_index):
-                """Recursively find an element with the given index."""
-                for item in elements:
-                    if item.get("index") == target_index:
-                        return item
-                    # Check children if present
-                    children = item.get("children", [])
-                    result = find_element_by_index(children, target_index)
-                    if result:
-                        return result
-                return None
+            # Build response
+            detail_parts = [
+                f"Text: '{element_text}'",
+                f"Class: {element_class}",
+                f"Type: {element.get('type', 'unknown') if element else 'unknown'}",
+            ]
 
-            element = find_element_by_index(self.clickable_elements_cache, index)
-            response_parts = []
-            response_parts.append(f"Tapped element with index {index}")
-            response_parts.append(
-                f"Text: '{element.get('text', 'No text') if element else 'No text'}'"
-            )
-            response_parts.append(
-                f"Class: {element.get('className', 'Unknown class') if element else 'Unknown class'}"
-            )
-            response_parts.append(
-                f"Type: {element.get('type', 'unknown') if element else 'unknown'}"
-            )
-
-            # Add information about children if present
             if element:
                 children = element.get("children", [])
                 if children:
@@ -307,15 +285,15 @@ class AdbTools(Tools):
                         child.get("text") for child in children if child.get("text")
                     ]
                     if child_texts:
-                        response_parts.append(
+                        detail_parts.append(
                             f"Contains text: {' | '.join(child_texts)}"
                         )
 
-            response_parts.append(f"Coordinates: ({x}, {y})")
+            detail_parts.append(f"Coordinates: ({x}, {y})")
 
-            return " | ".join(response_parts)
+            return f"Clicked on {' | '.join(detail_parts)}"
         except ValueError as e:
-            return f"Error: {str(e)}"
+            return f"Failed to click element at index {index}: {e}"
 
     @Tools.ui_action
     async def tap_by_coordinates(self, x: int, y: int) -> str:
@@ -334,7 +312,7 @@ class AdbTools(Tools):
             await self.device.click(x, y)
             return f"Tapped at ({x}, {y})"
         except ValueError as e:
-            return f"Error: {str(e)}"
+            return f"Failed to tap at ({x}, {y}): {e}"
 
     # Replace the old tap function with the new one
     async def tap(self, index: int) -> str:
@@ -407,12 +385,11 @@ class AdbTools(Tools):
 
             x, y = point
             await self.device.click(x, y)
-            print(f"Tapped element with index {index} at coordinates ({x}, {y})")
+
+            element_text = element.get("text", "No text")
+            element_class = element.get("className", "Unknown class")
 
             if self._ctx:
-                element_text = element.get("text", "No text")
-                element_class = element.get("className", "Unknown class")
-
                 tap_event = TapActionEvent(
                     action_type="tap",
                     description=f"Tap element at index {index}: '{element_text}' ({element_class}) at coordinates ({x}, {y})",
@@ -424,11 +401,11 @@ class AdbTools(Tools):
                 )
                 self._ctx.write_event_to_stream(tap_event)
 
-            response_parts = []
-            response_parts.append(f"Tapped element with index {index}")
-            response_parts.append(f"Text: '{element.get('text', 'No text')}'")
-            response_parts.append(f"Class: {element.get('className', 'Unknown class')}")
-            response_parts.append(f"Type: {element.get('type', 'unknown')}")
+            detail_parts = [
+                f"Text: '{element_text}'",
+                f"Class: {element_class}",
+                f"Type: {element.get('type', 'unknown')}",
+            ]
 
             children = element.get("children", [])
             if children:
@@ -436,13 +413,13 @@ class AdbTools(Tools):
                     child.get("text") for child in children if child.get("text")
                 ]
                 if child_texts:
-                    response_parts.append(f"Contains text: {' | '.join(child_texts)}")
+                    detail_parts.append(f"Contains text: {' | '.join(child_texts)}")
 
-            response_parts.append(f"Coordinates: ({x}, {y})")
+            detail_parts.append(f"Coordinates: ({x}, {y})")
 
-            return " | ".join(response_parts)
+            return f"Clicked on {' | '.join(detail_parts)}"
         except ValueError as e:
-            return f"Error: {str(e)}"
+            return f"Failed to click element at index {index}: {e}"
 
     @Tools.ui_action
     async def swipe(
@@ -452,7 +429,7 @@ class AdbTools(Tools):
         end_x: int,
         end_y: int,
         duration_ms: float = 1000,
-    ) -> bool:
+    ) -> str:
         """
         Performs a straight-line swipe gesture on the device screen.
         To perform a hold (long press), set the start and end coordinates to the same values and increase the duration as needed.
@@ -463,7 +440,7 @@ class AdbTools(Tools):
             end_y: Ending Y coordinate
             duration_ms: Duration of swipe in milliseconds
         Returns:
-            Bool indicating success or failure
+            Result message
         """
         await self._ensure_connected()
         try:
@@ -483,13 +460,9 @@ class AdbTools(Tools):
                 start_x, start_y, end_x, end_y, float(duration_ms / 1000)
             )
             await asyncio.sleep(duration_ms / 1000)
-            print(
-                f"Swiped from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration_ms} milliseconds"
-            )
-            return True
+            return f"Swiped from ({start_x}, {start_y}) to ({end_x}, {end_y})"
         except ValueError as e:
-            print(f"Error: {str(e)}")
-            return False
+            return f"Failed to swipe from ({start_x}, {start_y}) to ({end_x}, {end_y}): {e}"
 
     @Tools.ui_action
     async def drag(
@@ -566,15 +539,12 @@ class AdbTools(Tools):
                 self._ctx.write_event_to_stream(input_event)
 
             if success:
-                print(
-                    f"Text input completed (clear={clear}): {text[:50]}{'...' if len(text) > 50 else ''}"
-                )
-                return f"Text input completed (clear={clear}): {text[:50]}{'...' if len(text) > 50 else ''}"
+                return f"Text typed successfully (clear={clear})"
             else:
-                return "Error: Text input failed"
+                return f"Failed to type text: input failed"
 
         except Exception as e:
-            return f"Error sending text input: {str(e)}"
+            return f"Failed to type text: {e}"
 
     @Tools.ui_action
     async def back(self) -> str:
@@ -584,21 +554,20 @@ class AdbTools(Tools):
         """
         await self._ensure_connected()
         try:
-            print("Pressing key BACK")
             await self.device.keyevent(4)
 
             if self._ctx:
                 key_event = KeyPressActionEvent(
                     action_type="key_press",
-                    description="Pressed key BACK",
+                    description="Pressed BACK button",
                     keycode=4,
                     key_name="BACK",
                 )
                 self._ctx.write_event_to_stream(key_event)
 
-            return "Pressed key BACK"
+            return "Pressed BACK button"
         except ValueError as e:
-            return f"Error: {str(e)}"
+            return f"Failed to press BACK button: {e}"
 
     @Tools.ui_action
     async def press_key(self, keycode: int) -> str:
@@ -634,10 +603,9 @@ class AdbTools(Tools):
                 self._ctx.write_event_to_stream(key_event)
 
             await self.device.keyevent(keycode)
-            print(f"Pressed key {key_name}")
-            return f"Pressed key {key_name}"
+            return f"Pressed {key_name} button"
         except ValueError as e:
-            return f"Error: {str(e)}"
+            return f"Failed to press {key_name} button: {e}"
 
     @Tools.ui_action
     async def start_app(self, package: str, activity: str | None = None) -> str:
@@ -672,7 +640,7 @@ class AdbTools(Tools):
             logger.debug(f"App started: {package} with activity {activity}")
             return f"App started: {package} with activity {activity}"
         except Exception as e:
-            return f"Error: {str(e)}"
+            return f"Failed to start app {package}: {e}"
 
     async def install_app(
         self, apk_path: str, reinstall: bool = False, grant_permissions: bool = True
@@ -688,7 +656,7 @@ class AdbTools(Tools):
         await self._ensure_connected()
         try:
             if not os.path.exists(apk_path):
-                return f"Error: APK file not found at {apk_path}"
+                return f"Failed to install app: APK file not found at {apk_path}"
 
             logger.debug(
                 f"Installing app: {apk_path} with reinstall: {reinstall} and grant_permissions: {grant_permissions}"
@@ -703,7 +671,7 @@ class AdbTools(Tools):
             logger.debug(f"Installed app: {apk_path} with result: {result}")
             return result
         except ValueError as e:
-            return f"Error: {str(e)}"
+            return f"Failed to install app: {e}"
 
     async def take_screenshot(self, hide_overlay: bool = True) -> Tuple[str, bytes]:
         """
@@ -795,7 +763,7 @@ class AdbTools(Tools):
             Confirmation message
         """
         if not information or not isinstance(information, str):
-            return "Error: Please provide valid information to remember."
+            return "Failed to remember: please provide valid information."
 
         # Add the information to memory
         self.memory.append(information.strip())

@@ -18,20 +18,26 @@ async def click(index: int, *, tools: "Tools" = None, **kwargs) -> str:
     return await tools.tap_by_index(index)
 
 
-async def long_press(index: int, *, tools: "Tools" = None, **kwargs) -> bool:
+async def long_press(index: int, *, tools: "Tools" = None, **kwargs) -> str:
     """Long press the element with the given index."""
     if tools is None:
         raise ValueError("tools parameter is required")
     x, y = tools._extract_element_coordinates_by_index(index)
-    return await tools.swipe(x, y, x, y, 1000)
+    result = await tools.swipe(x, y, x, y, 1000)
+    if result.startswith("Error"):
+        return result
+    return f"Long pressed element at index {index} at ({x}, {y})"
 
 
-async def long_press_at(x: int, y: int, *, tools: "Tools" = None, **kwargs) -> bool:
+async def long_press_at(x: int, y: int, *, tools: "Tools" = None, **kwargs) -> str:
     """Long press at screen coordinates."""
     if tools is None:
         raise ValueError("tools parameter is required")
     abs_x, abs_y = tools.convert_point(x, y)
-    return await tools.swipe(abs_x, abs_y, abs_x, abs_y, 1000)
+    result = await tools.swipe(abs_x, abs_y, abs_x, abs_y, 1000)
+    if result.startswith("Error"):
+        return result
+    return f"Long pressed at ({abs_x}, {abs_y})"
 
 
 async def click_at(x: int, y: int, *, tools: "Tools" = None, **kwargs) -> str:
@@ -72,7 +78,7 @@ async def system_button(button: str, *, tools: "Tools" = None, **kwargs) -> str:
 
     if button_lower not in button_map:
         return (
-            f"Error: Unknown system button '{button}'. Valid options: back, home, enter"
+            f"Failed to press {button} button: unknown button. Valid options: back, home, enter"
         )
 
     keycode = button_map[button_lower]
@@ -86,7 +92,7 @@ async def swipe(
     *,
     tools: "Tools" = None,
     **kwargs,
-) -> bool:
+) -> str:
     """Swipe from one coordinate to another."""
     if tools is None:
         raise ValueError("tools parameter is required")
@@ -125,7 +131,6 @@ async def open_app(text: str, *, tools: "Tools" = None, **kwargs) -> str:
 
     result = await workflow.run(app_description=text)
     await asyncio.sleep(1)
-    print(result)
     return result
 
 
@@ -169,7 +174,7 @@ async def type_secret(
         raise ValueError("tools parameter is required")
 
     if not hasattr(tools, "credential_manager") or tools.credential_manager is None:
-        return "Error: Credential manager not initialized. Enable credentials in config.yaml"
+        return "Failed to type secret: Credential manager not initialized. Enable credentials in config.yaml"
 
     try:
         secret_value = await tools.credential_manager.resolve_key(secret_id)
@@ -182,4 +187,4 @@ async def type_secret(
             if tools.credential_manager
             else []
         )
-        return f"Error: Secret '{secret_id}' not found. Available: {available}"
+        return f"Failed to type secret '{secret_id}': not found. Available: {available}"

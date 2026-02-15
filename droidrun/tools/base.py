@@ -94,7 +94,7 @@ class Tools(ABC):
     @abstractmethod
     async def swipe(
         self, start_x: int, start_y: int, end_x: int, end_y: int, duration_ms: int = 300
-    ) -> bool:
+    ) -> str:
         """
         Swipe from the given start coordinates to the given end coordinates.
         """

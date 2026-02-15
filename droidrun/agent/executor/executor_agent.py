@@ -293,8 +293,10 @@ class ExecutorAgent(Workflow):
                         "Missing 'index' parameter",
                         "Failed: click requires index",
                     )
-                await click(index, tools=self.tools_instance)
-                return True, "", f"Clicked element at index {index}"
+                result = await click(index, tools=self.tools_instance)
+                if result.startswith("Failed"):
+                    return False, result, result
+                return True, "", result
 
             elif action_type == "long_press":
                 index = action_dict.get("index")
@@ -304,14 +306,10 @@ class ExecutorAgent(Workflow):
                         "Missing 'index' parameter",
                         "Failed: long_press requires index",
                     )
-                success = await long_press(index, tools=self.tools_instance)
-                if success:
-                    return True, "", f"Long pressed element at index {index}"
-                return (
-                    False,
-                    "Long press failed",
-                    f"Failed to long press at index {index}",
-                )
+                result = await long_press(index, tools=self.tools_instance)
+                if result.startswith("Failed"):
+                    return False, result, result
+                return True, "", result
 
             elif action_type == "click_at":
                 x, y = action_dict.get("x"), action_dict.get("y")
@@ -340,10 +338,10 @@ class ExecutorAgent(Workflow):
                         "Missing x or y",
                         "Failed: long_press_at requires x and y",
                     )
-                success = await long_press_at(x, y, tools=self.tools_instance)
-                if success:
-                    return True, "", f"Long pressed at ({x}, {y})"
-                return False, "Long press failed", f"Failed to long press at ({x}, {y})"
+                result = await long_press_at(x, y, tools=self.tools_instance)
+                if result.startswith("Failed"):
+                    return False, result, result
+                return True, "", result
 
             elif action_type == "type":
                 text = action_dict.get("text")
@@ -355,8 +353,10 @@ class ExecutorAgent(Workflow):
                         "Missing 'text' parameter",
                         "Failed: type requires text",
                     )
-                await type(text, index, clear=clear, tools=self.tools_instance)
-                return True, "", f"Typed '{text}' into element at index {index}"
+                result = await type(text, index, clear=clear, tools=self.tools_instance)
+                if result.startswith("Failed"):
+                    return False, result, result
+                return True, "", result
 
             elif action_type == "system_button":
                 button = action_dict.get("button")
@@ -367,9 +367,9 @@ class ExecutorAgent(Workflow):
                         "Failed: system_button requires button",
                     )
                 result = await system_button(button, tools=self.tools_instance)
-                if "Error" in result:
-                    return False, result, f"Failed to press {button} button"
-                return True, "", f"Pressed {button} button"
+                if result.startswith("Failed"):
+                    return False, result, result
+                return True, "", result
 
             elif action_type == "swipe":
                 coordinate = action_dict.get("coordinate")
@@ -396,16 +396,12 @@ class ExecutorAgent(Workflow):
                         "Failed: coordinate2 must be [x, y]",
                     )
 
-                success = await swipe(
+                result = await swipe(
                     coordinate, coordinate2, duration, tools=self.tools_instance
                 )
-                if success:
-                    return True, "", f"Swiped from {coordinate} to {coordinate2}"
-                return (
-                    False,
-                    "Swipe failed",
-                    f"Failed to swipe from {coordinate} to {coordinate2}",
-                )
+                if result.startswith("Failed"):
+                    return False, result, result
+                return True, "", result
 
             elif action_type == "wait":
                 duration = action_dict.get("duration")
@@ -415,8 +411,8 @@ class ExecutorAgent(Workflow):
                         "Missing 'duration' parameter",
                         "Failed: wait requires duration",
                     )
-                await wait(duration)
-                return True, "", f"Waited for {duration} seconds"
+                result = await wait(duration, tools=self.tools_instance)
+                return True, "", result
 
             elif action_type == "open_app":
                 text = action_dict.get("text")
@@ -429,7 +425,7 @@ class ExecutorAgent(Workflow):
                 result = await open_app(text, tools=self.tools_instance)
                 if isinstance(result, str) and "could not open app" in result.lower():
                     return False, result, result
-                return True, "", f"Opened app: {text}"
+                return True, "", result
 
             else:
                 return (
