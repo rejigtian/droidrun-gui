@@ -91,7 +91,8 @@ from droidrun.tools.ui.provider import AndroidStateProvider
 from opentelemetry import trace
 
 if TYPE_CHECKING:
-    pass
+    from droidrun.tools.driver.base import DeviceDriver
+    from droidrun.tools.ui.provider import StateProvider
 
 logger = logging.getLogger("droidrun")
 
@@ -132,6 +133,8 @@ class DroidAgent(Workflow):
         variables: dict | None = None,
         output_model: Type[BaseModel] | None = None,
         prompts: dict[str, str] | None = None,
+        driver: "DeviceDriver | None" = None,
+        state_provider: "StateProvider | None" = None,
         timeout: int = 1000,
         *args,
         **kwargs,
@@ -184,7 +187,9 @@ class DroidAgent(Workflow):
             mcp=config.mcp if config else MCPConfig(),
         )
 
-        # These are populated in start_handler
+        # These are populated in start_handler (unless injected via __init__)
+        self._injected_driver = driver
+        self._injected_state_provider = state_provider
         self.driver = None
         self.registry = None
         self.action_ctx = None
@@ -373,33 +378,40 @@ class DroidAgent(Workflow):
         else:
             vision_enabled = self.config.agent.fast_agent.vision
 
-        device_serial = self.resolved_device_config.serial
-        if device_serial is None:
-            devices = await adb.list()
-            if not devices:
-                raise ValueError("No connected Android devices found.")
-            device_serial = devices[0].serial
+        if self._injected_driver is not None:
+            driver = self._injected_driver
+        else:
+            device_serial = self.resolved_device_config.serial
+            if device_serial is None:
+                devices = await adb.list()
+                if not devices:
+                    raise ValueError("No connected Android devices found.")
+                device_serial = devices[0].serial
 
-        driver = AndroidDriver(
-            serial=device_serial,
-            use_tcp=self.resolved_device_config.use_tcp,
-        )
-        await driver.connect()
+            driver = AndroidDriver(
+                serial=device_serial,
+                use_tcp=self.resolved_device_config.use_tcp,
+            )
+            await driver.connect()
 
         # Wrap with RecordingDriver if trajectory saving enabled
         if self.config.logging.save_trajectory != "none":
-            driver = RecordingDriver(driver)
+            if not isinstance(driver, RecordingDriver):
+                driver = RecordingDriver(driver)
 
         self.driver = driver
 
         # ── 2. Create state provider ──────────────────────────────────
-        tree_filter = ConciseFilter() if vision_enabled else DetailedFilter()
-        tree_formatter = IndexedFormatter()
-        self.state_provider = AndroidStateProvider(
-            tree_filter=tree_filter,
-            tree_formatter=tree_formatter,
-            use_normalized=self.config.agent.use_normalized_coordinates,
-        )
+        if self._injected_state_provider is not None:
+            self.state_provider = self._injected_state_provider
+        else:
+            tree_filter = ConciseFilter() if vision_enabled else DetailedFilter()
+            tree_formatter = IndexedFormatter()
+            self.state_provider = AndroidStateProvider(
+                tree_filter=tree_filter,
+                tree_formatter=tree_formatter,
+                use_normalized=self.config.agent.use_normalized_coordinates,
+            )
 
         # ── 3. Build tool registry ────────────────────────────────────
         registry = ToolRegistry()
