@@ -43,7 +43,7 @@ class ManagerPlanEvent(Event):
     plan: str
     current_subgoal: str
     thought: str
-    manager_answer: str = ""
+    answer: str = ""
     success: Optional[bool] = None  # True/False if complete, None if in progress
 
 

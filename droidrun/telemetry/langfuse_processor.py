@@ -447,8 +447,8 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
             ):
                 set_last_step_span_context(span)
                 memory_size = (
-                    len(self.agent.shared_state.memory)
-                    if self.agent.shared_state.memory
+                    len(self.agent.shared_state.manager_memory)
+                    if self.agent.shared_state.manager_memory
                     else 0
                 )
                 message_history_count = len(self.agent.shared_state.message_history) + 1

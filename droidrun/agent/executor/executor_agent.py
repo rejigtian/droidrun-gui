@@ -28,24 +28,13 @@ from droidrun.agent.usage import get_usage_from_response
 from droidrun.agent.utils.chat_utils import to_chat_messages
 from droidrun.agent.utils.inference import acall_with_retries
 from droidrun.agent.utils.prompt_resolver import PromptResolver
-from droidrun.agent.utils.actions import (
-    click,
-    click_at,
-    click_area,
-    long_press,
-    long_press_at,
-    open_app,
-    swipe,
-    system_button,
-    type,
-    wait,
-)
-from droidrun.agent.utils.signatures import ATOMIC_ACTION_SIGNATURES
 from droidrun.config_manager.config_manager import AgentConfig
 from droidrun.config_manager.prompt_loader import PromptLoader
 
 if TYPE_CHECKING:
+    from droidrun.agent.action_context import ActionContext
     from droidrun.agent.droid import DroidAgentState
+    from droidrun.agent.tool_registry import ToolRegistry
 
 logger = logging.getLogger("droidrun")
 
@@ -58,14 +47,16 @@ class ExecutorAgent(Workflow):
     Uses dict messages, converts to ChatMessage at LLM call time.
     """
 
+    # Flow-control tools hidden from executor's LLM prompt
+    _EXCLUDE_TOOLS = {"remember", "complete"}
+
     def __init__(
         self,
         llm: LLM,
-        tools_instance,
+        registry: "ToolRegistry | None",
+        action_ctx: "ActionContext | None",
         shared_state: "DroidAgentState",
         agent_config: AgentConfig,
-        custom_tools: dict = None,
-        atomic_tools: dict = None,
         prompt_resolver: Optional[PromptResolver] = None,
         **kwargs,
     ):
@@ -74,14 +65,10 @@ class ExecutorAgent(Workflow):
         self.agent_config = agent_config
         self.config = agent_config.executor
         self.vision = agent_config.executor.vision
-        self.tools_instance = tools_instance
+        self.registry = registry
+        self.action_ctx = action_ctx
         self.shared_state = shared_state
         self.prompt_resolver = prompt_resolver or PromptResolver()
-
-        self.custom_tools = custom_tools if custom_tools is not None else {}
-        self.atomic_tools = (
-            atomic_tools if atomic_tools is not None else ATOMIC_ACTION_SIGNATURES
-        )
 
         logger.debug("ExecutorAgent initialized.")
 
@@ -90,8 +77,6 @@ class ExecutorAgent(Workflow):
         self, ctx: Context, ev: StartEvent
     ) -> ExecutorContextEvent:
         """Prepare executor context and prompt."""
-        self.tools_instance._set_context(ctx)
-
         subgoal = ev.get("subgoal", "")
         logger.debug(f"🧠 Executor thinking about action for: {subgoal}")
 
@@ -112,11 +97,8 @@ class ExecutorAgent(Workflow):
 
         # Get available secrets
         available_secrets = []
-        if (
-            hasattr(self.tools_instance, "credential_manager")
-            and self.tools_instance.credential_manager
-        ):
-            available_secrets = await self.tools_instance.credential_manager.get_keys()
+        if self.action_ctx and self.action_ctx.credential_manager:
+            available_secrets = await self.action_ctx.credential_manager.get_keys()
 
         # Build prompt variables
         variables = {
@@ -126,7 +108,7 @@ class ExecutorAgent(Workflow):
             "plan": self.shared_state.plan,
             "subgoal": subgoal,
             "progress_status": self.shared_state.progress_summary,
-            "atomic_actions": {**self.atomic_tools, **self.custom_tools},
+            "atomic_actions": self.registry.get_signatures(exclude=self._EXCLUDE_TOOLS),
             "action_history": action_history,
             "available_secrets": available_secrets,
             "variables": self.shared_state.custom_variables,
@@ -255,231 +237,26 @@ class ExecutorAgent(Workflow):
             ctx.write_event_to_stream(event)
             return event
 
-        success, error, summary = await self._execute_action(
-            action_dict, ev.description
-        )
+        # Extract action type and args, dispatch via registry
+        action_type = action_dict.get("action", "unknown")
+        action_args = {k: v for k, v in action_dict.items() if k != "action"}
+
+        result = await self.registry.execute(action_type, action_args, self.action_ctx)
 
         await asyncio.sleep(self.agent_config.after_sleep_action)
 
-        logger.debug(f"{'✅' if success else '❌'} Execution complete: {summary}")
+        logger.debug(f"{'✅' if result.success else '❌'} Execution complete: {result.summary}")
 
         event = ExecutorActionResultEvent(
             action=action_dict,
-            success=success,
-            error=error,
-            summary=summary,
+            success=result.success,
+            error="" if result.success else result.summary,
+            summary=result.summary,
             thought=ev.thought,
             full_response=ev.full_response,
         )
         ctx.write_event_to_stream(event)
         return event
-
-    async def _execute_action(
-        self, action_dict: dict, description: str
-    ) -> tuple[bool, str, str]:
-        """Execute action and return (success, error, summary)."""
-        action_type = action_dict.get("action", "unknown")
-
-        # Check custom tools first
-        if action_type in self.custom_tools:
-            return await self._execute_custom_tool(action_type, action_dict)
-
-        try:
-            if action_type == "click":
-                index = action_dict.get("index")
-                if index is None:
-                    return (
-                        False,
-                        "Missing 'index' parameter",
-                        "Failed: click requires index",
-                    )
-                result = await click(index, tools=self.tools_instance)
-                if result.startswith("Failed"):
-                    return False, result, result
-                return True, "", result
-
-            elif action_type == "long_press":
-                index = action_dict.get("index")
-                if index is None:
-                    return (
-                        False,
-                        "Missing 'index' parameter",
-                        "Failed: long_press requires index",
-                    )
-                result = await long_press(index, tools=self.tools_instance)
-                if result.startswith("Failed"):
-                    return False, result, result
-                return True, "", result
-
-            elif action_type == "click_at":
-                x, y = action_dict.get("x"), action_dict.get("y")
-                if x is None or y is None:
-                    return False, "Missing x or y", "Failed: click_at requires x and y"
-                result = await click_at(x, y, tools=self.tools_instance)
-                return True, "", result
-
-            elif action_type == "click_area":
-                x1, y1 = action_dict.get("x1"), action_dict.get("y1")
-                x2, y2 = action_dict.get("x2"), action_dict.get("y2")
-                if None in (x1, y1, x2, y2):
-                    return (
-                        False,
-                        "Missing coordinates",
-                        "Failed: click_area requires x1, y1, x2, y2",
-                    )
-                result = await click_area(x1, y1, x2, y2, tools=self.tools_instance)
-                return True, "", result
-
-            elif action_type == "long_press_at":
-                x, y = action_dict.get("x"), action_dict.get("y")
-                if x is None or y is None:
-                    return (
-                        False,
-                        "Missing x or y",
-                        "Failed: long_press_at requires x and y",
-                    )
-                result = await long_press_at(x, y, tools=self.tools_instance)
-                if result.startswith("Failed"):
-                    return False, result, result
-                return True, "", result
-
-            elif action_type == "type":
-                text = action_dict.get("text")
-                index = action_dict.get("index", -1)
-                clear = action_dict.get("clear", False)
-                if text is None:
-                    return (
-                        False,
-                        "Missing 'text' parameter",
-                        "Failed: type requires text",
-                    )
-                result = await type(text, index, clear=clear, tools=self.tools_instance)
-                if result.startswith("Failed"):
-                    return False, result, result
-                return True, "", result
-
-            elif action_type == "system_button":
-                button = action_dict.get("button")
-                if button is None:
-                    return (
-                        False,
-                        "Missing 'button' parameter",
-                        "Failed: system_button requires button",
-                    )
-                result = await system_button(button, tools=self.tools_instance)
-                if result.startswith("Failed"):
-                    return False, result, result
-                return True, "", result
-
-            elif action_type == "swipe":
-                coordinate = action_dict.get("coordinate")
-                coordinate2 = action_dict.get("coordinate2")
-                duration = action_dict.get("duration", 1.0)
-
-                if coordinate is None or coordinate2 is None:
-                    return (
-                        False,
-                        "Missing coordinate parameters",
-                        "Failed: swipe requires coordinates",
-                    )
-
-                if not isinstance(coordinate, list) or len(coordinate) != 2:
-                    return (
-                        False,
-                        f"Invalid coordinate: {coordinate}",
-                        "Failed: coordinate must be [x, y]",
-                    )
-                if not isinstance(coordinate2, list) or len(coordinate2) != 2:
-                    return (
-                        False,
-                        f"Invalid coordinate2: {coordinate2}",
-                        "Failed: coordinate2 must be [x, y]",
-                    )
-
-                result = await swipe(
-                    coordinate, coordinate2, duration, tools=self.tools_instance
-                )
-                if result.startswith("Failed"):
-                    return False, result, result
-                return True, "", result
-
-            elif action_type == "wait":
-                duration = action_dict.get("duration")
-                if duration is None:
-                    return (
-                        False,
-                        "Missing 'duration' parameter",
-                        "Failed: wait requires duration",
-                    )
-                result = await wait(duration, tools=self.tools_instance)
-                return True, "", result
-
-            elif action_type == "open_app":
-                text = action_dict.get("text")
-                if text is None:
-                    return (
-                        False,
-                        "Missing 'text' parameter",
-                        "Failed: open_app requires text",
-                    )
-                result = await open_app(text, tools=self.tools_instance)
-                if isinstance(result, str) and "could not open app" in result.lower():
-                    return False, result, result
-                return True, "", result
-
-            else:
-                return (
-                    False,
-                    f"Unknown action type: {action_type}",
-                    f"Failed: unknown action '{action_type}'",
-                )
-
-        except Exception as e:
-            logger.error(f"Exception during action execution: {e}", exc_info=True)
-            return (
-                False,
-                f"Exception: {str(e)}",
-                f"Failed to execute {action_type}: {str(e)}",
-            )
-
-    async def _execute_custom_tool(
-        self, action_type: str, action_dict: dict
-    ) -> tuple[bool, str, str]:
-        """Execute custom tool."""
-        try:
-            tool_spec = self.custom_tools[action_type]
-            tool_func = tool_spec["function"]
-
-            tool_args = {k: v for k, v in action_dict.items() if k != "action"}
-
-            if asyncio.iscoroutinefunction(tool_func):
-                result = await tool_func(
-                    **tool_args,
-                    tools=self.tools_instance,
-                    shared_state=self.shared_state,
-                )
-            else:
-                result = tool_func(
-                    **tool_args,
-                    tools=self.tools_instance,
-                    shared_state=self.shared_state,
-                )
-
-            summary = f"Executed custom tool '{action_type}'"
-            if result is not None:
-                summary += f": {str(result)}"
-
-            return True, "", summary
-
-        except TypeError as e:
-            error_msg = f"Invalid arguments for custom tool '{action_type}': {str(e)}"
-            logger.error(f"❌ {error_msg}")
-            return False, error_msg, f"Failed: {action_type}"
-
-        except Exception as e:
-            error_msg = f"Error executing custom tool '{action_type}': {str(e)}"
-            logger.error(f"❌ {error_msg}", exc_info=True)
-            return False, error_msg, f"Failed: {action_type}"
 
     @step
     async def finalize(self, ctx: Context, ev: ExecutorActionResultEvent) -> StopEvent:

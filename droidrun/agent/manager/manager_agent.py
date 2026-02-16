@@ -35,7 +35,6 @@ import copy
 from droidrun.agent.utils.inference import acall_with_retries
 from droidrun.agent.utils.tracing_setup import record_langfuse_screenshot
 from droidrun.agent.utils.prompt_resolver import PromptResolver
-from droidrun.agent.utils.signatures import build_custom_tool_descriptions
 from droidrun.app_cards.app_card_provider import AppCardProvider
 from droidrun.app_cards.providers import (
     CompositeAppCardProvider,
@@ -45,9 +44,11 @@ from droidrun.app_cards.providers import (
 from droidrun.config_manager.prompt_loader import PromptLoader
 
 if TYPE_CHECKING:
+    from droidrun.agent.action_context import ActionContext
     from droidrun.agent.droid import DroidAgentState
+    from droidrun.agent.tool_registry import ToolRegistry
     from droidrun.config_manager.config_manager import AgentConfig, TracingConfig
-    from droidrun.tools import Tools
+    from droidrun.tools.ui.provider import StateProvider
 
 
 logger = logging.getLogger("droidrun")
@@ -67,10 +68,12 @@ class ManagerAgent(Workflow):
     def __init__(
         self,
         llm: LLM,
-        tools_instance: "Tools | None",
-        shared_state: "DroidAgentState",
-        agent_config: "AgentConfig",
-        custom_tools: dict = None,
+        action_ctx: "ActionContext | None",
+        state_provider: "StateProvider | None",
+        save_trajectory: str = "none",
+        shared_state: "DroidAgentState" = None,
+        agent_config: "AgentConfig" = None,
+        registry: "ToolRegistry | None" = None,
         output_model: Type[BaseModel] | None = None,
         prompt_resolver: Optional[PromptResolver] = None,
         tracing_config: "TracingConfig | None" = None,
@@ -80,9 +83,11 @@ class ManagerAgent(Workflow):
         self.llm = llm
         self.config = agent_config.manager
         self.vision = self.config.vision
-        self.tools_instance = tools_instance
+        self.action_ctx = action_ctx
+        self.state_provider = state_provider
+        self.save_trajectory = save_trajectory
         self.shared_state = shared_state
-        self.custom_tools = custom_tools if custom_tools is not None else {}
+        self.registry = registry
         self.output_model = output_model
         self.agent_config = agent_config
         self.app_card_config = self.agent_config.app_cards
@@ -161,28 +166,30 @@ class ManagerAgent(Workflow):
 
         # Get available secrets
         available_secrets = []
-        if (
-            hasattr(self.tools_instance, "credential_manager")
-            and self.tools_instance.credential_manager
-        ):
-            available_secrets = await self.tools_instance.credential_manager.get_keys()
+        if self.action_ctx and self.action_ctx.credential_manager:
+            available_secrets = await self.action_ctx.credential_manager.get_keys()
 
         # Output schema if provided
         output_schema = None
         if self.output_model is not None:
             output_schema = self.output_model.model_json_schema()
 
+        # Build custom tools descriptions from registry (exclude flow-control tools)
+        custom_tools_descriptions = ""
+        if self.registry:
+            custom_tools_descriptions = self.registry.get_tool_descriptions_text(
+                exclude={"remember", "complete"}
+            )
+
         variables = {
             "instruction": self.shared_state.instruction,
-            "device_date": await self.tools_instance.get_date(),
+            "device_date": await self.action_ctx.driver.get_date() if self.action_ctx else "",
             "app_card": self.shared_state.app_card,
             "important_notes": "",  # TODO: implement
             "error_history": error_history,
             "text_manipulation_enabled": has_text_to_modify
             and self.agent_config.fast_agent.codeact,
-            "custom_tools_descriptions": build_custom_tool_descriptions(
-                self.custom_tools
-            ),
+            "custom_tools_descriptions": custom_tools_descriptions,
             "scripter_execution_enabled": self.agent_config.scripter.enabled,
             "scripter_max_steps": self.agent_config.scripter.max_steps,
             "available_secrets": available_secrets,
@@ -247,7 +254,7 @@ class ManagerAgent(Workflow):
             last_user_idx = user_indices[-1]
 
             # Add memory to last user message
-            current_memory = (self.shared_state.memory or "").strip()
+            current_memory = (self.shared_state.manager_memory or "").strip()
             if current_memory:
                 messages[last_user_idx]["content"].append(
                     {"text": f"\n<memory>\n{current_memory}\n</memory>\n"}
@@ -364,27 +371,26 @@ class ManagerAgent(Workflow):
         logger.debug("💬 Preparing manager context...")
 
         # Get and format device state
-        formatted_text, focused_text, a11y_tree, phone_state = (
-            await self.tools_instance.get_state()
-        )
+        ui_state = await self.state_provider.get_state(self.action_ctx.driver)
+        self.action_ctx.ui = ui_state
 
         # Update shared state (previous ← current, current ← new)
         self.shared_state.previous_formatted_device_state = (
             self.shared_state.formatted_device_state
         )
-        self.shared_state.formatted_device_state = formatted_text
-        self.shared_state.focused_text = focused_text
-        self.shared_state.a11y_tree = a11y_tree
-        self.shared_state.phone_state = phone_state
+        self.shared_state.formatted_device_state = ui_state.formatted_text
+        self.shared_state.focused_text = ui_state.focused_text
+        self.shared_state.a11y_tree = ui_state.elements
+        self.shared_state.phone_state = ui_state.phone_state
 
         # Update package/activity tracking
         self.shared_state.update_current_app(
-            package_name=phone_state.get("packageName", "Unknown"),
-            activity_name=phone_state.get("currentApp", "Unknown"),
+            package_name=ui_state.phone_state.get("packageName", "Unknown"),
+            activity_name=ui_state.phone_state.get("currentApp", "Unknown"),
         )
 
         # Stream UI state for trajectory
-        ctx.write_event_to_stream(RecordUIStateEvent(ui_state=a11y_tree))
+        ctx.write_event_to_stream(RecordUIStateEvent(ui_state=ui_state.elements))
 
         # Load app card
         if self.app_card_config.enabled:
@@ -401,19 +407,9 @@ class ManagerAgent(Workflow):
 
         # Capture screenshot if needed
         screenshot = None
-        if self.vision or (
-            hasattr(self.tools_instance, "save_trajectories")
-            and self.tools_instance.save_trajectories != "none"
-        ):
+        if self.vision or self.save_trajectory != "none":
             try:
-                result = await self.tools_instance.take_screenshot()
-                if isinstance(result, tuple):
-                    success, screenshot = result
-                    if not success:
-                        logger.warning("📸 Screenshot capture failed")
-                        screenshot = None
-                else:
-                    screenshot = result
+                screenshot = await self.action_ctx.driver.screenshot()
 
                 if screenshot:
                     ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
@@ -506,10 +502,10 @@ class ManagerAgent(Workflow):
         # Update memory (append)
         memory_update = parsed.get("memory", "").strip()
         if memory_update:
-            if self.shared_state.memory:
-                self.shared_state.memory += "\n" + memory_update
+            if self.shared_state.manager_memory:
+                self.shared_state.manager_memory += "\n" + memory_update
             else:
-                self.shared_state.memory = memory_update
+                self.shared_state.manager_memory = memory_update
 
         # Append assistant response to message history
         self.shared_state.message_history.append(
@@ -521,7 +517,7 @@ class ManagerAgent(Workflow):
         self.shared_state.plan = parsed["plan"]
         self.shared_state.current_subgoal = parsed["current_subgoal"]
         self.shared_state.last_thought = parsed["thought"]
-        self.shared_state.manager_answer = parsed["answer"]
+        self.shared_state.answer = parsed["answer"]
 
         if parsed.get("progress_summary"):
             self.shared_state.progress_summary = parsed["progress_summary"]
@@ -548,7 +544,7 @@ class ManagerAgent(Workflow):
                 "plan": ev.plan,
                 "current_subgoal": ev.subgoal,
                 "thought": ev.thought,
-                "manager_answer": ev.answer,
+                "answer": ev.answer,
                 "memory_update": ev.memory_update,
                 "success": ev.success,
             }

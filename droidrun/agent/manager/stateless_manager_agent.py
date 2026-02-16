@@ -27,9 +27,11 @@ from droidrun.agent.utils.prompt_resolver import PromptResolver
 from droidrun.config_manager.prompt_loader import PromptLoader
 
 if TYPE_CHECKING:
+    from droidrun.agent.action_context import ActionContext
     from droidrun.agent.droid import DroidAgentState
+    from droidrun.agent.tool_registry import ToolRegistry
     from droidrun.config_manager.config_manager import AgentConfig, TracingConfig
-    from droidrun.tools import Tools
+    from droidrun.tools.ui.provider import StateProvider
 
 
 logger = logging.getLogger("droidrun")
@@ -39,10 +41,12 @@ class StatelessManagerAgent(Workflow):
     def __init__(
         self,
         llm: LLM,
-        tools_instance: "Tools | None",
-        shared_state: "DroidAgentState",
-        agent_config: "AgentConfig",
-        custom_tools: dict = None,
+        action_ctx: "ActionContext | None",
+        state_provider: "StateProvider | None",
+        save_trajectory: str = "none",
+        shared_state: "DroidAgentState" = None,
+        agent_config: "AgentConfig" = None,
+        registry: "ToolRegistry | None" = None,
         output_model: Type[BaseModel] | None = None,
         prompt_resolver: Optional[PromptResolver] = None,
         tracing_config: "TracingConfig | None" = None,
@@ -52,9 +56,11 @@ class StatelessManagerAgent(Workflow):
         self.llm = llm
         self.config = agent_config.manager
         self.vision = self.config.vision
-        self.tools_instance = tools_instance
+        self.action_ctx = action_ctx
+        self.state_provider = state_provider
+        self.save_trajectory = save_trajectory
         self.shared_state = shared_state
-        self.custom_tools = custom_tools if custom_tools is not None else {}
+        self.registry = registry
         self.output_model = output_model
         self.agent_config = agent_config
         self.prompt_resolver = prompt_resolver or PromptResolver()
@@ -84,10 +90,10 @@ class StatelessManagerAgent(Workflow):
     async def _build_prompt(self, has_text_to_modify: bool) -> str:
         variables = {
             "instruction": self.shared_state.instruction,
-            "device_date": await self.tools_instance.get_date(),
+            "device_date": await self.action_ctx.driver.get_date() if self.action_ctx else "",
             "previous_plan": self.shared_state.previous_plan,
             "previous_state": self.shared_state.previous_formatted_device_state,
-            "memory": self.shared_state.memory,
+            "memory": self.shared_state.manager_memory,
             "last_thought": self.shared_state.last_thought,
             "progress_summary": self.shared_state.progress_summary,
             "action_history": self._build_action_history(),
@@ -168,38 +174,28 @@ class StatelessManagerAgent(Workflow):
     async def prepare_context(
         self, ctx: Context, ev: StartEvent
     ) -> ManagerContextEvent:
-        formatted_text, focused_text, a11y_tree, phone_state = (
-            await self.tools_instance.get_state()
-        )
+        ui_state = await self.state_provider.get_state(self.action_ctx.driver)
+        self.action_ctx.ui = ui_state
 
         self.shared_state.previous_formatted_device_state = (
             self.shared_state.formatted_device_state
         )
-        self.shared_state.formatted_device_state = formatted_text
-        self.shared_state.focused_text = focused_text
-        self.shared_state.a11y_tree = a11y_tree
-        self.shared_state.phone_state = phone_state
+        self.shared_state.formatted_device_state = ui_state.formatted_text
+        self.shared_state.focused_text = ui_state.focused_text
+        self.shared_state.a11y_tree = ui_state.elements
+        self.shared_state.phone_state = ui_state.phone_state
 
         self.shared_state.update_current_app(
-            package_name=phone_state.get("packageName", "Unknown"),
-            activity_name=phone_state.get("currentApp", "Unknown"),
+            package_name=ui_state.phone_state.get("packageName", "Unknown"),
+            activity_name=ui_state.phone_state.get("currentApp", "Unknown"),
         )
 
-        ctx.write_event_to_stream(RecordUIStateEvent(ui_state=a11y_tree))
+        ctx.write_event_to_stream(RecordUIStateEvent(ui_state=ui_state.elements))
 
         screenshot = None
-        if self.vision or (
-            hasattr(self.tools_instance, "save_trajectories")
-            and self.tools_instance.save_trajectories != "none"
-        ):
+        if self.vision or self.save_trajectory != "none":
             try:
-                result = await self.tools_instance.take_screenshot()
-                if isinstance(result, tuple):
-                    success, screenshot = result
-                    if not success:
-                        screenshot = None
-                else:
-                    screenshot = result
+                screenshot = await self.action_ctx.driver.screenshot()
 
                 if screenshot:
                     ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
@@ -278,14 +274,14 @@ class StatelessManagerAgent(Workflow):
 
         memory_update = parsed.get("memory", "").strip()
         if memory_update:
-            if self.shared_state.memory:
-                self.shared_state.memory += "\n" + memory_update
+            if self.shared_state.manager_memory:
+                self.shared_state.manager_memory += "\n" + memory_update
             else:
-                self.shared_state.memory = memory_update
+                self.shared_state.manager_memory = memory_update
 
         self.shared_state.plan = parsed["plan"]
         self.shared_state.current_subgoal = parsed["current_subgoal"]
-        self.shared_state.manager_answer = parsed["answer"]
+        self.shared_state.answer = parsed["answer"]
 
         event = ManagerPlanDetailsEvent(
             plan=parsed["plan"],
@@ -307,7 +303,7 @@ class StatelessManagerAgent(Workflow):
                 "plan": ev.plan,
                 "current_subgoal": ev.subgoal,
                 "thought": ev.thought,
-                "manager_answer": ev.answer,
+                "answer": ev.answer,
                 "memory_update": ev.memory_update,
                 "success": ev.success,
             }

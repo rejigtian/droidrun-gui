@@ -53,7 +53,7 @@ def mcp_to_droidrun_tools(mcp_manager: "MCPClientManager") -> dict[str, dict[str
 def _create_tool_wrapper(tool_name: str, manager: "MCPClientManager"):
     """Create async wrapper function for an MCP tool."""
 
-    async def mcp_tool_wrapper(*, tools=None, shared_state=None, **kwargs) -> str:
+    async def mcp_tool_wrapper(*, ctx=None, **kwargs) -> str:
         result = await manager.call_tool(tool_name, kwargs)
 
         if hasattr(result, "content") and result.content:

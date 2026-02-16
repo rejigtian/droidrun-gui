@@ -11,7 +11,6 @@ logger = logging.getLogger("droidrun")
 from workflows.events import StartEvent, StopEvent
 
 from droidrun.agent.utils.inference import acomplete_with_retries
-from droidrun.tools import Tools
 
 
 class AppStarter(Workflow):
@@ -23,13 +22,13 @@ class AppStarter(Workflow):
     """
 
     def __init__(
-        self, tools: Tools, llm, timeout: int = 60, stream: bool = False, **kwargs
+        self, tools, llm, timeout: int = 60, stream: bool = False, **kwargs
     ):
         """
         Initialize the OpenAppWorkflow.
 
         Args:
-            tools: An instance of Tools (e.g., AdbTools) to interact with the device
+            tools: A Tools instance or DeviceDriver with get_apps()/start_app()
             llm: An LLM instance (e.g., OpenAI) to determine which app to open
             timeout: Workflow timeout in seconds (default: 60)
             stream: If True, stream LLM response to console in real-time

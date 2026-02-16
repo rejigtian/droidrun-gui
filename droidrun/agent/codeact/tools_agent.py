@@ -9,7 +9,6 @@ compatibility with DroidAgent's execute_task() method.
 """
 
 import asyncio
-import inspect
 import logging
 from typing import TYPE_CHECKING, Optional, Type
 
@@ -26,10 +25,7 @@ from droidrun.agent.codeact.events import (
     FastAgentToolCallEvent,
 )
 from droidrun.agent.codeact.xml_parser import (
-    ToolCall,
     ToolResult,
-    build_param_types,
-    build_tool_definitions_xml,
     format_tool_results,
     parse_tool_calls,
 )
@@ -39,14 +35,15 @@ from droidrun.agent.usage import get_usage_from_response
 from droidrun.agent.utils.chat_utils import limit_history, to_chat_messages
 from droidrun.agent.utils.inference import acall_with_retries
 from droidrun.agent.utils.prompt_resolver import PromptResolver
-from droidrun.agent.utils.signatures import ATOMIC_ACTION_SIGNATURES
 from droidrun.agent.utils.tracing_setup import record_langfuse_screenshot
 from droidrun.config_manager.config_manager import AgentConfig, TracingConfig
 from droidrun.config_manager.prompt_loader import PromptLoader
-from droidrun.tools import Tools
 
 if TYPE_CHECKING:
+    from droidrun.agent.action_context import ActionContext
     from droidrun.agent.droid import DroidAgentState
+    from droidrun.agent.tool_registry import ToolRegistry
+    from droidrun.tools.ui.provider import StateProvider
 
 logger = logging.getLogger("droidrun")
 
@@ -62,9 +59,10 @@ class FastAgent(Workflow):
         self,
         llm: LLM,
         agent_config: AgentConfig,
-        tools_instance: Tools,
-        custom_tools: dict = None,
-        atomic_tools: dict = None,
+        registry: "ToolRegistry",
+        action_ctx: "ActionContext",
+        state_provider: "StateProvider",
+        save_trajectory: str = "none",
         debug: bool = False,
         shared_state: Optional["DroidAgentState"] = None,
         output_model: Type[BaseModel] | None = None,
@@ -82,7 +80,10 @@ class FastAgent(Workflow):
         self.max_steps = agent_config.max_steps
         self.vision = agent_config.fast_agent.vision
         self.debug = debug
-        self.tools = tools_instance
+        self.registry = registry
+        self.action_ctx = action_ctx
+        self.state_provider = state_provider
+        self.save_trajectory = save_trajectory
         self.shared_state = shared_state
         self.output_model = output_model
         self.prompt_resolver = prompt_resolver or PromptResolver()
@@ -92,45 +93,9 @@ class FastAgent(Workflow):
         self.tool_call_counter = 0
         self.remembered_info: list[str] | None = None
 
-        # Build tool list from atomic + custom tools
-        if atomic_tools is None:
-            atomic_tools = ATOMIC_ACTION_SIGNATURES
-
-        self._atomic_tools = atomic_tools
-        self._custom_tools = custom_tools or {}
-        merged_signatures = {**atomic_tools, **(custom_tools or {})}
-
-        # Build callable tool functions with tools/shared_state bound
-        self.tool_list = {}
-        for action_name, signature in merged_signatures.items():
-            func = signature["function"]
-            if inspect.iscoroutinefunction(func):
-
-                async def async_wrapper(
-                    *a, f=func, ti=tools_instance, ss=shared_state, **kw
-                ):
-                    return await f(*a, tools=ti, shared_state=ss, **kw)
-
-                self.tool_list[action_name] = async_wrapper
-            else:
-
-                def sync_wrapper(
-                    *a, f=func, ti=tools_instance, ss=shared_state, **kw
-                ):
-                    return f(*a, tools=ti, shared_state=ss, **kw)
-
-                self.tool_list[action_name] = sync_wrapper
-
-        self.tool_list["remember"] = tools_instance.remember
-        self.tool_list["complete"] = tools_instance.complete
-
-        # Build tool descriptions for system prompt
-        self.tool_descriptions = build_tool_definitions_xml(
-            atomic_tools, custom_tools
-        )
-
-        # Build param type map for XML coercion
-        self.param_types = build_param_types(merged_signatures)
+        # Build tool descriptions and param types from registry
+        self.tool_descriptions = self.registry.get_tool_descriptions_xml()
+        self.param_types = self.registry.get_param_types()
 
         self._available_secrets = []
         self._output_schema = None
@@ -144,7 +109,7 @@ class FastAgent(Workflow):
         template_context = {
             "tool_descriptions": self.tool_descriptions,
             "available_secrets": self._available_secrets,
-            "available_tools": set(self.tool_list.keys()),
+            "available_tools": set(self.registry.tools.keys()),
             "variables": (
                 self.shared_state.custom_variables if self.shared_state else {}
             ),
@@ -198,12 +163,11 @@ class FastAgent(Workflow):
     @step
     async def prepare_chat(self, ctx: Context, ev: StartEvent) -> FastAgentInputEvent:
         """Initialize message history with goal."""
-        self.tools._set_context(ctx)
         logger.debug("Preparing chat for task execution...")
 
         # Get available secrets
-        if hasattr(self.tools, "credential_manager") and self.tools.credential_manager:
-            self._available_secrets = await self.tools.credential_manager.get_keys()
+        if self.action_ctx and self.action_ctx.credential_manager:
+            self._available_secrets = await self.action_ctx.credential_manager.get_keys()
 
         # Build system prompt (lazy load)
         if self.system_prompt is None:
@@ -252,19 +216,9 @@ class FastAgent(Workflow):
 
         # Capture screenshot if needed
         screenshot = None
-        if self.vision or (
-            hasattr(self.tools, "save_trajectories")
-            and self.tools.save_trajectories != "none"
-        ):
+        if self.vision or self.save_trajectory != "none":
             try:
-                result = await self.tools.take_screenshot()
-                if isinstance(result, tuple):
-                    success, screenshot = result
-                    if not success:
-                        logger.warning("Screenshot capture failed")
-                        screenshot = None
-                else:
-                    screenshot = result
+                screenshot = await self.action_ctx.driver.screenshot()
 
                 if screenshot:
                     ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
@@ -285,28 +239,27 @@ class FastAgent(Workflow):
 
         # Get device state
         try:
-            formatted_text, focused_text, a11y_tree, phone_state = (
-                await self.tools.get_state()
-            )
+            ui_state = await self.state_provider.get_state(self.action_ctx.driver)
+            self.action_ctx.ui = ui_state
 
             # Update shared state
-            self.shared_state.formatted_device_state = formatted_text
-            self.shared_state.focused_text = focused_text
-            self.shared_state.a11y_tree = a11y_tree
-            self.shared_state.phone_state = phone_state
+            self.shared_state.formatted_device_state = ui_state.formatted_text
+            self.shared_state.focused_text = ui_state.focused_text
+            self.shared_state.a11y_tree = ui_state.elements
+            self.shared_state.phone_state = ui_state.phone_state
 
             # Extract and store package/app name
             self.shared_state.update_current_app(
-                package_name=phone_state.get("packageName", "Unknown"),
-                activity_name=phone_state.get("currentApp", "Unknown"),
+                package_name=ui_state.phone_state.get("packageName", "Unknown"),
+                activity_name=ui_state.phone_state.get("currentApp", "Unknown"),
             )
 
             # Stream formatted state for trajectory
-            ctx.write_event_to_stream(RecordUIStateEvent(ui_state=a11y_tree))
+            ctx.write_event_to_stream(RecordUIStateEvent(ui_state=ui_state.elements))
 
             # Add device state to last user message
             self.shared_state.message_history[-1]["content"].append(
-                {"text": f"\n{formatted_text}\n"}
+                {"text": f"\n{ui_state.formatted_text}\n"}
             )
 
         except Exception as e:
@@ -449,22 +402,33 @@ class FastAgent(Workflow):
             logger.debug(f"Executing: {call.name}({call.parameters})")
             self.tool_call_counter += 1
 
-            result = await self._execute_tool_call(call)
-            results.append(result)
+            # Dispatch via registry
+            action_result = await self.registry.execute(
+                call.name, call.parameters, self.action_ctx
+            )
+            results.append(
+                ToolResult(
+                    name=call.name,
+                    output=action_result.summary,
+                    is_error=not action_result.success,
+                )
+            )
 
             # Check if complete() was called successfully
-            if self.tools.finished:
+            if self.shared_state.finished:
                 logger.debug("✅ Task marked as complete via complete() tool")
 
                 success = (
-                    self.tools.success if self.tools.success is not None else False
+                    self.shared_state.success
+                    if self.shared_state.success is not None
+                    else False
                 )
                 reason = (
-                    self.tools.reason
-                    if self.tools.reason
+                    self.shared_state.answer
+                    if self.shared_state.answer
                     else "Task completed without reason"
                 )
-                self.tools.finished = False
+                self.shared_state.finished = False
 
                 event = FastAgentEndEvent(
                     success=success,
@@ -481,52 +445,11 @@ class FastAgent(Workflow):
         await asyncio.sleep(self.agent_config.after_sleep_action)
 
         # Update remembered info
-        self.remembered_info = self.tools.memory
+        self.remembered_info = self.shared_state.fast_memory
 
         event = FastAgentOutputEvent(output=results_xml)
         ctx.write_event_to_stream(event)
         return event
-
-    async def _execute_tool_call(self, call: ToolCall) -> ToolResult:
-        """Execute a single tool call and return the result."""
-        tool_func = self.tool_list.get(call.name)
-
-        if tool_func is None:
-            return ToolResult(
-                name=call.name,
-                output=f"Unknown tool: {call.name}. Available tools: {list(self.tool_list.keys())}",
-                is_error=True,
-            )
-
-        params = call.parameters
-        # Remap 'message' -> 'reason' for complete() (LLM sees "message", function expects "reason")
-        if call.name == "complete" and "reason" not in params:
-            params["reason"] = params.pop("message", "")
-
-        try:
-            if inspect.iscoroutinefunction(tool_func):
-                result = await tool_func(**params)
-            else:
-                result = tool_func(**params)
-
-            output = str(result) if result is not None else "Tool executed successfully."
-            return ToolResult(name=call.name, output=output)
-
-        except TypeError as e:
-            return ToolResult(
-                name=call.name,
-                output=f"Invalid arguments: {e}",
-                is_error=True,
-            )
-        except Exception as e:
-            logger.error(f"💥 Tool {call.name} failed: {e}")
-            if self.debug:
-                logger.error("Exception details:", exc_info=True)
-            return ToolResult(
-                name=call.name,
-                output=f"Error: {type(e).__name__}: {e}",
-                is_error=True,
-            )
 
     @step
     async def handle_execution_result(
@@ -544,7 +467,7 @@ class FastAgent(Workflow):
 
     @step
     async def finalize(self, ev: FastAgentEndEvent, ctx: Context) -> StopEvent:
-        self.tools.finished = False
+        self.shared_state.finished = False
         ctx.write_event_to_stream(ev)
 
         return StopEvent(
