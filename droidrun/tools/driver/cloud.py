@@ -132,9 +132,7 @@ class CloudDriver(DeviceDriver):
 
     # -- app management ------------------------------------------------------
 
-    async def start_app(
-        self, package: str, activity: Optional[str] = None
-    ) -> str:
+    async def start_app(self, package: str, activity: Optional[str] = None) -> str:
         try:
             await self._client.devices.apps.start(
                 package,
@@ -146,9 +144,7 @@ class CloudDriver(DeviceDriver):
         except Exception as e:
             return f"Failed to start app {package}: {e}"
 
-    async def get_apps(
-        self, include_system: bool = True
-    ) -> List[Dict[str, Any]]:
+    async def get_apps(self, include_system: bool = True) -> List[Dict[str, Any]]:
         try:
             apps = await self._client.devices.apps.list(
                 device_id=self.device_id,
@@ -176,10 +172,8 @@ class CloudDriver(DeviceDriver):
 
     async def screenshot(self, hide_overlay: bool = True) -> bytes:
         try:
-            response = (
-                await self._client.devices.state.with_raw_response.screenshot(
-                    self.device_id, **self._display_kw
-                )
+            response = await self._client.devices.state.with_raw_response.screenshot(
+                self.device_id, **self._display_kw
             )
             return await response.read()
         except Exception as e:
