@@ -17,6 +17,7 @@ import re
 from typing import Any, Dict, List, Tuple
 
 from droidrun.tools.driver.base import DeviceDriver
+from droidrun.tools.ui.provider import StateProvider
 from droidrun.tools.ui.state import UIState
 
 logger = logging.getLogger("droidrun")
@@ -42,8 +43,10 @@ _PLACEHOLDER_RE = re.compile(r"placeholderValue:\s*'([^']*)'")
 _VALUE_RE = re.compile(r"value:\s*([^,}]+)")
 
 
-class IOSStateProvider:
+class IOSStateProvider(StateProvider):
     """Produces ``UIState`` from an iOS device's accessibility tree."""
+
+    supported = {"element_index", "convert_point"}
 
     def __init__(self, use_normalized: bool = False) -> None:
         # TODO: normalized coordinates untested on iOS

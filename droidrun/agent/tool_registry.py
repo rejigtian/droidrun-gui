@@ -25,6 +25,7 @@ class ToolEntry:
     fn: Callable
     params: Dict[str, Any]
     description: str
+    deps: Optional[Set[str]] = None
 
 
 class ToolRegistry:
@@ -41,23 +42,44 @@ class ToolRegistry:
         fn: Callable,
         params: Dict[str, Any],
         description: str,
+        deps: Optional[Set[str]] = None,
     ) -> None:
-        self.tools[name] = ToolEntry(fn=fn, params=params, description=description)
+        self.tools[name] = ToolEntry(
+            fn=fn, params=params, description=description, deps=deps
+        )
 
     def register_from_dict(self, tools_dict: Dict[str, Any]) -> None:
         """Register tools from the existing ``{name: {parameters, description, function}}`` format."""
         for name, spec in tools_dict.items():
+            deps = spec.get("deps")
+            if deps is not None:
+                deps = set(deps)
             self.register(
                 name=name,
                 fn=spec["function"],
                 params=spec.get("parameters", {}),
                 description=spec.get("description", f"Tool: {name}"),
+                deps=deps,
             )
 
     def disable(self, tool_names: list[str]) -> None:
         """Remove tools by name (silently ignores unknown names)."""
         for name in tool_names:
             self.tools.pop(name, None)
+
+    def disable_unsupported(self, capabilities: Set[str]) -> None:
+        """Remove tools whose ``deps`` set is not satisfied by *capabilities*.
+
+        Tools with ``deps=None`` (custom tools, MCP tools, etc.) are kept.
+        """
+        to_remove = [
+            name
+            for name, entry in self.tools.items()
+            if entry.deps is not None and not entry.deps <= capabilities
+        ]
+        if to_remove:
+            logger.debug(f"Disabling unsupported tools: {to_remove}")
+        self.disable(to_remove)
 
     # -- query ---------------------------------------------------------------
 

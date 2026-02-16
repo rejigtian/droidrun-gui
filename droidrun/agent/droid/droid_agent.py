@@ -449,6 +449,7 @@ class DroidAgent(Workflow):
             fn=open_app,
             params={"text": {"type": "string", "required": True}},
             description='Open an app by name or description. Usage: {"action": "open_app", "text": "Gmail"}',
+            deps={"start_app", "get_apps"},
         )
 
         # 3c. remember + complete (always registered, from DroidAgentState methods)
@@ -490,7 +491,11 @@ class DroidAgent(Workflow):
             if mcp_tools:
                 registry.register_from_dict(mcp_tools)
 
-        # 3g. Disable tools from config
+        # 3g. Disable unsupported tools based on driver + state provider capabilities
+        capabilities = driver.supported | self.state_provider.supported
+        registry.disable_unsupported(capabilities)
+
+        # 3h. Disable tools from config
         disabled_tools = (
             self.config.tools.disabled_tools
             if self.config.tools and self.config.tools.disabled_tools

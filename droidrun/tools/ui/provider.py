@@ -24,6 +24,8 @@ logger = logging.getLogger("droidrun")
 class StateProvider:
     """Base class — subclass to support different platforms."""
 
+    supported: set[str] = set()
+
     async def get_state(self, driver: "DeviceDriver") -> UIState:
         raise NotImplementedError
 
@@ -34,6 +36,8 @@ class AndroidStateProvider(StateProvider):
     Includes retry logic (3 attempts) matching the original
     ``AdbTools.get_state()`` behaviour.
     """
+
+    supported = {"element_index", "convert_point"}
 
     def __init__(
         self,
