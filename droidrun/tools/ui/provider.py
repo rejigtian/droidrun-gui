@@ -53,9 +53,7 @@ class AndroidStateProvider(StateProvider):
 
         for attempt in range(max_retries):
             try:
-                logger.debug(
-                    f"Getting state (attempt {attempt + 1}/{max_retries})"
-                )
+                logger.debug(f"Getting state (attempt {attempt + 1}/{max_retries})")
 
                 combined_data = await driver.get_ui_tree()
 
@@ -66,13 +64,9 @@ class AndroidStateProvider(StateProvider):
                     )
 
                 required_keys = ["a11y_tree", "phone_state", "device_context"]
-                missing = [
-                    k for k in required_keys if k not in combined_data
-                ]
+                missing = [k for k in required_keys if k not in combined_data]
                 if missing:
-                    raise Exception(
-                        f"Missing data in state: {', '.join(missing)}"
-                    )
+                    raise Exception(f"Missing data in state: {', '.join(missing)}")
 
                 device_context = combined_data["device_context"]
                 screen_bounds = device_context.get("screen_bounds", {})
@@ -88,9 +82,7 @@ class AndroidStateProvider(StateProvider):
                 self.tree_formatter.use_normalized = self.use_normalized
 
                 formatted_text, focused_text, elements, phone_state = (
-                    self.tree_formatter.format(
-                        filtered, combined_data["phone_state"]
-                    )
+                    self.tree_formatter.format(filtered, combined_data["phone_state"])
                 )
 
                 return self._ui_cls(
@@ -105,9 +97,7 @@ class AndroidStateProvider(StateProvider):
 
             except Exception as e:
                 last_error = str(e)
-                logger.warning(
-                    f"get_state attempt {attempt + 1} failed: {last_error}"
-                )
+                logger.warning(f"get_state attempt {attempt + 1} failed: {last_error}")
                 if attempt < max_retries - 1:
                     await asyncio.sleep(0.5)
                 else:

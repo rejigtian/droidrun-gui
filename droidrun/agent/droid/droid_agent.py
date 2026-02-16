@@ -322,7 +322,9 @@ class DroidAgent(Workflow):
                         self.executor_llm.class_name() if self.executor_llm else "None"
                     ),
                     "fast_agent": (
-                        self.fast_agent_llm.class_name() if self.fast_agent_llm else "None"
+                        self.fast_agent_llm.class_name()
+                        if self.fast_agent_llm
+                        else "None"
                     ),
                     "text_manipulator": (
                         self.text_manipulator_llm.class_name()
@@ -1014,9 +1016,7 @@ class DroidAgent(Workflow):
             try:
                 screenshot = await self.action_ctx.driver.screenshot()
                 if screenshot:
-                    ctx.write_event_to_stream(
-                        ScreenshotEvent(screenshot=screenshot)
-                    )
+                    ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
                     vision_any = (
                         self.config.agent.manager.vision
                         or self.config.agent.executor.vision

@@ -20,10 +20,11 @@ from droidrun.tools.driver.base import DeviceDriver
 # Path generation helpers
 # ---------------------------------------------------------------------------
 
+
 def _ease_in_out_cubic(t: float) -> float:
     """Cubic easing for natural acceleration/deceleration."""
     if t < 0.5:
-        return 4 * t ** 3
+        return 4 * t**3
     return 1 - pow(-2 * t + 2, 3) / 2
 
 
@@ -87,12 +88,12 @@ def generate_curved_path(
         x = (
             (1 - eased_t) ** 2 * start_x
             + 2 * (1 - eased_t) * eased_t * control_x
-            + eased_t ** 2 * end_x
+            + eased_t**2 * end_x
         )
         y = (
             (1 - eased_t) ** 2 * start_y
             + 2 * (1 - eased_t) * eased_t * control_y
-            + eased_t ** 2 * end_y
+            + eased_t**2 * end_y
         )
 
         jitter_x = _perlin_noise_1d(linear_t * 10, noise_seed) * jitter_intensity
@@ -106,6 +107,7 @@ def generate_curved_path(
 # ---------------------------------------------------------------------------
 # StealthDriver
 # ---------------------------------------------------------------------------
+
 
 class StealthDriver:
     """Transparent proxy that adds human-like randomness to device I/O.
