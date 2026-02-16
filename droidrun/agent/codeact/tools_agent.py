@@ -31,6 +31,7 @@ from droidrun.agent.codeact.xml_parser import (
     format_tool_results,
     parse_tool_calls,
 )
+from droidrun.agent.action_result import ActionResult
 from droidrun.agent.common.constants import LLM_HISTORY_LIMIT
 from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
 from droidrun.agent.usage import get_usage_from_response
@@ -398,10 +399,17 @@ class FastAgent(Workflow):
             logger.debug(f"Executing: {call.name}({call.parameters})")
             self.tool_call_counter += 1
 
-            # Dispatch via registry
-            action_result = await self.registry.execute(
-                call.name, call.parameters, self.action_ctx
-            )
+            # Skip execution if parsing failed
+            if call.error:
+                action_result = ActionResult(
+                    success=False,
+                    summary=f"Invalid arguments for {call.name}: {call.error}",
+                )
+            else:
+                # Dispatch via registry
+                action_result = await self.registry.execute(
+                    call.name, call.parameters, self.action_ctx
+                )
             results.append(
                 ToolResult(
                     name=call.name,

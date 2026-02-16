@@ -29,6 +29,7 @@ class ToolCall:
 
     name: str
     parameters: Dict[str, Any] = field(default_factory=dict)
+    error: Optional[str] = None
 
 
 @dataclass
@@ -84,15 +85,20 @@ def parse_tool_calls(
                 continue
 
             params: Dict[str, Any] = {}
+            error: Optional[str] = None
             for param in invoke.findall("parameter"):
                 param_name = param.get("name", "")
                 param_value = param.text or ""
                 if param_name:
-                    params[param_name] = _coerce_param(
-                        param_name, param_value, param_types
-                    )
+                    try:
+                        params[param_name] = _coerce_param(
+                            param_name, param_value, param_types
+                        )
+                    except ValueError as e:
+                        error = str(e)
+                        break
 
-            calls.append(ToolCall(name=name, parameters=params))
+            calls.append(ToolCall(name=name, parameters=params, error=error))
 
     return text_before, calls
 
@@ -166,7 +172,9 @@ def _coerce_param(
             try:
                 return float(value)
             except ValueError:
-                return value  # Fallback: keep as string
+                raise ValueError(
+                    f"parameter '{name}' expected number, got '{value}'"
+                )
 
     if expected == "list":
         value = value.strip()
@@ -174,8 +182,10 @@ def _coerce_param(
             parsed = json.loads(value)
             if isinstance(parsed, list):
                 return parsed
+            return [parsed]  # Single element — wrap in list
         except (json.JSONDecodeError, ValueError):
-            pass
-        return value  # Fallback: keep as string
+            raise ValueError(
+                f"parameter '{name}' expected list, got '{value}'"
+            )
 
     return value
