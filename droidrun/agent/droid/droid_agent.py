@@ -84,9 +84,11 @@ from droidrun.agent.utils.tracing_setup import (
 from async_adbutils import adb
 from droidrun.log_handlers import CLILogHandler, configure_logging
 from droidrun.tools.driver.android import AndroidDriver
+from droidrun.tools.driver.ios import IOSDriver
 from droidrun.tools.driver.recording import RecordingDriver
 from droidrun.tools.filters import ConciseFilter, DetailedFilter
 from droidrun.tools.formatters import IndexedFormatter
+from droidrun.tools.ui.ios_provider import IOSStateProvider
 from droidrun.tools.ui.provider import AndroidStateProvider
 from opentelemetry import trace
 
@@ -378,8 +380,17 @@ class DroidAgent(Workflow):
         else:
             vision_enabled = self.config.agent.fast_agent.vision
 
+        is_ios = self.resolved_device_config.platform.lower() == "ios"
+
         if self._injected_driver is not None:
             driver = self._injected_driver
+        elif is_ios:
+            ios_url = self.resolved_device_config.serial
+            if not ios_url:
+                raise ValueError("iOS device URL required in config.device.serial")
+            # TODO: bundle_identifiers not configurable yet
+            driver = IOSDriver(url=ios_url)
+            await driver.connect()
         else:
             device_serial = self.resolved_device_config.serial
             if device_serial is None:
@@ -404,6 +415,10 @@ class DroidAgent(Workflow):
         # ── 2. Create state provider ──────────────────────────────────
         if self._injected_state_provider is not None:
             self.state_provider = self._injected_state_provider
+        elif is_ios:
+            self.state_provider = IOSStateProvider(
+                use_normalized=self.config.agent.use_normalized_coordinates,
+            )
         else:
             tree_filter = ConciseFilter() if vision_enabled else DetailedFilter()
             tree_formatter = IndexedFormatter()
