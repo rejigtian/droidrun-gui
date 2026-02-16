@@ -266,11 +266,15 @@ class DroidAgent(Workflow):
             self.scripter_llm = None
             self.structured_output_llm = None
 
-        self.trajectory = Trajectory(
-            goal=self.shared_state.instruction,
-            base_path=self.config.logging.trajectory_path,
-        )
-        self.trajectory_writer = TrajectoryWriter(queue_size=300)
+        if self.config.logging.save_trajectory != "none":
+            self.trajectory = Trajectory(
+                goal=self.shared_state.instruction,
+                base_path=self.config.logging.trajectory_path,
+            )
+            self.trajectory_writer = TrajectoryWriter(queue_size=300)
+        else:
+            self.trajectory = None
+            self.trajectory_writer = None
 
         # Sub-agents are created in __init__ but wired up in start_handler
         if self._using_external_agent:
@@ -375,7 +379,8 @@ class DroidAgent(Workflow):
         )
         ctx.write_event_to_stream(ev)
 
-        await self.trajectory_writer.start()
+        if self.trajectory_writer:
+            await self.trajectory_writer.start()
 
         # ── 1. Create driver ──────────────────────────────────────────
         if self.config.agent.reasoning:
@@ -1065,10 +1070,11 @@ class DroidAgent(Workflow):
         if not isinstance(ev, StopEvent):
             ctx.write_event_to_stream(ev)
 
-            if isinstance(ev, ScreenshotEvent):
-                self.trajectory.screenshot_queue.append(ev.screenshot)
-                self.trajectory.screenshot_count += 1
-            elif isinstance(ev, RecordUIStateEvent):
-                self.trajectory.ui_states.append(ev.ui_state)
-            else:
-                self.trajectory.events.append(ev)
+            if self.trajectory:
+                if isinstance(ev, ScreenshotEvent):
+                    self.trajectory.screenshot_queue.append(ev.screenshot)
+                    self.trajectory.screenshot_count += 1
+                elif isinstance(ev, RecordUIStateEvent):
+                    self.trajectory.ui_states.append(ev.ui_state)
+                else:
+                    self.trajectory.events.append(ev)
