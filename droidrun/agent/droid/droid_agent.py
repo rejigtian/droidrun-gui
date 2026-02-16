@@ -8,6 +8,7 @@ Architecture:
 """
 
 import logging
+import traceback
 from typing import TYPE_CHECKING, Type, Awaitable, Union
 
 from pydantic import BaseModel
@@ -80,6 +81,8 @@ from droidrun.agent.utils.tracing_setup import (
     apply_session_context,
     record_langfuse_screenshot,
 )
+from async_adbutils import adb
+from droidrun.log_handlers import CLILogHandler, configure_logging
 from droidrun.tools.driver.android import AndroidDriver
 from droidrun.tools.driver.recording import RecordingDriver
 from droidrun.tools.filters import ConciseFilter, DetailedFilter
@@ -111,8 +114,6 @@ class DroidAgent(Workflow):
             not isinstance(h, logging.NullHandler) for h in logger.handlers
         )
         if not has_real_handler:
-            from droidrun.log_handlers import CLILogHandler, configure_logging
-
             handler = CLILogHandler()
             handler.setFormatter(
                 logging.Formatter("%(asctime)s %(levelname)s: %(message)s", "%H:%M:%S")
@@ -372,8 +373,6 @@ class DroidAgent(Workflow):
         else:
             vision_enabled = self.config.agent.fast_agent.vision
 
-        from async_adbutils import adb
-
         device_serial = self.resolved_device_config.serial
         if device_serial is None:
             devices = await adb.list()
@@ -600,8 +599,6 @@ class DroidAgent(Workflow):
         except Exception as e:
             logger.error(f"Error during task execution: {e}")
             if self.config.logging.debug:
-                import traceback
-
                 logger.error(traceback.format_exc())
             return FastAgentResultEvent(
                 success=False, reason=f"Error: {str(e)}", instruction=ev.instruction
@@ -617,8 +614,6 @@ class DroidAgent(Workflow):
         except Exception as e:
             logger.error(f"❌ Error during DroidAgent execution: {e}")
             if self.config.logging.debug:
-                import traceback
-
                 logger.error(traceback.format_exc())
             return FinalizeEvent(
                 success=False,
@@ -744,8 +739,6 @@ class DroidAgent(Workflow):
         except Exception as e:
             logger.error(f"❌ TextManipulator agent failed: {e}")
             if self.config.logging.debug:
-                import traceback
-
                 logger.error(traceback.format_exc())
 
             return TextManipulatorResultEvent(
@@ -980,8 +973,6 @@ class DroidAgent(Workflow):
             except Exception as e:
                 logger.error(f"❌ Error during structured extraction: {e}")
                 if self.config.logging.debug:
-                    import traceback
-
                     logger.error(traceback.format_exc())
 
         # Capture final screenshot before saving trajectory

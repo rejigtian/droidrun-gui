@@ -4,6 +4,8 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from droidrun.telemetry import PackageVisitEvent, capture
+
 
 class DroidAgentState(BaseModel):
     """
@@ -154,8 +156,6 @@ class DroidAgentState(BaseModel):
 
         self.current_package_name = package_name
         self.current_activity_name = activity_name
-
-        from droidrun.telemetry import PackageVisitEvent, capture
 
         capture(
             PackageVisitEvent(

@@ -25,6 +25,8 @@ from droidrun.agent.codeact.events import (
     FastAgentToolCallEvent,
 )
 from droidrun.agent.codeact.xml_parser import (
+    CLOSE_TAG,
+    OPEN_TAG,
     ToolResult,
     format_tool_results,
     parse_tool_calls,
@@ -318,8 +320,6 @@ class FastAgent(Workflow):
         # Extract just the <function_calls> blocks for the event
         tool_calls_xml = None
         if tool_calls:
-            from droidrun.agent.codeact.xml_parser import OPEN_TAG, CLOSE_TAG
-
             blocks = []
             for part in response_text.split(OPEN_TAG)[1:]:
                 close_idx = part.find(CLOSE_TAG)

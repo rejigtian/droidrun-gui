@@ -66,7 +66,7 @@ class AndroidDriver(DeviceDriver):
         self.portal = PortalClient(self.device, prefer_tcp=self._use_tcp)
         await self.portal.connect()
 
-        from droidrun.portal import setup_keyboard
+        from droidrun.portal import setup_keyboard  # circular import guard
 
         await setup_keyboard(self.device)
         self._connected = True

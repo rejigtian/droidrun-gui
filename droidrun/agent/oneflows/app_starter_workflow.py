@@ -6,11 +6,11 @@ import json
 import logging
 
 from workflows import Context, Workflow, step
-
-logger = logging.getLogger("droidrun")
 from workflows.events import StartEvent, StopEvent
 
 from droidrun.agent.utils.inference import acomplete_with_retries
+
+logger = logging.getLogger("droidrun")
 
 
 class AppStarter(Workflow):

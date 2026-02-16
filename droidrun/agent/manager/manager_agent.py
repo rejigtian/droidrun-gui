@@ -41,6 +41,7 @@ from droidrun.app_cards.providers import (
     LocalAppCardProvider,
     ServerAppCardProvider,
 )
+from droidrun.agent.utils.signatures import ATOMIC_ACTION_SIGNATURES
 from droidrun.config_manager.prompt_loader import PromptLoader
 
 if TYPE_CHECKING:
@@ -174,11 +175,14 @@ class ManagerAgent(Workflow):
         if self.output_model is not None:
             output_schema = self.output_model.model_json_schema()
 
-        # Build custom tools descriptions from registry (exclude flow-control tools)
+        # Build custom tools descriptions from registry.
+        # Exclude standard atomic actions (Manager prompt already describes them)
+        # and flow-control tools (remember, complete) which Manager doesn't use.
         custom_tools_descriptions = ""
         if self.registry:
+            _standard = set(ATOMIC_ACTION_SIGNATURES.keys()) | {"remember", "complete"}
             custom_tools_descriptions = self.registry.get_tool_descriptions_text(
-                exclude={"remember", "complete"}
+                exclude=_standard
             )
 
         variables = {
