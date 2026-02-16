@@ -57,9 +57,11 @@ Uses XML tool-calling for device interaction. Direct mode only.
 
 **Available Actions**:
 ```python
-click(index), long_press(index), type(text, index),
+click(index), click_at(x, y), click_area(x1, y1, x2, y2),
+long_press(index), long_press_at(x, y),
+type(text, index), type_secret(secret_id, index),
 swipe(coordinate, coordinate2), system_button(button),
-wait(duration), open_app(text), get_state(), take_screenshot(),
+wait(duration), open_app(text),
 remember(information), complete(success, reason)
 ```
 

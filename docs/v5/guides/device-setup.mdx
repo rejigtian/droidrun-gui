@@ -88,7 +88,7 @@ The Portal only communicates locally via ADB. No data is sent to external server
     droidrun run "your command" --tcp
 
     # Python
-    tools = DeviceConfig(serial="DEVICE_SERIAL", use_tcp=True)
+    config = DroidrunConfig(device=DeviceConfig(serial="DEVICE_SERIAL", use_tcp=True))
     ```
 
     **Troubleshooting:**
@@ -117,7 +117,7 @@ The Portal only communicates locally via ADB. No data is sent to external server
     droidrun ping
 
     # Python
-    tools = DeviceConfig(serial="DEVICE_SERIAL", use_tcp=False)
+    config = DroidrunConfig(device=DeviceConfig(serial="DEVICE_SERIAL", use_tcp=False))
     ```
 
     **Troubleshooting:**
@@ -214,8 +214,8 @@ The Portal only communicates locally via ADB. No data is sent to external server
     droidrun run "your command" --device emulator-5554
 
     # Python
-    tools = DeviceConfig(serial="emulator-5554")
-    agent = DroidAgent(goal="your task", tools=tools)
+    config = DroidrunConfig(device=DeviceConfig(serial="emulator-5554"))
+    agent = DroidAgent(goal="your task", config=config)
     ```
 
     ### Parallel Control
@@ -294,14 +294,14 @@ The Portal only communicates locally via ADB. No data is sent to external server
     **Symptoms:** `input_text()` fails or types gibberish
 
     **Solutions:**
-    1. Keyboard auto-enabled by `AdbTools.__init__()`:
+    1. Keyboard auto-enabled by `AndroidDriver` initialization:
        ```bash
        # Verify
        adb shell settings get secure default_input_method
        # Should show: com.droidrun.portal/.DroidrunKeyboardIME
        ```
     2. Manual switch: Long press space bar → Select "Droidrun Keyboard"
-    3. Focus element first: `tools.tap_by_index(5)` then `tools.input_text("text")`
+    3. Focus the element first (tap it), then input text
   </Accordion>
 
   <Accordion title="Empty UI state">
@@ -349,12 +349,8 @@ iOS support is currently **experimental**. Functionality is limited compared to 
   </Step>
 
   <Step title="Test Connection">
-    ```python
-    from droidrun import IOSTools
-
-    tools = IOSTools(url="http://DEVICE_IP:8080")
-    result = tools.ping()
-    print(result)
+    ```bash
+    droidrun ping --ios
     ```
   </Step>
 </Steps>
@@ -379,18 +375,17 @@ iOS Portal uses a different architecture than Android:
 ### Python API
 
 ```python
-from droidrun import IOSTools, DroidAgent
+from droidrun import DroidAgent, DroidrunConfig, DeviceConfig
 
-# Initialize iOS tools with device URL
-tools = IOSTools(
-    url="http://192.168.1.100:8080",
-    bundle_identifiers=["com.example.app"]  # Optional
+# Configure for iOS
+config = DroidrunConfig(
+    device=DeviceConfig(platform="ios")
 )
 
 # Create agent
 agent = DroidAgent(
     goal="Open Settings and check WiFi",
-    tools=tools
+    config=config
 )
 
 result = await agent.run()
@@ -415,7 +410,7 @@ Current iOS support has these limitations:
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| `get_date()` | ❌ | Returns "Not implemented for iOS" |
+| `get_date()` | ❌ | Not available on iOS |
 | `back()` | ❌ | Raises `NotImplementedError` |
 | `drag()` | ❌ | Not implemented, returns False |
 | `get_apps()` | ⚠️ | Use `list_packages()` instead |

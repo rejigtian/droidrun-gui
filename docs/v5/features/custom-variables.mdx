@@ -5,7 +5,7 @@ description: 'Pass dynamic data to your Droidrun agents using the `variables` pa
 
 Custom variables are accessible in:
 - **Agent prompts** via custom Jinja2 templates
-- **Custom tools** via `shared_state.custom_variables`
+- **Custom tools** via `ctx.shared_state.custom_variables`
 
 ---
 
@@ -57,7 +57,7 @@ When you pass `variables` to `DroidAgent`:
 **Access Summary:**
 - ✅ Agent prompts (via custom Jinja2 templates)
 - ✅ Agents can read and pass to tools as arguments
-- ✅ Custom tools (via `shared_state.custom_variables`)
+- ✅ Custom tools (via `ctx.shared_state.custom_variables`)
 
 ---
 
@@ -115,24 +115,20 @@ Customize these prompts to render variables:
 
 ## Accessing Variables in Custom Tools
 
-Custom tools can directly access variables via the `shared_state` keyword argument:
+Custom tools can access variables via the `ctx` keyword argument (an `ActionContext` instance injected automatically):
 
 ```python
 from droidrun import DroidAgent, DroidrunConfig
 
-def send_notification(title: str, *, tools=None, shared_state=None, **kwargs):
+async def send_notification(title: str, *, ctx, **kwargs):
     """Send a notification using channel from custom variables.
 
     Args:
         title: Notification title
-        tools: Tools instance (optional, injected automatically)
-        shared_state: DroidAgentState (optional, injected automatically)
+        ctx: ActionContext (injected automatically by the registry)
     """
-    if not shared_state:
-        return "Error: shared_state required"
-
-    # Access custom variables
-    channel = shared_state.custom_variables.get("notification_channel", "default")
+    # Access custom variables via ctx.shared_state
+    channel = ctx.shared_state.custom_variables.get("notification_channel", "default")
     return f"Sent '{title}' to {channel}"
 
 custom_tools = {
@@ -194,10 +190,10 @@ agent = DroidAgent(
 ## Key Points
 
 1. **Custom prompts required** - Default prompts don't render variables in agent context
-2. **Direct access in tools** - Custom tools access `shared_state.custom_variables` via keyword argument
+2. **Direct access in tools** - Custom tools access `ctx.shared_state.custom_variables` via the `ActionContext`
 3. **Available to all agents** - Manager, Executor, FastAgent, Scripter all receive variables
 4. **Jinja2 templates** - Use `{% if variables %}` blocks in custom prompts
-5. **Auto-injection** - `tools` and `shared_state` are injected automatically by Droidrun
+5. **Auto-injection** - `ctx` (ActionContext) is injected automatically by the tool registry
 
 ## Related Documentation
 

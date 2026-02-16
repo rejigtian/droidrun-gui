@@ -78,44 +78,41 @@ custom_tools = {
 
 **Function signature:**
 ```python
-def tool_name(arg1: type, arg2: type, *, tools=None, shared_state=None, **kwargs) -> str:
+async def tool_name(arg1: type, arg2: type, *, ctx: ActionContext, **kwargs) -> str:
     """
     Args:
         arg1: Your parameter
         arg2: Another parameter
-        tools: Tools instance (optional, injected automatically)
-        shared_state: DroidAgentState (optional, injected automatically)
+        ctx: ActionContext (injected automatically by the registry)
     """
     # Implementation
     return "result"
 ```
 
 **Key points:**
-- List only user parameters in `"parameters"` (not `tools` or `shared_state`)
-- `tools` and `shared_state` are injected automatically as keyword arguments
+- List only user parameters in `"parameters"` (not `ctx`)
+- `ctx` (an `ActionContext` instance) is injected automatically as a keyword argument
+- Access device via `ctx.driver`, shared state via `ctx.shared_state`, credentials via `ctx.credential_manager`
 - Use `**kwargs` for forward compatibility
 - Return type should be `str`
 
 ---
 
-## Using Tools Instance
+## Using ActionContext
 
-Access device via the `tools` parameter:
+Access the device and state via the `ctx` parameter (an `ActionContext` instance injected automatically):
 
 ```python
-def screenshot_and_count(*, tools=None, shared_state=None, **kwargs) -> str:
+async def screenshot_and_count(*, ctx, **kwargs) -> str:
     """Take screenshot and count UI elements."""
-    if not tools:
-        return "Error: tools instance required"
+    # Take screenshot via the driver
+    screenshot = await ctx.driver.screenshot()
 
-    # Take screenshot
-    screenshot_path, screenshot_bytes = tools.take_screenshot()
+    # Get UI state via the state provider
+    ui_state = await ctx.state_provider.get_state(ctx.driver)
+    element_count = len(ui_state.elements) if ui_state else 0
 
-    # Get UI state
-    state = tools.get_state()
-    element_count = len(state.get("ui_elements", []))
-
-    return f"Screenshot saved. Found {element_count} UI elements"
+    return f"Screenshot taken. Found {element_count} UI elements"
 
 custom_tools = {
     "screenshot_and_count": {
@@ -126,25 +123,23 @@ custom_tools = {
 }
 ```
 
-**Available via `tools`:**
-- `tools.take_screenshot()` - Capture screen
-- `tools.get_state()` - Get UI hierarchy
-- `tools.tap_by_index(index)` - Tap element
-- `tools.input_text(text, index)` - Type text
-- `tools.swipe(x1, y1, x2, y2)` - Swipe gesture
-- All methods from AdbTools/IOSTools
+**Available via `ctx`:**
+- `ctx.driver` - `DeviceDriver` for raw device I/O (screenshot, tap, swipe, etc.)
+- `ctx.state_provider` - `StateProvider` to fetch/parse UI state
+- `ctx.ui` - Current `UIState` (refreshed each step)
+- `ctx.shared_state` - `DroidAgentState` for agent coordination
+- `ctx.credential_manager` - `CredentialManager` for secrets
 
 ---
 
-## Using Shared State
+## Accessing Shared State
 
-Access agent state via `shared_state`:
+Access agent state via `ctx.shared_state`:
 
 ```python
-def check_action_history(action_name: str, *, tools=None, shared_state=None, **kwargs) -> str:
+async def check_action_history(action_name: str, *, ctx, **kwargs) -> str:
     """Check if action was recently performed."""
-    if not shared_state:
-        return "Error: shared_state required"
+    shared_state = ctx.shared_state
 
     # Check recent actions
     recent_actions = shared_state.action_history[-5:]
@@ -183,7 +178,7 @@ custom_tools = {
 - `visited_packages` - Apps visited
 - `current_package_name` - Current app package
 - `plan` - Current Manager plan
-- More in `droidrun/agent/droid/events.py`
+- More in `droidrun/agent/droid/state.py`
 
 ---
 
@@ -340,7 +335,7 @@ def logged_tool(data: str, **kwargs) -> str:
 
 ## Advanced Example
 
-Combining tools instance, shared state, and credentials:
+Combining ActionContext, shared state, and credentials:
 
 ```python
 import requests
@@ -349,20 +344,19 @@ async def send_authenticated_request(
     url: str,
     data: str,
     *,
-    tools=None,
-    shared_state=None,
+    ctx,
     **kwargs
 ) -> str:
     """Send authenticated API request with credentials."""
     try:
-        # Access credentials via tools instance
-        if not tools or not hasattr(tools, 'credential_manager'):
+        # Access credentials via ActionContext
+        if not ctx.credential_manager:
             return "Error: Credential manager not available"
 
-        api_key = await tools.credential_manager.resolve_key("API_KEY")
+        api_key = await ctx.credential_manager.resolve_key("API_KEY")
 
         # Check if we've made too many requests
-        if shared_state and shared_state.step_number > 15:
+        if ctx.shared_state.step_number > 15:
             return "Error: Too many API calls"
 
         # Send authenticated request
