@@ -99,12 +99,16 @@ class CodeActAgent(Workflow):
         for tool_name, entry in self.registry.tools.items():
             func = entry.fn
             if inspect.iscoroutinefunction(func):
+
                 async def async_wrapper(*a, f=func, ac=action_ctx, **kw):
                     return await f(*a, ctx=ac, **kw)
+
                 self.tool_list[tool_name] = async_wrapper
             else:
+
                 def sync_wrapper(*a, f=func, ac=action_ctx, **kw):
                     return f(*a, ctx=ac, **kw)
+
                 self.tool_list[tool_name] = sync_wrapper
 
         # Build tool descriptions
@@ -211,7 +215,9 @@ class CodeActAgent(Workflow):
 
         # Get available secrets
         if self.action_ctx and self.action_ctx.credential_manager:
-            self._available_secrets = await self.action_ctx.credential_manager.get_keys()
+            self._available_secrets = (
+                await self.action_ctx.credential_manager.get_keys()
+            )
 
         # Build system prompt (lazy load)
         if self.system_prompt is None:

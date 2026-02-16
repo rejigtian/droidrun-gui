@@ -134,16 +134,12 @@ class IOSDriver(DeviceDriver):
             # TODO: BACK (4) and ENTER (66) have no iOS equivalent
             logger.warning(f"Keycode {keycode} not supported on iOS, ignoring")
             return
-        resp = await self._client.post(
-            "/inputs/key", json={"key": ios_keycode}
-        )
+        resp = await self._client.post("/inputs/key", json={"key": ios_keycode})
         resp.raise_for_status()
 
     # -- app management ------------------------------------------------------
 
-    async def start_app(
-        self, package: str, activity: Optional[str] = None
-    ) -> str:
+    async def start_app(self, package: str, activity: Optional[str] = None) -> str:
         resp = await self._client.post(
             "/inputs/launch", json={"bundleIdentifier": package}
         )
@@ -151,9 +147,7 @@ class IOSDriver(DeviceDriver):
             return f"Launched {package}"
         return f"Failed to launch {package}: HTTP {resp.status_code}"
 
-    async def get_apps(
-        self, include_system: bool = True
-    ) -> List[Dict[str, str]]:
+    async def get_apps(self, include_system: bool = True) -> List[Dict[str, str]]:
         # TODO: iOS portal has no app listing endpoint.
         # Returns bundle identifiers as both package and label.
         all_ids: set[str] = set(self.bundle_identifiers)

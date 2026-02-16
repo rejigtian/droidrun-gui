@@ -34,9 +34,7 @@ _INTERACTIVE_TYPES = {
     "Link",
 }
 
-_COORD_RE = re.compile(
-    r"\{\{([0-9.]+),\s*([0-9.]+)\},\s*\{([0-9.]+),\s*([0-9.]+)\}\}"
-)
+_COORD_RE = re.compile(r"\{\{([0-9.]+),\s*([0-9.]+)\},\s*\{([0-9.]+),\s*([0-9.]+)\}\}")
 _ELEMENT_TYPE_RE = re.compile(r"\s*(.+?),")
 _LABEL_RE = re.compile(r"label:\s*'([^']*)'")
 _IDENTIFIER_RE = re.compile(r"identifier:\s*'([^']*)'")
@@ -123,9 +121,7 @@ def _parse_a11y_tree(a11y_text: str) -> List[Dict[str, Any]]:
         text = label or identifier or placeholder or ""
 
         # Bounds in "left,top,right,bottom" format — compatible with UIState
-        bounds_str = (
-            f"{int(x)},{int(y)},{int(x + width)},{int(y + height)}"
-        )
+        bounds_str = f"{int(x)},{int(y)},{int(x + width)},{int(y + height)}"
 
         elements.append(
             {

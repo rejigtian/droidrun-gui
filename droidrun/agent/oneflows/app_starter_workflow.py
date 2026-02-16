@@ -21,9 +21,7 @@ class AppStarter(Workflow):
     to an installed app's package name, then opens it.
     """
 
-    def __init__(
-        self, tools, llm, timeout: int = 60, stream: bool = False, **kwargs
-    ):
+    def __init__(self, tools, llm, timeout: int = 60, stream: bool = False, **kwargs):
         """
         Initialize the OpenAppWorkflow.
 

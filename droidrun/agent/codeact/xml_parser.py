@@ -179,5 +179,3 @@ def _coerce_param(
         return value  # Fallback: keep as string
 
     return value
-
-

@@ -56,7 +56,9 @@ class DroidAgentState(BaseModel):
     # ========================================================================
     plan: str = ""  # Current plan
     current_subgoal: str = ""  # Current subgoal for Executor
-    answer: str = ""  # Final answer (used by both manager completion and complete() tool)
+    answer: str = (
+        ""  # Final answer (used by both manager completion and complete() tool)
+    )
 
     # ========================================================================
     # Action Tracking
@@ -72,7 +74,9 @@ class DroidAgentState(BaseModel):
     # Memory
     # ========================================================================
     manager_memory: str = ""  # Manager's planning notes (append-only string)
-    fast_memory: List[str] = Field(default_factory=list)  # FastAgent/CodeAct remember() items
+    fast_memory: List[str] = Field(
+        default_factory=list
+    )  # FastAgent/CodeAct remember() items
 
     # ========================================================================
     # Completion State (set by complete() tool, checked by FastAgent/CodeAct)
@@ -117,7 +121,11 @@ class DroidAgentState(BaseModel):
 
     async def remember(self, information: str) -> str:
         """Store information in fast_memory for FastAgent/CodeAct context."""
-        if not information or not isinstance(information, str) or not information.strip():
+        if (
+            not information
+            or not isinstance(information, str)
+            or not information.strip()
+        ):
             return "Failed to remember: please provide valid information."
         self.fast_memory.append(information.strip())
         if len(self.fast_memory) > 10:

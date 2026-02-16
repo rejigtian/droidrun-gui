@@ -22,6 +22,7 @@ logger = logging.getLogger("droidrun")
 # Core UI actions
 # ---------------------------------------------------------------------------
 
+
 async def click(index: int, *, ctx: "ActionContext") -> ActionResult:
     """Click the element with the given index."""
     try:
@@ -38,9 +39,13 @@ async def click(index: int, *, ctx: "ActionContext") -> ActionResult:
             detail_parts.append(f"Contains text: {' | '.join(info['child_texts'])}")
         detail_parts.append(f"Coordinates: ({x}, {y})")
 
-        return ActionResult(success=True, summary=f"Clicked on {' | '.join(detail_parts)}")
+        return ActionResult(
+            success=True, summary=f"Clicked on {' | '.join(detail_parts)}"
+        )
     except ValueError as e:
-        return ActionResult(success=False, summary=f"Failed to click element at index {index}: {e}")
+        return ActionResult(
+            success=False, summary=f"Failed to click element at index {index}: {e}"
+        )
 
 
 async def long_press(index: int, *, ctx: "ActionContext") -> ActionResult:
@@ -48,9 +53,13 @@ async def long_press(index: int, *, ctx: "ActionContext") -> ActionResult:
     try:
         x, y = ctx.ui.get_element_coords(index)
         await ctx.driver.swipe(x, y, x, y, 1000)
-        return ActionResult(success=True, summary=f"Long pressed element at index {index} at ({x}, {y})")
+        return ActionResult(
+            success=True, summary=f"Long pressed element at index {index} at ({x}, {y})"
+        )
     except ValueError as e:
-        return ActionResult(success=False, summary=f"Failed to long press element at index {index}: {e}")
+        return ActionResult(
+            success=False, summary=f"Failed to long press element at index {index}: {e}"
+        )
 
 
 async def long_press_at(x: int, y: int, *, ctx: "ActionContext") -> ActionResult:
@@ -60,7 +69,9 @@ async def long_press_at(x: int, y: int, *, ctx: "ActionContext") -> ActionResult
         await ctx.driver.swipe(abs_x, abs_y, abs_x, abs_y, 1000)
         return ActionResult(success=True, summary=f"Long pressed at ({abs_x}, {abs_y})")
     except Exception as e:
-        return ActionResult(success=False, summary=f"Failed to long press at ({x}, {y}): {e}")
+        return ActionResult(
+            success=False, summary=f"Failed to long press at ({x}, {y}): {e}"
+        )
 
 
 async def click_at(x: int, y: int, *, ctx: "ActionContext") -> ActionResult:
@@ -81,7 +92,9 @@ async def click_area(
         cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
         abs_x, abs_y = ctx.ui.convert_point(cx, cy)
         await ctx.driver.tap(abs_x, abs_y)
-        return ActionResult(success=True, summary=f"Tapped center of area at ({abs_x}, {abs_y})")
+        return ActionResult(
+            success=True, summary=f"Tapped center of area at ({abs_x}, {abs_y})"
+        )
     except Exception as e:
         return ActionResult(success=False, summary=f"Failed to tap area center: {e}")
 
@@ -98,9 +111,13 @@ async def type(
 
         success = await ctx.driver.input_text(text, clear)
         if success:
-            return ActionResult(success=True, summary=f"Text typed successfully (clear={clear})")
+            return ActionResult(
+                success=True, summary=f"Text typed successfully (clear={clear})"
+            )
         else:
-            return ActionResult(success=False, summary="Failed to type text: input failed")
+            return ActionResult(
+                success=False, summary="Failed to type text: input failed"
+            )
     except Exception as e:
         return ActionResult(success=False, summary=f"Failed to type text: {e}")
 
@@ -124,7 +141,9 @@ async def system_button(button: str, *, ctx: "ActionContext") -> ActionResult:
         await ctx.driver.press_key(keycode)
         return ActionResult(success=True, summary=f"Pressed {key_name} button")
     except Exception as e:
-        return ActionResult(success=False, summary=f"Failed to press {key_name} button: {e}")
+        return ActionResult(
+            success=False, summary=f"Failed to press {key_name} button: {e}"
+        )
 
 
 async def swipe(
@@ -193,6 +212,7 @@ async def wait(duration: float = 1.0, *, ctx: "ActionContext") -> ActionResult:
 # State / memory actions
 # ---------------------------------------------------------------------------
 
+
 async def remember(information: str, *, ctx: "ActionContext") -> ActionResult:
     """Remember important information for later use."""
     result = await ctx.shared_state.remember(information)
@@ -232,15 +252,19 @@ async def type_secret(
 
         ok = await ctx.driver.input_text(secret_value)
         if ok:
-            return ActionResult(success=True, summary=f"Successfully typed secret '{secret_id}' into element {index}")
+            return ActionResult(
+                success=True,
+                summary=f"Successfully typed secret '{secret_id}' into element {index}",
+            )
         else:
-            return ActionResult(success=False, summary=f"Failed to type secret '{secret_id}': input failed")
+            return ActionResult(
+                success=False,
+                summary=f"Failed to type secret '{secret_id}': input failed",
+            )
     except Exception as e:
         logger.error(f"Failed to type secret '{secret_id}': {e}")
         available = (
-            await ctx.credential_manager.get_keys()
-            if ctx.credential_manager
-            else []
+            await ctx.credential_manager.get_keys() if ctx.credential_manager else []
         )
         return ActionResult(
             success=False,

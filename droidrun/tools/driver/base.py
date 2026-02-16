@@ -70,9 +70,7 @@ class DeviceDriver:
 
     # -- app management ------------------------------------------------------
 
-    async def start_app(
-        self, package: str, activity: Optional[str] = None
-    ) -> str:
+    async def start_app(self, package: str, activity: Optional[str] = None) -> str:
         """Launch an application.
 
         Returns a human-readable result string.
@@ -83,15 +81,11 @@ class DeviceDriver:
         """Install an APK/IPA at *path*."""
         raise NotImplementedError
 
-    async def get_apps(
-        self, include_system: bool = True
-    ) -> List[Dict[str, str]]:
+    async def get_apps(self, include_system: bool = True) -> List[Dict[str, str]]:
         """Return installed apps as ``[{"package": …, "label": …}, …]``."""
         raise NotImplementedError
 
-    async def list_packages(
-        self, include_system: bool = False
-    ) -> List[str]:
+    async def list_packages(self, include_system: bool = False) -> List[str]:
         """Return installed package names."""
         raise NotImplementedError
 

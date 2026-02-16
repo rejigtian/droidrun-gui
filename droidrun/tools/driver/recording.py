@@ -59,18 +59,14 @@ class RecordingDriver:
 
     async def input_text(self, text: str, clear: bool = False) -> bool:
         result = await self.inner.input_text(text, clear)
-        self.log.append(
-            {"action_type": "input_text", "text": text, "clear": clear}
-        )
+        self.log.append({"action_type": "input_text", "text": text, "clear": clear})
         return result
 
     async def press_key(self, keycode: int) -> None:
         await self.inner.press_key(keycode)
         self.log.append({"action_type": "key_press", "keycode": keycode})
 
-    async def start_app(
-        self, package: str, activity: Optional[str] = None
-    ) -> str:
+    async def start_app(self, package: str, activity: Optional[str] = None) -> str:
         result = await self.inner.start_app(package, activity)
         self.log.append(
             {

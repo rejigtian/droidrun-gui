@@ -114,7 +114,9 @@ class MacroPlayer:
                 start_y = action.get("start_y", 0)
                 end_x = action.get("end_x", 0)
                 end_y = action.get("end_y", 0)
-                duration = action.get("duration", action.get("duration_ms", 300) / 1000.0)
+                duration = action.get(
+                    "duration", action.get("duration_ms", 300) / 1000.0
+                )
 
                 logger.info(
                     f"👆 Dragging from ({start_x}, {start_y}) to ({end_x}, {end_y})"

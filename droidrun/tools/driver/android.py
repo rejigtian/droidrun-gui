@@ -114,9 +114,7 @@ class AndroidDriver(DeviceDriver):
 
     # -- app management ------------------------------------------------------
 
-    async def start_app(
-        self, package: str, activity: Optional[str] = None
-    ) -> str:
+    async def start_app(self, package: str, activity: Optional[str] = None) -> str:
         await self.ensure_connected()
         try:
             logger.debug(f"Starting app {package} with activity {activity}")
@@ -155,9 +153,7 @@ class AndroidDriver(DeviceDriver):
         logger.debug(f"Installed app: {path} with result: {result}")
         return result
 
-    async def get_apps(
-        self, include_system: bool = True
-    ) -> List[Dict[str, str]]:
+    async def get_apps(self, include_system: bool = True) -> List[Dict[str, str]]:
         await self.ensure_connected()
         return await self.portal.get_apps(include_system)
 

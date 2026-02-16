@@ -142,9 +142,7 @@ class FastAgent(Workflow):
                 {
                     "goal": goal,
                     "variables": (
-                        self.shared_state.custom_variables
-                        if self.shared_state
-                        else {}
+                        self.shared_state.custom_variables if self.shared_state else {}
                     ),
                 },
             )
@@ -154,9 +152,7 @@ class FastAgent(Workflow):
                 {
                     "goal": goal,
                     "variables": (
-                        self.shared_state.custom_variables
-                        if self.shared_state
-                        else {}
+                        self.shared_state.custom_variables if self.shared_state else {}
                     ),
                 },
             )
@@ -169,7 +165,9 @@ class FastAgent(Workflow):
 
         # Get available secrets
         if self.action_ctx and self.action_ctx.credential_manager:
-            self._available_secrets = await self.action_ctx.credential_manager.get_keys()
+            self._available_secrets = (
+                await self.action_ctx.credential_manager.get_keys()
+            )
 
         # Build system prompt (lazy load)
         if self.system_prompt is None:
@@ -265,9 +263,7 @@ class FastAgent(Workflow):
             )
 
         except Exception as e:
-            logger.warning(
-                f"⚠️ Error retrieving state from the connected device: {e}"
-            )
+            logger.warning(f"⚠️ Error retrieving state from the connected device: {e}")
             if self.debug:
                 logger.error("State retrieval error details:", exc_info=True)
 

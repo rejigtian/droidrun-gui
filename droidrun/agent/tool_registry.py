@@ -61,9 +61,7 @@ class ToolRegistry:
 
     # -- query ---------------------------------------------------------------
 
-    def get_signatures(
-        self, exclude: Optional[Set[str]] = None
-    ) -> Dict[str, Any]:
+    def get_signatures(self, exclude: Optional[Set[str]] = None) -> Dict[str, Any]:
         """Return ``{name: {parameters, description}}`` for prompt building.
 
         Args:
@@ -100,8 +98,7 @@ class ToolRegistry:
             return ActionResult(
                 success=False,
                 summary=(
-                    f"Unknown tool: {name}. "
-                    f"Available: {list(self.tools.keys())}"
+                    f"Unknown tool: {name}. " f"Available: {list(self.tools.keys())}"
                 ),
             )
 
@@ -130,15 +127,11 @@ class ToolRegistry:
         if isinstance(result, str):
             success = not result.startswith("Failed")
             return ActionResult(success=success, summary=result)
-        return ActionResult(
-            success=True, summary=str(result) if result else "Done"
-        )
+        return ActionResult(success=True, summary=str(result) if result else "Done")
 
     # -- prompt helpers ------------------------------------------------------
 
-    def get_tool_descriptions_xml(
-        self, exclude: Optional[Set[str]] = None
-    ) -> str:
+    def get_tool_descriptions_xml(self, exclude: Optional[Set[str]] = None) -> str:
         """Build XML ``<functions>`` block for FastAgent system prompt."""
         exclude = exclude or set()
         lines = ["<functions>"]
@@ -149,9 +142,7 @@ class ToolRegistry:
         lines.append("</functions>")
         return "\n".join(lines)
 
-    def get_tool_descriptions_text(
-        self, exclude: Optional[Set[str]] = None
-    ) -> str:
+    def get_tool_descriptions_text(self, exclude: Optional[Set[str]] = None) -> str:
         """Build text tool descriptions for executor/codeact prompts."""
         exclude = exclude or set()
         descriptions = []
@@ -162,9 +153,7 @@ class ToolRegistry:
             descriptions.append(f"- {name}({params}): {entry.description}")
         return "\n".join(descriptions)
 
-    def get_param_types(
-        self, exclude: Optional[Set[str]] = None
-    ) -> Dict[str, str]:
+    def get_param_types(self, exclude: Optional[Set[str]] = None) -> Dict[str, str]:
         """Build a flat ``{param_name: type_string}`` map for XML coercion.
 
         Note: parameter names are global (not per-tool).

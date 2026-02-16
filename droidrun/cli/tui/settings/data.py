@@ -223,7 +223,9 @@ class SettingsData:
             for hidden_role in ("text_manipulator", "app_opener", "structured_output"):
                 if hidden_role in config.llm_profiles:
                     self._apply_profile_to_llm(
-                        fast_agent_ps, config.llm_profiles[hidden_role], update_model=False
+                        fast_agent_ps,
+                        config.llm_profiles[hidden_role],
+                        update_model=False,
                     )
 
         # Per-agent prompt paths

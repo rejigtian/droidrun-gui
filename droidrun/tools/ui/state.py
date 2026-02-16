@@ -131,9 +131,7 @@ class UIState:
     def convert_point(self, x: int, y: int) -> Tuple[int, int]:
         """Convert point to absolute pixels if normalized mode is active."""
         if self.use_normalized:
-            return to_absolute(
-                x, y, self.screen_width, self.screen_height
-            )
+            return to_absolute(x, y, self.screen_width, self.screen_height)
         return x, y
 
     # -- internal helpers ----------------------------------------------------
@@ -145,9 +143,7 @@ class UIState:
         for item in elements:
             if item.get("index") == target:
                 return item
-            child = UIState._find_by_index(
-                item.get("children", []), target
-            )
+            child = UIState._find_by_index(item.get("children", []), target)
             if child is not None:
                 return child
         return None
@@ -158,9 +154,7 @@ class UIState:
         for item in elements:
             if item.get("index") is not None:
                 indices.append(item["index"])
-            indices.extend(
-                UIState._collect_indices(item.get("children", []))
-            )
+            indices.extend(UIState._collect_indices(item.get("children", [])))
         return indices
 
     @staticmethod

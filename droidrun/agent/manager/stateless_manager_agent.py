@@ -90,7 +90,9 @@ class StatelessManagerAgent(Workflow):
     async def _build_prompt(self, has_text_to_modify: bool) -> str:
         variables = {
             "instruction": self.shared_state.instruction,
-            "device_date": await self.action_ctx.driver.get_date() if self.action_ctx else "",
+            "device_date": (
+                await self.action_ctx.driver.get_date() if self.action_ctx else ""
+            ),
             "previous_plan": self.shared_state.previous_plan,
             "previous_state": self.shared_state.previous_formatted_device_state,
             "memory": self.shared_state.manager_memory,

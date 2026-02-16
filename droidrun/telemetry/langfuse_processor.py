@@ -197,7 +197,9 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
             vision_state = {
                 "manager": getattr(self.agent.config.agent.manager, "vision", False),
                 "executor": getattr(self.agent.config.agent.executor, "vision", False),
-                "fast_agent": getattr(self.agent.config.agent.fast_agent, "vision", False),
+                "fast_agent": getattr(
+                    self.agent.config.agent.fast_agent, "vision", False
+                ),
             }
             input_data["vision_enabled"] = any(vision_state.values())
             input_data["vision"] = vision_state
@@ -470,9 +472,7 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
                         self.agent.shared_state.fast_memory
                     )
 
-                span._attributes["langfuse.observation.input"] = json.dumps(
-                    input_data
-                )
+                span._attributes["langfuse.observation.input"] = json.dumps(input_data)
 
                 if self.agent.shared_state.error_flag_plan:
                     span._attributes["langfuse.trace.tags"] = ["error_recovery"]
