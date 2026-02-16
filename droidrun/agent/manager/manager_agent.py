@@ -428,7 +428,7 @@ class ManagerAgent(Workflow):
                 logger.warning(f"Failed to capture screenshot: {e}")
 
         # Detect text manipulation mode
-        focused_text_clean = focused_text.replace("'", "").strip()
+        focused_text_clean = self.shared_state.focused_text.replace("'", "").strip()
         has_text_to_modify = focused_text_clean != ""
 
         # Store for next step

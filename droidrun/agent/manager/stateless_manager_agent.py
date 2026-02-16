@@ -212,7 +212,7 @@ class StatelessManagerAgent(Workflow):
             except Exception as e:
                 logger.warning(f"Failed to capture screenshot: {e}")
 
-        focused_text_clean = focused_text.replace("'", "").strip()
+        focused_text_clean = self.shared_state.focused_text.replace("'", "").strip()
         has_text_to_modify = focused_text_clean != ""
 
         self.shared_state.has_text_to_modify = has_text_to_modify

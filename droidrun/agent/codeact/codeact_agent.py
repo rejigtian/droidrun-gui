@@ -373,9 +373,6 @@ class CodeActAgent(Workflow):
         if not ev.thought:
             logger.warning("LLM provided code without thoughts.")
             # Add reminder to get thoughts
-            goal = self.shared_state.message_history[0]["content"][0].get("text", "")[
-                :200
-            ]
             no_thoughts_text = (
                 "Your previous response provided code without explaining your reasoning first. "
                 "Remember to always describe your thought process and plan *before* providing the code block.\n\n"

@@ -9,7 +9,7 @@ from __future__ import annotations
 import inspect
 import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Set
 
 from droidrun.agent.action_result import ActionResult

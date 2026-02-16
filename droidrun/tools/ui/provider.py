@@ -113,4 +113,4 @@ class AndroidStateProvider(StateProvider):
                         f"attempts: {last_error}"
                     )
                     logger.error(error_msg)
-                    raise Exception(error_msg)
+                    raise Exception(error_msg) from last_error

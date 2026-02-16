@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -115,7 +115,7 @@ class DroidAgentState(BaseModel):
 
     async def remember(self, information: str) -> str:
         """Store information in fast_memory for FastAgent/CodeAct context."""
-        if not information or not isinstance(information, str):
+        if not information or not isinstance(information, str) or not information.strip():
             return "Failed to remember: please provide valid information."
         self.fast_memory.append(information.strip())
         if len(self.fast_memory) > 10:
