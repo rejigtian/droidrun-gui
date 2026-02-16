@@ -1008,6 +1008,10 @@ class DroidAgent(Workflow):
             except Exception as e:
                 logger.warning(f"Failed to capture final screenshot: {e}")
 
+            # Populate macro data from RecordingDriver log
+            if isinstance(self.driver, RecordingDriver):
+                self.trajectory.macro = list(self.driver.log)
+
             self.trajectory_writer.write_final(
                 self.trajectory, self.config.logging.trajectory_gifs
             )

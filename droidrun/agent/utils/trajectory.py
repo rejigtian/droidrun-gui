@@ -31,7 +31,7 @@ class Trajectory:
         self.screenshot_count: int = 0
         self.screenshot_queue: List[bytes] = []
         self.ui_states: List[Dict[str, Any]] = []
-        self.macro: List[Event] = []
+        self.macro: List[Dict[str, Any]] = []  # populated from RecordingDriver.log
         self.goal = goal or "DroidRun automation sequence"
 
         self.base_path = self._resolve_path(base_path)

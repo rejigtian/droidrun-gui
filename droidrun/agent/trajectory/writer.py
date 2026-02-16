@@ -377,17 +377,7 @@ class TrajectoryWriter:
             "description": trajectory.goal,
             "timestamp": time.strftime("%Y%m%d_%H%M%S"),
             "total_actions": len(macro_snapshot),
-            "actions": [
-                {
-                    "type": macro_event.__class__.__name__,
-                    **{
-                        k: make_serializable(v)
-                        for k, v in macro_event.__dict__.items()
-                        if not k.startswith("_")
-                    },
-                }
-                for macro_event in macro_snapshot
-            ],
+            "actions": macro_snapshot,  # already list[dict] from RecordingDriver.log
         }
 
         return MacroWriteJob(

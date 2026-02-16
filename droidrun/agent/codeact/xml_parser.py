@@ -17,14 +17,6 @@ logger = logging.getLogger("droidrun")
 OPEN_TAG = "<function_calls>"
 CLOSE_TAG = "</function_calls>"
 
-# Built-in tool parameters (remember, complete) that aren't in the signature dicts.
-_BUILTIN_PARAM_TYPES: Dict[str, str] = {
-    "success": "boolean",
-    "reason": "string",
-    "message": "string",
-    "information": "string",
-}
-
 _PARAM_RE = re.compile(
     r'(<parameter\s+name="[^"]*">)(.*?)(</parameter>)',
     re.DOTALL,
@@ -46,34 +38,6 @@ class ToolResult:
     name: str
     output: str
     is_error: bool = False
-
-
-def build_param_types(tools: dict) -> Dict[str, str]:
-    """Build a flat {param_name: type_string} map from tool signature dicts.
-
-    Reads the "parameters" field from each tool signature. Also includes
-    built-in params for remember/complete.
-
-    Note: parameter names are global (not per-tool). If two tools share a
-    param name, they must share the same type.
-
-    Args:
-        tools: Merged dict of tool signatures (atomic + custom).
-
-    Returns:
-        Flat dict mapping parameter name to type string.
-    """
-    param_types: Dict[str, str] = {}
-
-    for _tool_name, spec in tools.items():
-        parameters = spec.get("parameters", {})
-        for param_name, param_info in parameters.items():
-            param_types[param_name] = param_info.get("type", "string")
-
-    # Add built-in tool params
-    param_types.update(_BUILTIN_PARAM_TYPES)
-
-    return param_types
 
 
 def parse_tool_calls(
@@ -217,75 +181,3 @@ def _coerce_param(
     return value
 
 
-def _spec_to_json(name: str, spec: dict) -> str:
-    """Convert a tool spec to compact JSON for the <function> tag."""
-    parameters = spec.get("parameters", {})
-    properties = {}
-    required = []
-    for param_name, param_info in parameters.items():
-        properties[param_name] = {"type": param_info.get("type", "string")}
-        if param_info.get("description"):
-            properties[param_name]["description"] = param_info["description"]
-        if param_info.get("required", True):
-            required.append(param_name)
-        if "default" in param_info:
-            properties[param_name]["default"] = param_info["default"]
-
-    tool_dict = {
-        "name": name,
-        "description": spec.get("description", f"Tool: {name}"),
-        "parameters": {
-            "type": "object",
-            "properties": properties,
-            "required": required,
-        },
-    }
-    return json.dumps(tool_dict, separators=(",", ":"))
-
-
-# Built-in tools (FastAgent-specific, not in signature dicts)
-_BUILTIN_TOOLS = {
-    "remember": {
-        "parameters": {
-            "information": {"type": "string", "required": True},
-        },
-        "description": "Remember information for later use",
-    },
-    "complete": {
-        "parameters": {
-            "success": {"type": "boolean", "required": True},
-            "message": {"type": "string", "required": True},
-        },
-        "description": (
-            "Mark task as complete. "
-            "success=true if task succeeded, false if failed. "
-            "message contains the result, answer, or explanation."
-        ),
-    },
-}
-
-
-def build_tool_definitions_xml(
-    atomic_tools: dict,
-    custom_tools: Optional[dict] = None,
-) -> str:
-    """Build XML tool definitions for the system prompt.
-
-    Outputs a <functions> block with each tool as compact JSON inside
-    <function> tags, following the XML tool-calling protocol.
-
-    Args:
-        atomic_tools: Dict of atomic action signatures.
-        custom_tools: Optional dict of custom tool signatures.
-
-    Returns:
-        XML string with <functions> wrapper containing all tool definitions.
-    """
-    all_tools = {**atomic_tools, **(custom_tools or {}), **_BUILTIN_TOOLS}
-
-    lines = ["<functions>"]
-    for tool_name, spec in all_tools.items():
-        lines.append(f"<function>{_spec_to_json(tool_name, spec)}</function>")
-    lines.append("</functions>")
-
-    return "\n".join(lines)

@@ -10,7 +10,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from droidrun.agent.utils.trajectory import Trajectory
-from droidrun.tools import AdbTools
+from droidrun.tools.driver.android import AndroidDriver
 
 logger = logging.getLogger("droidrun-macro")
 
@@ -20,7 +20,7 @@ class MacroPlayer:
     A class for loading and replaying DroidRun macro sequences.
 
     This player can execute recorded UI actions (taps, swipes, text input, key presses)
-    on Android devices using AdbTools.
+    on Android devices using AndroidDriver.
     """
 
     def __init__(self, device_serial: str = None, delay_between_actions: float = 1.0):
@@ -33,14 +33,15 @@ class MacroPlayer:
         """
         self.device_serial = device_serial
         self.delay_between_actions = delay_between_actions
-        self.adb_tools = None
+        self.driver: AndroidDriver | None = None
 
-    def _initialize_tools(self) -> AdbTools:
-        """Initialize ADB tools for the target device."""
-        if self.adb_tools is None:
-            self.adb_tools = AdbTools(serial=self.device_serial)
-            logger.info(f"🤖 Initialized ADB tools for device: {self.device_serial}")
-        return self.adb_tools
+    async def _initialize_driver(self) -> AndroidDriver:
+        """Initialize AndroidDriver for the target device."""
+        if self.driver is None:
+            self.driver = AndroidDriver(serial=self.device_serial)
+            await self.driver.connect()
+            logger.info(f"🤖 Initialized driver for device: {self.device_serial}")
+        return self.driver
 
     def load_macro_from_file(self, macro_file_path: str) -> Dict[str, Any]:
         """
@@ -76,24 +77,21 @@ class MacroPlayer:
         Returns:
             True if action was executed successfully, False otherwise
         """
-        tools = self._initialize_tools()
+        driver = await self._initialize_driver()
         action_type = action.get("action_type", action.get("type", "unknown"))
 
         try:
             if action_type == "start_app":
                 package = action.get("package")
                 activity = action.get("activity", None)
-                await tools.start_app(package, activity)
+                await driver.start_app(package, activity)
                 return True
 
             elif action_type == "tap":
                 x = action.get("x", 0)
                 y = action.get("y", 0)
-                element_text = action.get("element_text", "")
-
-                logger.info(f"🫰 Tapping at ({x}, {y}) - Element: '{element_text}'")
-                result = await tools.tap_by_coordinates(x, y)
-                logger.debug(f"   Result: {result}")
+                logger.info(f"🫰 Tapping at ({x}, {y})")
+                await driver.tap(x, y)
                 return True
 
             elif action_type == "swipe":
@@ -104,10 +102,9 @@ class MacroPlayer:
                 duration_ms = action.get("duration_ms", 300)
 
                 logger.info(
-                    f"👆 Swiping from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration_ms} milliseconds"
+                    f"👆 Swiping from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration_ms}ms"
                 )
-                result = await tools.swipe(start_x, start_y, end_x, end_y, duration_ms)
-                logger.debug(f"   Result: {result}")
+                await driver.swipe(start_x, start_y, end_x, end_y, duration_ms)
                 # Additional wait after swipe for UI to settle
                 await asyncio.sleep(2)
                 return True
@@ -117,45 +114,36 @@ class MacroPlayer:
                 start_y = action.get("start_y", 0)
                 end_x = action.get("end_x", 0)
                 end_y = action.get("end_y", 0)
-                duration_ms = action.get("duration_ms", 300)
+                duration = action.get("duration", action.get("duration_ms", 300) / 1000.0)
 
                 logger.info(
-                    f"👆 Dragging from ({start_x}, {start_y}) to ({end_x}, {end_y}) in {duration_ms} milliseconds"
+                    f"👆 Dragging from ({start_x}, {start_y}) to ({end_x}, {end_y})"
                 )
-                result = await tools.drag(
-                    start_x, start_y, end_x, end_y, duration_ms / 1000.0
-                )
-                logger.debug(f"   Result: {result}")
+                await driver.drag(start_x, start_y, end_x, end_y, duration)
                 return True
 
             elif action_type == "input_text":
                 text = action.get("text", "")
-
+                clear = action.get("clear", False)
                 logger.info(f"⌨️  Inputting text: '{text}'")
-                result = await tools.input_text(text)
-                logger.debug(f"   Result: {result}")
+                await driver.input_text(text, clear)
                 return True
 
             elif action_type == "key_press":
                 keycode = action.get("keycode", 0)
-                key_name = action.get("key_name", "UNKNOWN")
-
-                logger.info(f"🔘 Pressing key: {key_name} (keycode: {keycode})")
-                result = await tools.press_key(keycode)
-                logger.debug(f"   Result: {result}")
+                logger.info(f"🔘 Pressing key: {keycode}")
+                await driver.press_key(keycode)
                 return True
 
             elif action_type == "back":
                 logger.info("⬅️  Pressing back button")
-                result = await tools.back()
-                logger.debug(f"   Result: {result}")
+                await driver.press_key(4)
                 return True
 
             elif action_type == "wait":
                 duration = action.get("duration", 1.0)
                 logger.info(f"⏳ Waiting for {duration} seconds")
                 await asyncio.sleep(duration)
-                logger.debug(f"   Waited for {duration} seconds")
                 return True
 
             else:

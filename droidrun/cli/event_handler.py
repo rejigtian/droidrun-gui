@@ -21,11 +21,8 @@ from droidrun.agent.codeact.events import (
     FastAgentToolCallEvent,
 )
 from droidrun.agent.common.events import (
-    InputTextActionEvent,
     RecordUIStateEvent,
     ScreenshotEvent,
-    SwipeActionEvent,
-    TapActionEvent,
 )
 from droidrun.agent.droid.events import (
     ExecutorResultEvent,
@@ -212,16 +209,6 @@ class EventHandler:
                 for line in event.code.split("\n")[:5]:
                     if line.strip():
                         logger.debug(f"    {line}", extra={"color": "blue"})
-
-        # ── Macro / action events ───────────────────────────────────
-        elif isinstance(event, TapActionEvent):
-            logger.debug(f"› tap  {event.description}", extra={"color": "white"})
-
-        elif isinstance(event, SwipeActionEvent):
-            logger.debug(f"› swipe  {event.description}", extra={"color": "white"})
-
-        elif isinstance(event, InputTextActionEvent):
-            logger.debug(f"› input  {event.text}", extra={"color": "white"})
 
         # ── Droid coordination events ───────────────────────────────
         elif isinstance(event, FastAgentExecuteEvent):
