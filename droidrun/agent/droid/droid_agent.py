@@ -86,6 +86,7 @@ from droidrun.log_handlers import CLILogHandler, configure_logging
 from droidrun.tools.driver.android import AndroidDriver
 from droidrun.tools.driver.ios import IOSDriver
 from droidrun.tools.driver.recording import RecordingDriver
+from droidrun.tools.driver.stealth import StealthDriver
 from droidrun.tools.filters import ConciseFilter, DetailedFilter
 from droidrun.tools.formatters import IndexedFormatter
 from droidrun.tools.ui.ios_provider import IOSStateProvider
@@ -405,6 +406,11 @@ class DroidAgent(Workflow):
             )
             await driver.connect()
 
+        # Wrap with StealthDriver if stealth mode enabled
+        stealth_enabled = self.config.tools and self.config.tools.stealth
+        if stealth_enabled and not is_ios:
+            driver = StealthDriver(driver)
+
         # Wrap with RecordingDriver if trajectory saving enabled
         if self.config.logging.save_trajectory != "none":
             if not isinstance(driver, RecordingDriver):
@@ -426,6 +432,7 @@ class DroidAgent(Workflow):
                 tree_filter=tree_filter,
                 tree_formatter=tree_formatter,
                 use_normalized=self.config.agent.use_normalized_coordinates,
+                stealth=stealth_enabled,
             )
 
         # ── 3. Build tool registry ────────────────────────────────────

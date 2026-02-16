@@ -11,6 +11,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from droidrun.tools.ui.state import UIState
+from droidrun.tools.ui.stealth_state import StealthUIState
 
 if TYPE_CHECKING:
     from droidrun.tools.driver.base import DeviceDriver
@@ -39,10 +40,12 @@ class AndroidStateProvider(StateProvider):
         tree_filter: "TreeFilter",
         tree_formatter: "TreeFormatter",
         use_normalized: bool = False,
+        stealth: bool = False,
     ) -> None:
         self.tree_filter = tree_filter
         self.tree_formatter = tree_formatter
         self.use_normalized = use_normalized
+        self._ui_cls = StealthUIState if stealth else UIState
 
     async def get_state(self, driver: "DeviceDriver") -> UIState:
         max_retries = 3
@@ -90,7 +93,7 @@ class AndroidStateProvider(StateProvider):
                     )
                 )
 
-                return UIState(
+                return self._ui_cls(
                     elements=elements,
                     formatted_text=formatted_text,
                     focused_text=focused_text,

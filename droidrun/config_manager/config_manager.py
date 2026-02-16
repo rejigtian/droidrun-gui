@@ -167,6 +167,7 @@ class ToolsConfig:
     """Tools configuration."""
 
     disabled_tools: List[str] = field(default_factory=_default_disabled_tools)
+    stealth: bool = False
 
 
 @dataclass
