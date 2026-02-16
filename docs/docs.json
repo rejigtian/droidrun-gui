@@ -16,77 +16,200 @@
   ],
   "integrations": {
     "posthog": {
-        "apiKey": "phc_3BmiVdnS2Wvlm007eHGZLBPwRFCVVWzIZXbB0u3ZH1d",
-        "apiHost": "https://pineapple.droidrun.ai"
+      "apiKey": "phc_3BmiVdnS2Wvlm007eHGZLBPwRFCVVWzIZXbB0u3ZH1d",
+      "apiHost": "https://pineapple.droidrun.ai"
     }
   },
   "navigation": {
-    "tabs": [
+    "versions": [
       {
-        "tab": "Docs",
-        "icon": "book",
-        "groups": [
+        "version": "v4",
+        "tabs": [
           {
-            "group": "Introduction",
-            "pages": [
-              "/v4/overview",
-              "/v4/quickstart"
+            "tab": "Docs",
+            "icon": "book",
+            "groups": [
+              {
+                "group": "Introduction",
+                "pages": [
+                  "/v4/overview",
+                  "/v4/quickstart"
+                ]
+              },
+              {
+                "group": "Features",
+                "pages": [
+                  "/v4/features/structured-output",
+                  "/v4/features/credentials",
+                  "/v4/features/app-cards",
+                  "/v4/features/custom-tools",
+                  "/v4/features/custom-variables",
+                  "/v4/features/tracing",
+                  "/v4/features/telemetry"
+                ]
+              },
+              {
+                "group": "Guides",
+                "pages": [
+                  "/v4/guides/overview",
+                  "/v4/guides/device-setup",
+                  "/v4/guides/cli",
+                  "/v4/guides/docker",
+                  "/v4/guides/migration-v3-to-v4"
+                ]
+              },
+              {
+                "group": "Concepts",
+                "pages": [
+                  "/v4/concepts/architecture",
+                  "/v4/concepts/scripter-agent",
+                  "/v4/concepts/shared-state",
+                  "/v4/concepts/events-and-workflows",
+                  "/v4/concepts/prompts"
+                ]
+              },
+              {
+                "group": "SDK Reference",
+                "pages": [
+                  "/v4/sdk/reference",
+                  "/v4/sdk/droid-agent",
+                  "/v4/sdk/adb-tools",
+                  "/v4/sdk/ios-tools",
+                  "/v4/sdk/base-tools",
+                  "/v4/sdk/configuration"
+                ]
+              }
             ]
           },
           {
-            "group": "Features",
-            "pages": [
-              "/v4/features/structured-output",
-              "/v4/features/credentials",
-              "/v4/features/app-cards",
-              "/v4/features/custom-tools",
-              "/v4/features/custom-variables",
-              "/v4/features/tracing",
-              "/v4/features/telemetry"
-            ]
+            "tab": "Cloud",
+            "icon": "cloud",
+            "href": "https://docs.mobilerun.ai"
           },
           {
-            "group": "Guides",
-            "pages": [
-              "/v4/guides/overview",
-              "/v4/guides/device-setup",
-              "/v4/guides/cli",
-              "/v4/guides/docker",
-              "/v4/guides/migration-v3-to-v4"
-            ]
-          },
-          {
-            "group": "Concepts",
-            "pages": [
-              "/v4/concepts/architecture",
-              "/v4/concepts/scripter-agent",
-              "/v4/concepts/shared-state",
-              "/v4/concepts/events-and-workflows",
-              "/v4/concepts/prompts"
-            ]
-          },
-          {
-            "group": "SDK Reference",
-            "pages": [
-              "/v4/sdk/reference",
-              "/v4/sdk/droid-agent",
-              "/v4/sdk/adb-tools",
-              "/v4/sdk/ios-tools",
-              "/v4/sdk/base-tools",
-              "/v4/sdk/configuration"
-            ]
+            "tab": "GitHub",
+            "icon": "github",
+            "href": "https://github.com/droidrun/droidrun"
           }
         ]
       },
       {
-        "tab": "Cloud",
-        "icon": "cloud",
-        "href": "https://docs.mobilerun.ai"
+        "version": "v5",
+        "tabs": [
+          {
+            "tab": "Docs",
+            "icon": "book",
+            "groups": [
+              {
+                "group": "Introduction",
+                "pages": [
+                  "/v5/overview",
+                  "/v5/quickstart"
+                ]
+              },
+              {
+                "group": "Features",
+                "pages": [
+                  "/v5/features/structured-output",
+                  "/v5/features/credentials",
+                  "/v5/features/app-cards",
+                  "/v5/features/custom-tools",
+                  "/v5/features/custom-variables",
+                  "/v5/features/tracing",
+                  "/v5/features/telemetry"
+                ]
+              },
+              {
+                "group": "Guides",
+                "pages": [
+                  "/v5/guides/overview",
+                  "/v5/guides/device-setup",
+                  "/v5/guides/cli",
+                  "/v5/guides/docker"
+                ]
+              },
+              {
+                "group": "Concepts",
+                "pages": [
+                  "/v5/concepts/architecture",
+                  "/v5/concepts/scripter-agent",
+                  "/v5/concepts/shared-state",
+                  "/v5/concepts/events-and-workflows",
+                  "/v5/concepts/prompts"
+                ]
+              },
+              {
+                "group": "SDK Reference",
+                "pages": [
+                  "/v5/sdk/reference",
+                  "/v5/sdk/droid-agent",
+                  "/v5/sdk/adb-tools",
+                  "/v5/sdk/ios-tools",
+                  "/v5/sdk/base-tools",
+                  "/v5/sdk/configuration"
+                ]
+              }
+            ]
+          },
+          {
+            "tab": "Cloud",
+            "icon": "cloud",
+            "href": "https://docs.mobilerun.ai"
+          },
+          {
+            "tab": "GitHub",
+            "icon": "github",
+            "href": "https://github.com/droidrun/droidrun"
+          }
+        ]
       },
       {
-        "tab": "GitHub",
-        "icon": "github",
-        "href": "https://github.com/droidrun/droidrun"
+        "version": "v3",
+        "tabs": [
+          {
+            "tab": "Docs",
+            "icon": "book",
+            "groups": [
+              {
+                "group": "Introduction",
+                "pages": [
+                  "/v3/overview",
+                  "/v3/quickstart"
+                ]
+              },
+              {
+                "group": "Guides",
+                "pages": [
+                  "/v3/guides/overview",
+                  "/v3/guides/cli",
+                  "/v3/guides/telemetry",
+                  "/v3/guides/openailike",
+                  "/v3/guides/ollama",
+                  "/v3/guides/gemini"
+                ]
+              },
+              {
+                "group": "Concepts",
+                "pages": [
+                  "/v3/concepts/agent",
+                  "/v3/concepts/portal-app",
+                  "/v3/concepts/models",
+                  "/v3/concepts/android-tools"
+                ]
+              }
+            ]
+          },
+          {
+            "tab": "Cloud",
+            "icon": "cloud",
+            "href": "https://docs.mobilerun.ai"
+          },
+          {
+            "tab": "GitHub",
+            "icon": "github",
+            "href": "https://github.com/droidrun/droidrun"
+          }
+        ]
       }
     ]
   },

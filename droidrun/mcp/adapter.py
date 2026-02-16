@@ -8,22 +8,31 @@ if TYPE_CHECKING:
     from droidrun.mcp.client import MCPClientManager
 
 
-def schema_to_arguments(input_schema: dict) -> list[str]:
-    """Extract argument list from JSON Schema."""
+def schema_to_parameters(input_schema: dict) -> dict[str, dict[str, Any]]:
+    """Convert JSON Schema properties to DroidRun parameters format.
+
+    Args:
+        input_schema: JSON Schema with "properties" and "required" fields.
+
+    Returns:
+        Dict mapping param name to {"type": ..., "required": ..., "default": ...}.
+    """
     properties = input_schema.get("properties", {})
     required = set(input_schema.get("required", []))
 
-    arguments: list[str] = []
+    parameters: dict[str, dict[str, Any]] = {}
     for prop_name, prop_info in properties.items():
-        if prop_name in required:
-            arguments.append(prop_name)
-        else:
-            default = prop_info.get("default", "None")
-            if isinstance(default, str):
-                default = f'"{default}"'
-            arguments.append(f"{prop_name}={default}")
+        param: dict[str, Any] = {
+            "type": prop_info.get("type", "string"),
+            "required": prop_name in required,
+        }
+        if "default" in prop_info:
+            param["default"] = prop_info["default"]
+        if "description" in prop_info:
+            param["description"] = prop_info["description"]
+        parameters[prop_name] = param
 
-    return arguments
+    return parameters
 
 
 def mcp_to_droidrun_tools(mcp_manager: "MCPClientManager") -> dict[str, dict[str, Any]]:
@@ -33,7 +42,7 @@ def mcp_to_droidrun_tools(mcp_manager: "MCPClientManager") -> dict[str, dict[str
     for tool_name, tool_info in mcp_manager.tools.items():
         wrapper = _create_tool_wrapper(tool_name, mcp_manager)
         custom_tools[tool_name] = {
-            "arguments": schema_to_arguments(tool_info.input_schema),
+            "parameters": schema_to_parameters(tool_info.input_schema),
             "description": tool_info.description,
             "function": wrapper,
         }
@@ -44,7 +53,7 @@ def mcp_to_droidrun_tools(mcp_manager: "MCPClientManager") -> dict[str, dict[str
 def _create_tool_wrapper(tool_name: str, manager: "MCPClientManager"):
     """Create async wrapper function for an MCP tool."""
 
-    async def mcp_tool_wrapper(*, tools=None, shared_state=None, **kwargs) -> str:
+    async def mcp_tool_wrapper(*, ctx=None, **kwargs) -> str:
         result = await manager.call_tool(tool_name, kwargs)
 
         if hasattr(result, "content") and result.content:

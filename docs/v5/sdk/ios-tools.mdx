@@ -1,0 +1,452 @@
+---
+title: IOSDriver
+---
+
+# IOSDriver API Reference
+
+<a id="droidrun.tools.driver.ios.IOSDriver"></a>
+
+## IOSDriver
+
+```python
+class IOSDriver(DeviceDriver)
+```
+
+iOS device driver communicating via HTTP REST to the iOS Portal app.
+
+**Status**: iOS support is in beta with limited functionality compared to AndroidDriver.
+
+**Key Limitations**:
+- `get_date()` - Not available (returns empty string)
+- `drag()` - Not supported (not in `supported` set)
+- `press_key()` - Only HOME is mapped; BACK and ENTER have no iOS equivalent
+- `input_text()` - `clear` parameter is ignored
+
+<a id="droidrun.tools.driver.ios.IOSDriver.__init__"></a>
+
+#### IOSDriver.\_\_init\_\_
+
+```python
+def __init__(
+    url: str,
+    bundle_identifiers: List[str] | None = None
+) -> None
+```
+
+Initialize the IOSDriver instance.
+
+**Arguments**:
+
+- `url` _str_ - iOS Portal app URL (e.g., "http://192.168.1.100:8080")
+- `bundle_identifiers` _List[str] | None_ - Optional list of custom app bundle identifiers
+
+**Usage:**
+
+```python
+from droidrun.tools.driver import IOSDriver
+
+# Connect to iOS device
+driver = IOSDriver(url="http://192.168.1.100:8080")
+
+# With specific bundle identifiers
+driver = IOSDriver(
+    url="http://192.168.1.100:8080",
+    bundle_identifiers=["com.example.app1", "com.example.app2"]
+)
+```
+
+**Supported methods:**
+
+```python
+IOSDriver.supported = {
+    "tap", "swipe", "input_text", "press_key",
+    "start_app", "screenshot", "get_ui_tree",
+    "list_packages", "get_apps",
+}
+```
+
+**Setup Requirements:**
+
+1. Install Droidrun iOS Portal app on device
+2. Launch Portal app (starts HTTP server)
+3. Connect device and computer to same network
+4. Use displayed URL to initialize IOSDriver
+
+---
+
+## Lifecycle Methods
+
+<a id="droidrun.tools.driver.ios.IOSDriver.connect"></a>
+
+#### IOSDriver.connect
+
+```python
+async def connect() -> None
+```
+
+Create an HTTP client connection to the iOS Portal app.
+
+<a id="droidrun.tools.driver.ios.IOSDriver.ensure_connected"></a>
+
+#### IOSDriver.ensure\_connected
+
+```python
+async def ensure_connected() -> None
+```
+
+Connect if not already connected. Safe to call multiple times.
+
+---
+
+## Input Action Methods
+
+<a id="droidrun.tools.driver.ios.IOSDriver.tap"></a>
+
+#### IOSDriver.tap
+
+```python
+async def tap(x: int, y: int) -> None
+```
+
+Tap at absolute pixel coordinates.
+
+**Arguments**:
+
+- `x` _int_ - X coordinate
+- `y` _int_ - Y coordinate
+
+**Usage:**
+
+```python
+await driver.tap(200, 400)
+```
+
+**Notes:**
+- Stores tap coordinates internally for `input_text()` targeting
+
+<a id="droidrun.tools.driver.ios.IOSDriver.swipe"></a>
+
+#### IOSDriver.swipe
+
+```python
+async def swipe(
+    x1: int,
+    y1: int,
+    x2: int,
+    y2: int,
+    duration_ms: float = 1000,
+) -> None
+```
+
+Perform directional swipe gesture (up, down, left, right).
+
+**Arguments**:
+
+- `x1` _int_ - Starting X coordinate
+- `y1` _int_ - Starting Y coordinate
+- `x2` _int_ - Ending X coordinate
+- `y2` _int_ - Ending Y coordinate
+- `duration_ms` _float_ - Duration in milliseconds (ignored on iOS)
+
+**Usage:**
+
+```python
+# Swipe up (scroll down)
+await driver.swipe(200, 800, 200, 200)
+
+# Swipe left
+await driver.swipe(600, 400, 100, 400)
+```
+
+**Notes:**
+- iOS uses directional swipes, not precise coordinates
+- Direction calculated from coordinate delta (largest axis wins)
+- `duration_ms` parameter is ignored by iOS API
+
+<a id="droidrun.tools.driver.ios.IOSDriver.input_text"></a>
+
+#### IOSDriver.input\_text
+
+```python
+async def input_text(text: str, clear: bool = False) -> bool
+```
+
+Input text into the currently focused element.
+
+**Arguments**:
+
+- `text` _str_ - Text to input (supports Unicode)
+- `clear` _bool_ - Not supported on iOS (ignored)
+
+**Returns**:
+
+- `bool` - True if input succeeded, False otherwise
+
+**Usage:**
+
+```python
+# Tap text field first
+await driver.tap(200, 400)
+
+# Input text
+success = await driver.input_text("Hello World")
+```
+
+**Notes:**
+- Must tap text field before calling this method
+- Uses last tapped coordinates for targeting
+- `clear` parameter is ignored on iOS
+
+<a id="droidrun.tools.driver.ios.IOSDriver.press_key"></a>
+
+#### IOSDriver.press\_key
+
+```python
+async def press_key(keycode: int) -> None
+```
+
+Press a hardware key.
+
+**Supported keycodes:**
+- `3` (Android HOME) maps to iOS HOME button
+
+Unsupported keycodes (BACK=4, ENTER=66, etc.) are silently ignored with a warning log.
+
+**Arguments**:
+
+- `keycode` _int_ - Android-style keycode (translated to iOS internally)
+
+**Usage:**
+
+```python
+await driver.press_key(3)  # Home button
+```
+
+---
+
+## App Management Methods
+
+<a id="droidrun.tools.driver.ios.IOSDriver.start_app"></a>
+
+#### IOSDriver.start\_app
+
+```python
+async def start_app(package: str, activity: str | None = None) -> str
+```
+
+Launch an app by bundle identifier.
+
+**Arguments**:
+
+- `package` _str_ - Bundle identifier (e.g., "com.apple.MobileSMS")
+- `activity` _str | None_ - Ignored on iOS (for API compatibility)
+
+**Returns**:
+
+- `str` - Result message
+
+**Common bundle identifiers:**
+- Messages: `com.apple.MobileSMS`
+- Safari: `com.apple.mobilesafari`
+- Settings: `com.apple.Preferences`
+- Mail: `com.apple.mobilemail`
+- Calendar: `com.apple.mobilecal`
+- Photos: `com.apple.mobileslideshow`
+- Maps: `com.apple.Maps`
+- Contacts: `com.apple.MobileAddressBook`
+
+**Usage:**
+
+```python
+result = await driver.start_app("com.apple.MobileSMS")
+result = await driver.start_app("com.apple.mobilesafari")
+```
+
+<a id="droidrun.tools.driver.ios.IOSDriver.list_packages"></a>
+
+#### IOSDriver.list\_packages
+
+```python
+async def list_packages(include_system: bool = False) -> List[str]
+```
+
+List known bundle identifiers.
+
+**Arguments**:
+
+- `include_system` _bool_ - Include system apps (default: False)
+
+**Returns**:
+
+- `List[str]` - List of bundle identifiers
+
+**Notes:**
+- Returns union of `bundle_identifiers` + system apps (if included)
+- Does not query device for installed apps
+
+<a id="droidrun.tools.driver.ios.IOSDriver.get_apps"></a>
+
+#### IOSDriver.get\_apps
+
+```python
+async def get_apps(include_system: bool = True) -> List[Dict[str, str]]
+```
+
+Return known apps as list of dicts. Since iOS has no app listing endpoint, this returns bundle identifiers as both 'package' and 'label'.
+
+**Arguments**:
+
+- `include_system` _bool_ - Include system apps (default: True)
+
+**Returns**:
+
+- `List[Dict[str, str]]` - List of dicts with 'package' and 'label' keys (both set to bundle identifier)
+
+---
+
+## State and Observation Methods
+
+<a id="droidrun.tools.driver.ios.IOSDriver.screenshot"></a>
+
+#### IOSDriver.screenshot
+
+```python
+async def screenshot(hide_overlay: bool = True) -> bytes
+```
+
+Capture device screen as raw PNG bytes.
+
+**Arguments**:
+
+- `hide_overlay` _bool_ - Unused on iOS (for API compatibility)
+
+**Returns**:
+
+- `bytes` - Raw PNG image data
+
+**Usage:**
+
+```python
+png_bytes = await driver.screenshot()
+with open("screenshot.png", "wb") as f:
+    f.write(png_bytes)
+```
+
+<a id="droidrun.tools.driver.ios.IOSDriver.get_ui_tree"></a>
+
+#### IOSDriver.get\_ui\_tree
+
+```python
+async def get_ui_tree() -> Dict[str, Any]
+```
+
+Return raw iOS accessibility data and phone state.
+
+**Returns**:
+
+Dictionary with:
+- `a11y_raw` - The raw accessibility tree text from the portal
+- `phone_state` - Dict with `currentApp` and `keyboardVisible`
+
+**Usage:**
+
+```python
+tree = await driver.get_ui_tree()
+print(tree["phone_state"]["currentApp"])
+```
+
+<a id="droidrun.tools.driver.ios.IOSDriver.get_date"></a>
+
+#### IOSDriver.get\_date
+
+```python
+async def get_date() -> str
+```
+
+Not available on iOS. Returns an empty string.
+
+---
+
+## Unsupported Methods
+
+The following DeviceDriver methods are **not in `supported`** and will raise `NotImplementedError`:
+
+#### drag()
+Not supported on iOS. Not declared in `supported` set.
+
+#### install\_app()
+Not supported on iOS. Not declared in `supported` set.
+
+---
+
+## Instance Properties
+
+```python
+driver.url                    # iOS Portal URL
+driver.bundle_identifiers     # Custom bundle IDs
+driver.supported              # Set of supported method names
+```
+
+---
+
+## iOS vs Android Differences
+
+| Feature | IOSDriver | AndroidDriver |
+|---------|-----------|---------------|
+| Back button | Not available | Full Android keycodes |
+| Swipe | Direction-based | Coordinate-based |
+| Drag | Not supported | Declared (not yet implemented) |
+| App IDs | Bundle identifiers | Package names |
+| Key codes | HOME only | Full Android keycodes |
+| Connection | HTTP (Portal app) | ADB over USB/TCP |
+| get_date() | Returns empty | Via ADB shell |
+| input_text() clear | Ignored | Supported |
+
+**Setup differences:**
+
+**Android**: USB or `adb connect` + Portal APK
+**iOS**: Portal app + same network + HTTP connection
+
+---
+
+## Example Usage
+
+```python
+import asyncio
+from droidrun.tools.driver import IOSDriver
+
+async def main():
+    # Initialize and connect
+    driver = IOSDriver(url="http://192.168.1.100:8080")
+    await driver.connect()
+
+    # Launch Messages
+    result = await driver.start_app("com.apple.MobileSMS")
+    print(result)
+
+    # Get UI tree
+    tree = await driver.get_ui_tree()
+    print(tree["phone_state"]["currentApp"])
+
+    # Tap at coordinates
+    await driver.tap(200, 400)
+
+    # Input text
+    await driver.input_text("Hello from Droidrun!")
+
+    # Take screenshot
+    png_bytes = await driver.screenshot()
+    with open("screenshot.png", "wb") as f:
+        f.write(png_bytes)
+
+asyncio.run(main())
+```
+
+**Note:** For higher-level interactions with element indexing and structured results, use action functions with `ActionContext` (see [DroidAgent](/v5/sdk/droid-agent)) rather than calling the driver directly.
+
+---
+
+## See Also
+
+- [AndroidDriver](/v5/sdk/adb-tools) - Android device driver with full functionality
+- [DeviceDriver Base Class](/v5/sdk/base-tools) - Base class and architecture reference

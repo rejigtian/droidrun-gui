@@ -39,10 +39,12 @@ class LLMProfile:
 
 
 @dataclass
-class CodeActConfig:
+class FastAgentConfig:
     vision: bool = False
-    system_prompt: str = "config/prompts/codeact/system.jinja2"
-    user_prompt: str = "config/prompts/codeact/user.jinja2"
+    codeact: bool = False
+    parallel_tools: bool = True
+    system_prompt: str = "config/prompts/codeact/tools_system.jinja2"
+    user_prompt: str = "config/prompts/codeact/tools_user.jinja2"
     safe_execution: bool = False
     execution_timeout: float = 50.0
 
@@ -91,17 +93,17 @@ class AgentConfig:
     wait_for_stable_ui: float = 0.3
     use_normalized_coordinates: bool = False
 
-    codeact: CodeActConfig = field(default_factory=CodeActConfig)
+    fast_agent: FastAgentConfig = field(default_factory=FastAgentConfig)
     manager: ManagerConfig = field(default_factory=ManagerConfig)
     executor: ExecutorConfig = field(default_factory=ExecutorConfig)
     scripter: ScripterConfig = field(default_factory=ScripterConfig)
     app_cards: AppCardConfig = field(default_factory=AppCardConfig)
 
-    def get_codeact_system_prompt_path(self) -> str:
-        return str(PathResolver.resolve(self.codeact.system_prompt, must_exist=True))
+    def get_fast_agent_system_prompt_path(self) -> str:
+        return str(PathResolver.resolve(self.fast_agent.system_prompt, must_exist=True))
 
-    def get_codeact_user_prompt_path(self) -> str:
-        return str(PathResolver.resolve(self.codeact.user_prompt, must_exist=True))
+    def get_fast_agent_user_prompt_path(self) -> str:
+        return str(PathResolver.resolve(self.fast_agent.user_prompt, must_exist=True))
 
     def get_manager_system_prompt_path(self) -> str:
         return str(PathResolver.resolve(self.manager.system_prompt, must_exist=True))
@@ -165,6 +167,7 @@ class ToolsConfig:
     """Tools configuration."""
 
     disabled_tools: List[str] = field(default_factory=_default_disabled_tools)
+    stealth: bool = False
 
 
 @dataclass
@@ -212,7 +215,7 @@ class DroidrunConfig:
                 temperature=0.1,
                 kwargs={},
             ),
-            "codeact": LLMProfile(
+            "fast_agent": LLMProfile(
                 provider="GoogleGenAI",
                 model="gemini-2.5-pro",
                 temperature=0.2,
@@ -265,9 +268,9 @@ class DroidrunConfig:
         # Parse agent config with sub-configs
         agent_data = data.get("agent", {})
 
-        codeact_data = agent_data.get("codeact", {})
-        codeact_config = (
-            CodeActConfig(**codeact_data) if codeact_data else CodeActConfig()
+        fast_agent_data = agent_data.get("fast_agent", {})
+        fast_agent_config = (
+            FastAgentConfig(**fast_agent_data) if fast_agent_data else FastAgentConfig()
         )
 
         manager_data = agent_data.get("manager", {})
@@ -300,7 +303,7 @@ class DroidrunConfig:
             use_normalized_coordinates=agent_data.get(
                 "use_normalized_coordinates", False
             ),
-            codeact=codeact_config,
+            fast_agent=fast_agent_config,
             manager=manager_config,
             executor=executor_config,
             scripter=scripter_config,

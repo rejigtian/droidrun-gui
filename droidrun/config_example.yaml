@@ -23,14 +23,22 @@ agent:
   # true = normalized [0-1000] range (resolution-independent)
   use_normalized_coordinates: false
 
-  # CodeAct Agent Configuration
-  codeact:
+  # Fast Agent Configuration
+  fast_agent:
     # Enable vision capabilities (screenshots)
     vision: false
+    # Enable code execution mode (generates and exec() Python code)
+    # false (default) = uses XML tool-calling (safer, no code execution)
+    # true = legacy code generation mode with exec()
+    codeact: false
+    # Allow multiple tool calls in a single response when safe
+    # Reduces round-trips by combining actions that don't depend on screen changes
+    parallel_tools: true
     # System prompt path (relative or absolute)
-    system_prompt: config/prompts/codeact/system.jinja2
+    # Default points to tools agent prompt; legacy codeact prompt used automatically when codeact: true
+    system_prompt: config/prompts/codeact/tools_system.jinja2
     # User prompt path (relative or absolute)
-    user_prompt: config/prompts/codeact/user.jinja2
+    user_prompt: config/prompts/codeact/tools_user.jinja2
     # Enable safe code execution (restricts imports and builtins)
     safe_execution: false
     # Execution timeout per code block (seconds)
@@ -99,8 +107,8 @@ llm_profiles:
     # kwargs:
     #   max_tokens: 4096
       
-  # CodeAct: Generates and executes code actions
-  codeact:
+  # Fast Agent: Direct execution agent (XML tool-calling or code generation)
+  fast_agent:
     provider: GoogleGenAI
     model: models/gemini-2.5-pro
     temperature: 0.2
@@ -181,7 +189,7 @@ logging:
   rich_text: false
 
 # === Safe Execution Settings ===
-# Applied when agent.codeact.safe_execution or agent.scripter.safe_execution is true
+# Applied when agent.fast_agent.safe_execution or agent.scripter.safe_execution is true
 safe_execution:
   # Allow all imports (ignores allowed_modules, respects blocked_modules)
   allow_all_imports: true

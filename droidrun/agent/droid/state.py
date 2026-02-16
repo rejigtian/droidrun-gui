@@ -1,5 +1,10 @@
+from __future__ import annotations
+
+from typing import Dict, List, Optional
+
 from pydantic import BaseModel, ConfigDict, Field
-from typing import List, Dict
+
+from droidrun.telemetry import PackageVisitEvent, capture
 
 
 class DroidAgentState(BaseModel):
@@ -51,7 +56,9 @@ class DroidAgentState(BaseModel):
     # ========================================================================
     plan: str = ""  # Current plan
     current_subgoal: str = ""  # Current subgoal for Executor
-    manager_answer: str = ""  # Final answer when complete
+    answer: str = (
+        ""  # Final answer (used by both manager completion and complete() tool)
+    )
 
     # ========================================================================
     # Action Tracking
@@ -64,9 +71,18 @@ class DroidAgentState(BaseModel):
     last_summary: str = ""
 
     # ========================================================================
-    # Memory (append-only information storage)
+    # Memory
     # ========================================================================
-    memory: str = ""
+    manager_memory: str = ""  # Manager's planning notes (append-only string)
+    fast_memory: List[str] = Field(
+        default_factory=list
+    )  # FastAgent/CodeAct remember() items
+
+    # ========================================================================
+    # Completion State (set by complete() tool, checked by FastAgent/CodeAct)
+    # ========================================================================
+    finished: bool = False
+    success: Optional[bool] = None
 
     # ========================================================================
     # Message History (for stateful agents - list of dicts)
@@ -99,32 +115,55 @@ class DroidAgentState(BaseModel):
     custom_variables: Dict = Field(default_factory=dict)
     output_dir: str = ""
 
+    # ========================================================================
+    # Methods for action functions
+    # ========================================================================
+
+    async def remember(self, information: str) -> str:
+        """Store information in fast_memory for FastAgent/CodeAct context."""
+        if (
+            not information
+            or not isinstance(information, str)
+            or not information.strip()
+        ):
+            return "Failed to remember: please provide valid information."
+        self.fast_memory.append(information.strip())
+        if len(self.fast_memory) > 10:
+            self.fast_memory = self.fast_memory[-10:]
+        return f"Remembered: {information}"
+
+    async def complete(
+        self, success: bool, reason: str = "", message: str = ""
+    ) -> None:
+        """Mark task as finished.
+
+        Accepts both ``reason`` and ``message`` params — FastAgent XML
+        prompt uses ``message``, action signature uses ``reason``.
+        """
+        answer = reason or message
+        if not success and not answer:
+            raise ValueError("Reason for failure is required if success is False.")
+        self.finished = True
+        self.success = success
+        self.answer = answer or "Task completed successfully."
+
     def update_current_app(self, package_name: str, activity_name: str):
         """
         Update package and activity together, capturing telemetry event only once.
-
-        This prevents duplicate PackageVisitEvents when both package and activity change.
         """
-        # Check if either changed
         package_changed = package_name != self.current_package_name
         activity_changed = activity_name != self.current_activity_name
 
         if not (package_changed or activity_changed):
-            return  # No change, nothing to do
+            return
 
-        # Update tracking sets
         if package_changed and package_name:
             self.visited_packages.add(package_name)
         if activity_changed and activity_name:
             self.visited_activities.add(activity_name)
 
-        # Update values
         self.current_package_name = package_name
         self.current_activity_name = activity_name
-
-        # Capture telemetry event for any change
-        # This ensures we track when apps close or transitions to empty state occur
-        from droidrun.telemetry import PackageVisitEvent, capture
 
         capture(
             PackageVisitEvent(

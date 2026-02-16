@@ -6,12 +6,11 @@ import json
 import logging
 
 from workflows import Context, Workflow, step
-
-logger = logging.getLogger("droidrun")
 from workflows.events import StartEvent, StopEvent
 
 from droidrun.agent.utils.inference import acomplete_with_retries
-from droidrun.tools import Tools
+
+logger = logging.getLogger("droidrun")
 
 
 class AppStarter(Workflow):
@@ -22,14 +21,12 @@ class AppStarter(Workflow):
     to an installed app's package name, then opens it.
     """
 
-    def __init__(
-        self, tools: Tools, llm, timeout: int = 60, stream: bool = False, **kwargs
-    ):
+    def __init__(self, tools, llm, timeout: int = 60, stream: bool = False, **kwargs):
         """
         Initialize the OpenAppWorkflow.
 
         Args:
-            tools: An instance of Tools (e.g., AdbTools) to interact with the device
+            tools: A Tools instance or DeviceDriver with get_apps()/start_app()
             llm: An LLM instance (e.g., OpenAI) to determine which app to open
             timeout: Workflow timeout in seconds (default: 60)
             stream: If True, stream LLM response to console in real-time
@@ -120,10 +117,11 @@ async def main():
     """
     from llama_index.llms.openai import OpenAI
 
-    from droidrun.tools import AdbTools
+    from droidrun.tools.driver.android import AndroidDriver
 
-    # Initialize tools with device serial (None for default device)
-    tools = AdbTools(serial=None)
+    # Initialize driver with device serial (None for default device)
+    tools = AndroidDriver(serial=None)
+    await tools.connect()
 
     # Initialize LLM
     llm = OpenAI(model="gpt-4o-mini")

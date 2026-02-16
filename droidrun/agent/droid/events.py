@@ -11,11 +11,11 @@ from llama_index.core.workflow import Event, StopEvent
 from pydantic import BaseModel
 
 
-class CodeActExecuteEvent(Event):
+class FastAgentExecuteEvent(Event):
     instruction: str
 
 
-class CodeActResultEvent(Event):
+class FastAgentResultEvent(Event):
     success: bool
     reason: str
     instruction: str
@@ -43,7 +43,7 @@ class ManagerPlanEvent(Event):
     plan: str
     current_subgoal: str
     thought: str
-    manager_answer: str = ""
+    answer: str = ""
     success: Optional[bool] = None  # True/False if complete, None if in progress
 
 

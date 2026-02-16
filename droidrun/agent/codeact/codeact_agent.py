@@ -27,16 +27,21 @@ from droidrun.agent.utils.executer import ExecuterState, SimpleCodeExecutor
 from droidrun.agent.utils.inference import acall_with_retries
 from droidrun.agent.utils.prompt_resolver import PromptResolver
 from droidrun.agent.utils.tracing_setup import record_langfuse_screenshot
-from droidrun.agent.utils.signatures import (
-    ATOMIC_ACTION_SIGNATURES,
-    build_custom_tool_descriptions,
-)
 from droidrun.config_manager.config_manager import AgentConfig, TracingConfig
+from droidrun.config_manager.path_resolver import PathResolver
 from droidrun.config_manager.prompt_loader import PromptLoader
-from droidrun.tools import Tools
+
+# Legacy codeact prompt paths (used when code_exec=true but config points to tools defaults)
+_LEGACY_SYSTEM_PROMPT = "config/prompts/codeact/system.jinja2"
+_LEGACY_USER_PROMPT = "config/prompts/codeact/user.jinja2"
+_TOOLS_SYSTEM_PROMPT = "config/prompts/codeact/tools_system.jinja2"
+_TOOLS_USER_PROMPT = "config/prompts/codeact/tools_user.jinja2"
 
 if TYPE_CHECKING:
+    from droidrun.agent.action_context import ActionContext
     from droidrun.agent.droid import DroidAgentState
+    from droidrun.agent.tool_registry import ToolRegistry
+    from droidrun.tools.ui.provider import StateProvider
 
 logger = logging.getLogger("droidrun")
 
@@ -53,9 +58,10 @@ class CodeActAgent(Workflow):
         self,
         llm: LLM,
         agent_config: AgentConfig,
-        tools_instance: Tools,
-        custom_tools: dict = None,
-        atomic_tools: dict = None,
+        registry: "ToolRegistry",
+        action_ctx: "ActionContext",
+        state_provider: "StateProvider",
+        save_trajectory: str = "none",
         debug: bool = False,
         shared_state: Optional["DroidAgentState"] = None,
         safe_execution_config=None,
@@ -70,11 +76,14 @@ class CodeActAgent(Workflow):
 
         self.llm = llm
         self.agent_config = agent_config
-        self.config = agent_config.codeact
+        self.config = agent_config.fast_agent
         self.max_steps = agent_config.max_steps
-        self.vision = agent_config.codeact.vision
+        self.vision = agent_config.fast_agent.vision
         self.debug = debug
-        self.tools = tools_instance
+        self.registry = registry
+        self.action_ctx = action_ctx
+        self.state_provider = state_provider
+        self.save_trajectory = save_trajectory
         self.shared_state = shared_state
         self.output_model = output_model
         self.prompt_resolver = prompt_resolver or PromptResolver()
@@ -84,46 +93,26 @@ class CodeActAgent(Workflow):
         self.code_exec_counter = 0
         self.remembered_info: list[str] | None = None
 
-        # Build tool list from atomic + custom tools
-        if atomic_tools is None:
-            atomic_tools = ATOMIC_ACTION_SIGNATURES
-
-        merged_signatures = {**atomic_tools, **(custom_tools or {})}
-
+        # Build tool_list for code executor from registry
+        # Each tool is wrapped to pass ctx automatically
         self.tool_list = {}
-        for action_name, signature in merged_signatures.items():
-            func = signature["function"]
+        for tool_name, entry in self.registry.tools.items():
+            func = entry.fn
             if inspect.iscoroutinefunction(func):
 
-                async def async_wrapper(
-                    *args, f=func, ti=tools_instance, ss=shared_state, **kwargs
-                ):
-                    return await f(*args, tools=ti, shared_state=ss, **kwargs)
+                async def async_wrapper(*a, f=func, ac=action_ctx, **kw):
+                    return await f(*a, ctx=ac, **kw)
 
-                self.tool_list[action_name] = async_wrapper
+                self.tool_list[tool_name] = async_wrapper
             else:
 
-                def sync_wrapper(
-                    *args, f=func, ti=tools_instance, ss=shared_state, **kwargs
-                ):
-                    return f(*args, tools=ti, shared_state=ss, **kwargs)
+                def sync_wrapper(*a, f=func, ac=action_ctx, **kw):
+                    return f(*a, ctx=ac, **kw)
 
-                self.tool_list[action_name] = sync_wrapper
-
-        self.tool_list["remember"] = tools_instance.remember
-        self.tool_list["complete"] = tools_instance.complete
+                self.tool_list[tool_name] = sync_wrapper
 
         # Build tool descriptions
-        self.tool_descriptions = build_custom_tool_descriptions(atomic_tools)
-        custom_descriptions = build_custom_tool_descriptions(custom_tools or {})
-        if custom_descriptions:
-            self.tool_descriptions += "\n" + custom_descriptions
-        self.tool_descriptions += (
-            "\n- remember(information: str): Remember information for later use"
-        )
-        self.tool_descriptions += (
-            "\n- complete(success: bool, reason: str): Mark task as complete"
-        )
+        self.tool_descriptions = self.registry.get_tool_descriptions_text()
 
         self._available_secrets = []
         self._output_schema = None
@@ -166,29 +155,33 @@ class CodeActAgent(Workflow):
         template_context = {
             "tool_descriptions": self.tool_descriptions,
             "available_secrets": self._available_secrets,
-            "available_tools": set(self.tool_list.keys()),
+            "available_tools": set(self.registry.tools.keys()),
             "variables": (
                 self.shared_state.custom_variables if self.shared_state else {}
             ),
             "output_schema": self._output_schema,
         }
 
-        custom_system_prompt = self.prompt_resolver.get_prompt("codeact_system")
+        custom_system_prompt = self.prompt_resolver.get_prompt("fast_agent_system")
         if custom_system_prompt:
             system_text = PromptLoader.render_template(
                 custom_system_prompt,
                 template_context,
             )
         else:
+            # If config still points to tools template, use legacy codeact template
+            prompt_path = self.agent_config.fast_agent.system_prompt
+            if prompt_path == _TOOLS_SYSTEM_PROMPT:
+                prompt_path = _LEGACY_SYSTEM_PROMPT
             system_text = await PromptLoader.load_prompt(
-                self.agent_config.get_codeact_system_prompt_path(),
+                str(PathResolver.resolve(prompt_path, must_exist=True)),
                 template_context,
             )
         return {"role": "system", "content": [{"text": system_text}]}
 
     async def _build_user_prompt(self, goal: str) -> dict:
         """Build initial user prompt message."""
-        custom_user_prompt = self.prompt_resolver.get_prompt("codeact_user")
+        custom_user_prompt = self.prompt_resolver.get_prompt("fast_agent_user")
         if custom_user_prompt:
             user_text = PromptLoader.render_template(
                 custom_user_prompt,
@@ -200,8 +193,12 @@ class CodeActAgent(Workflow):
                 },
             )
         else:
+            # If config still points to tools template, use legacy codeact template
+            prompt_path = self.agent_config.fast_agent.user_prompt
+            if prompt_path == _TOOLS_USER_PROMPT:
+                prompt_path = _LEGACY_USER_PROMPT
             user_text = await PromptLoader.load_prompt(
-                self.agent_config.get_codeact_user_prompt_path(),
+                str(PathResolver.resolve(prompt_path, must_exist=True)),
                 {
                     "goal": goal,
                     "variables": (
@@ -214,12 +211,13 @@ class CodeActAgent(Workflow):
     @step
     async def prepare_chat(self, ctx: Context, ev: StartEvent) -> CodeActInputEvent:
         """Initialize message history with goal."""
-        self.tools._set_context(ctx)
         logger.debug("Preparing chat for task execution...")
 
         # Get available secrets
-        if hasattr(self.tools, "credential_manager") and self.tools.credential_manager:
-            self._available_secrets = await self.tools.credential_manager.get_keys()
+        if self.action_ctx and self.action_ctx.credential_manager:
+            self._available_secrets = (
+                await self.action_ctx.credential_manager.get_keys()
+            )
 
         # Build system prompt (lazy load)
         if self.system_prompt is None:
@@ -254,8 +252,8 @@ class CodeActAgent(Workflow):
         """Get device state, call LLM, return response."""
         ctx.write_event_to_stream(ev)
 
-        # Check max steps
-        if self.shared_state.step_number + 1 > self.max_steps:
+        # Check then bump step counter
+        if self.shared_state.step_number >= self.max_steps:
             event = CodeActEndEvent(
                 success=False,
                 reason=f"Reached max step count of {self.max_steps} steps",
@@ -264,23 +262,14 @@ class CodeActAgent(Workflow):
             ctx.write_event_to_stream(event)
             return event
 
-        logger.info(f"🔄 Step {self.shared_state.step_number + 1}/{self.max_steps}")
+        self.shared_state.step_number += 1
+        logger.info(f"🔄 Step {self.shared_state.step_number}/{self.max_steps}")
 
         # Capture screenshot if needed
         screenshot = None
-        if self.vision or (
-            hasattr(self.tools, "save_trajectories")
-            and self.tools.save_trajectories != "none"
-        ):
+        if self.vision or self.save_trajectory != "none":
             try:
-                result = await self.tools.take_screenshot()
-                if isinstance(result, tuple):
-                    success, screenshot = result
-                    if not success:
-                        logger.warning("Screenshot capture failed")
-                        screenshot = None
-                else:
-                    screenshot = result
+                screenshot = await self.action_ctx.driver.screenshot()
 
                 if screenshot:
                     ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
@@ -301,28 +290,27 @@ class CodeActAgent(Workflow):
 
         # Get device state
         try:
-            formatted_text, focused_text, a11y_tree, phone_state = (
-                await self.tools.get_state()
-            )
+            ui_state = await self.state_provider.get_state(self.action_ctx.driver)
+            self.action_ctx.ui = ui_state
 
             # Update shared state
-            self.shared_state.formatted_device_state = formatted_text
-            self.shared_state.focused_text = focused_text
-            self.shared_state.a11y_tree = a11y_tree
-            self.shared_state.phone_state = phone_state
+            self.shared_state.formatted_device_state = ui_state.formatted_text
+            self.shared_state.focused_text = ui_state.focused_text
+            self.shared_state.a11y_tree = ui_state.elements
+            self.shared_state.phone_state = ui_state.phone_state
 
             # Extract and store package/app name (using unified update method)
             self.shared_state.update_current_app(
-                package_name=phone_state.get("packageName", "Unknown"),
-                activity_name=phone_state.get("currentApp", "Unknown"),
+                package_name=ui_state.phone_state.get("packageName", "Unknown"),
+                activity_name=ui_state.phone_state.get("currentApp", "Unknown"),
             )
 
             # Stream formatted state for trajectory
-            ctx.write_event_to_stream(RecordUIStateEvent(ui_state=a11y_tree))
+            ctx.write_event_to_stream(RecordUIStateEvent(ui_state=ui_state.elements))
 
             # Add device state to last user message
             self.shared_state.message_history[-1]["content"].append(
-                {"text": f"\n{formatted_text}\n"}
+                {"text": f"\n{ui_state.formatted_text}\n"}
             )
 
         except Exception as e:
@@ -372,7 +360,6 @@ class CodeActAgent(Workflow):
         self.shared_state.message_history.append(
             {"role": "assistant", "content": [{"text": response_text}]}
         )
-        self.shared_state.step_number += 1
 
         # Extract thought and code
         code, thought = extract_code_and_thought(response_text)
@@ -392,9 +379,6 @@ class CodeActAgent(Workflow):
         if not ev.thought:
             logger.warning("LLM provided code without thoughts.")
             # Add reminder to get thoughts
-            goal = self.shared_state.message_history[0]["content"][0].get("text", "")[
-                :200
-            ]
             no_thoughts_text = (
                 "Your previous response provided code without explaining your reasoning first. "
                 "Remember to always describe your thought process and plan *before* providing the code block.\n\n"
@@ -443,19 +427,21 @@ class CodeActAgent(Workflow):
             await asyncio.sleep(self.agent_config.after_sleep_action)
 
             # Check if complete() was called
-            if self.tools.finished:
+            if self.shared_state.finished:
                 logger.debug("✅ Task marked as complete via complete() function")
 
                 # Validate completion state
                 success = (
-                    self.tools.success if self.tools.success is not None else False
+                    self.shared_state.success
+                    if self.shared_state.success is not None
+                    else False
                 )
                 reason = (
-                    self.tools.reason
-                    if self.tools.reason
+                    self.shared_state.answer
+                    if self.shared_state.answer
                     else "Task completed without reason"
                 )
-                self.tools.finished = False
+                self.shared_state.finished = False
 
                 event = CodeActEndEvent(
                     success=success,
@@ -466,7 +452,7 @@ class CodeActAgent(Workflow):
                 return event
 
             # Update remembered info
-            self.remembered_info = self.tools.memory
+            self.remembered_info = self.shared_state.fast_memory
 
             event = CodeActOutputEvent(output=str(result))
             ctx.write_event_to_stream(event)
@@ -498,7 +484,7 @@ class CodeActAgent(Workflow):
 
     @step
     async def finalize(self, ev: CodeActEndEvent, ctx: Context) -> StopEvent:
-        self.tools.finished = False
+        self.shared_state.finished = False
         ctx.write_event_to_stream(ev)
 
         return StopEvent(

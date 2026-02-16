@@ -69,7 +69,7 @@ class SettingsScreen(ModalScreen[SettingsData | None]):
             agent_prompts=agent.get("agent_prompts", {}),
             manager_vision=agent["manager_vision"],
             executor_vision=agent["executor_vision"],
-            codeact_vision=agent["codeact_vision"],
+            fast_agent_vision=agent["fast_agent_vision"],
             max_steps=max_steps,
             use_tcp=advanced["use_tcp"],
             debug=advanced["debug"],

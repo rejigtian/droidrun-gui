@@ -1,5 +1,5 @@
 """iOS tools."""
 
-from .ios import IOSTools
+from droidrun.tools.driver.ios import IOSDriver
 
-__all__ = ["IOSTools"]
+__all__ = ["IOSDriver"]

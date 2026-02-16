@@ -48,7 +48,7 @@ _current_agent: ContextVar[Optional["DroidAgent"]] = ContextVar(
 _root_span_context: ContextVar[Optional[Context]] = ContextVar(
     "_root_span_context", default=None
 )
-# Track last active step span (CodeAct/Manager/Executor) to parent screenshots
+# Track last active step span (FastAgent/CodeAct/Manager/Executor) to parent screenshots
 _last_step_span_context: ContextVar[Optional[Context]] = ContextVar(
     "_last_step_span_context", default=None
 )
@@ -197,7 +197,9 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
             vision_state = {
                 "manager": getattr(self.agent.config.agent.manager, "vision", False),
                 "executor": getattr(self.agent.config.agent.executor, "vision", False),
-                "codeact": getattr(self.agent.config.agent.codeact, "vision", False),
+                "fast_agent": getattr(
+                    self.agent.config.agent.fast_agent, "vision", False
+                ),
             }
             input_data["vision_enabled"] = any(vision_state.values())
             input_data["vision"] = vision_state
@@ -209,8 +211,8 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
                 if self.agent.config.agent.scripter.enabled:
                     llm_attrs.append("scripter_llm")
             else:
-                # Direct mode uses codeact
-                llm_attrs = ["codeact_llm"]
+                # Direct mode uses fast_agent
+                llm_attrs = ["fast_agent_llm"]
 
             # Add helper LLMs
             llm_attrs.extend(["text_manipulator_llm", "app_opener_llm"])
@@ -442,30 +444,38 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
 
             elif span.name in (
                 "ManagerAgent.run",
+                "StatelessManagerAgent.run",
                 "CodeActAgent.run",
+                "FastAgent.run",
                 "ExecutorAgent.run",
             ):
                 set_last_step_span_context(span)
                 memory_size = (
-                    len(self.agent.shared_state.memory)
-                    if self.agent.shared_state.memory
+                    len(self.agent.shared_state.manager_memory)
+                    if self.agent.shared_state.manager_memory
                     else 0
                 )
                 message_history_count = len(self.agent.shared_state.message_history) + 1
 
-                span._attributes["langfuse.observation.input"] = json.dumps(
-                    {
-                        "memory_size": memory_size,
-                        "message_history_count": message_history_count,
-                    }
-                )
+                input_data = {
+                    "memory_size": memory_size,
+                    "message_history_count": message_history_count,
+                }
+
+                if span.name == "ExecutorAgent.run":
+                    input_data["subgoal"] = (
+                        self.agent.shared_state.current_subgoal or "Unknown"
+                    )
+
+                if span.name in ("FastAgent.run", "CodeActAgent.run"):
+                    input_data["fast_memory_count"] = len(
+                        self.agent.shared_state.fast_memory
+                    )
+
+                span._attributes["langfuse.observation.input"] = json.dumps(input_data)
 
                 if self.agent.shared_state.error_flag_plan:
                     span._attributes["langfuse.trace.tags"] = ["error_recovery"]
-
-            elif span.name == "ExecutorAgent.run":
-                subgoal = self.agent.shared_state.current_subgoal or "Unknown"
-                span._attributes["langfuse.observation.input"] = subgoal
 
         except Exception as e:
             logger.error(f"Error injecting metadata in on_start: {e}")
@@ -489,7 +499,14 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
                     "output.value"
                 ]
                 del span._attributes["output.value"]
-            if span.name in ("DroidAgent.run", "ManagerAgent.run", "ExecutorAgent.run"):
+            if span.name in (
+                "DroidAgent.run",
+                "ManagerAgent.run",
+                "StatelessManagerAgent.run",
+                "ExecutorAgent.run",
+                "FastAgent.run",
+                "CodeActAgent.run",
+            ):
                 if "input.value" in span._attributes:
                     del span._attributes["input.value"]
             elif span.name.endswith(

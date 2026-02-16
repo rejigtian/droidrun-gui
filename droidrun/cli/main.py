@@ -96,7 +96,7 @@ async def run_command(
     vision: bool | None = None,
     manager_vision: bool | None = None,
     executor_vision: bool | None = None,
-    codeact_vision: bool | None = None,
+    fast_agent_vision: bool | None = None,
     reasoning: bool | None = None,
     stream: bool | None = None,
     tracing: bool | None = None,
@@ -148,7 +148,7 @@ async def run_command(
             # --vision flag overrides all agents
             config.agent.manager.vision = vision
             config.agent.executor.vision = vision
-            config.agent.codeact.vision = vision
+            config.agent.fast_agent.vision = vision
             logger.debug(f"CLI override: vision={vision} (all agents)")
         else:
             # Apply individual agent vision overrides
@@ -156,8 +156,8 @@ async def run_command(
                 config.agent.manager.vision = manager_vision
             if executor_vision is not None:
                 config.agent.executor.vision = executor_vision
-            if codeact_vision is not None:
-                config.agent.codeact.vision = codeact_vision
+            if fast_agent_vision is not None:
+                config.agent.fast_agent.vision = fast_agent_vision
 
         # Agent overrides
         if steps is not None:
@@ -197,7 +197,7 @@ async def run_command(
         logger.info(f"🤖 Agent mode: {mode}")
         logger.info(
             f"👁️  Vision settings: Manager={config.agent.manager.vision}, "
-            f"Executor={config.agent.executor.vision}, CodeAct={config.agent.codeact.vision}"
+            f"Executor={config.agent.executor.vision}, FastAgent={config.agent.fast_agent.vision}"
         )
 
         if config.tracing.enabled:
@@ -770,7 +770,7 @@ async def test(
             # --vision flag overrides all agents
             config.agent.manager.vision = vision
             config.agent.executor.vision = vision
-            config.agent.codeact.vision = vision
+            config.agent.fast_agent.vision = vision
             logger.debug(f"CLI override: vision={vision} (all agents)")
 
         # Agent overrides
@@ -809,7 +809,7 @@ async def test(
         logger.info(f"🤖 Agent mode: {mode}")
         logger.info(
             f"👁️  Vision settings: Manager={config.agent.manager.vision}, "
-            f"Executor={config.agent.executor.vision}, CodeAct={config.agent.codeact.vision}"
+            f"Executor={config.agent.executor.vision}, FastAgent={config.agent.fast_agent.vision}"
         )
 
         if config.tracing.enabled:

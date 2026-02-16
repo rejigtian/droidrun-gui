@@ -32,9 +32,9 @@ class AgentTab(VerticalGroup):
                 )
 
             with HorizontalGroup(classes="field-row"):
-                yield Label("CodeAct", classes="field-label")
+                yield Label("Fast Agent", classes="field-label")
                 yield BoolToggle(
-                    value=self.settings.codeact_vision, id="vision-codeact"
+                    value=self.settings.fast_agent_vision, id="vision-fast-agent"
                 )
 
         with Section("Steps"):
@@ -61,7 +61,7 @@ class AgentTab(VerticalGroup):
         return {
             "manager_vision": self.query_one("#vision-manager", BoolToggle).value,
             "executor_vision": self.query_one("#vision-executor", BoolToggle).value,
-            "codeact_vision": self.query_one("#vision-codeact", BoolToggle).value,
+            "fast_agent_vision": self.query_one("#vision-fast-agent", BoolToggle).value,
             "max_steps": self.query_one("#max-steps", Input).value.strip(),
             "agent_prompts": {
                 role: self.query_one(f"#prompt-{role}", Input).value.strip()
