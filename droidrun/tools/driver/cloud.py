@@ -9,6 +9,8 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional
 
+from mobilerun import AsyncMobilerun
+
 from droidrun.tools.driver.base import DeviceDriver
 
 logger = logging.getLogger("droidrun")
@@ -42,8 +44,6 @@ class CloudDriver(DeviceDriver):
         base_url: str = "https://api.mobilerun.com/v1",
         user_id: str | None = None,
     ) -> None:
-        from mobilerun import AsyncMobilerun
-
         self.device_id = device_id
         self.display_id = display_id
 
