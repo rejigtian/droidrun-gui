@@ -1,6 +1,6 @@
 [project]
 name = "droidrun"
-version = "0.4.26"
+version = "0.5.0.dev1"
 description = "A framework for controlling Android devices through LLM agents"
 authors = [{ name = "Niels Schmidt", email = "niels.schmidt@droidrun.ai" }]
 dependencies = [
@@ -169,9 +169,6 @@ contents = ["droidrun.tools.ios.IOSTools.*"]
 title = "CloudTools"
 name = "cloud-tools"
 contents = ["droidrun.tools.cloud.MobileRunTools.*"]
-
-[tool.uv.sources]
-mobilerun-sdk = { git = "ssh://git@github.com/droidrun/mobilerun-sdk-python.git", branch = "main" }
 
 [dependency-groups]
 dev = [
