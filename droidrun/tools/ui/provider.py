@@ -49,12 +49,13 @@ class AndroidStateProvider(StateProvider):
         tree_formatter: "TreeFormatter",
         use_normalized: bool = False,
         stealth: bool = False,
+        ui_cls: "type[UIState] | None" = None,
     ) -> None:
         super().__init__(driver)
         self.tree_filter = tree_filter
         self.tree_formatter = tree_formatter
         self.use_normalized = use_normalized
-        self._ui_cls = StealthUIState if stealth else UIState
+        self._ui_cls = ui_cls or (StealthUIState if stealth else UIState)
 
     async def get_state(self) -> UIState:
         max_retries = 3
