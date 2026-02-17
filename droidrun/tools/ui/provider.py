@@ -26,7 +26,10 @@ class StateProvider:
 
     supported: set[str] = set()
 
-    async def get_state(self, driver: "DeviceDriver") -> UIState:
+    def __init__(self, driver: "DeviceDriver") -> None:
+        self.driver = driver
+
+    async def get_state(self) -> UIState:
         raise NotImplementedError
 
 
@@ -41,17 +44,19 @@ class AndroidStateProvider(StateProvider):
 
     def __init__(
         self,
+        driver: "DeviceDriver",
         tree_filter: "TreeFilter",
         tree_formatter: "TreeFormatter",
         use_normalized: bool = False,
         stealth: bool = False,
     ) -> None:
+        super().__init__(driver)
         self.tree_filter = tree_filter
         self.tree_formatter = tree_formatter
         self.use_normalized = use_normalized
         self._ui_cls = StealthUIState if stealth else UIState
 
-    async def get_state(self, driver: "DeviceDriver") -> UIState:
+    async def get_state(self) -> UIState:
         max_retries = 3
         last_error = None
 
@@ -59,7 +64,7 @@ class AndroidStateProvider(StateProvider):
             try:
                 logger.debug(f"Getting state (attempt {attempt + 1}/{max_retries})")
 
-                combined_data = await driver.get_ui_tree()
+                combined_data = await self.driver.get_ui_tree()
 
                 if "error" in combined_data:
                     raise Exception(

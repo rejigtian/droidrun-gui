@@ -176,7 +176,7 @@ class StatelessManagerAgent(Workflow):
     async def prepare_context(
         self, ctx: Context, ev: StartEvent
     ) -> ManagerContextEvent:
-        ui_state = await self.state_provider.get_state(self.action_ctx.driver)
+        ui_state = await self.state_provider.get_state()
         self.action_ctx.ui = ui_state
 
         self.shared_state.previous_formatted_device_state = (

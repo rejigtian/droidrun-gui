@@ -377,7 +377,7 @@ class ManagerAgent(Workflow):
         logger.debug("💬 Preparing manager context...")
 
         # Get and format device state
-        ui_state = await self.state_provider.get_state(self.action_ctx.driver)
+        ui_state = await self.state_provider.get_state()
         self.action_ctx.ui = ui_state
 
         # Update shared state (previous ← current, current ← new)

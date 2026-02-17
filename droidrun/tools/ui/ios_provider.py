@@ -48,12 +48,13 @@ class IOSStateProvider(StateProvider):
 
     supported = {"element_index", "convert_point"}
 
-    def __init__(self, use_normalized: bool = False) -> None:
+    def __init__(self, driver: DeviceDriver, use_normalized: bool = False) -> None:
+        super().__init__(driver)
         # TODO: normalized coordinates untested on iOS
         self.use_normalized = use_normalized
 
-    async def get_state(self, driver: DeviceDriver) -> UIState:
-        raw = await driver.get_ui_tree()
+    async def get_state(self) -> UIState:
+        raw = await self.driver.get_ui_tree()
         a11y_text = raw.get("a11y_raw", "")
         phone_state = raw.get("phone_state", {})
 

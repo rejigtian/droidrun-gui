@@ -109,7 +109,7 @@ async def screenshot_and_count(*, ctx, **kwargs) -> str:
     screenshot = await ctx.driver.screenshot()
 
     # Get UI state via the state provider
-    ui_state = await ctx.state_provider.get_state(ctx.driver)
+    ui_state = await ctx.state_provider.get_state()
     element_count = len(ui_state.elements) if ui_state else 0
 
     return f"Screenshot taken. Found {element_count} UI elements"

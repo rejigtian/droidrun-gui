@@ -430,12 +430,14 @@ class DroidAgent(Workflow):
             self.state_provider = self._injected_state_provider
         elif is_ios:
             self.state_provider = IOSStateProvider(
+                driver,
                 use_normalized=self.config.agent.use_normalized_coordinates,
             )
         else:
             tree_filter = ConciseFilter() if vision_enabled else DetailedFilter()
             tree_formatter = IndexedFormatter()
             self.state_provider = AndroidStateProvider(
+                driver,
                 tree_filter=tree_filter,
                 tree_formatter=tree_formatter,
                 use_normalized=self.config.agent.use_normalized_coordinates,

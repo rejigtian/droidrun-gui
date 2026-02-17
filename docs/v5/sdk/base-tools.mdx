@@ -99,7 +99,8 @@ All DeviceDriver implementations may provide these methods (check `supported` se
 
 ```python
 class StateProvider:
-    async def get_state(self, driver: DeviceDriver) -> UIState: ...
+    def __init__(self, driver: DeviceDriver): ...
+    async def get_state(self) -> UIState: ...
 ```
 
 Base class for state providers. Subclass to support different platforms.
@@ -298,8 +299,8 @@ async def my_action(param: str, *, ctx: ActionContext) -> ActionResult:
 from droidrun.tools import AndroidStateProvider, AndroidDriver
 
 # StateProvider handles fetching + parsing + retries
-provider = AndroidStateProvider(tree_filter=my_filter, tree_formatter=my_formatter)
-ui_state = await provider.get_state(driver)
+provider = AndroidStateProvider(driver, tree_filter=my_filter, tree_formatter=my_formatter)
+ui_state = await provider.get_state()
 
 # UIState provides element lookup
 element = ui_state.get_element(5)

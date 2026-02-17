@@ -290,7 +290,7 @@ class CodeActAgent(Workflow):
 
         # Get device state
         try:
-            ui_state = await self.state_provider.get_state(self.action_ctx.driver)
+            ui_state = await self.state_provider.get_state()
             self.action_ctx.ui = ui_state
 
             # Update shared state
