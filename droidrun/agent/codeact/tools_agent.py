@@ -408,7 +408,7 @@ class FastAgent(Workflow):
             else:
                 # Dispatch via registry
                 action_result = await self.registry.execute(
-                    call.name, call.parameters, self.action_ctx
+                    call.name, call.parameters, self.action_ctx, workflow_ctx=ctx
                 )
             results.append(
                 ToolResult(

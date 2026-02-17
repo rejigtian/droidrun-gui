@@ -241,7 +241,9 @@ class ExecutorAgent(Workflow):
         action_type = action_dict.get("action", "unknown")
         action_args = {k: v for k, v in action_dict.items() if k != "action"}
 
-        result = await self.registry.execute(action_type, action_args, self.action_ctx)
+        result = await self.registry.execute(
+            action_type, action_args, self.action_ctx, workflow_ctx=ctx
+        )
 
         await asyncio.sleep(self.agent_config.after_sleep_action)
 

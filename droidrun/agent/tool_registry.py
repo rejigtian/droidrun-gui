@@ -15,6 +15,8 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Set
 from droidrun.agent.action_result import ActionResult
 
 if TYPE_CHECKING:
+    from llama_index.core.workflow import Context as WorkflowContext
+
     from droidrun.agent.action_context import ActionContext
 
 logger = logging.getLogger("droidrun")
@@ -105,10 +107,15 @@ class ToolRegistry:
         name: str,
         args: Dict[str, Any],
         ctx: "ActionContext",
+        workflow_ctx: "Optional[WorkflowContext]" = None,
     ) -> ActionResult:
         """Dispatch action by name.
 
         All actions receive ``ctx=ctx`` as a keyword argument.
+
+        Args:
+            workflow_ctx: Optional llama-index workflow Context. When provided,
+                a ``ToolExecutionEvent`` is streamed after execution.
 
         Handles:
         - Unknown tool names
@@ -117,12 +124,14 @@ class ToolRegistry:
         - General exceptions
         """
         if name not in self.tools:
-            return ActionResult(
+            result = ActionResult(
                 success=False,
                 summary=(
                     f"Unknown tool: {name}. " f"Available: {list(self.tools.keys())}"
                 ),
             )
+            self._emit_event(workflow_ctx, name, args, result)
+            return result
 
         entry = self.tools[name]
         try:
@@ -131,25 +140,55 @@ class ToolRegistry:
             else:
                 result = entry.fn(**args, ctx=ctx)
         except TypeError as e:
-            return ActionResult(
+            result = ActionResult(
                 success=False,
                 summary=f"Invalid arguments for {name}: {e}",
             )
+            self._emit_event(workflow_ctx, name, args, result)
+            return result
         except Exception as e:
-            return ActionResult(
+            result = ActionResult(
                 success=False,
                 summary=f"Failed to execute {name}: {e}",
             )
+            self._emit_event(workflow_ctx, name, args, result)
+            return result
 
         # Normalise the return value into ActionResult
         if isinstance(result, ActionResult):
-            return result
-        if isinstance(result, tuple):
-            return ActionResult(success=result[0], summary=str(result[1]))
-        if isinstance(result, str):
+            action_result = result
+        elif isinstance(result, tuple):
+            action_result = ActionResult(success=result[0], summary=str(result[1]))
+        elif isinstance(result, str):
             success = not result.startswith("Failed")
-            return ActionResult(success=success, summary=result)
-        return ActionResult(success=True, summary=str(result) if result else "Done")
+            action_result = ActionResult(success=success, summary=result)
+        else:
+            action_result = ActionResult(
+                success=True, summary=str(result) if result else "Done"
+            )
+
+        self._emit_event(workflow_ctx, name, args, action_result)
+        return action_result
+
+    @staticmethod
+    def _emit_event(
+        workflow_ctx: "Optional[WorkflowContext]",
+        name: str,
+        args: Dict[str, Any],
+        result: ActionResult,
+    ) -> None:
+        if workflow_ctx is None:
+            return
+        from droidrun.agent.common.events import ToolExecutionEvent
+
+        workflow_ctx.write_event_to_stream(
+            ToolExecutionEvent(
+                tool_name=name,
+                tool_args=args,
+                success=result.success,
+                summary=result.summary,
+            )
+        )
 
     # -- prompt helpers ------------------------------------------------------
 
