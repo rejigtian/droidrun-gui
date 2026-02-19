@@ -6,12 +6,6 @@ a[href="https://mobilerun.ai"] {
   max-height: none !important;
 }
 
-img[src*="/logo/light.svg"],
-img[src*="/logo/dark.svg"] {
-  height: 3rem !important;
-  max-height: none !important;
-  width: auto !important;
-}
 
 /* Override Mintlify's max-w-xl on content-area */
 #content-area {

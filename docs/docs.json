@@ -7,7 +7,10 @@
     "light": "#07C983",
     "dark": "#0D9373"
   },
-  "favicon": "/favicon.png",
+  "favicon": {
+    "light": "/favicon.png",
+    "dark": "/favicon-dark.png"
+  },
   "icons": {
     "library": "lucide"
   },
@@ -214,8 +217,8 @@
     ]
   },
   "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg",
+    "light": "/logo/light.png",
+    "dark": "/logo/dark.png",
     "href": "https://droidrun.ai"
   },
   "navbar": {
