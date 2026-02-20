@@ -10,14 +10,15 @@ This agent is responsible for:
 
 from __future__ import annotations
 
+import copy
 import json
 import logging
 from typing import TYPE_CHECKING, Optional, Type
 
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
-from pydantic import BaseModel
 from opentelemetry import trace
+from pydantic import BaseModel
 
 from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
 from droidrun.agent.manager.events import (
@@ -28,21 +29,21 @@ from droidrun.agent.manager.events import (
 from droidrun.agent.manager.prompts import parse_manager_response
 from droidrun.agent.usage import get_usage_from_response
 from droidrun.agent.utils.chat_utils import (
-    to_chat_messages,
     filter_empty_messages,
+    to_chat_messages,
 )
-import copy
 from droidrun.agent.utils.inference import acall_with_retries
-from droidrun.agent.utils.tracing_setup import record_langfuse_screenshot
 from droidrun.agent.utils.prompt_resolver import PromptResolver
+from droidrun.agent.utils.signatures import ATOMIC_ACTION_SIGNATURES
+from droidrun.agent.utils.tracing_setup import record_langfuse_screenshot
 from droidrun.app_cards.app_card_provider import AppCardProvider
 from droidrun.app_cards.providers import (
     CompositeAppCardProvider,
     LocalAppCardProvider,
     ServerAppCardProvider,
 )
-from droidrun.agent.utils.signatures import ATOMIC_ACTION_SIGNATURES
 from droidrun.config_manager.prompt_loader import PromptLoader
+from droidrun.tools.driver.base import DeviceDisconnectedError
 
 if TYPE_CHECKING:
     from droidrun.agent.action_context import ActionContext
@@ -187,9 +188,7 @@ class ManagerAgent(Workflow):
 
         variables = {
             "instruction": self.shared_state.instruction,
-            "device_date": (
-                await self.action_ctx.driver.get_date() if self.action_ctx else ""
-            ),
+            "device_date": self.shared_state.device_date,
             "app_card": self.shared_state.app_card,
             "important_notes": "",  # TODO: implement
             "error_history": error_history,
@@ -430,6 +429,8 @@ class ManagerAgent(Workflow):
                         vision_enabled=self.vision,
                     )
                     logger.debug("📸 Screenshot captured for Manager")
+            except DeviceDisconnectedError:
+                raise
             except Exception as e:
                 logger.warning(f"Failed to capture screenshot: {e}")
 

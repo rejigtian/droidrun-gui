@@ -7,13 +7,16 @@ for cloud-hosted devices via the MobileRun API.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Awaitable, Dict, List, Optional, TypeVar
 
 from mobilerun import AsyncMobilerun
+from mobilerun._exceptions import APIConnectionError, APITimeoutError, ConflictError
 
-from droidrun.tools.driver.base import DeviceDriver
+from droidrun.tools.driver.base import DeviceDisconnectedError, DeviceDriver
 
 logger = logging.getLogger("droidrun")
+
+T = TypeVar("T")
 
 
 class CloudDriver(DeviceDriver):
@@ -52,6 +55,7 @@ class CloudDriver(DeviceDriver):
                 api_key="x",
                 base_url=base_url,
                 timeout=10.0,
+                max_retries=4,
                 default_headers={"X-User-ID": user_id},
             )
         else:
@@ -59,12 +63,20 @@ class CloudDriver(DeviceDriver):
                 api_key=api_key,
                 base_url=base_url,
                 timeout=10.0,
+                max_retries=4,
             )
 
     @property
     def _display_kw(self) -> dict:
         """Common keyword arg for display routing."""
         return {"x_device_display_id": self.display_id}
+
+    async def _call(self, coro: Awaitable[T]) -> T:
+        """Await an SDK coroutine, translating disconnect errors."""
+        try:
+            return await coro
+        except (ConflictError, APIConnectionError, APITimeoutError) as e:
+            raise DeviceDisconnectedError(str(e)) from e
 
     # -- lifecycle -----------------------------------------------------------
 
@@ -77,8 +89,10 @@ class CloudDriver(DeviceDriver):
     # -- input actions -------------------------------------------------------
 
     async def tap(self, x: int, y: int) -> None:
-        await self._client.devices.actions.tap(
-            self.device_id, x=x, y=y, **self._display_kw
+        await self._call(
+            self._client.devices.actions.tap(
+                self.device_id, x=x, y=y, **self._display_kw
+            )
         )
 
     async def swipe(
@@ -89,25 +103,25 @@ class CloudDriver(DeviceDriver):
         y2: int,
         duration_ms: float = 1000,
     ) -> None:
-        await self._client.devices.actions.swipe(
-            self.device_id,
-            start_x=x1,
-            start_y=y1,
-            end_x=x2,
-            end_y=y2,
-            duration=duration_ms,
-            **self._display_kw,
+        await self._call(
+            self._client.devices.actions.swipe(
+                self.device_id,
+                start_x=x1,
+                start_y=y1,
+                end_x=x2,
+                end_y=y2,
+                duration=duration_ms,
+                **self._display_kw,
+            )
         )
 
     async def input_text(self, text: str, clear: bool = False) -> bool:
-        try:
-            await self._client.devices.keyboard.write(
+        await self._call(
+            self._client.devices.keyboard.write(
                 self.device_id, text=text, clear=clear, **self._display_kw
             )
-            return True
-        except Exception as e:
-            logger.error(f"Failed to input text: {e}")
-            return False
+        )
+        return True
 
     async def press_key(self, keycode: int) -> None:
         # Map Android keycodes to MobileRun global actions where needed
@@ -116,8 +130,10 @@ class CloudDriver(DeviceDriver):
         elif keycode == 3:  # KEYCODE_HOME
             await self.global_action(self._GLOBAL_HOME)
         else:
-            await self._client.devices.keyboard.key(
-                self.device_id, key=keycode, **self._display_kw
+            await self._call(
+                self._client.devices.keyboard.key(
+                    self.device_id, key=keycode, **self._display_kw
+                )
             )
 
     async def drag(
@@ -133,67 +149,56 @@ class CloudDriver(DeviceDriver):
     # -- app management ------------------------------------------------------
 
     async def start_app(self, package: str, activity: Optional[str] = None) -> str:
-        try:
-            await self._client.devices.apps.start(
+        await self._call(
+            self._client.devices.apps.start(
                 package,
                 device_id=self.device_id,
                 activity=activity or None,
                 **self._display_kw,
             )
-            return f"App started: {package}"
-        except Exception as e:
-            return f"Failed to start app {package}: {e}"
+        )
+        return f"App started: {package}"
 
     async def get_apps(self, include_system: bool = True) -> List[Dict[str, Any]]:
-        try:
-            apps = await self._client.devices.apps.list(
+        apps = await self._call(
+            self._client.devices.apps.list(
                 device_id=self.device_id,
                 include_system_apps=include_system,
                 **self._display_kw,
             )
-            return [app.model_dump() for app in apps]
-        except Exception as e:
-            logger.error(f"Failed to get apps: {e}")
-            return []
+        )
+        return [app.model_dump() for app in apps]
 
     async def list_packages(self, include_system: bool = False) -> List[str]:
-        try:
-            packages = await self._client.devices.packages.list(
+        packages = await self._call(
+            self._client.devices.packages.list(
                 device_id=self.device_id,
                 include_system_packages=include_system,
                 **self._display_kw,
             )
-            return packages
-        except Exception as e:
-            logger.error(f"Failed to list packages: {e}")
-            return []
+        )
+        return packages
 
     # -- state / observation -------------------------------------------------
 
     async def screenshot(self, hide_overlay: bool = True) -> bytes:
-        try:
-            response = await self._client.devices.state.with_raw_response.screenshot(
+        response = await self._call(
+            self._client.devices.state.with_raw_response.screenshot(
                 self.device_id, **self._display_kw
             )
-            return await response.read()
-        except Exception as e:
-            logger.error(f"Failed to capture screenshot: {e}")
-            return b""
+        )
+        return await self._call(response.read())
 
     async def get_ui_tree(self) -> Dict[str, Any]:
-        response = await self._client.devices.state.ui(
-            self.device_id, **self._display_kw
+        response = await self._call(
+            self._client.devices.state.ui(self.device_id, **self._display_kw)
         )
         return response.model_dump()
 
     async def get_date(self) -> str:
-        try:
-            return await self._client.devices.state.time(
-                self.device_id, **self._display_kw
-            )
-        except Exception as e:
-            logger.error(f"Failed to get date: {e}")
-            return "unknown"
+        return await self._call(
+            self._client.devices.state.time(self.device_id, **self._display_kw)
+        )
 
     # -- cloud-specific ------------------------------------------------------
 
@@ -203,11 +208,9 @@ class CloudDriver(DeviceDriver):
         Common actions: 1=Back, 2=Home, 3=Recents, 4=Notifications,
         5=QuickSettings, 6=PowerDialog, 9=TakeScreenshot.
         """
-        try:
-            await self._client.devices.actions.global_(
+        await self._call(
+            self._client.devices.actions.global_(
                 self.device_id, action=action, **self._display_kw
             )
-            return True
-        except Exception as e:
-            logger.error(f"Failed to execute global action {action}: {e}")
-            return False
+        )
+        return True

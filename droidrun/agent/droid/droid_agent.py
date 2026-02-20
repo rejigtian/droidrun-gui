@@ -9,14 +9,16 @@ Architecture:
 
 import logging
 import traceback
-from typing import TYPE_CHECKING, Type, Awaitable, Union
+from typing import TYPE_CHECKING, Awaitable, Type, Union
 
-from pydantic import BaseModel
+from async_adbutils import adb
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
-
+from opentelemetry import trace
+from pydantic import BaseModel
 from workflows.events import Event
 from workflows.handler import WorkflowHandler
+
 from droidrun.agent.action_context import ActionContext
 from droidrun.agent.codeact import CodeActAgent, FastAgent
 from droidrun.agent.codeact.events import CodeActOutputEvent, FastAgentOutputEvent
@@ -37,12 +39,14 @@ from droidrun.agent.droid.events import (
 )
 from droidrun.agent.droid.state import DroidAgentState
 from droidrun.agent.executor import ExecutorAgent
+from droidrun.agent.external import load_agent
 from droidrun.agent.manager import ManagerAgent, StatelessManagerAgent
+from droidrun.agent.oneflows.structured_output_agent import StructuredOutputAgent
 from droidrun.agent.oneflows.text_manipulator import run_text_manipulation_agent
 from droidrun.agent.scripter import ScripterAgent
-from droidrun.agent.oneflows.structured_output_agent import StructuredOutputAgent
 from droidrun.agent.tool_registry import ToolRegistry
 from droidrun.agent.trajectory import TrajectoryWriter
+from droidrun.agent.utils.actions import complete, open_app, remember
 from droidrun.agent.utils.llm_loader import (
     load_agent_llms,
     merge_llms_with_config,
@@ -52,8 +56,11 @@ from droidrun.agent.utils.signatures import (
     ATOMIC_ACTION_SIGNATURES,
     build_credential_tools,
 )
-from droidrun.agent.utils.actions import open_app, remember, complete
-from droidrun.agent.utils.tracing_setup import setup_tracing
+from droidrun.agent.utils.tracing_setup import (
+    apply_session_context,
+    record_langfuse_screenshot,
+    setup_tracing,
+)
 from droidrun.agent.utils.trajectory import Trajectory
 from droidrun.config_manager.config_manager import (
     AgentConfig,
@@ -66,24 +73,19 @@ from droidrun.config_manager.config_manager import (
     TracingConfig,
 )
 from droidrun.config_manager.safe_execution import SafeExecutionConfig
-from droidrun.credential_manager import FileCredentialManager, CredentialManager
-from droidrun.mcp.config import MCPConfig
-from droidrun.mcp.client import MCPClientManager
+from droidrun.credential_manager import CredentialManager, FileCredentialManager
+from droidrun.log_handlers import CLILogHandler, configure_logging
 from droidrun.mcp.adapter import mcp_to_droidrun_tools
+from droidrun.mcp.client import MCPClientManager
+from droidrun.mcp.config import MCPConfig
 from droidrun.telemetry import (
     DroidAgentFinalizeEvent,
     DroidAgentInitEvent,
     capture,
     flush,
 )
-from droidrun.agent.external import load_agent
-from droidrun.agent.utils.tracing_setup import (
-    apply_session_context,
-    record_langfuse_screenshot,
-)
-from async_adbutils import adb
-from droidrun.log_handlers import CLILogHandler, configure_logging
 from droidrun.tools.driver.android import AndroidDriver
+from droidrun.tools.driver.base import DeviceDisconnectedError
 from droidrun.tools.driver.ios import IOSDriver
 from droidrun.tools.driver.recording import RecordingDriver
 from droidrun.tools.driver.stealth import StealthDriver
@@ -91,7 +93,6 @@ from droidrun.tools.filters import ConciseFilter, DetailedFilter
 from droidrun.tools.formatters import IndexedFormatter
 from droidrun.tools.ui.ios_provider import IOSStateProvider
 from droidrun.tools.ui.provider import AndroidStateProvider
-from opentelemetry import trace
 
 if TYPE_CHECKING:
     from droidrun.tools.driver.base import DeviceDriver
@@ -533,7 +534,10 @@ class DroidAgent(Workflow):
             self.executor_agent.registry = self.registry
             self.executor_agent.action_ctx = self.action_ctx
 
-        # ── 6. External agent mode ────────────────────────────────────
+        # ── 6. Fetch device date once ─────────────────────────────────
+        self.shared_state.device_date = await driver.get_date()
+
+        # ── 7. External agent mode ────────────────────────────────────
         if self._using_external_agent:
             agent_name = self.config.agent.name
             agent_module = load_agent(agent_name)
@@ -644,6 +648,14 @@ class DroidAgent(Workflow):
                 instruction=ev.instruction,
             )
 
+        except DeviceDisconnectedError as e:
+            logger.error(f"Device disconnected: {e}")
+            return FastAgentResultEvent(
+                success=False,
+                reason=f"Device disconnected: {e}",
+                instruction=ev.instruction,
+            )
+
         except Exception as e:
             logger.error(f"Error during task execution: {e}")
             if self.config.logging.debug:
@@ -689,12 +701,16 @@ class DroidAgent(Workflow):
             f"🔄 Step {self.shared_state.step_number}/{self.config.agent.max_steps}"
         )
 
-        handler = self.manager_agent.run()
+        try:
+            handler = self.manager_agent.run()
 
-        async for nested_ev in handler.stream_events():
-            self.handle_stream_event(nested_ev, ctx)
+            async for nested_ev in handler.stream_events():
+                self.handle_stream_event(nested_ev, ctx)
 
-        result = await handler
+            result = await handler
+        except DeviceDisconnectedError as e:
+            logger.error(f"Device disconnected: {e}")
+            return FinalizeEvent(success=False, reason=f"Device disconnected: {e}")
 
         event = ManagerPlanEvent(
             plan=result["plan"],

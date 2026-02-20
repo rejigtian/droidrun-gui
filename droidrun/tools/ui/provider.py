@@ -10,6 +10,7 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING
 
+from droidrun.tools.driver.base import DeviceDisconnectedError
 from droidrun.tools.ui.state import UIState
 from droidrun.tools.ui.stealth_state import StealthUIState
 
@@ -105,9 +106,11 @@ class AndroidStateProvider(StateProvider):
                     use_normalized=self.use_normalized,
                 )
 
+            except DeviceDisconnectedError:
+                raise
             except Exception as e:
-                last_error = str(e)
-                logger.warning(f"get_state attempt {attempt + 1} failed: {last_error}")
+                last_error = e
+                logger.warning(f"get_state attempt {attempt + 1} failed: {e}")
                 if attempt < max_retries - 1:
                     await asyncio.sleep(0.5)
                 else:
