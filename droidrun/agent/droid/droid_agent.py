@@ -535,10 +535,7 @@ class DroidAgent(Workflow):
             self.executor_agent.action_ctx = self.action_ctx
 
         # ── 6. Fetch device date once ─────────────────────────────────
-        try:
-            self.shared_state.device_date = await driver.get_date()
-        except Exception as e:
-            logger.warning(f"Failed to get device date: {e}")
+        self.shared_state.device_date = await driver.get_date()
 
         # ── 7. External agent mode ────────────────────────────────────
         if self._using_external_agent:

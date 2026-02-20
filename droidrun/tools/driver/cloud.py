@@ -187,7 +187,10 @@ class CloudDriver(DeviceDriver):
                 self.device_id, **self._display_kw
             )
         )
-        return await response.read()
+        try:
+            return await response.read()
+        except (ConflictError, APIConnectionError, APITimeoutError) as e:
+            raise DeviceDisconnectedError(str(e)) from e
 
     async def get_ui_tree(self) -> Dict[str, Any]:
         response = await self._call(
