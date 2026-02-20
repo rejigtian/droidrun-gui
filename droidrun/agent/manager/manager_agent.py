@@ -13,6 +13,7 @@ from __future__ import annotations
 import copy
 import json
 import logging
+import os
 from typing import TYPE_CHECKING, Optional, Type
 
 from llama_index.core.llms.llm import LLM
@@ -88,6 +89,9 @@ class ManagerAgent(Workflow):
         self.action_ctx = action_ctx
         self.state_provider = state_provider
         self.save_trajectory = save_trajectory
+        self._stream_screenshots = os.environ.get(
+            "DROIDRUN_STREAM_SCREENSHOTS", ""
+        ).lower() in ("1", "true")
         self.shared_state = shared_state
         self.registry = registry
         self.output_model = output_model
@@ -412,7 +416,7 @@ class ManagerAgent(Workflow):
 
         # Capture screenshot if needed
         screenshot = None
-        if self.vision or self.save_trajectory != "none":
+        if self.vision or self._stream_screenshots or self.save_trajectory != "none":
             try:
                 screenshot = await self.action_ctx.driver.screenshot()
 

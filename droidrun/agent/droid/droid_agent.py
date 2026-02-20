@@ -8,6 +8,7 @@ Architecture:
 """
 
 import logging
+import os
 import traceback
 from typing import TYPE_CHECKING, Awaitable, Type, Union
 
@@ -207,6 +208,10 @@ class DroidAgent(Workflow):
 
         # Check if using external agent - skip LLM loading
         self._using_external_agent = self.config.agent.name != "droidrun"
+
+        self._stream_screenshots = os.environ.get(
+            "DROIDRUN_STREAM_SCREENSHOTS", ""
+        ).lower() in ("1", "true")
 
         self.timeout = timeout
 
@@ -1039,17 +1044,21 @@ class DroidAgent(Workflow):
                 if self.config.logging.debug:
                     logger.error(traceback.format_exc())
 
-        # Capture final screenshot before saving trajectory
-        if self.config.logging.save_trajectory != "none":
+        # Capture final screenshot (independent of trajectory persistence)
+        vision_any = (
+            self.config.agent.manager.vision
+            or self.config.agent.executor.vision
+            or self.config.agent.fast_agent.vision
+        )
+        if (
+            vision_any
+            or self._stream_screenshots
+            or self.config.logging.save_trajectory != "none"
+        ):
             try:
                 screenshot = await self.action_ctx.driver.screenshot()
                 if screenshot:
                     ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
-                    vision_any = (
-                        self.config.agent.manager.vision
-                        or self.config.agent.executor.vision
-                        or self.config.agent.fast_agent.vision
-                    )
                     parent_span = trace.get_current_span()
                     record_langfuse_screenshot(
                         screenshot,
@@ -1061,6 +1070,8 @@ class DroidAgent(Workflow):
             except Exception as e:
                 logger.warning(f"Failed to capture final screenshot: {e}")
 
+        # Save trajectory to disk
+        if self.config.logging.save_trajectory != "none":
             # Populate macro data from RecordingDriver log
             if isinstance(self.driver, RecordingDriver):
                 self.trajectory.macro = list(self.driver.log)
