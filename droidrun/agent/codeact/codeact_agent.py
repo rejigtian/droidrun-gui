@@ -3,25 +3,25 @@ import inspect
 import logging
 from typing import TYPE_CHECKING, Optional, Type
 
-from pydantic import BaseModel
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
 from opentelemetry import trace
+from pydantic import BaseModel
 
 from droidrun.agent.codeact.events import (
-    CodeActInputEvent,
-    CodeActResponseEvent,
     CodeActCodeEvent,
-    CodeActOutputEvent,
     CodeActEndEvent,
+    CodeActInputEvent,
+    CodeActOutputEvent,
+    CodeActResponseEvent,
 )
 from droidrun.agent.common.constants import LLM_HISTORY_LIMIT
 from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
 from droidrun.agent.usage import get_usage_from_response
 from droidrun.agent.utils.chat_utils import (
-    to_chat_messages,
     extract_code_and_thought,
     limit_history,
+    to_chat_messages,
 )
 from droidrun.agent.utils.executer import ExecuterState, SimpleCodeExecutor
 from droidrun.agent.utils.inference import acall_with_retries
@@ -30,6 +30,7 @@ from droidrun.agent.utils.tracing_setup import record_langfuse_screenshot
 from droidrun.config_manager.config_manager import AgentConfig, TracingConfig
 from droidrun.config_manager.path_resolver import PathResolver
 from droidrun.config_manager.prompt_loader import PromptLoader
+from droidrun.tools.driver.base import DeviceDisconnectedError
 
 # Legacy codeact prompt paths (used when code_exec=true but config points to tools defaults)
 _LEGACY_SYSTEM_PROMPT = "config/prompts/codeact/system.jinja2"
@@ -285,6 +286,8 @@ class CodeActAgent(Workflow):
                     )
                     await ctx.store.set("screenshot", screenshot)
                     logger.debug("📸 Screenshot captured for CodeAct")
+            except DeviceDisconnectedError:
+                raise
             except Exception as e:
                 logger.warning(f"Failed to capture screenshot: {e}")
 
@@ -313,6 +316,8 @@ class CodeActAgent(Workflow):
                 {"text": f"\n{ui_state.formatted_text}\n"}
             )
 
+        except DeviceDisconnectedError:
+            raise
         except Exception as e:
             logger.warning(f"⚠️ Error retrieving state from the connected device: {e}")
             if self.debug:
@@ -383,7 +388,7 @@ class CodeActAgent(Workflow):
                 "Your previous response provided code without explaining your reasoning first. "
                 "Remember to always describe your thought process and plan *before* providing the code block.\n\n"
                 "The code you provided will be executed below.\n\n"
-                f"Now, describe the next step you will take to address the original goal."
+                "Now, describe the next step you will take to address the original goal."
             )
             self.shared_state.message_history.append(
                 {"role": "user", "content": [{"text": no_thoughts_text}]}

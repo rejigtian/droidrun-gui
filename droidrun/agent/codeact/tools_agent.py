@@ -17,6 +17,7 @@ from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, 
 from opentelemetry import trace
 from pydantic import BaseModel
 
+from droidrun.agent.action_result import ActionResult
 from droidrun.agent.codeact.events import (
     FastAgentEndEvent,
     FastAgentInputEvent,
@@ -31,7 +32,6 @@ from droidrun.agent.codeact.xml_parser import (
     format_tool_results,
     parse_tool_calls,
 )
-from droidrun.agent.action_result import ActionResult
 from droidrun.agent.common.constants import LLM_HISTORY_LIMIT
 from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
 from droidrun.agent.usage import get_usage_from_response
@@ -41,6 +41,7 @@ from droidrun.agent.utils.prompt_resolver import PromptResolver
 from droidrun.agent.utils.tracing_setup import record_langfuse_screenshot
 from droidrun.config_manager.config_manager import AgentConfig, TracingConfig
 from droidrun.config_manager.prompt_loader import PromptLoader
+from droidrun.tools.driver.base import DeviceDisconnectedError
 
 if TYPE_CHECKING:
     from droidrun.agent.action_context import ActionContext
@@ -235,6 +236,8 @@ class FastAgent(Workflow):
                     )
                     await ctx.store.set("screenshot", screenshot)
                     logger.debug("📸 Screenshot captured for FastAgent")
+            except DeviceDisconnectedError:
+                raise
             except Exception as e:
                 logger.warning(f"Failed to capture screenshot: {e}")
 
@@ -263,6 +266,8 @@ class FastAgent(Workflow):
                 {"text": f"\n{ui_state.formatted_text}\n"}
             )
 
+        except DeviceDisconnectedError:
+            raise
         except Exception as e:
             logger.warning(f"⚠️ Error retrieving state from the connected device: {e}")
             if self.debug:

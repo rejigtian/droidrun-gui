@@ -22,6 +22,7 @@ class DroidAgentState(BaseModel):
     # ========================================================================
     # Device State (current)
     # ========================================================================
+    device_date: str = ""  # Fetched once at startup
     formatted_device_state: str = ""  # Text description for prompts
     focused_text: str = ""  # Text in focused input field
     a11y_tree: List[Dict] = Field(default_factory=list)  # Raw accessibility tree

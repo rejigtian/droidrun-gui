@@ -9,8 +9,8 @@ from typing import TYPE_CHECKING, Optional, Type
 
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
-from pydantic import BaseModel
 from opentelemetry import trace
+from pydantic import BaseModel
 
 from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
 from droidrun.agent.manager.events import (
@@ -22,9 +22,10 @@ from droidrun.agent.manager.prompts import parse_manager_response
 from droidrun.agent.usage import get_usage_from_response
 from droidrun.agent.utils.chat_utils import to_chat_messages
 from droidrun.agent.utils.inference import acall_with_retries
-from droidrun.agent.utils.tracing_setup import record_langfuse_screenshot
 from droidrun.agent.utils.prompt_resolver import PromptResolver
+from droidrun.agent.utils.tracing_setup import record_langfuse_screenshot
 from droidrun.config_manager.prompt_loader import PromptLoader
+from droidrun.tools.driver.base import DeviceDisconnectedError
 
 if TYPE_CHECKING:
     from droidrun.agent.action_context import ActionContext
@@ -90,9 +91,7 @@ class StatelessManagerAgent(Workflow):
     async def _build_prompt(self, has_text_to_modify: bool) -> str:
         variables = {
             "instruction": self.shared_state.instruction,
-            "device_date": (
-                await self.action_ctx.driver.get_date() if self.action_ctx else ""
-            ),
+            "device_date": self.shared_state.device_date,
             "previous_plan": self.shared_state.previous_plan,
             "previous_state": self.shared_state.previous_formatted_device_state,
             "memory": self.shared_state.manager_memory,
@@ -211,6 +210,8 @@ class StatelessManagerAgent(Workflow):
                         ),
                         vision_enabled=self.vision,
                     )
+            except DeviceDisconnectedError:
+                raise
             except Exception as e:
                 logger.warning(f"Failed to capture screenshot: {e}")
 

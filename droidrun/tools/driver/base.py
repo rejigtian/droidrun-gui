@@ -9,6 +9,12 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 
+class DeviceDisconnectedError(Exception):
+    """Raised when the device is no longer reachable."""
+
+    pass
+
+
 class DeviceDriver:
     """Base class for all device drivers.
 
