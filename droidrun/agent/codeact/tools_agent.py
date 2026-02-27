@@ -13,6 +13,7 @@ import logging
 import os
 from typing import TYPE_CHECKING, Optional, Type
 
+from llama_index.core.base.llms.types import ChatMessage, ImageBlock, TextBlock
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
 from opentelemetry import trace
@@ -36,7 +37,7 @@ from droidrun.agent.codeact.xml_parser import (
 from droidrun.agent.common.constants import LLM_HISTORY_LIMIT
 from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
 from droidrun.agent.usage import get_usage_from_response
-from droidrun.agent.utils.chat_utils import limit_history, to_chat_messages
+from droidrun.agent.utils.chat_utils import limit_history
 from droidrun.agent.utils.inference import acall_with_retries
 from droidrun.agent.utils.prompt_resolver import PromptResolver
 from droidrun.agent.utils.tracing_setup import record_langfuse_screenshot
@@ -57,7 +58,7 @@ class FastAgent(Workflow):
     """Agent that uses XML tool-calling instead of code generation.
 
     Uses ReAct cycle: Thought -> Tool Call -> Observation -> repeat until complete().
-    Messages stored as list[dict], converted to ChatMessage only for LLM calls.
+    Messages stored as list[ChatMessage] to preserve thinking tokens across turns.
     """
 
     def __init__(
@@ -97,7 +98,7 @@ class FastAgent(Workflow):
         self.prompt_resolver = prompt_resolver or PromptResolver()
         self.tracing_config = tracing_config
 
-        self.system_prompt: dict | None = None
+        self.system_prompt: ChatMessage | None = None
         self.tool_call_counter = 0
         self.remembered_info: list[str] | None = None
 
@@ -112,7 +113,7 @@ class FastAgent(Workflow):
 
         logger.debug("FastAgent initialized.")
 
-    async def _build_system_prompt(self) -> dict:
+    async def _build_system_prompt(self) -> ChatMessage:
         """Build system prompt message."""
         template_context = {
             "tool_descriptions": self.tool_descriptions,
@@ -137,9 +138,9 @@ class FastAgent(Workflow):
                 self.agent_config.get_fast_agent_system_prompt_path(),
                 template_context,
             )
-        return {"role": "system", "content": [{"text": system_text}]}
+        return ChatMessage(role="system", content=system_text)
 
-    async def _build_user_prompt(self, goal: str) -> dict:
+    async def _build_user_prompt(self, goal: str) -> ChatMessage:
         """Build initial user prompt message."""
         custom_user_prompt = self.prompt_resolver.get_prompt("fast_agent_user")
         if custom_user_prompt:
@@ -162,7 +163,7 @@ class FastAgent(Workflow):
                     ),
                 },
             )
-        return {"role": "user", "content": [{"text": user_text}]}
+        return ChatMessage(role="user", content=user_text)
 
     @step
     async def prepare_chat(self, ctx: Context, ev: StartEvent) -> FastAgentInputEvent:
@@ -194,8 +195,8 @@ class FastAgent(Workflow):
             memory_text = "\n### Remembered Information:\n"
             for idx, item in enumerate(remembered_info, 1):
                 memory_text += f"{idx}. {item}\n"
-            self.shared_state.message_history[0]["content"].append(
-                {"text": memory_text}
+            self.shared_state.message_history[0].blocks.append(
+                TextBlock(text=memory_text)
             )
 
         return FastAgentInputEvent()
@@ -266,8 +267,8 @@ class FastAgent(Workflow):
             ctx.write_event_to_stream(RecordUIStateEvent(ui_state=ui_state.elements))
 
             # Add device state to last user message
-            self.shared_state.message_history[-1]["content"].append(
-                {"text": f"\n{ui_state.formatted_text}\n"}
+            self.shared_state.message_history[-1].blocks.append(
+                TextBlock(text=f"\n{ui_state.formatted_text}\n")
             )
 
         except DeviceDisconnectedError:
@@ -279,8 +280,8 @@ class FastAgent(Workflow):
 
         # Add screenshot to message if vision enabled
         if self.vision and screenshot:
-            self.shared_state.message_history[-1]["content"].append(
-                {"image": screenshot}
+            self.shared_state.message_history[-1].blocks.append(
+                ImageBlock(image=screenshot)
             )
 
         # Limit history and prepare for LLM
@@ -292,12 +293,11 @@ class FastAgent(Workflow):
 
         # Build final messages: system + history
         messages_to_send = [self.system_prompt] + limited_history
-        chat_messages = to_chat_messages(messages_to_send)
 
         # Call LLM
         logger.info("FastAgent response:", extra={"color": "yellow"})
         response = await acall_with_retries(
-            self.llm, chat_messages, stream=self.agent_config.streaming
+            self.llm, messages_to_send, stream=self.agent_config.streaming
         )
 
         if response is None:
@@ -314,11 +314,9 @@ class FastAgent(Workflow):
         except Exception as e:
             logger.warning(f"Could not get usage: {e}")
 
-        # Store assistant response
+        # Store assistant response (preserves ThinkingBlock, additional_kwargs, etc.)
+        self.shared_state.message_history.append(response.message)
         response_text = response.message.content
-        self.shared_state.message_history.append(
-            {"role": "assistant", "content": [{"text": response_text}]}
-        )
 
         # Parse tool calls from response
         thought, tool_calls = parse_tool_calls(response_text, self.param_types)
@@ -364,7 +362,7 @@ class FastAgent(Workflow):
                 "Now, describe the next step you will take to address the original goal."
             )
             self.shared_state.message_history.append(
-                {"role": "user", "content": [{"text": no_thoughts_text}]}
+                ChatMessage(role="user", content=no_thoughts_text)
             )
         else:
             logger.debug(f"Reasoning: {ev.thought}")
@@ -386,7 +384,7 @@ class FastAgent(Workflow):
                 "</function_calls>"
             )
             self.shared_state.message_history.append(
-                {"role": "user", "content": [{"text": no_tools_text}]}
+                ChatMessage(role="user", content=no_tools_text)
             )
             return FastAgentInputEvent()
 
@@ -473,7 +471,7 @@ class FastAgent(Workflow):
 
         # Add results as user message
         self.shared_state.message_history.append(
-            {"role": "user", "content": [{"text": output}]}
+            ChatMessage(role="user", content=output)
         )
 
         return FastAgentInputEvent()

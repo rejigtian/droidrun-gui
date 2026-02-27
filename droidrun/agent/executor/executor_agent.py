@@ -14,18 +14,18 @@ import json
 import logging
 from typing import TYPE_CHECKING, Optional
 
+from llama_index.core.base.llms.types import ChatMessage, ImageBlock, TextBlock
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
 
 from droidrun.agent.executor.events import (
     ExecutorActionEvent,
+    ExecutorActionResultEvent,
     ExecutorContextEvent,
     ExecutorResponseEvent,
-    ExecutorActionResultEvent,
 )
 from droidrun.agent.executor.prompts import parse_executor_response
 from droidrun.agent.usage import get_usage_from_response
-from droidrun.agent.utils.chat_utils import to_chat_messages
 from droidrun.agent.utils.inference import acall_with_retries
 from droidrun.agent.utils.prompt_resolver import PromptResolver
 from droidrun.config_manager.config_manager import AgentConfig
@@ -44,7 +44,7 @@ class ExecutorAgent(Workflow):
     Action execution agent that performs specific actions.
 
     Single-turn agent: receives subgoal, selects action, executes it.
-    Uses dict messages, converts to ChatMessage at LLM call time.
+    Uses ChatMessage objects directly for LLM calls.
     """
 
     # Flow-control tools hidden from executor's LLM prompt
@@ -123,14 +123,14 @@ class ExecutorAgent(Workflow):
                 variables,
             )
 
-        # Build message as dict
-        messages = [{"role": "user", "content": [{"text": prompt_text}]}]
+        # Build message
+        messages = [ChatMessage(role="user", blocks=[TextBlock(text=prompt_text)])]
 
         # Add screenshot if vision enabled
         if self.vision:
             screenshot = self.shared_state.screenshot
             if screenshot is not None:
-                messages[0]["content"].append({"image": screenshot})
+                messages[0].blocks.append(ImageBlock(image=screenshot))
                 logger.debug("📸 Using screenshot for Executor")
             else:
                 logger.warning("⚠️ Vision enabled but no screenshot available")
@@ -149,13 +149,10 @@ class ExecutorAgent(Workflow):
         # Get messages from context
         messages = await ctx.store.get("executor_messages")
 
-        # Convert to ChatMessage and call LLM
-        chat_messages = to_chat_messages(messages)
-
         try:
             logger.info("Executor response:", extra={"color": "green"})
             response = await acall_with_retries(
-                self.llm, chat_messages, stream=self.agent_config.streaming
+                self.llm, messages, stream=self.agent_config.streaming
             )
             response_text = str(response)
         except ValueError as e:

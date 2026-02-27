@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Any, Optional, Type, TypeVar
+from typing import Optional, Type, TypeVar
 
 from llama_index.core.base.llms.types import (
     ChatMessage,
@@ -106,8 +106,14 @@ async def _stream_response(llm, messages: list, timeout: float) -> ChatResponse:
     await asyncio.wait_for(stream_chunks(), timeout=timeout)
 
     # Build response matching non-streaming format
+    # Use last_chunk.message to preserve all blocks (ThinkingBlock, etc.)
+    # that providers accumulate during streaming
     response = ChatResponse(
-        message=ChatMessage(role="assistant", content=content),
+        message=(
+            last_chunk.message
+            if last_chunk
+            else ChatMessage(role="assistant", content=content)
+        ),
         raw=last_chunk.raw if last_chunk else None,
         additional_kwargs=last_chunk.additional_kwargs if last_chunk else {},
     )

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
+from llama_index.core.base.llms.types import ChatMessage
 from pydantic import BaseModel, ConfigDict, Field
 
 from droidrun.telemetry import PackageVisitEvent, capture
@@ -86,9 +87,9 @@ class DroidAgentState(BaseModel):
     success: Optional[bool] = None
 
     # ========================================================================
-    # Message History (for stateful agents - list of dicts)
+    # Message History (for stateful agents - preserves ChatMessage blocks)
     # ========================================================================
-    message_history: List[Dict] = Field(default_factory=list)
+    message_history: List[ChatMessage] = Field(default_factory=list)
 
     # ========================================================================
     # Error Handling
