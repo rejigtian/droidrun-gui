@@ -1,10 +1,10 @@
 import logging
 from io import BytesIO
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
+from typing import Optional, Tuple, Union
 
-from PIL import Image
 from llama_index.core.base.llms.types import ChatMessage, ImageBlock, TextBlock
+from PIL import Image
 
 logger = logging.getLogger("droidrun")
 
@@ -94,22 +94,22 @@ def extract_code_and_thought(response_text: str) -> Tuple[Optional[str], str]:
 # ============================================================================
 
 
-def has_content(message: dict) -> bool:
-    for item in message.get("content", []):
-        if "text" in item and item["text"].strip():
+def has_content(message: ChatMessage) -> bool:
+    for block in message.blocks:
+        if isinstance(block, TextBlock) and block.text and block.text.strip():
             return True
-        if "image" in item and item["image"]:
+        if isinstance(block, ImageBlock) and block.image:
             return True
     return False
 
 
-def filter_empty_messages(messages: list[dict]) -> list[dict]:
+def filter_empty_messages(messages: list[ChatMessage]) -> list[ChatMessage]:
     return [msg for msg in messages if has_content(msg)]
 
 
 def limit_history(
-    messages: list[dict], max_messages: int, preserve_first: bool = True
-) -> list[dict]:
+    messages: list[ChatMessage], max_messages: int, preserve_first: bool = True
+) -> list[ChatMessage]:
     if len(messages) <= max_messages:
         return messages
 

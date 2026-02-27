@@ -16,6 +16,12 @@ import logging
 import os
 from typing import TYPE_CHECKING, Optional, Type
 
+from llama_index.core.base.llms.types import (
+    ChatMessage,
+    ImageBlock,
+    MessageRole,
+    TextBlock,
+)
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
 from opentelemetry import trace
@@ -29,10 +35,7 @@ from droidrun.agent.manager.events import (
 )
 from droidrun.agent.manager.prompts import parse_manager_response
 from droidrun.agent.usage import get_usage_from_response
-from droidrun.agent.utils.chat_utils import (
-    filter_empty_messages,
-    to_chat_messages,
-)
+from droidrun.agent.utils.chat_utils import filter_empty_messages
 from droidrun.agent.utils.inference import acall_with_retries
 from droidrun.agent.utils.prompt_resolver import PromptResolver
 from droidrun.agent.utils.signatures import ATOMIC_ACTION_SIGNATURES
@@ -238,7 +241,7 @@ class ManagerAgent(Workflow):
 
     def _build_messages_with_context(
         self, system_prompt: str, screenshot: bytes | None = None
-    ) -> list[dict]:
+    ) -> list[ChatMessage]:
         """
         Build messages from history and inject current context.
 
@@ -247,17 +250,19 @@ class ManagerAgent(Workflow):
             screenshot: Current screenshot if vision enabled
 
         Returns:
-            List of message dicts ready for conversion
+            List of ChatMessage objects ready for LLM
         """
 
         # Start with system message
-        messages = [{"role": "system", "content": [{"text": system_prompt}]}]
+        messages = [ChatMessage(role="system", content=system_prompt)]
 
         # Add accumulated message history (deep copy to avoid mutation)
         messages.extend(copy.deepcopy(self.shared_state.message_history))
 
         # Find last user message
-        user_indices = [i for i, msg in enumerate(messages) if msg["role"] == "user"]
+        user_indices = [
+            i for i, msg in enumerate(messages) if msg.role == MessageRole.USER
+        ]
 
         if user_indices:
             last_user_idx = user_indices[-1]
@@ -265,20 +270,22 @@ class ManagerAgent(Workflow):
             # Add memory to last user message
             current_memory = (self.shared_state.manager_memory or "").strip()
             if current_memory:
-                messages[last_user_idx]["content"].append(
-                    {"text": f"\n<memory>\n{current_memory}\n</memory>\n"}
+                messages[last_user_idx].blocks.append(
+                    TextBlock(text=f"\n<memory>\n{current_memory}\n</memory>\n")
                 )
 
             # Add current device state
             current_state = self.shared_state.formatted_device_state.strip()
             if current_state:
-                messages[last_user_idx]["content"].append(
-                    {"text": f"\n<device_state>\n{current_state}\n</device_state>\n"}
+                messages[last_user_idx].blocks.append(
+                    TextBlock(
+                        text=f"\n<device_state>\n{current_state}\n</device_state>\n"
+                    )
                 )
 
             # Add screenshot if vision enabled
             if screenshot and self.vision:
-                messages[last_user_idx]["content"].append({"image": screenshot})
+                messages[last_user_idx].blocks.append(ImageBlock(image=screenshot))
 
             # Add script result if available
             if self.shared_state.last_scripter_message:
@@ -290,7 +297,7 @@ class ManagerAgent(Workflow):
                     f"{self.shared_state.last_scripter_message}\n"
                     f"</script_result>\n"
                 )
-                messages[last_user_idx]["content"].append({"text": script_context})
+                messages[last_user_idx].blocks.append(TextBlock(text=script_context))
                 self.shared_state.last_scripter_message = ""
 
             # Add previous device state to second-to-last user message
@@ -298,15 +305,17 @@ class ManagerAgent(Workflow):
                 second_last_idx = user_indices[-2]
                 prev_state = self.shared_state.previous_formatted_device_state.strip()
                 if prev_state:
-                    messages[second_last_idx]["content"].append(
-                        {"text": f"\n<device_state>\n{prev_state}\n</device_state>\n"}
+                    messages[second_last_idx].blocks.append(
+                        TextBlock(
+                            text=f"\n<previous_device_state>\n{prev_state}\n</previous_device_state>\n"
+                        )
                     )
 
         messages = filter_empty_messages(messages)
         return messages
 
     async def _validate_and_retry(
-        self, messages: list[dict], initial_response: str
+        self, messages: list[ChatMessage], initial_response: str
     ) -> str:
         """Validate LLM response and retry if needed."""
         output = initial_response
@@ -350,15 +359,13 @@ class ManagerAgent(Workflow):
 
                 # Build retry messages
                 retry_messages = messages + [
-                    {"role": "assistant", "content": [{"text": output}]},
-                    {"role": "user", "content": [{"text": error_message}]},
+                    ChatMessage(role="assistant", content=output),
+                    ChatMessage(role="user", content=error_message),
                 ]
-
-                chat_messages = to_chat_messages(retry_messages)
 
                 try:
                     response = await acall_with_retries(
-                        self.llm, chat_messages, stream=self.agent_config.streaming
+                        self.llm, retry_messages, stream=self.agent_config.streaming
                     )
                     output = response.message.content
                     parsed = parse_manager_response(output)
@@ -449,7 +456,7 @@ class ManagerAgent(Workflow):
         # Build user message and add to history
         user_content = self._build_user_message_content()
         self.shared_state.message_history.append(
-            {"role": "user", "content": [{"text": user_content}]}
+            ChatMessage(role="user", content=user_content)
         )
 
         event = ManagerContextEvent()
@@ -474,13 +481,10 @@ class ManagerAgent(Workflow):
             system_prompt=system_prompt, screenshot=screenshot
         )
 
-        # Convert and call LLM
-        chat_messages = to_chat_messages(messages)
-
         try:
             logger.info("📋 Manager response:", extra={"color": "cyan"})
             response = await acall_with_retries(
-                self.llm, chat_messages, stream=self.agent_config.streaming
+                self.llm, messages, stream=self.agent_config.streaming
             )
             output = response.message.content
         except Exception as e:
@@ -520,7 +524,7 @@ class ManagerAgent(Workflow):
 
         # Append assistant response to message history
         self.shared_state.message_history.append(
-            {"role": "assistant", "content": [{"text": output}]}
+            ChatMessage(role="assistant", content=output)
         )
 
         # Update unified state fields
