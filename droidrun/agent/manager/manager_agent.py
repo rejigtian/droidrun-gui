@@ -307,7 +307,7 @@ class ManagerAgent(Workflow):
                 if prev_state:
                     messages[second_last_idx].blocks.append(
                         TextBlock(
-                            text=f"\n<device_state>\n{prev_state}\n</device_state>\n"
+                            text=f"\n<previous_device_state>\n{prev_state}\n</previous_device_state>\n"
                         )
                     )
 

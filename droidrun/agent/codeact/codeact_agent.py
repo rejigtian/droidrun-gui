@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import inspect
 import logging
 from typing import TYPE_CHECKING, Optional, Type
@@ -296,7 +297,10 @@ class CodeActAgent(Workflow):
             ui_state = await self.state_provider.get_state()
             self.action_ctx.ui = ui_state
 
-            # Update shared state
+            # Update shared state (previous ← current, current ← new)
+            self.shared_state.previous_formatted_device_state = (
+                self.shared_state.formatted_device_state
+            )
             self.shared_state.formatted_device_state = ui_state.formatted_text
             self.shared_state.focused_text = ui_state.focused_text
             self.shared_state.a11y_tree = ui_state.elements
@@ -311,11 +315,6 @@ class CodeActAgent(Workflow):
             # Stream formatted state for trajectory
             ctx.write_event_to_stream(RecordUIStateEvent(ui_state=ui_state.elements))
 
-            # Add device state to last user message
-            self.shared_state.message_history[-1].blocks.append(
-                TextBlock(text=f"\n{ui_state.formatted_text}\n")
-            )
-
         except DeviceDisconnectedError:
             raise
         except Exception as e:
@@ -323,21 +322,46 @@ class CodeActAgent(Workflow):
             if self.debug:
                 logger.error("State retrieval error details:", exc_info=True)
 
-        # Add screenshot to message if vision enabled
-        if self.vision and screenshot:
-            self.shared_state.message_history[-1].blocks.append(
-                ImageBlock(image=screenshot)
-            )
-
-        # Limit history and prepare for LLM
+        # Limit history and build ephemeral copy for LLM
         limited_history = limit_history(
             self.shared_state.message_history,
             LLM_HISTORY_LIMIT * 2,
             preserve_first=True,
         )
+        messages_to_send = [self.system_prompt] + copy.deepcopy(limited_history)
 
-        # Build final messages: system + history
-        messages_to_send = [self.system_prompt] + limited_history
+        # Inject device state and screenshot into the copy (not the original)
+        user_indices = [
+            i for i, msg in enumerate(messages_to_send) if msg.role == "user"
+        ]
+        if user_indices:
+            last_user_idx = user_indices[-1]
+
+            # Current device state → last user message
+            current_state = self.shared_state.formatted_device_state.strip()
+            if current_state:
+                messages_to_send[last_user_idx].blocks.append(
+                    TextBlock(
+                        text=f"\n<device_state>\n{current_state}\n</device_state>\n"
+                    )
+                )
+
+            # Screenshot → last user message
+            if self.vision and screenshot:
+                messages_to_send[last_user_idx].blocks.append(
+                    ImageBlock(image=screenshot)
+                )
+
+            # Previous device state → second-to-last user message
+            if len(user_indices) >= 2:
+                second_last_idx = user_indices[-2]
+                prev_state = self.shared_state.previous_formatted_device_state.strip()
+                if prev_state:
+                    messages_to_send[second_last_idx].blocks.append(
+                        TextBlock(
+                            text=f"\n<previous_device_state>\n{prev_state}\n</previous_device_state>\n"
+                        )
+                    )
 
         # Call LLM
         logger.info("CodeAct response:", extra={"color": "yellow"})
