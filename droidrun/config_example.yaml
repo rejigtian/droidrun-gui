@@ -1,7 +1,7 @@
 # DroidRun Configuration File
 # This file is auto-generated. Edit values as needed.
 
-_version: 1
+_version: 3
 
 # === Agent Settings ===
 agent:
@@ -155,6 +155,8 @@ device:
   use_tcp: false
   # Platform: android or ios but currently only android is supported
   platform: android
+  # Auto-install/update Portal APK and enable accessibility before each run
+  auto_setup: true
 
 # === Telemetry Settings ===
 telemetry:

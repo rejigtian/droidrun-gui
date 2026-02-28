@@ -8,14 +8,19 @@ status and managing device communication modes (TCP and content provider).
 
 import asyncio
 import contextlib
+import json
+import logging
 import os
 import tempfile
 
 import requests
+from async_adbutils import AdbDevice, adb
 from rich.console import Console
 
+from droidrun import __version__
 from droidrun.tools.driver.android import AndroidDriver
-from async_adbutils import AdbDevice, adb
+
+logger = logging.getLogger("droidrun")
 
 REPO = "droidrun/droidrun-portal"
 ASSET_NAME = "droidrun-portal"
@@ -376,6 +381,223 @@ async def disable_keyboard(
         return True
     except Exception as e:
         raise Exception("Error disabling keyboard") from e
+
+
+async def setup_portal(
+    device: AdbDevice,
+    debug: bool = False,
+) -> bool:
+    """Download, install, and enable the Portal APK on a device.
+
+    Uses version mapping to find the compatible Portal version for the
+    current droidrun SDK version.  Falls back to the latest release if
+    the mapping is unavailable.
+
+    Args:
+        device: ADB device connection.
+        debug: Enable debug logging.
+
+    Returns:
+        True if setup completed successfully, False otherwise.
+    """
+    try:
+        portal_version, download_base, mapping_fetched = get_compatible_portal_version(
+            __version__, debug
+        )
+
+        if portal_version:
+            apk_context = download_versioned_portal_apk(
+                portal_version, download_base, debug
+            )
+        else:
+            if not mapping_fetched:
+                logger.warning(
+                    "Could not fetch version mapping, falling back to latest portal"
+                )
+            apk_context = download_portal_apk(debug)
+
+        with apk_context as apk_path:
+            if not os.path.exists(apk_path):
+                logger.error(f"APK file not found at {apk_path}")
+                return False
+
+            logger.info("Installing Portal APK...")
+            try:
+                await device.install(
+                    apk_path, uninstall=True, flags=["-g"], silent=not debug
+                )
+            except Exception as e:
+                logger.error(f"Portal installation failed: {e}")
+                return False
+
+            logger.info("Portal APK installed")
+
+            try:
+                await enable_portal_accessibility(device)
+                # Wait for the service to become responsive
+                await _wait_for_portal_service(device)
+                logger.info("Accessibility service enabled")
+            except Exception as e:
+                logger.warning(f"Could not auto-enable accessibility service: {e}")
+                try:
+                    await device.shell(
+                        "am start -a android.settings.ACCESSIBILITY_SETTINGS"
+                    )
+                except Exception:
+                    pass
+                return False
+
+        return True
+
+    except Exception as e:
+        logger.error(f"Portal setup failed: {e}")
+        if debug:
+            import traceback
+
+            logger.debug(traceback.format_exc())
+        return False
+
+
+async def _wait_for_portal_service(
+    device: AdbDevice, timeout: float = 10.0, interval: float = 1.0
+) -> None:
+    """Poll the content provider until the accessibility service is responsive.
+
+    Uses the simple ``/state`` endpoint which responds as soon as the
+    service process is alive, without requiring an active window.
+    """
+    deadline = asyncio.get_event_loop().time() + timeout
+    while asyncio.get_event_loop().time() < deadline:
+        try:
+            state = await device.shell(
+                "content query --uri content://com.droidrun.portal/state"
+            )
+            if '"status":"success"' in state:
+                return
+        except Exception:
+            pass
+        await asyncio.sleep(interval)
+    logger.warning("Portal service did not become responsive within timeout")
+
+
+def _parse_portal_version(raw_output: str) -> str | None:
+    """Extract portal version string from content provider output."""
+    try:
+        if "result=" in raw_output:
+            json_str = raw_output.split("result=", 1)[1].strip()
+            data = json.loads(json_str)
+            if data.get("status") == "success":
+                return data.get("result") or data.get("data")
+    except Exception:
+        pass
+    return None
+
+
+async def ensure_portal_ready(
+    device: AdbDevice,
+    debug: bool = False,
+) -> None:
+    """Run parallel health checks and auto-fix portal issues.
+
+    Performs three checks concurrently:
+    1. Is the Portal APK installed?
+    2. Is the installed version compatible?
+    3. Is the accessibility service enabled?
+
+    If any check fails, attempts to fix automatically (install/upgrade
+    APK, enable accessibility).  Raises on unrecoverable failure.
+
+    Args:
+        device: ADB device connection.
+        debug: Enable debug logging.
+
+    Raises:
+        RuntimeError: If portal cannot be made ready after auto-fix.
+    """
+    # ── parallel checks ──────────────────────────────────────────
+    packages_task = device.list_packages()
+    version_task = device.shell(
+        "content query --uri content://com.droidrun.portal/version"
+    )
+    a11y_task = device.shell("settings get secure enabled_accessibility_services")
+
+    packages, version_raw, a11y_services = await asyncio.gather(
+        packages_task, version_task, a11y_task, return_exceptions=True
+    )
+
+    # If all checks failed, the device is likely unreachable — skip
+    # auto-setup and let AndroidDriver.connect() surface the real error.
+    if (
+        isinstance(packages, Exception)
+        and isinstance(version_raw, Exception)
+        and isinstance(a11y_services, Exception)
+    ):
+        logger.debug(f"Portal health check skipped (device unreachable): {packages}")
+        return
+
+    # ── evaluate results ─────────────────────────────────────────
+    is_installed = (
+        isinstance(packages, list) and PORTAL_PACKAGE_NAME in packages
+    )
+
+    installed_version = (
+        _parse_portal_version(version_raw)
+        if isinstance(version_raw, str)
+        else None
+    )
+
+    a11y_enabled = (
+        isinstance(a11y_services, str) and A11Y_SERVICE_NAME in a11y_services
+    )
+
+    # Check version compatibility
+    needs_upgrade = False
+    if is_installed and installed_version:
+        expected_version, _, mapping_fetched = get_compatible_portal_version(
+            __version__, debug
+        )
+        if expected_version and mapping_fetched:
+            needs_upgrade = installed_version != expected_version.lstrip("v")
+            if needs_upgrade:
+                logger.info(
+                    f"Portal version mismatch: installed={installed_version}, "
+                    f"expected={expected_version}"
+                )
+
+    # ── fix if needed ────────────────────────────────────────────
+    if not is_installed or needs_upgrade:
+        reason = "not installed" if not is_installed else "outdated"
+        logger.info(f"Portal {reason}, running auto-setup...")
+        success = await setup_portal(device, debug)
+        if not success:
+            raise RuntimeError(
+                f"Portal auto-setup failed ({reason}). "
+                "Run 'droidrun doctor' for diagnostics."
+            )
+        # After install, accessibility is already enabled by setup_portal
+        return
+
+    if not a11y_enabled:
+        logger.info("Portal accessibility service not enabled, enabling...")
+        try:
+            await enable_portal_accessibility(device)
+            # Verify settings were applied
+            if not await check_portal_accessibility(device, debug=debug):
+                raise RuntimeError(
+                    "Could not enable Portal accessibility service. "
+                    "Please enable it manually in device settings, "
+                    "or run 'droidrun setup'."
+                )
+            # Wait for the service process to start and become responsive
+            await _wait_for_portal_service(device)
+            logger.info("Accessibility service enabled")
+        except RuntimeError:
+            raise
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to enable accessibility service: {e}. "
+                "Run 'droidrun doctor' for diagnostics."
+            ) from e
 
 
 async def test():

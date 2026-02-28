@@ -122,6 +122,7 @@ class DeviceConfig:
     serial: Optional[str] = None
     use_tcp: bool = False
     platform: str = "android"  # "android" or "ios"
+    auto_setup: bool = True  # auto-install/fix portal before each run
 
 
 @dataclass

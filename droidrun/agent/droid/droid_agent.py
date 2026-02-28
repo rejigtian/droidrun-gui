@@ -79,6 +79,7 @@ from droidrun.log_handlers import CLILogHandler, configure_logging
 from droidrun.mcp.adapter import mcp_to_droidrun_tools
 from droidrun.mcp.client import MCPClientManager
 from droidrun.mcp.config import MCPConfig
+from droidrun.portal import ensure_portal_ready
 from droidrun.telemetry import (
     DroidAgentFinalizeEvent,
     DroidAgentInitEvent,
@@ -412,6 +413,13 @@ class DroidAgent(Workflow):
                 if not devices:
                     raise ValueError("No connected Android devices found.")
                 device_serial = devices[0].serial
+
+            # Auto-setup portal if enabled
+            if self.config.device.auto_setup:
+                device_obj = await adb.device(serial=device_serial)
+                await ensure_portal_ready(
+                    device_obj, debug=self.config.logging.debug
+                )
 
             driver = AndroidDriver(
                 serial=device_serial,

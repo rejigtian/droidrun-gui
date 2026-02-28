@@ -22,22 +22,20 @@ from rich.text import Text
 from droidrun import ResultEvent, DroidAgent
 from droidrun.log_handlers import CLILogHandler, configure_logging
 from droidrun.cli.event_handler import EventHandler
-from droidrun.config_manager import ConfigLoader, DroidrunConfig
+from droidrun.config_manager import ConfigLoader
 from droidrun.macro.cli import macro_cli
-from droidrun import __version__
 from droidrun.portal import (
     PORTAL_PACKAGE_NAME,
     download_portal_apk,
     download_versioned_portal_apk,
     enable_portal_accessibility,
-    get_compatible_portal_version,
     ping_portal,
     ping_portal_content,
     ping_portal_tcp,
+    setup_portal,
 )
 from droidrun.telemetry import print_telemetry_message
 from droidrun.agent.utils.llm_picker import load_llm
-import json
 
 # Suppress all warnings
 warnings.filterwarnings("ignore")
@@ -65,23 +63,6 @@ def coro(f):
 
     return wrapper
 
-
-async def get_portal_version(device_obj) -> str | None:
-    try:
-        version_output = await device_obj.shell(
-            "content query --uri content://com.droidrun.portal/version"
-        )
-
-        if "result=" in version_output:
-            json_str = version_output.split("result=", 1)[1].strip()
-            version_data = json.loads(json_str)
-
-            if version_data.get("status") == "success":
-                # Check for 'result' first (new portal), then 'data' (legacy)
-                return version_data.get("result") or version_data.get("data")
-        return None
-    except Exception:
-        return None
 
 
 async def run_command(
@@ -226,29 +207,6 @@ async def run_command(
                 droid_agent_kwargs["base_url"] = base_url
             if api_base is not None:
                 droid_agent_kwargs["api_base"] = api_base
-
-        if not ios:
-            try:
-                device_obj = await adb.device(config.device.serial)
-                if device_obj:
-                    portal_version = await get_portal_version(device_obj)
-
-                    if not portal_version or portal_version < "0.4.1":
-                        logger.warning(
-                            f"⚠️  Portal version {portal_version} is outdated"
-                        )
-                        console.print(
-                            f"\n[yellow]Portal version {portal_version} < 0.4.1. Running setup...[/]\n"
-                        )
-
-                        await _setup_portal(
-                            path=None, device=config.device.serial, debug=debug_mode
-                        )
-
-                else:
-                    logger.debug("Could not get portal version, skipping check")
-            except Exception as e:
-                logger.warning(f"Version check failed: {e}")
 
         droid_agent = DroidAgent(
             goal=command,
@@ -546,6 +504,7 @@ async def _setup_portal(
             )
             return
 
+        # CLI-specific options: path, specific_version, latest
         if path:
             console.print(f"[bold blue]Using provided APK:[/] {path}")
             apk_context = nullcontext(path)
@@ -560,23 +519,19 @@ async def _setup_portal(
             console.print("[bold blue]Downloading latest Portal APK...[/]")
             apk_context = download_portal_apk(debug)
         else:
-            from droidrun import __version__
-
-            portal_version, download_base, mapping_fetched = (
-                get_compatible_portal_version(__version__, debug)
-            )
-
-            if portal_version:
-                apk_context = download_versioned_portal_apk(
-                    portal_version, download_base, debug
+            # Default: delegate to shared setup_portal()
+            success = await setup_portal(device_obj, debug)
+            if success:
+                console.print(
+                    "\n[bold green]Setup complete![/] The DroidRun Portal is now installed and ready to use."
                 )
             else:
-                if not mapping_fetched:
-                    console.print(
-                        "[yellow]Could not fetch version mapping, falling back to latest...[/]"
-                    )
-                apk_context = download_portal_apk(debug)
+                console.print(
+                    "[bold red]Setup failed.[/] Run 'droidrun doctor' for diagnostics."
+                )
+            return
 
+        # Install from explicit path/version/latest
         with apk_context as apk_path:
             if not os.path.exists(apk_path):
                 console.print(f"[bold red]Error:[/] APK file not found at {apk_path}")
