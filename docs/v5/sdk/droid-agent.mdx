@@ -27,13 +27,14 @@ def __init__(
     goal: str,
     config: DroidrunConfig | None = None,
     llms: dict[str, LLM] | LLM | None = None,
-    tools: "DeviceDriver | None" = None,
-    custom_tools: dict | None = None,
-    credentials: dict | None = None,
+    custom_tools: dict = None,
+    credentials: Union[dict, CredentialManager, None] = None,
     variables: dict | None = None,
     output_model: Type[BaseModel] | None = None,
     prompts: dict[str, str] | None = None,
-    timeout: int = 1000
+    driver: "DeviceDriver | None" = None,
+    state_provider: "StateProvider | None" = None,
+    timeout: int = 1000,
 )
 ```
 
@@ -47,12 +48,13 @@ Initialize the DroidAgent wrapper.
   - `dict[str, LLM]`: Agent-specific LLMs with keys: "manager", "executor", "fast_agent", "text_manipulator", "app_opener", "scripter", "structured_output"
   - `LLM`: Single LLM instance used for all agents
   - `None`: LLMs will be loaded from config.llm_profiles
-- `tools` _DeviceDriver | None_ - Pre-configured device driver instance (AndroidDriver or IOSDriver). If None, a driver will be created from config.
-- `custom_tools` _dict | None_ - Custom tool definitions. Format: `{"tool_name": {"parameters": {...}, "description": "...", "function": callable}}`. These are merged with auto-generated credential tools.
-- `credentials` _dict | None_ - Direct credential mapping `{"SECRET_ID": "value"}`. If None, credentials will be loaded from config.credentials if available.
+- `custom_tools` _dict_ - Custom tool definitions. Format: `{"tool_name": {"parameters": {...}, "description": "...", "function": callable}}`. These are merged with auto-generated credential tools.
+- `credentials` _Union[dict, CredentialManager, None]_ - Direct credential mapping `{"SECRET_ID": "value"}`, a CredentialManager instance, or None. If None, credentials will be loaded from config.credentials if available.
 - `variables` _dict | None_ - Custom variables accessible throughout execution. Available in shared_state.custom_variables.
 - `output_model` _Type[BaseModel] | None_ - Pydantic model for structured output extraction from final answer. If provided, the final answer will be parsed into this model.
 - `prompts` _dict[str, str] | None_ - Custom Jinja2 prompt templates to override defaults. Keys: "fast_agent_system", "fast_agent_user", "manager_system", "executor_system", "scripter_system". Values: Jinja2 template strings (NOT file paths).
+- `driver` _DeviceDriver | None_ - Pre-configured device driver instance (AndroidDriver or IOSDriver). If None, a driver will be created from config.
+- `state_provider` _StateProvider | None_ - Pre-configured state provider instance. If None, a state provider will be created from config.
 - `timeout` _int_ - Workflow timeout in seconds (default: 1000)
 
 **Basic initialization pattern (recommended):**
@@ -273,8 +275,8 @@ async for event in agent.run_event_stream():
         print("Manager is planning...")
     elif isinstance(event, ExecutorInputEvent):
         print("Executor is taking action...")
-    elif isinstance(event, TapActionEvent):
-        print(f"Tapping element at {event.x}, {event.y}")
+    elif isinstance(event, ToolExecutionEvent):
+        print(f"Tool executed: {event.tool_name} - {event.summary}")
     elif isinstance(event, ResultEvent):
         # Final result
         print(f"Success: {event.success}")
@@ -300,24 +302,17 @@ DroidAgent emits various events during execution:
 - `ExecutorResultEvent` - Executor completed an action
 - `ScripterExecutorInputEvent` - ScripterAgent started
 - `ScripterExecutorResultEvent` - ScripterAgent completed
+- `TextManipulatorInputEvent` - TextManipulatorAgent started
+- `TextManipulatorResultEvent` - TextManipulatorAgent completed
 - `FastAgentExecuteEvent` - FastAgent started (direct mode)
 - `FastAgentResultEvent` - FastAgent completed
 - `FinalizeEvent` - Workflow finalizing
 - `StopEvent` - Workflow completed
 
-**Action Events:**
-- `TapActionEvent` - UI element tapped
-- `SwipeActionEvent` - Swipe gesture performed
-- `DragActionEvent` - Drag gesture performed
-- `InputTextActionEvent` - Text input
-- `KeyPressActionEvent` - Key press action
-- `StartAppEvent` - App launched
-- `WaitEvent` - Wait/sleep action
-
-**State Events:**
+**Common Events:**
+- `ToolExecutionEvent` - Emitted by ToolRegistry after every tool dispatch (contains `tool_name`, `tool_args`, `success`, `summary`)
 - `ScreenshotEvent` - Screenshot captured
 - `RecordUIStateEvent` - UI state recorded
-- `MacroEvent` - Macro action recorded
 
 ## Configuration
 
@@ -430,4 +425,4 @@ Available prompt keys: "fast_agent_system", "fast_agent_user", "manager_system",
 - **Reasoning mode**: `reasoning=True` uses Manager/Executor workflow for complex planning. `reasoning=False` uses FastAgent for direct execution.
 - **Safe execution**: When enabled, restricts imports and builtins in FastAgent and ScripterAgent (see safe_execution config).
 - **Timeout**: Default is 1000 seconds. Increase for long-running tasks.
-- **Credentials**: Credentials are automatically injected as custom tools (e.g., `get_username()`, `get_password()`).
+- **Credentials**: When credentials are provided, the `type_secret(secret_id, index)` tool is automatically registered. The agent never sees the actual secret values, only the secret IDs.

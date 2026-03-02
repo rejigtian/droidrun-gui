@@ -21,7 +21,7 @@ droidrun run "Turn on Do Not Disturb"
 ```
 
 <Note>
-**Auto-configuration**: If `config.yaml` doesn't exist, Droidrun creates it from `config_example.yaml` automatically.
+**Auto-configuration**: If no config exists, Droidrun creates a default `config.yaml` at `~/.config/droidrun/config.yaml` automatically.
 
 **Command shorthand**: `droidrun "task"` is equivalent to `droidrun run "task"`
 </Note>
@@ -57,7 +57,7 @@ droidrun "<command>" [OPTIONS]
 | `--tcp` | Use TCP instead of content provider | `false` |
 | `--debug` | Verbose logging | `false` |
 | `--save-trajectory` | Save execution (`none`, `step`, `action`) | `none` |
-| `--config`, `-c` | Custom config path | `config.yaml` |
+| `--config`, `-c` | Custom config path | `~/.config/droidrun/config.yaml` |
 
 ### Examples
 
@@ -174,7 +174,7 @@ droidrun setup --path /path/to/portal.apk
 ```
 
 **What it does:**
-1. Downloads latest Portal APK
+1. Downloads compatible Portal APK for your SDK version
 2. Installs with all permissions
 3. Auto-enables accessibility service
 4. Opens settings if manual enable needed
@@ -324,7 +324,7 @@ trajectories/2025-10-16_14-30-45/
 ### Override Priority
 
 1. **CLI flags** (highest)
-2. **Config file** (`config.yaml`)
+2. **Config file** (`~/.config/droidrun/config.yaml`)
 3. **Defaults** (lowest)
 
 ### Common Patterns
@@ -387,7 +387,7 @@ droidrun setup
 
 # Enable accessibility manually
 adb shell settings put secure enabled_accessibility_services \
-  com.droidrun.portal/.DroidrunAccessibilityService
+  com.droidrun.portal/com.droidrun.portal.service.DroidrunAccessibilityService
 ```
   </Accordion>
 
@@ -444,7 +444,7 @@ droidrun ping --tcp
 | `OPENAI_API_KEY` | OpenAI API key | None |
 | `ANTHROPIC_API_KEY` | Anthropic API key | None |
 | `DEEPSEEK_API_KEY` | DeepSeek API key | None |
-| `DROIDRUN_CONFIG` | Config file path | `config.yaml` |
+| `DROIDRUN_CONFIG` | Config file path | `~/.config/droidrun/config.yaml` |
 
 **Setting variables:**
 

@@ -152,8 +152,8 @@ async def check_action_history(action_name: str, *, ctx, **kwargs) -> str:
     if shared_state.step_number > 10:
         return "Warning: Task taking too many steps"
 
-    # Access memory
-    if "skip_validation" in shared_state.memory:
+    # Access fast memory
+    if any("skip_validation" in m for m in shared_state.fast_memory):
         return "Validation skipped per memory"
 
     return f"Action '{action_name}' not yet performed"
@@ -173,7 +173,8 @@ custom_tools = {
 - `step_number` - Current execution step
 - `action_history` - List of executed actions
 - `action_outcomes` - Success/failure per action
-- `memory` - Agent memory dict
+- `manager_memory` - Manager planning notes (append-only string)
+- `fast_memory` - FastAgent remember() items (list of strings, max 10)
 - `custom_variables` - User-provided variables
 - `visited_packages` - Apps visited
 - `current_package_name` - Current app package

@@ -134,21 +134,24 @@ Found 23 contacts from New York and saved them to /tmp/filtered_contacts.json
 ```yaml
 agent:
   scripter:
+    enabled: true
     max_steps: 10
-    safe_execution:
-      enabled: true
-      allowed_modules:
-        - requests    # API calls, webhooks
-        - json        # JSON parsing
-        - csv         # CSV file operations
-        - pathlib     # File path handling
-      blocked_modules:
-        - subprocess  # Process spawning
-        - os          # System operations
-        - sys         # System modifications
+    safe_execution: true   # Enable sandboxed execution
+
+# Top-level safe execution config (shared by all code-executing agents)
+safe_execution:
+  allowed_modules:
+    - requests    # API calls, webhooks
+    - json        # JSON parsing
+    - csv         # CSV file operations
+    - pathlib     # File path handling
+  blocked_modules:
+    - subprocess  # Process spawning
+    - os          # System operations
+    - sys         # System modifications
 ```
 
-**Safe execution** restricts dangerous operations by default. Only modules in `allowed_modules` can be imported.
+**Safe execution** restricts dangerous operations when enabled. The `agent.scripter.safe_execution` flag enables sandboxing, and the top-level `safe_execution` config controls which modules and builtins are accessible.
 
 ## Key Points
 

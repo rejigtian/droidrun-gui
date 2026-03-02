@@ -117,7 +117,7 @@ if result.structured_output:
 
 ### Custom Extraction LLM
 
-By default, extraction uses the `fast_agent` LLM. Specify a dedicated `structured_output` profile:
+By default, extraction uses the `structured_output` LLM profile. If not configured, it falls back to the `fast_agent` LLM. You can specify a dedicated `structured_output` profile:
 
 **config.yaml:**
 ```yaml
@@ -257,7 +257,7 @@ async def finalize(self, ctx: Context, ev: FinalizeEvent) -> ResultEvent:
             pydantic_model=self.output_model,
             answer_text=ev.reason,
         )
-        extraction_result = await (await structured_agent.run())
+        extraction_result = await structured_agent.run()
         if extraction_result["success"]:
             result.structured_output = extraction_result["structured_output"]
 

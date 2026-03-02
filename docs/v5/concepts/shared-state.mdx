@@ -34,16 +34,25 @@ class DroidAgentState(BaseModel):
     summary_history: List[str] = []            # Action summaries
 
     # Memory
-    memory: str = ""                           # Agent persistent memory
+    manager_memory: str = ""                   # Manager's planning notes (append-only)
+    fast_memory: List[str] = []                # FastAgent remember() items (max 10)
 
     # Planning (Manager)
     plan: str = ""                             # Current plan
     current_subgoal: str = ""                  # Current subgoal
-    manager_answer: str = ""                   # Answer-type responses
+    answer: str = ""                           # Final answer (manager completion or complete() tool)
+
+    # Completion (set by complete() tool)
+    finished: bool = False                     # Whether task is done
+    success: Optional[bool] = None             # Whether task succeeded
 
     # Error handling
     error_flag_plan: bool = False              # Signal error to Manager
     error_descriptions: List[str] = []         # Error messages
+    err_to_manager_thresh: int = 2             # Consecutive errors before escalation
+
+    # Message history (for stateful agents)
+    message_history: List[ChatMessage] = []    # Preserves ThinkingBlock, ImageBlock, etc.
 
     # Script execution (Scripter)
     scripter_history: List[Dict] = []          # Scripter results

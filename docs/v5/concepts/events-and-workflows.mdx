@@ -75,7 +75,7 @@ class ManagerPlanEvent(Event):
     plan: str
     current_subgoal: str
     thought: str
-    manager_answer: str = ""
+    answer: str = ""
     success: bool | None = None
 
 class ExecutorInputEvent(Event):
@@ -115,8 +115,8 @@ Internal to ManagerAgent, streamed to frontend/logging.
 class ManagerContextEvent(Event): pass
 
 class ManagerResponseEvent(Event):
-    output_planning: str
-    usage: Optional[UsageResult]
+    response: str
+    usage: Optional[UsageResult] = None
 
 class ManagerPlanDetailsEvent(Event):
     plan: str
@@ -145,7 +145,7 @@ class ExecutorActionEvent(Event):
     action_json: str
     thought: str
     description: str
-    full_response: str
+    full_response: str = ""
 
 class ExecutorActionResultEvent(Event):
     action: Dict
@@ -190,10 +190,10 @@ class ScripterInputEvent(Event):
     pass
 
 class ScripterThinkingEvent(Event):
-    thoughts: str
-    code: Optional[str]
-    full_response: str
-    usage: Optional[UsageResult]
+    thought: str
+    code: Optional[str] = None
+    full_response: str = ""
+    usage: Optional[UsageResult] = None
 
 class ScripterExecutionEvent(Event):
     code: str
@@ -204,63 +204,24 @@ class ScripterExecutionResultEvent(Event):
 class ScripterEndEvent(Event):
     message: str
     success: bool
-    code_executions: int
+    code_executions: int = 0
 ```
   </Accordion>
 
-  <Accordion title="Action Recording Events">
-Emitted when actions are performed, used for macro recording and trajectory tracking.
-
+  <Accordion title="Common, Visual & Telemetry Events">
 ```python
-class MacroEvent(Event):  # Base class
-    action_type: str
-    description: str
-
-class TapActionEvent(MacroEvent):
-    x: int
-    y: int
-    element_index: int = None
-    element_text: str = ""
-    element_bounds: str = ""
-
-class SwipeActionEvent(MacroEvent):
-    start_x: int
-    start_y: int
-    end_x: int
-    end_y: int
-    duration_ms: int
-
-class DragActionEvent(MacroEvent):
-    start_x: int
-    start_y: int
-    end_x: int
-    end_y: int
-    duration_ms: int
-
-class InputTextActionEvent(MacroEvent):
-    text: str
-
-class KeyPressActionEvent(MacroEvent):
-    keycode: int
-    key_name: str = ""
-
-class StartAppEvent(MacroEvent):
-    package: str
-    activity: str = None
-
-class WaitEvent(MacroEvent):
-    duration: float
-```
-  </Accordion>
-
-  <Accordion title="Visual & Telemetry Events">
-```python
-# Visual events
+# Common events (droidrun/agent/common/events.py)
 class ScreenshotEvent(Event):
     screenshot: bytes
 
 class RecordUIStateEvent(Event):
     ui_state: list[Dict[str, Any]]
+
+class ToolExecutionEvent(Event):
+    tool_name: str
+    tool_args: Dict[str, Any]
+    success: bool
+    summary: str
 
 # Telemetry events (when enabled)
 class DroidAgentInitEvent(TelemetryEvent):
@@ -392,13 +353,13 @@ async def monitor_execution(goal: str):
 - Coordination: `ManagerInputEvent`, `ManagerPlanEvent`, `ExecutorInputEvent`, `ExecutorResultEvent`
 - Internal Manager: `ManagerContextEvent`, `ManagerResponseEvent`, `ManagerPlanDetailsEvent`
 - Internal Executor: `ExecutorContextEvent`, `ExecutorResponseEvent`, `ExecutorActionEvent`, `ExecutorActionResultEvent`
-- Actions: All action recording events (`TapActionEvent`, `SwipeActionEvent`, etc.)
+- Tool execution: `ToolExecutionEvent` (after every tool dispatch)
 - Visual: `ScreenshotEvent`, `RecordUIStateEvent` (when enabled)
 
 **Direct Mode** (`reasoning=False`) emits:
 - Coordination: `FastAgentExecuteEvent`, `FastAgentResultEvent`
 - Internal FastAgent: `FastAgentInputEvent`, `FastAgentResponseEvent`, `FastAgentToolCallEvent`, `FastAgentOutputEvent`, `FastAgentEndEvent`
-- Actions: All action recording events
+- Tool execution: `ToolExecutionEvent` (after every tool dispatch)
 - Visual: `ScreenshotEvent`, `RecordUIStateEvent` (when enabled)
 
 **ScripterAgent** (when triggered by `<script>` tags) emits:
@@ -419,9 +380,9 @@ async def monitor_execution(goal: str):
 - Located in agent-specific event files
 - Examples: `ManagerPlanDetailsEvent`, `ExecutorActionEvent`, `FastAgentResponseEvent`
 
-**Action Recording Events** - Emitted when actions are performed (for macros/trajectories)
+**Common Events** - Emitted during execution (for screenshots, UI state recording, and tool tracking)
 - Located in `droidrun/agent/common/events.py`
-- Examples: `TapActionEvent`, `SwipeActionEvent`, `InputTextActionEvent`
+- Examples: `ScreenshotEvent`, `RecordUIStateEvent`, `ToolExecutionEvent`
 
 **Telemetry Events** - Captured for analytics (when enabled)
 - Located in `droidrun/telemetry/events.py`

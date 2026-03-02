@@ -63,9 +63,13 @@ Each agent has access to different variables in its templates:
 
 - `instruction` - User's goal
 - `device_state` - Current UI tree
+- `plan` - Current plan from Manager
 - `subgoal` - Current subgoal from Manager
+- `progress_status` - Cumulative progress summary
 - `atomic_actions` - Available actions (includes custom tools)
 - `action_history` - Recent actions with outcomes
+- `available_secrets` - Available credential IDs
+- `variables` - Custom variables passed to DroidAgent
 
 ### FastAgent
 
@@ -82,8 +86,8 @@ Each agent has access to different variables in its templates:
 ### Scripter
 
 - `task` - Task description from Manager
-- `available_secrets` - Credential IDs
-- `variables` - Custom variables
+- `max_steps` - Maximum execution steps allowed
+- `available_libraries` - Descriptions of available Python libraries
 
 ## Example: Custom Manager Prompt
 

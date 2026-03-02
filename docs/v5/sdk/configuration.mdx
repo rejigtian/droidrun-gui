@@ -36,12 +36,13 @@ DroidAgent(
 |-----------|------|---------|-------------|
 | `config` | `DroidrunConfig \| None` | `None` | Full config object (loads LLMs from profiles if `llms` not provided) |
 | `llms` | `dict[str, LLM] \| LLM \| None` | `None` | LLM(s) - dict for per-agent, single LLM for all, or None to load from config |
-| `tools` | `Tools \| None` | `None` | Tools instance (AdbTools/IOSTools) |
-| `custom_tools` | `dict \| None` | `None` | Custom tool definitions |
-| `credentials` | `dict \| None` | `None` | Dict of credential secrets |
+| `custom_tools` | `dict` | `None` | Custom tool definitions |
+| `credentials` | `Union[dict, CredentialManager, None]` | `None` | Dict of credential secrets or CredentialManager instance |
 | `variables` | `dict \| None` | `None` | Custom variables accessible during execution |
 | `output_model` | `Type[BaseModel] \| None` | `None` | Pydantic model for structured output extraction |
 | `prompts` | `dict[str, str] \| None` | `None` | Custom Jinja2 prompt templates (NOT file paths) |
+| `driver` | `DeviceDriver \| None` | `None` | Pre-configured device driver instance (AndroidDriver or IOSDriver) |
+| `state_provider` | `StateProvider \| None` | `None` | Pre-configured state provider instance |
 | `timeout` | `int` | `1000` | Workflow timeout in seconds |
 
 ---
@@ -55,12 +56,13 @@ from droidrun import AgentConfig, FastAgentConfig, ManagerConfig, ExecutorConfig
 
 AgentConfig(
     # Core settings
+    name="droidrun",                 # Agent name (use "droidrun" for default agent)
     max_steps=15,                    # Max execution steps
-    reasoning=True,                 # Enable Manager/Executor workflow
+    reasoning=False,                 # Enable Manager/Executor workflow
     streaming=True,                  # Stream LLM responses
     after_sleep_action=1.0,          # Wait after actions (seconds)
     wait_for_stable_ui=0.3,          # Wait for UI to stabilize (seconds)
-    prompts_dir="config/prompts",    # Prompt templates directory
+    use_normalized_coordinates=False, # Use normalized coordinates instead of absolute pixels
 
     # Sub-configs
     fast_agent=FastAgentConfig(...),
@@ -74,38 +76,41 @@ AgentConfig(
 **FastAgentConfig**
 ```python
 FastAgentConfig(
-    vision=True,                    # Enable screenshots
-    system_prompt="system.jinja2",   # Filename in prompts_dir/codeact/
-    user_prompt="user.jinja2",       # Filename in prompts_dir/codeact/
-    codeact=False,                  # Legacy: enable CodeAct code-execution mode (default: XML tool-calling)
-    parallel_tools=True,            # Encourage multiple tool calls in a single response
+    vision=False,                                              # Enable screenshots
+    codeact=False,                                             # Deprecated: enable CodeAct code-execution mode (default: XML tool-calling)
+    parallel_tools=True,                                       # Encourage multiple tool calls in a single response
+    system_prompt="config/prompts/codeact/tools_system.jinja2", # Path to system prompt template
+    user_prompt="config/prompts/codeact/tools_user.jinja2",     # Path to user prompt template
+    safe_execution=False,                                      # Restrict code execution (for CodeAct mode)
+    execution_timeout=50.0,                                    # Code block timeout in seconds (for CodeAct mode)
 )
 ```
 
 **ManagerConfig**
 ```python
 ManagerConfig(
-    vision=True,                    # Enable screenshots
-    system_prompt="system.jinja2",   # Filename in prompts_dir/manager/
+    vision=False,                                            # Enable screenshots
+    system_prompt="config/prompts/manager/system.jinja2",    # Path to system prompt template
+    stateless=False,                                         # Use StatelessManagerAgent (no conversation history)
 )
 ```
 
 **ExecutorConfig**
 ```python
 ExecutorConfig(
-    vision=True,                    # Enable screenshots
-    system_prompt="system.jinja2",   # Filename in prompts_dir/executor/
+    vision=False,                                            # Enable screenshots
+    system_prompt="config/prompts/executor/system.jinja2",   # Path to system prompt template
 )
 ```
 
 **ScripterConfig**
 ```python
 ScripterConfig(
-    enabled=True,                    # Enable off-device Python execution
-    max_steps=10,                    # Max scripter steps
-    execution_timeout=30.0,          # Code block timeout (seconds)
-    system_prompt_path="system.jinja2",  # Filename in prompts_dir/scripter/
-    safe_execution=False,            # Restrict imports/builtins
+    enabled=True,                                              # Enable off-device Python execution
+    max_steps=10,                                              # Max scripter steps
+    execution_timeout=30.0,                                    # Code block timeout (seconds)
+    system_prompt="config/prompts/scripter/system.jinja2",     # Path to system prompt template
+    safe_execution=False,                                      # Restrict imports/builtins
 )
 ```
 
@@ -130,8 +135,9 @@ from droidrun import DeviceConfig
 
 DeviceConfig(
     serial=None,          # Device serial/IP (None = auto-detect)
-    platform="android",   # "android" or "ios"
     use_tcp=False,        # TCP vs content provider communication
+    platform="android",   # "android" or "ios"
+    auto_setup=True,      # Auto-install/fix Portal APK before each run
 )
 ```
 
@@ -143,11 +149,11 @@ DeviceConfig(
 from droidrun import LoggingConfig
 
 LoggingConfig(
-    debug=True,                   # Enable debug logs
+    debug=False,                   # Enable debug logs
     save_trajectory="none",        # "none" | "step" | "action"
     trajectory_path="trajectories", # Directory for trajectory files
-    trajectory_gifs=False,         # Save trajectory as animated GIFs
     rich_text=False,               # Rich text formatting in logs
+    trajectory_gifs=True,          # Save trajectory as animated GIFs
 )
 ```
 
@@ -159,8 +165,9 @@ LoggingConfig(
 from droidrun import TracingConfig
 
 TracingConfig(
-    enabled=True,                      # Enable tracing
+    enabled=False,                      # Enable tracing
     provider="phoenix",                 # "phoenix" or "langfuse"
+    langfuse_screenshots=False,         # Upload screenshots to Langfuse (if enabled)
 
     # Langfuse settings (only used if provider="langfuse")
     langfuse_secret_key="",             # LANGFUSE_SECRET_KEY env var
@@ -191,8 +198,8 @@ TelemetryConfig(
 from droidrun import ToolsConfig
 
 ToolsConfig(
-    allow_drag=True,          # Enable drag tool
-    disabled_tools=[],        # List of tools to disable (e.g., ["long_press", "wait"])
+    disabled_tools=["click_at", "click_area", "long_press_at"],  # Tools to disable (default disables coordinate-based tools)
+    stealth=False,                                                # Enable stealth mode (human-like timing + randomized coordinates)
 )
 ```
 
@@ -202,8 +209,9 @@ tools:
   disabled_tools:
     - long_press
     - wait
+  stealth: false
 ```
-Disabled tools will not be available to agents during execution.
+Disabled tools will not be available to agents during execution. The default `disabled_tools` list disables `click_at`, `click_area`, and `long_press_at`.
 
 ---
 
@@ -253,9 +261,9 @@ SafeExecutionConfig(
 ### Single LLM (All Agents)
 
 ```python
-from llama_index.llms.gemini import Gemini
+from llama_index.llms.google_genai import GoogleGenAI
 
-llm = Gemini(model="models/gemini-2.5-pro", temperature=0.2)
+llm = GoogleGenAI(model="models/gemini-2.5-pro", temperature=0.2)
 agent = DroidAgent(goal="...", llms=llm)
 ```
 
@@ -263,18 +271,18 @@ agent = DroidAgent(goal="...", llms=llm)
 
 ```python
 from llama_index.llms.openai import OpenAI
-from llama_index.llms.gemini import Gemini
+from llama_index.llms.google_genai import GoogleGenAI
 
 agent = DroidAgent(
     goal="...",
     llms={
         "manager": OpenAI(model="gpt-4o"),                    # Planning
-        "executor": Gemini(model="models/gemini-2.5-flash"),  # Action selection
-        "fast_agent": Gemini(model="models/gemini-2.5-pro"),   # Fast Agent: Direct execution (XML tool-calling)
-        "text_manipulator": Gemini(model="models/gemini-2.5-flash"),  # Text input
+        "executor": GoogleGenAI(model="models/gemini-2.5-flash"),  # Action selection
+        "fast_agent": GoogleGenAI(model="models/gemini-2.5-pro"),   # Fast Agent: Direct execution (XML tool-calling)
+        "text_manipulator": GoogleGenAI(model="models/gemini-2.5-flash"),  # Text input
         "app_opener": OpenAI(model="gpt-4o-mini"),            # App launching
-        "scripter": Gemini(model="models/gemini-2.5-flash"),  # Off-device scripts
-        "structured_output": Gemini(model="models/gemini-2.5-flash"),  # Output extraction
+        "scripter": GoogleGenAI(model="models/gemini-2.5-flash"),  # Off-device scripts
+        "structured_output": GoogleGenAI(model="models/gemini-2.5-flash"),  # Output extraction
     }
 )
 ```
@@ -324,7 +332,7 @@ agent = DroidAgent(
         "PASSWORD": "secret123"
     }
 )
-# Agent can call get_username() and get_password()
+# Agent can call type_secret("USERNAME", index) and type_secret("PASSWORD", index)
 ```
 
 ### Config Format
@@ -420,7 +428,7 @@ from droidrun import (
     AgentConfig, FastAgentConfig, DeviceConfig, LoggingConfig, TracingConfig
 )
 from llama_index.llms.openai import OpenAI
-from llama_index.llms.gemini import Gemini
+from llama_index.llms.google_genai import GoogleGenAI
 from pydantic import BaseModel
 
 # Structured output
@@ -461,12 +469,12 @@ agent = DroidAgent(
     # LLMs
     llms={
         "manager": OpenAI(model="gpt-4o"),                    # Planning
-        "executor": Gemini(model="models/gemini-2.5-flash"),  # Action selection
-        "fast_agent": Gemini(model="models/gemini-2.5-pro"),   # Fast Agent: Direct execution (XML tool-calling)
-        "text_manipulator": Gemini(model="models/gemini-2.5-flash"),  # Text input
+        "executor": GoogleGenAI(model="models/gemini-2.5-flash"),  # Action selection
+        "fast_agent": GoogleGenAI(model="models/gemini-2.5-pro"),   # Fast Agent: Direct execution (XML tool-calling)
+        "text_manipulator": GoogleGenAI(model="models/gemini-2.5-flash"),  # Text input
         "app_opener": OpenAI(model="gpt-4o-mini"),            # App launching
-        "scripter": Gemini(model="models/gemini-2.5-flash"),  # Off-device scripts
-        "structured_output": Gemini(model="models/gemini-2.5-flash"),  # Output extraction
+        "scripter": GoogleGenAI(model="models/gemini-2.5-flash"),  # Off-device scripts
+        "structured_output": GoogleGenAI(model="models/gemini-2.5-flash"),  # Output extraction
     },
 
     # Custom tools
@@ -505,34 +513,37 @@ For CLI usage, create `config.yaml`:
 
 ```yaml
 agent:
+  name: droidrun
   max_steps: 15
   reasoning: false
   streaming: true
   after_sleep_action: 1.0
   wait_for_stable_ui: 0.3
-  prompts_dir: config/prompts
+  use_normalized_coordinates: false
 
   fast_agent:
     vision: false
+    codeact: false  # Deprecated: enable CodeAct code-execution mode (default: XML tool-calling)
     parallel_tools: true
-    system_prompt: system.jinja2
-    user_prompt: user.jinja2
-    codeact: false  # Legacy: enable CodeAct code-execution mode (default: XML tool-calling)
-    parallel_tools: true  # Encourage multiple tool calls in a single response
+    system_prompt: config/prompts/codeact/tools_system.jinja2
+    user_prompt: config/prompts/codeact/tools_user.jinja2
+    safe_execution: false
+    execution_timeout: 50.0
 
   manager:
     vision: false
-    system_prompt: system.jinja2
+    system_prompt: config/prompts/manager/system.jinja2
+    stateless: false
 
   executor:
     vision: false
-    system_prompt: system.jinja2
+    system_prompt: config/prompts/executor/system.jinja2
 
   scripter:
     enabled: true
     max_steps: 10
     execution_timeout: 30.0
-    system_prompt_path: system.jinja2
+    system_prompt: config/prompts/scripter/system.jinja2
     safe_execution: false
 
   app_cards:
@@ -589,6 +600,14 @@ device:
   serial: null
   platform: android
   use_tcp: false
+  auto_setup: true  # Auto-install/fix Portal APK before each run
+
+tools:
+  disabled_tools:
+    - click_at
+    - click_area
+    - long_press_at
+  stealth: false
 
 telemetry:
   enabled: true
@@ -596,6 +615,7 @@ telemetry:
 tracing:
   enabled: false
   provider: phoenix  # "phoenix" or "langfuse"
+  langfuse_screenshots: false  # Upload screenshots to Langfuse
   langfuse_secret_key: ""
   langfuse_public_key: ""
   langfuse_host: ""
@@ -606,8 +626,8 @@ logging:
   debug: false
   save_trajectory: none
   trajectory_path: trajectories
-  trajectory_gifs: false
   rich_text: false
+  trajectory_gifs: true
 
 safe_execution:
   allow_all_imports: false

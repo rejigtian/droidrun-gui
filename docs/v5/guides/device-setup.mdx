@@ -35,7 +35,7 @@ Droidrun controls devices through a specialized Portal app that bridges your com
 
   <Step title="Install Portal App">
     ```bash
-    # Automatic setup (downloads latest Portal APK)
+    # Automatic setup (downloads compatible Portal APK)
     droidrun setup
 
     # Or specify device
@@ -43,7 +43,7 @@ Droidrun controls devices through a specialized Portal app that bridges your com
     ```
 
     This will:
-    - Download the latest Portal APK
+    - Download the compatible Portal APK for your SDK version
     - Install with all permissions granted
     - Enable accessibility service automatically
   </Step>
@@ -223,7 +223,7 @@ The Portal only communicates locally via ADB. No data is sent to external server
     ```python
     import asyncio
     from droidrun import DeviceConfig, DroidrunConfig, DroidAgent
-    from adbutils import adb
+    from async_adbutils import adb
 
     async def control_device(serial: str, command: str):
         device_config = DeviceConfig(serial=serial)
@@ -232,7 +232,7 @@ The Portal only communicates locally via ADB. No data is sent to external server
         return await agent.run()
 
     async def main():
-        devices = adb.list()
+        devices = await adb.list()
 
         tasks = [
             control_device(devices[0].serial, "Open settings"),
@@ -279,7 +279,7 @@ The Portal only communicates locally via ADB. No data is sent to external server
     1. Auto-enable:
        ```bash
        adb shell settings put secure enabled_accessibility_services \
-         com.droidrun.portal/com.droidrun.portal.DroidrunAccessibilityService
+         com.droidrun.portal/com.droidrun.portal.service.DroidrunAccessibilityService
        adb shell settings put secure accessibility_enabled 1
        ```
     2. Manual: Settings > Accessibility > Droidrun Portal > Toggle ON
@@ -298,7 +298,7 @@ The Portal only communicates locally via ADB. No data is sent to external server
        ```bash
        # Verify
        adb shell settings get secure default_input_method
-       # Should show: com.droidrun.portal/.DroidrunKeyboardIME
+       # Should show: com.droidrun.portal/.input.DroidrunKeyboardIME
        ```
     2. Manual switch: Long press space bar → Select "Droidrun Keyboard"
     3. Focus the element first (tap it), then input text
@@ -349,9 +349,14 @@ iOS support is currently **experimental**. Functionality is limited compared to 
   </Step>
 
   <Step title="Test Connection">
+    Run a simple task to verify connectivity:
     ```bash
-    droidrun ping --ios
+    droidrun run "take a screenshot" --ios
     ```
+
+    <Note>
+    The `droidrun ping` command is Android-only (uses ADB). For iOS, run a simple task with `--ios` to verify the connection.
+    </Note>
   </Step>
 </Steps>
 
@@ -411,8 +416,8 @@ Current iOS support has these limitations:
 | Feature | Status | Notes |
 |---------|--------|-------|
 | `get_date()` | ❌ | Not available on iOS |
-| `back()` | ❌ | Raises `NotImplementedError` |
-| `drag()` | ❌ | Not implemented, returns False |
+| `back()` | ❌ | No iOS equivalent, silently ignored |
+| `drag()` | ❌ | Not supported, auto-disabled |
 | `get_apps()` | ⚠️ | Use `list_packages()` instead |
 | `input_text()` | ⚠️ | No `index` or `clear` parameters |
 | `tap()`, `swipe()` | ✅ | Fully supported |
