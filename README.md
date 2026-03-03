@@ -4,6 +4,8 @@
   <img src="./static/droidrun.png"  width="full">
 </picture>
 
+<h3 align="center"><em>DroidRun is not affiliated with, endorsed by, or sponsored by Google LLC or the Android Open Source Project. Android™ is a trademark of Google LLC.</em></h3>
+
 <div align="center">
 
 [![Docs](https://img.shields.io/badge/Docs-📕-0D9373?style=for-the-badge)](https://docs.droidrun.ai)
@@ -39,6 +41,10 @@
 
 
 DroidRun is a powerful framework for controlling Android and iOS devices through LLM agents. It allows you to automate device interactions using natural language commands. [Checkout our benchmark results](https://droidrun.ai/benchmark)
+
+## ⚖️ Disclaimer
+
+Droidrun is an independent, open-source project and is not affiliated with, endorsed by, or sponsored by Google LLC or the Android Open Source Project. "Android" is a trademark of Google LLC. All other trademarks and brand names mentioned are the property of their respective owners. DroidRun is a third-party tool that interacts with the Android platform but is not part of the Android ecosystem.
 
 ## Why Droidrun?
 
