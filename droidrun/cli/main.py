@@ -64,7 +64,6 @@ def coro(f):
     return wrapper
 
 
-
 async def run_command(
     command: str,
     config_path: str | None = None,

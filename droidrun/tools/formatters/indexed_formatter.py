@@ -68,7 +68,9 @@ class IndexedFormatter(TreeFormatter):
     def _format_ui_elements_text(self, a11y_tree: List[Dict[str, Any]]) -> str:
         """Format UI elements text."""
         coord_note = " (normalized [0-1000])" if self.use_normalized else ""
-        schema = "'index. className: resourceId; checkedState, text - bounds(x1,y1,x2,y2)'"
+        schema = (
+            "'index. className: resourceId; checkedState, text - bounds(x1,y1,x2,y2)'"
+        )
         if a11y_tree:
             formatted_ui = IndexedFormatter._format_ui_elements(a11y_tree)
             ui_elements_text = (
@@ -117,7 +119,7 @@ class IndexedFormatter(TreeFormatter):
                 line_parts.append(", ".join(details))
 
             if checkedState:
-                line_parts.append(f'; {checkedState}')
+                line_parts.append(f"; {checkedState}")
 
             if bounds:
                 line_parts.append(f"- ({bounds})")
@@ -171,13 +173,15 @@ class IndexedFormatter(TreeFormatter):
 
         checked_state = ""
         if node.get("isCheckable"):
-            checked_state = "isChecked=True" if node.get("isChecked") else "isChecked=False"
+            checked_state = (
+                "isChecked=True" if node.get("isChecked") else "isChecked=False"
+            )
 
         return {
             "index": index,
             "resourceId": node.get("resourceId", ""),
             "className": short_class,
-            "checkedState" : checked_state,
+            "checkedState": checked_state,
             "text": text,
             "bounds": bounds_str,
             "children": [],

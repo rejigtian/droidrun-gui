@@ -536,19 +536,13 @@ async def ensure_portal_ready(
         return
 
     # ── evaluate results ─────────────────────────────────────────
-    is_installed = (
-        isinstance(packages, list) and PORTAL_PACKAGE_NAME in packages
-    )
+    is_installed = isinstance(packages, list) and PORTAL_PACKAGE_NAME in packages
 
     installed_version = (
-        _parse_portal_version(version_raw)
-        if isinstance(version_raw, str)
-        else None
+        _parse_portal_version(version_raw) if isinstance(version_raw, str) else None
     )
 
-    a11y_enabled = (
-        isinstance(a11y_services, str) and A11Y_SERVICE_NAME in a11y_services
-    )
+    a11y_enabled = isinstance(a11y_services, str) and A11Y_SERVICE_NAME in a11y_services
 
     # Check version compatibility
     needs_upgrade = False
