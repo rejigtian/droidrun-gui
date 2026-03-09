@@ -163,6 +163,8 @@ class DroidAgentState(BaseModel):
         self.answer = answer or "Task completed successfully."
 
     def queue_user_message(self, message: str) -> QueuedUserMessage:
+        if not message or not message.strip():
+            raise ValueError("Cannot queue an empty or whitespace-only message.")
         if self.workflow_completed:
             raise RuntimeError("Cannot queue messages: agent has already finished.")
         queued = QueuedUserMessage(message=message, queued_at_step=self.step_number)

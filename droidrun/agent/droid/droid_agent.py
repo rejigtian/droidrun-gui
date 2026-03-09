@@ -39,7 +39,7 @@ from droidrun.agent.droid.events import (
     TextManipulatorInputEvent,
     TextManipulatorResultEvent,
 )
-from droidrun.agent.droid.state import DroidAgentState
+from droidrun.agent.droid.state import DroidAgentState, QueuedUserMessage
 from droidrun.agent.executor import ExecutorAgent
 from droidrun.agent.external import load_agent
 from droidrun.agent.manager import ManagerAgent, StatelessManagerAgent
@@ -596,9 +596,7 @@ class DroidAgent(Workflow):
     # External user message injection
     # ========================================================================
 
-    def send_user_message(self, message: str) -> "QueuedUserMessage":
-        from droidrun.agent.droid.state import QueuedUserMessage
-
+    def send_user_message(self, message: str) -> QueuedUserMessage:
         queued = self.shared_state.queue_user_message(message)
         logger.info(
             f"📩 External user message queued [id={queued.id}] "
