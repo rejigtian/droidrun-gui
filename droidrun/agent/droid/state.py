@@ -10,8 +10,6 @@ from droidrun.telemetry import PackageVisitEvent, capture
 
 
 class QueuedUserMessage(BaseModel):
-    """A user message queued for injection into the running agent loop."""
-
     id: str = Field(default_factory=lambda: str(uuid4()))
     message: str
     queued_at_step: int = 0
@@ -165,14 +163,6 @@ class DroidAgentState(BaseModel):
         self.answer = answer or "Task completed successfully."
 
     def queue_user_message(self, message: str) -> QueuedUserMessage:
-        """Append an external user message to the pending queue.
-
-        Raises:
-            RuntimeError: If the workflow has already completed.
-
-        Returns:
-            The queued message object (includes generated ID).
-        """
         if self.workflow_completed:
             raise RuntimeError("Cannot queue messages: agent has already finished.")
         queued = QueuedUserMessage(message=message, queued_at_step=self.step_number)
@@ -180,11 +170,6 @@ class DroidAgentState(BaseModel):
         return queued
 
     def drain_user_messages(self) -> list[QueuedUserMessage]:
-        """Drain and return all pending user messages, clearing the queue.
-
-        Returns:
-            List of QueuedUserMessage in FIFO order (empty list if none queued).
-        """
         if not self.pending_user_messages:
             return []
         messages = list(self.pending_user_messages)

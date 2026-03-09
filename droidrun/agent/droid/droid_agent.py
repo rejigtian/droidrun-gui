@@ -597,22 +597,6 @@ class DroidAgent(Workflow):
     # ========================================================================
 
     def send_user_message(self, message: str) -> "QueuedUserMessage":
-        """Inject a user message into the running agent loop.
-
-        Thread-safe to call from any context while the agent is running.
-        The message is queued in shared state and drained at the next safe
-        checkpoint (after tool results in direct mode, or at Manager's
-        prepare_context in reasoning mode).
-
-        Args:
-            message: The user's message text.
-
-        Returns:
-            QueuedUserMessage with a unique ID for tracking.
-
-        Raises:
-            RuntimeError: If the workflow has already completed.
-        """
         from droidrun.agent.droid.state import QueuedUserMessage
 
         queued = self.shared_state.queue_user_message(message)
@@ -734,7 +718,6 @@ class DroidAgent(Workflow):
         """Run Manager planning phase."""
         if self.shared_state.step_number >= self.config.agent.max_steps:
             logger.warning(f"⚠️ Reached maximum steps ({self.config.agent.max_steps})")
-            # Drop any pending external messages
             pending = self.shared_state.drain_user_messages()
             if pending:
                 logger.warning(
@@ -791,8 +774,6 @@ class DroidAgent(Workflow):
         """Process Manager output and decide next step."""
         # Check for answer-type termination
         if ev.answer.strip():
-            # If there are pending external messages, don't finalize — loop back
-            # so Manager sees the new user guidance on the next cycle.
             if self.shared_state.pending_user_messages:
                 logger.info(
                     "⏸️ Manager tried to finish but external messages pending, "

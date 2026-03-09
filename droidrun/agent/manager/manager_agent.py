@@ -457,10 +457,6 @@ class ManagerAgent(Workflow):
         # Build user message and add to history
         user_content = self._build_user_message_content()
 
-        # Drain any external user messages and merge into this turn.
-        # Merged into the same user message (not appended separately) so that
-        # _build_messages_with_context's "last user message gets device_state"
-        # logic targets the correct message.
         drained = self.shared_state.drain_user_messages()
         if drained:
             block_lines = ["<external_user_messages>"]

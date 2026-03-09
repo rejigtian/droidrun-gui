@@ -215,7 +215,6 @@ class FastAgent(Workflow):
 
         # Check then bump step counter
         if self.shared_state.step_number >= self.max_steps:
-            # Drop any pending external messages
             pending = self.shared_state.drain_user_messages()
             if pending:
                 logger.warning(
@@ -468,10 +467,6 @@ class FastAgent(Workflow):
 
             # Check if complete() was called successfully
             if self.shared_state.finished:
-                # If there are pending external user messages, don't finish —
-                # reset completion state, format results so far, and continue
-                # the loop so the LLM sees its own complete() result alongside
-                # the user's new message.
                 if self.shared_state.pending_user_messages:
                     logger.info(
                         "⏸️ complete() called but external messages pending, continuing",
@@ -524,13 +519,9 @@ class FastAgent(Workflow):
     async def handle_execution_result(
         self, ctx: Context, ev: FastAgentOutputEvent
     ) -> FastAgentInputEvent:
-        """Add execution result to history, drain external user messages, and loop back."""
+        """Add execution result to history and loop back."""
         output = ev.output or "Tool executed, but produced no output."
 
-        # Drain any external user messages queued during tool execution.
-        # Merged into the same user message as tool results so that
-        # handle_llm_input's ephemeral device-state injection (which targets
-        # the last user message) lands on the correct message.
         drained = self.shared_state.drain_user_messages()
         if drained:
             external_block = "\n".join(
