@@ -28,8 +28,6 @@ from droidrun.agent.droid.events import (
     ExecutorInputEvent,
     ExecutorResultEvent,
     ExternalUserMessageDroppedEvent,
-    ExternalUserMessageEvent,
-    ExternalUserMessageQueuedEvent,
     FastAgentExecuteEvent,
     FastAgentResultEvent,
     FinalizeEvent,
@@ -595,33 +593,35 @@ class DroidAgent(Workflow):
         return event
 
     # ========================================================================
-    # External user message ingestion
+    # External user message injection
     # ========================================================================
 
-    @step
-    async def ingest_external_user_message(
-        self, ctx: Context, ev: ExternalUserMessageEvent
-    ) -> None:
-        """Accept an external user message and queue it in shared state.
+    def send_user_message(self, message: str) -> "QueuedUserMessage":
+        """Inject a user message into the running agent loop.
 
-        This step runs any time during the workflow. It does NOT touch
-        message_history directly — the active agent loop drains the queue
-        at its next safe checkpoint.
+        Thread-safe to call from any context while the agent is running.
+        The message is queued in shared state and drained at the next safe
+        checkpoint (after tool results in direct mode, or at Manager's
+        prepare_context in reasoning mode).
+
+        Args:
+            message: The user's message text.
+
+        Returns:
+            QueuedUserMessage with a unique ID for tracking.
+
+        Raises:
+            RuntimeError: If the workflow has already completed.
         """
-        queued = self.shared_state.queue_user_message(ev.message)
+        from droidrun.agent.droid.state import QueuedUserMessage
+
+        queued = self.shared_state.queue_user_message(message)
         logger.info(
             f"📩 External user message queued [id={queued.id}] "
             f"(queue length: {len(self.shared_state.pending_user_messages)})",
             extra={"color": "cyan"},
         )
-        ctx.write_event_to_stream(
-            ExternalUserMessageQueuedEvent(
-                message_id=queued.id,
-                message=ev.message,
-                queue_length=len(self.shared_state.pending_user_messages),
-                step_number=self.shared_state.step_number,
-            )
-        )
+        return queued
 
     # ========================================================================
     # execute_task — FastAgent / CodeActAgent
