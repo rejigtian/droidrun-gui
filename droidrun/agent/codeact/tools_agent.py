@@ -524,9 +524,9 @@ class FastAgent(Workflow):
 
         drained = self.shared_state.drain_user_messages()
         if drained:
-            inner = "\n".join(m.message for m in drained)
-            external_block = (
-                f"<external_user_message>\n{inner}\n</external_user_message>"
+            external_block = "\n".join(
+                f"<external_user_message>\n{m.message}\n</external_user_message>"
+                for m in drained
             )
             output += "\n" + external_block
             logger.info(

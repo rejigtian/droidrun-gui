@@ -104,17 +104,6 @@ class TextManipulatorResultEvent(Event):
 # ============================================================================
 
 
-class ExternalUserMessageEvent(Event):
-    message: str
-
-
-class ExternalUserMessageQueuedEvent(Event):
-    message_id: str
-    message: str
-    queue_length: int
-    step_number: int
-
-
 class ExternalUserMessageAppliedEvent(Event):
     message_ids: List[str]
     consumer: str
