@@ -123,6 +123,7 @@ When done:
 {% endif %}
 - Use `complete` to signal task completion (success or failure)
 - Use `remember` to store important information for later steps
+- Messages in `<external_user_message>` tags are live corrections or new instructions from the user sent mid-execution. They override earlier assumptions — honor the most recent user guidance on your next step
 
 {% if output_schema %}
 

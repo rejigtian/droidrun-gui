@@ -112,6 +112,11 @@ class DroidAgentState(BaseModel):
     last_text_manipulation_success: bool = False
 
     # ========================================================================
+    # External User Messages (mid-run injection queue)
+    # ========================================================================
+    pending_user_messages: List[str] = Field(default_factory=list)
+
+    # ========================================================================
     # Custom Variables (user-defined)
     # ========================================================================
     custom_variables: Dict = Field(default_factory=dict)
@@ -148,6 +153,27 @@ class DroidAgentState(BaseModel):
         self.finished = True
         self.success = success
         self.answer = answer or "Task completed successfully."
+
+    def queue_user_message(self, message: str) -> int:
+        """Append an external user message to the pending queue.
+
+        Returns:
+            Current queue length after appending.
+        """
+        self.pending_user_messages.append(message)
+        return len(self.pending_user_messages)
+
+    def drain_user_messages(self) -> list[str]:
+        """Drain and return all pending user messages, clearing the queue.
+
+        Returns:
+            List of messages in FIFO order (empty list if none queued).
+        """
+        if not self.pending_user_messages:
+            return []
+        messages = list(self.pending_user_messages)
+        self.pending_user_messages.clear()
+        return messages
 
     def update_current_app(self, package_name: str, activity_name: str):
         """

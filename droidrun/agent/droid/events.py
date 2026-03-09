@@ -100,6 +100,46 @@ class TextManipulatorResultEvent(Event):
 
 
 # ============================================================================
+# EXTERNAL USER MESSAGE EVENTS
+# ============================================================================
+
+
+class ExternalUserMessageEvent(Event):
+    """Sent by the caller to inject a user message into the running agent loop.
+
+    Usage::
+
+        handler = agent.run()
+        await handler.send_event(
+            ExternalUserMessageEvent(message="Actually use Chrome"),
+            step="ingest_external_user_message",
+        )
+
+    The message is queued in shared state and drained at the next safe
+    checkpoint (after tool results in direct mode, or at Manager's
+    prepare_context in reasoning mode).
+    """
+
+    message: str
+
+
+class ExternalUserMessageQueuedEvent(Event):
+    """Streamed to the caller when an external message is accepted into the queue."""
+
+    message: str
+    queue_length: int
+    step_number: int
+
+
+class ExternalUserMessageAppliedEvent(Event):
+    """Streamed when queued external messages are drained into the agent loop."""
+
+    count: int
+    consumer: str  # "fast_agent" or "manager"
+    step_number: int
+
+
+# ============================================================================
 # FINALIZATION EVENTS
 # ============================================================================
 

@@ -27,6 +27,8 @@ from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
 from droidrun.agent.droid.events import (
     ExecutorInputEvent,
     ExecutorResultEvent,
+    ExternalUserMessageEvent,
+    ExternalUserMessageQueuedEvent,
     FastAgentExecuteEvent,
     FastAgentResultEvent,
     FinalizeEvent,
@@ -590,6 +592,33 @@ class DroidAgent(Workflow):
         event = ManagerInputEvent()
         ctx.write_event_to_stream(event)
         return event
+
+    # ========================================================================
+    # External user message ingestion
+    # ========================================================================
+
+    @step
+    async def ingest_external_user_message(
+        self, ctx: Context, ev: ExternalUserMessageEvent
+    ) -> None:
+        """Accept an external user message and queue it in shared state.
+
+        This step runs any time during the workflow. It does NOT touch
+        message_history directly — the active agent loop drains the queue
+        at its next safe checkpoint.
+        """
+        queue_len = self.shared_state.queue_user_message(ev.message)
+        logger.info(
+            f"📩 External user message queued (queue length: {queue_len})",
+            extra={"color": "cyan"},
+        )
+        ctx.write_event_to_stream(
+            ExternalUserMessageQueuedEvent(
+                message=ev.message,
+                queue_length=queue_len,
+                step_number=self.shared_state.step_number,
+            )
+        )
 
     # ========================================================================
     # execute_task — FastAgent / CodeActAgent

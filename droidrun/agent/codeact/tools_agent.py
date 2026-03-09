@@ -37,6 +37,7 @@ from droidrun.agent.codeact.xml_parser import (
 )
 from droidrun.agent.common.constants import LLM_HISTORY_LIMIT
 from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
+from droidrun.agent.droid.events import ExternalUserMessageAppliedEvent
 from droidrun.agent.usage import get_usage_from_response
 from droidrun.agent.utils.chat_utils import limit_history
 from droidrun.agent.utils.inference import acall_with_retries
@@ -490,13 +491,35 @@ class FastAgent(Workflow):
     async def handle_execution_result(
         self, ctx: Context, ev: FastAgentOutputEvent
     ) -> FastAgentInputEvent:
-        """Add execution result to history and loop back."""
+        """Add execution result to history, drain external user messages, and loop back."""
         output = ev.output or "Tool executed, but produced no output."
 
         # Add results as user message
         self.shared_state.message_history.append(
             ChatMessage(role="user", content=output)
         )
+
+        # Drain any external user messages queued during tool execution
+        drained = self.shared_state.drain_user_messages()
+        if drained:
+            for msg in drained:
+                self.shared_state.message_history.append(
+                    ChatMessage(
+                        role="user",
+                        content=f"<external_user_message>\n{msg}\n</external_user_message>",
+                    )
+                )
+            logger.info(
+                f"📩 Applied {len(drained)} external user message(s)",
+                extra={"color": "cyan"},
+            )
+            ctx.write_event_to_stream(
+                ExternalUserMessageAppliedEvent(
+                    count=len(drained),
+                    consumer="fast_agent",
+                    step_number=self.shared_state.step_number,
+                )
+            )
 
         return FastAgentInputEvent()
 
