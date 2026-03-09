@@ -457,12 +457,15 @@ class ManagerAgent(Workflow):
         # Build user message and add to history
         user_content = self._build_user_message_content()
 
-        # Drain any external user messages and merge into this turn
+        # Drain any external user messages and merge into this turn.
+        # Merged into the same user message (not appended separately) so that
+        # _build_messages_with_context's "last user message gets device_state"
+        # logic targets the correct message.
         drained = self.shared_state.drain_user_messages()
         if drained:
             block_lines = ["<external_user_messages>"]
-            for msg in drained:
-                block_lines.append(msg)
+            for m in drained:
+                block_lines.append(m.message)
             block_lines.append("</external_user_messages>")
             user_content += "\n" + "\n".join(block_lines) + "\n"
             logger.info(
@@ -471,7 +474,7 @@ class ManagerAgent(Workflow):
             )
             ctx.write_event_to_stream(
                 ExternalUserMessageAppliedEvent(
-                    count=len(drained),
+                    message_ids=[m.id for m in drained],
                     consumer="manager",
                     step_number=self.shared_state.step_number,
                 )

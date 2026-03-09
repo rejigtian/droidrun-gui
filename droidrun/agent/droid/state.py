@@ -1,11 +1,20 @@
 from __future__ import annotations
 
 from typing import Dict, List, Optional
+from uuid import uuid4
 
 from llama_index.core.base.llms.types import ChatMessage
 from pydantic import BaseModel, ConfigDict, Field
 
 from droidrun.telemetry import PackageVisitEvent, capture
+
+
+class QueuedUserMessage(BaseModel):
+    """A user message queued for injection into the running agent loop."""
+
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    message: str
+    queued_at_step: int = 0
 
 
 class DroidAgentState(BaseModel):
@@ -114,7 +123,8 @@ class DroidAgentState(BaseModel):
     # ========================================================================
     # External User Messages (mid-run injection queue)
     # ========================================================================
-    pending_user_messages: List[str] = Field(default_factory=list)
+    pending_user_messages: List[QueuedUserMessage] = Field(default_factory=list)
+    workflow_completed: bool = False
 
     # ========================================================================
     # Custom Variables (user-defined)
@@ -154,20 +164,26 @@ class DroidAgentState(BaseModel):
         self.success = success
         self.answer = answer or "Task completed successfully."
 
-    def queue_user_message(self, message: str) -> int:
+    def queue_user_message(self, message: str) -> QueuedUserMessage:
         """Append an external user message to the pending queue.
 
-        Returns:
-            Current queue length after appending.
-        """
-        self.pending_user_messages.append(message)
-        return len(self.pending_user_messages)
+        Raises:
+            RuntimeError: If the workflow has already completed.
 
-    def drain_user_messages(self) -> list[str]:
+        Returns:
+            The queued message object (includes generated ID).
+        """
+        if self.workflow_completed:
+            raise RuntimeError("Cannot queue messages: agent has already finished.")
+        queued = QueuedUserMessage(message=message, queued_at_step=self.step_number)
+        self.pending_user_messages.append(queued)
+        return queued
+
+    def drain_user_messages(self) -> list[QueuedUserMessage]:
         """Drain and return all pending user messages, clearing the queue.
 
         Returns:
-            List of messages in FIFO order (empty list if none queued).
+            List of QueuedUserMessage in FIFO order (empty list if none queued).
         """
         if not self.pending_user_messages:
             return []

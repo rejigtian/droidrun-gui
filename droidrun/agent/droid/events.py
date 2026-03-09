@@ -5,7 +5,7 @@ These events route between DroidAgent and child agents.
 For internal agent events, see each agent's events.py file.
 """
 
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from llama_index.core.workflow import Event, StopEvent
 from pydantic import BaseModel
@@ -126,6 +126,7 @@ class ExternalUserMessageEvent(Event):
 class ExternalUserMessageQueuedEvent(Event):
     """Streamed to the caller when an external message is accepted into the queue."""
 
+    message_id: str
     message: str
     queue_length: int
     step_number: int
@@ -134,8 +135,16 @@ class ExternalUserMessageQueuedEvent(Event):
 class ExternalUserMessageAppliedEvent(Event):
     """Streamed when queued external messages are drained into the agent loop."""
 
-    count: int
+    message_ids: List[str]
     consumer: str  # "fast_agent" or "manager"
+    step_number: int
+
+
+class ExternalUserMessageDroppedEvent(Event):
+    """Streamed when queued messages are dropped without being processed."""
+
+    message_ids: List[str]
+    reason: str  # e.g. "max_steps_reached"
     step_number: int
 
 
