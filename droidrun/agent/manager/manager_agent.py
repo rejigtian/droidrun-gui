@@ -28,6 +28,7 @@ from opentelemetry import trace
 from pydantic import BaseModel
 
 from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
+from droidrun.agent.droid.events import ExternalUserMessageAppliedEvent
 from droidrun.agent.manager.events import (
     ManagerContextEvent,
     ManagerPlanDetailsEvent,
@@ -455,6 +456,26 @@ class ManagerAgent(Workflow):
 
         # Build user message and add to history
         user_content = self._build_user_message_content()
+
+        drained = self.shared_state.drain_user_messages()
+        if drained:
+            external_block = "\n".join(
+                f"<external_user_message>\n{m.message}\n</external_user_message>"
+                for m in drained
+            )
+            user_content += "\n" + external_block + "\n"
+            logger.info(
+                f"📩 Applied {len(drained)} external user message(s)",
+                extra={"color": "cyan"},
+            )
+            ctx.write_event_to_stream(
+                ExternalUserMessageAppliedEvent(
+                    message_ids=[m.id for m in drained],
+                    consumer="manager",
+                    step_number=self.shared_state.step_number,
+                )
+            )
+
         self.shared_state.message_history.append(
             ChatMessage(role="user", content=user_content)
         )

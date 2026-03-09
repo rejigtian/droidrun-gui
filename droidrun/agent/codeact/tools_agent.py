@@ -37,6 +37,10 @@ from droidrun.agent.codeact.xml_parser import (
 )
 from droidrun.agent.common.constants import LLM_HISTORY_LIMIT
 from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
+from droidrun.agent.droid.events import (
+    ExternalUserMessageAppliedEvent,
+    ExternalUserMessageDroppedEvent,
+)
 from droidrun.agent.usage import get_usage_from_response
 from droidrun.agent.utils.chat_utils import limit_history
 from droidrun.agent.utils.inference import acall_with_retries
@@ -211,6 +215,18 @@ class FastAgent(Workflow):
 
         # Check then bump step counter
         if self.shared_state.step_number >= self.max_steps:
+            pending = self.shared_state.drain_user_messages()
+            if pending:
+                logger.warning(
+                    f"⚠️ Dropping {len(pending)} external user message(s) at max steps"
+                )
+                ctx.write_event_to_stream(
+                    ExternalUserMessageDroppedEvent(
+                        message_ids=[m.id for m in pending],
+                        reason="max_steps_reached",
+                        step_number=self.shared_state.step_number,
+                    )
+                )
             event = FastAgentEndEvent(
                 success=False,
                 reason=f"Reached max step count of {self.max_steps} steps",
@@ -451,6 +467,19 @@ class FastAgent(Workflow):
 
             # Check if complete() was called successfully
             if self.shared_state.finished:
+                if self.shared_state.pending_user_messages:
+                    logger.info(
+                        "⏸️ complete() called but external messages pending, continuing",
+                        extra={"color": "cyan"},
+                    )
+                    self.shared_state.finished = False
+                    self.shared_state.success = None
+                    self.shared_state.answer = ""
+                    results_xml = format_tool_results(results)
+                    event = FastAgentOutputEvent(output=results_xml)
+                    ctx.write_event_to_stream(event)
+                    return event
+
                 logger.debug("✅ Task marked as complete via complete() tool")
 
                 success = (
@@ -493,7 +522,26 @@ class FastAgent(Workflow):
         """Add execution result to history and loop back."""
         output = ev.output or "Tool executed, but produced no output."
 
-        # Add results as user message
+        drained = self.shared_state.drain_user_messages()
+        if drained:
+            external_block = "\n".join(
+                f"<external_user_message>\n{m.message}\n</external_user_message>"
+                for m in drained
+            )
+            output += "\n" + external_block
+            logger.info(
+                f"📩 Applied {len(drained)} external user message(s)",
+                extra={"color": "cyan"},
+            )
+            ctx.write_event_to_stream(
+                ExternalUserMessageAppliedEvent(
+                    message_ids=[m.id for m in drained],
+                    consumer="fast_agent",
+                    step_number=self.shared_state.step_number,
+                )
+            )
+
+        # Add results (+ any external messages) as a single user message
         self.shared_state.message_history.append(
             ChatMessage(role="user", content=output)
         )

@@ -5,7 +5,7 @@ These events route between DroidAgent and child agents.
 For internal agent events, see each agent's events.py file.
 """
 
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from llama_index.core.workflow import Event, StopEvent
 from pydantic import BaseModel
@@ -97,6 +97,23 @@ class TextManipulatorResultEvent(Event):
     task: str
     text_to_type: str
     code_ran: str
+
+
+# ============================================================================
+# EXTERNAL USER MESSAGE EVENTS
+# ============================================================================
+
+
+class ExternalUserMessageAppliedEvent(Event):
+    message_ids: List[str]
+    consumer: str
+    step_number: int
+
+
+class ExternalUserMessageDroppedEvent(Event):
+    message_ids: List[str]
+    reason: str
+    step_number: int
 
 
 # ============================================================================

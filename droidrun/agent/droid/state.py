@@ -1,11 +1,18 @@
 from __future__ import annotations
 
 from typing import Dict, List, Optional
+from uuid import uuid4
 
 from llama_index.core.base.llms.types import ChatMessage
 from pydantic import BaseModel, ConfigDict, Field
 
 from droidrun.telemetry import PackageVisitEvent, capture
+
+
+class QueuedUserMessage(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    message: str
+    queued_at_step: int = 0
 
 
 class DroidAgentState(BaseModel):
@@ -112,6 +119,12 @@ class DroidAgentState(BaseModel):
     last_text_manipulation_success: bool = False
 
     # ========================================================================
+    # External User Messages (mid-run injection queue)
+    # ========================================================================
+    pending_user_messages: List[QueuedUserMessage] = Field(default_factory=list)
+    workflow_completed: bool = False
+
+    # ========================================================================
     # Custom Variables (user-defined)
     # ========================================================================
     custom_variables: Dict = Field(default_factory=dict)
@@ -148,6 +161,22 @@ class DroidAgentState(BaseModel):
         self.finished = True
         self.success = success
         self.answer = answer or "Task completed successfully."
+
+    def queue_user_message(self, message: str) -> QueuedUserMessage:
+        if not message or not message.strip():
+            raise ValueError("Cannot queue an empty or whitespace-only message.")
+        if self.workflow_completed:
+            raise RuntimeError("Cannot queue messages: agent has already finished.")
+        queued = QueuedUserMessage(message=message, queued_at_step=self.step_number)
+        self.pending_user_messages.append(queued)
+        return queued
+
+    def drain_user_messages(self) -> list[QueuedUserMessage]:
+        if not self.pending_user_messages:
+            return []
+        messages = list(self.pending_user_messages)
+        self.pending_user_messages.clear()
+        return messages
 
     def update_current_app(self, package_name: str, activity_name: str):
         """

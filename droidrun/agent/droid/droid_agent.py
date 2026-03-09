@@ -27,6 +27,7 @@ from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
 from droidrun.agent.droid.events import (
     ExecutorInputEvent,
     ExecutorResultEvent,
+    ExternalUserMessageDroppedEvent,
     FastAgentExecuteEvent,
     FastAgentResultEvent,
     FinalizeEvent,
@@ -38,7 +39,7 @@ from droidrun.agent.droid.events import (
     TextManipulatorInputEvent,
     TextManipulatorResultEvent,
 )
-from droidrun.agent.droid.state import DroidAgentState
+from droidrun.agent.droid.state import DroidAgentState, QueuedUserMessage
 from droidrun.agent.executor import ExecutorAgent
 from droidrun.agent.external import load_agent
 from droidrun.agent.manager import ManagerAgent, StatelessManagerAgent
@@ -592,6 +593,19 @@ class DroidAgent(Workflow):
         return event
 
     # ========================================================================
+    # External user message injection
+    # ========================================================================
+
+    def send_user_message(self, message: str) -> QueuedUserMessage:
+        queued = self.shared_state.queue_user_message(message)
+        logger.info(
+            f"📩 External user message queued [id={queued.id}] "
+            f"(queue length: {len(self.shared_state.pending_user_messages)})",
+            extra={"color": "cyan"},
+        )
+        return queued
+
+    # ========================================================================
     # execute_task — FastAgent / CodeActAgent
     # ========================================================================
 
@@ -702,6 +716,18 @@ class DroidAgent(Workflow):
         """Run Manager planning phase."""
         if self.shared_state.step_number >= self.config.agent.max_steps:
             logger.warning(f"⚠️ Reached maximum steps ({self.config.agent.max_steps})")
+            pending = self.shared_state.drain_user_messages()
+            if pending:
+                logger.warning(
+                    f"⚠️ Dropping {len(pending)} external user message(s) at max steps"
+                )
+                ctx.write_event_to_stream(
+                    ExternalUserMessageDroppedEvent(
+                        message_ids=[m.id for m in pending],
+                        reason="max_steps_reached",
+                        step_number=self.shared_state.step_number,
+                    )
+                )
             return FinalizeEvent(
                 success=False,
                 reason=f"Reached maximum steps ({self.config.agent.max_steps})",
@@ -741,10 +767,18 @@ class DroidAgent(Workflow):
         | ScripterExecutorInputEvent
         | FinalizeEvent
         | TextManipulatorInputEvent
+        | ManagerInputEvent
     ):
         """Process Manager output and decide next step."""
         # Check for answer-type termination
         if ev.answer.strip():
+            if self.shared_state.pending_user_messages:
+                logger.info(
+                    "⏸️ Manager tried to finish but external messages pending, "
+                    "looping back to Manager",
+                    extra={"color": "cyan"},
+                )
+                return ManagerInputEvent()
             success = ev.success if ev.success is not None else True
             self.shared_state.progress_summary = f"Answer: {ev.answer}"
             return FinalizeEvent(success=success, reason=ev.answer)
@@ -997,6 +1031,7 @@ class DroidAgent(Workflow):
 
     @step
     async def finalize(self, ctx: Context, ev: FinalizeEvent) -> ResultEvent:
+        self.shared_state.workflow_completed = True
         ctx.write_event_to_stream(ev)
         capture(
             DroidAgentFinalizeEvent(
