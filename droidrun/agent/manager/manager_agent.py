@@ -459,11 +459,11 @@ class ManagerAgent(Workflow):
 
         drained = self.shared_state.drain_user_messages()
         if drained:
-            block_lines = ["<external_user_messages>"]
-            for m in drained:
-                block_lines.append(m.message)
-            block_lines.append("</external_user_messages>")
-            user_content += "\n" + "\n".join(block_lines) + "\n"
+            inner = "\n".join(m.message for m in drained)
+            external_block = (
+                f"<external_user_message>\n{inner}\n</external_user_message>"
+            )
+            user_content += "\n" + external_block + "\n"
             logger.info(
                 f"📩 Applied {len(drained)} external user message(s)",
                 extra={"color": "cyan"},

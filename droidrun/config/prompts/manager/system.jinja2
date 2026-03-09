@@ -156,7 +156,7 @@ You should:
 {% endif %}
 
 ---
-If an `<external_user_messages>` block is present, it contains live corrections or new instructions from the user sent during execution. Treat these as the newest guidance: revise your plan accordingly, but preserve already-completed progress unless the message explicitly changes course.
+If an `<external_user_message>` block is present, it contains live corrections or new instructions from the user sent during execution. Treat these as the newest guidance: revise your plan accordingly, but preserve already-completed progress unless the message explicitly changes course.
 
 Carefully assess the current status and the provided screenshot. Check if the current plan needs to be revised.
 Determine if the user request has been fully completed. If you are confident that no further actions are required and the task succeeded, use the request_accomplished tag with success="true" and a confirmation message. If the task failed and cannot be completed, use success="false" with an explanation. If the user request is not finished, update the plan and don't use the request_accomplished tag. If you are stuck with errors, think step by step about whether the overall plan needs to be revised to address the error.
