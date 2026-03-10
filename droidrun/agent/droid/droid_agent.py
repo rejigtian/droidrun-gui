@@ -1085,7 +1085,7 @@ class DroidAgent(Workflow):
                 if self.config.logging.debug:
                     logger.error(traceback.format_exc())
 
-        # Capture final screenshot (independent of trajectory persistence)
+        # Capture final screenshot and UI state (independent of trajectory persistence)
         vision_any = (
             self.config.agent.manager.vision
             or self.config.agent.executor.vision
@@ -1110,6 +1110,15 @@ class DroidAgent(Workflow):
                     logger.debug("📸 Final screenshot captured")
             except Exception as e:
                 logger.warning(f"Failed to capture final screenshot: {e}")
+
+            try:
+                ui_state = await self.state_provider.get_state()
+                ctx.write_event_to_stream(
+                    RecordUIStateEvent(ui_state=ui_state.elements)
+                )
+                logger.debug("📋 Final UI state captured")
+            except Exception as e:
+                logger.warning(f"Failed to capture final UI state: {e}")
 
         # Save trajectory to disk
         if self.config.logging.save_trajectory != "none":

@@ -387,6 +387,30 @@ class ManagerAgent(Workflow):
         """Gather context and prepare manager prompt."""
         logger.debug("💬 Preparing manager context...")
 
+        # Capture screenshot if needed
+        screenshot = None
+        if self.vision or self._stream_screenshots or self.save_trajectory != "none":
+            try:
+                screenshot = await self.action_ctx.driver.screenshot()
+
+                if screenshot:
+                    ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
+                    parent_span = trace.get_current_span()
+                    record_langfuse_screenshot(
+                        screenshot,
+                        parent_span=parent_span,
+                        screenshots_enabled=bool(
+                            self.tracing_config
+                            and self.tracing_config.langfuse_screenshots
+                        ),
+                        vision_enabled=self.vision,
+                    )
+                    logger.debug("📸 Screenshot captured for Manager")
+            except DeviceDisconnectedError:
+                raise
+            except Exception as e:
+                logger.warning(f"Failed to capture screenshot: {e}")
+
         # Get and format device state
         ui_state = await self.state_provider.get_state()
         self.action_ctx.ui = ui_state
@@ -421,30 +445,6 @@ class ManagerAgent(Workflow):
                 self.shared_state.app_card = ""
         else:
             self.shared_state.app_card = ""
-
-        # Capture screenshot if needed
-        screenshot = None
-        if self.vision or self._stream_screenshots or self.save_trajectory != "none":
-            try:
-                screenshot = await self.action_ctx.driver.screenshot()
-
-                if screenshot:
-                    ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
-                    parent_span = trace.get_current_span()
-                    record_langfuse_screenshot(
-                        screenshot,
-                        parent_span=parent_span,
-                        screenshots_enabled=bool(
-                            self.tracing_config
-                            and self.tracing_config.langfuse_screenshots
-                        ),
-                        vision_enabled=self.vision,
-                    )
-                    logger.debug("📸 Screenshot captured for Manager")
-            except DeviceDisconnectedError:
-                raise
-            except Exception as e:
-                logger.warning(f"Failed to capture screenshot: {e}")
 
         # Detect text manipulation mode
         focused_text_clean = self.shared_state.focused_text.replace("'", "").strip()

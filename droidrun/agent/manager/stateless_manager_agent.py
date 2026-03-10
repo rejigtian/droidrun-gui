@@ -175,24 +175,6 @@ class StatelessManagerAgent(Workflow):
     async def prepare_context(
         self, ctx: Context, ev: StartEvent
     ) -> ManagerContextEvent:
-        ui_state = await self.state_provider.get_state()
-        self.action_ctx.ui = ui_state
-
-        self.shared_state.previous_formatted_device_state = (
-            self.shared_state.formatted_device_state
-        )
-        self.shared_state.formatted_device_state = ui_state.formatted_text
-        self.shared_state.focused_text = ui_state.focused_text
-        self.shared_state.a11y_tree = ui_state.elements
-        self.shared_state.phone_state = ui_state.phone_state
-
-        self.shared_state.update_current_app(
-            package_name=ui_state.phone_state.get("packageName", "Unknown"),
-            activity_name=ui_state.phone_state.get("currentApp", "Unknown"),
-        )
-
-        ctx.write_event_to_stream(RecordUIStateEvent(ui_state=ui_state.elements))
-
         screenshot = None
         if self.vision or self.save_trajectory != "none":
             try:
@@ -214,6 +196,24 @@ class StatelessManagerAgent(Workflow):
                 raise
             except Exception as e:
                 logger.warning(f"Failed to capture screenshot: {e}")
+
+        ui_state = await self.state_provider.get_state()
+        self.action_ctx.ui = ui_state
+
+        self.shared_state.previous_formatted_device_state = (
+            self.shared_state.formatted_device_state
+        )
+        self.shared_state.formatted_device_state = ui_state.formatted_text
+        self.shared_state.focused_text = ui_state.focused_text
+        self.shared_state.a11y_tree = ui_state.elements
+        self.shared_state.phone_state = ui_state.phone_state
+
+        self.shared_state.update_current_app(
+            package_name=ui_state.phone_state.get("packageName", "Unknown"),
+            activity_name=ui_state.phone_state.get("currentApp", "Unknown"),
+        )
+
+        ctx.write_event_to_stream(RecordUIStateEvent(ui_state=ui_state.elements))
 
         focused_text_clean = self.shared_state.focused_text.replace("'", "").strip()
         has_text_to_modify = focused_text_clean != ""
