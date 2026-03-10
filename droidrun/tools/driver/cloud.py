@@ -115,10 +115,21 @@ class CloudDriver(DeviceDriver):
             )
         )
 
-    async def input_text(self, text: str, clear: bool = False) -> bool:
+    async def input_text(
+        self, text: str, clear: bool = False, stealth: bool = False, wpm: int = 0,
+    ) -> bool:
+        extra_body: dict = {}
+        if stealth:
+            extra_body["stealth"] = True
+        if wpm:
+            extra_body["wpm"] = wpm
         await self._call(
             self._client.devices.keyboard.write(
-                self.device_id, text=text, clear=clear, **self._display_kw
+                self.device_id,
+                text=text,
+                clear=clear,
+                extra_body=extra_body or None,
+                **self._display_kw,
             )
         )
         return True

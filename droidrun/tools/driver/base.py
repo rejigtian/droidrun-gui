@@ -52,7 +52,9 @@ class DeviceDriver:
         """Swipe from (x1, y1) to (x2, y2)."""
         raise NotImplementedError
 
-    async def input_text(self, text: str, clear: bool = False) -> bool:
+    async def input_text(
+        self, text: str, clear: bool = False, stealth: bool = False, wpm: int = 0,
+    ) -> bool:
         """Type *text* into the currently focused field.
 
         Returns ``True`` on success, ``False`` on failure.
