@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, Optional
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, List, Optional
 
 from droidrun.tools.driver.base import DeviceDisconnectedError
 from droidrun.tools.ui.state import UIState
@@ -28,14 +28,14 @@ _MAX_RETRIES = 7
 
 # After this many consecutive failures, run the recovery callback.
 # With the schedule above, this fires after ~11s (1+2+3+5).
-_RECOVERY_AFTER_ATTEMPT = 4
+_RECOVERY_AFTER_ATTEMPT = 5
 
 
 async def fetch_state_with_retry(
     fetch: Callable[[], Awaitable[Dict[str, Any]]],
     recovery: Optional[Callable[[], Awaitable[None]]] = None,
     max_retries: int = _MAX_RETRIES,
-    retry_delays: list[float] | None = None,
+    retry_delays: Optional[List[float]] = None,
     recovery_after: int = _RECOVERY_AFTER_ATTEMPT,
 ) -> Dict[str, Any]:
     """Fetch raw device state with retries, backoff, and mid-retry recovery.
@@ -45,7 +45,8 @@ async def fetch_state_with_retry(
         recovery: Optional async callable invoked once after *recovery_after*
             consecutive failures (e.g. restart accessibility service).
         max_retries: Total number of attempts before giving up.
-        retry_delays: Per-attempt delays (len must be >= max_retries - 1).
+        retry_delays: Per-attempt delays. If shorter than max_retries - 1,
+            the last value is reused for remaining delays.
         recovery_after: Trigger *recovery* after this many failures.
 
     Returns:
@@ -57,7 +58,7 @@ async def fetch_state_with_retry(
         Exception: After all retries are exhausted.
     """
     delays = retry_delays or _RETRY_DELAYS
-    last_error: Exception | None = None
+    last_error: Optional[Exception] = None
     recovery_attempted = False
 
     for attempt in range(max_retries):
@@ -85,10 +86,8 @@ async def fetch_state_with_retry(
             is_last = attempt >= max_retries - 1
             delay = delays[attempt] if attempt < len(delays) else delays[-1]
 
-            logger.warning(
-                f"get_state attempt {attempt + 1} failed: {e}"
-                f"{f' (retrying in {delay:.0f}s)' if not is_last else ''}"
-            )
+            suffix = f" (retrying in {delay:.0f}s)" if not is_last else ""
+            logger.warning(f"get_state attempt {attempt + 1} failed: {e}{suffix}")
 
             # Mid-retry recovery: restart the a11y service once
             if (
