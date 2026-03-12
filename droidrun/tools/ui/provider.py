@@ -150,8 +150,8 @@ class AndroidStateProvider(StateProvider):
         self.use_normalized = use_normalized
         self._ui_cls = ui_cls or (StealthUIState if stealth else UIState)
 
-    async def _restart_accessibility(self) -> None:
-        """Restart Portal's accessibility service via ADB."""
+    async def _recover_portal(self) -> None:
+        """Restart Portal's accessibility service and TCP socket server."""
         from droidrun.tools.driver.android import AndroidDriver
 
         if not isinstance(self.driver, AndroidDriver):
@@ -162,6 +162,7 @@ class AndroidStateProvider(StateProvider):
 
         from droidrun.portal import A11Y_SERVICE_NAME
 
+        # 1. Restart accessibility service
         logger.debug("Restarting Portal accessibility service...")
         await device.shell("settings put secure accessibility_enabled 0")
         await asyncio.sleep(0.5)
@@ -169,12 +170,28 @@ class AndroidStateProvider(StateProvider):
             f"settings put secure enabled_accessibility_services {A11Y_SERVICE_NAME}"
         )
         await device.shell("settings put secure accessibility_enabled 1")
+
+        # 2. Restart TCP socket server if it was in use
+        portal = self.driver.portal
+        if portal is not None and portal.tcp_available:
+            logger.debug("Restarting Portal TCP socket server...")
+            try:
+                await device.shell(
+                    "content insert --uri content://com.droidrun.portal/toggle_socket_server --bind enabled:b:false"
+                )
+                await asyncio.sleep(0.3)
+                await device.shell(
+                    "content insert --uri content://com.droidrun.portal/toggle_socket_server --bind enabled:b:true"
+                )
+            except Exception as e:
+                logger.debug(f"TCP server restart failed: {e}")
+
         await asyncio.sleep(1.5)
 
     async def get_state(self) -> UIState:
         combined_data = await fetch_state_with_retry(
             fetch=self.driver.get_ui_tree,
-            recovery=self._restart_accessibility,
+            recovery=self._recover_portal,
         )
 
         device_context = combined_data["device_context"]
