@@ -46,9 +46,11 @@ class CloudDriver(DeviceDriver):
         api_key: str | None = None,
         base_url: str = "https://api.mobilerun.com/v1",
         user_id: str | None = None,
+        stealth: bool = False,
     ) -> None:
         self.device_id = device_id
         self.display_id = display_id
+        self._stealth = stealth
 
         if user_id:
             self._client = AsyncMobilerun(
@@ -71,6 +73,11 @@ class CloudDriver(DeviceDriver):
         """Common keyword arg for display routing."""
         return {"x_device_display_id": self.display_id}
 
+    @property
+    def _stealth_extra(self) -> dict | None:
+        """Extra body for stealth mode (tap/swipe)."""
+        return {"stealth": True} if self._stealth else None
+
     async def _call(self, coro: Awaitable[T]) -> T:
         """Await an SDK coroutine, translating disconnect errors."""
         try:
@@ -91,7 +98,9 @@ class CloudDriver(DeviceDriver):
     async def tap(self, x: int, y: int) -> None:
         await self._call(
             self._client.devices.actions.tap(
-                self.device_id, x=x, y=y, **self._display_kw
+                self.device_id, x=x, y=y,
+                extra_body=self._stealth_extra,
+                **self._display_kw,
             )
         )
 
@@ -111,15 +120,16 @@ class CloudDriver(DeviceDriver):
                 end_x=x2,
                 end_y=y2,
                 duration=duration_ms,
+                extra_body=self._stealth_extra,
                 **self._display_kw,
             )
         )
 
     async def input_text(
-        self, text: str, clear: bool = False, stealth: bool = False, wpm: int = 0,
+        self, text: str, clear: bool = False, wpm: int = 0,
     ) -> bool:
         extra_body: dict = {}
-        if stealth:
+        if self._stealth:
             extra_body["stealth"] = True
         if wpm:
             extra_body["wpm"] = wpm
