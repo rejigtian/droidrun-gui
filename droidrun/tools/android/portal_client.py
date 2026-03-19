@@ -230,27 +230,51 @@ class PortalClient:
 
         return None
 
+    async def _tcp_request(
+        self,
+        client: httpx.AsyncClient,
+        method: str,
+        url: str,
+        extra_headers: Optional[Dict[str, str]] = None,
+        **kwargs,
+    ) -> httpx.Response:
+        """Make an authenticated TCP request, re-fetching the token once on 401/403.
+
+        This is the single choke-point for all TCP HTTP traffic so that token
+        rotation is handled uniformly rather than duplicated per call-site.
+
+        Args:
+            client: Shared httpx.AsyncClient for the request.
+            method: HTTP method string ("GET", "POST", …).
+            url: Full URL to request.
+            extra_headers: Additional headers merged on top of auth headers
+                           (e.g. ``{"Content-Type": "application/json"}``).
+            **kwargs: Passed straight through to ``client.request()``.
+
+        Returns:
+            The httpx.Response (possibly from the retry attempt).
+        """
+        headers = {**self._tcp_headers, **(extra_headers or {})}
+        response = await client.request(method, url, headers=headers, **kwargs)
+
+        if response.status_code in (401, 403):
+            logger.debug(
+                f"TCP auth rejected ({response.status_code}), re-fetching token..."
+            )
+            self._auth_token = await self._fetch_auth_token()
+            if self._auth_token:
+                headers = {**self._tcp_headers, **(extra_headers or {})}
+                response = await client.request(method, url, headers=headers, **kwargs)
+
+        return response
+
     async def _test_connection(self) -> bool:
         """Test if TCP connection to Portal is working (with auth)."""
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    f"{self.tcp_base_url}/ping",
-                    headers=self._tcp_headers,
-                    timeout=5,
+                response = await self._tcp_request(
+                    client, "GET", f"{self.tcp_base_url}/ping", timeout=5
                 )
-                # If auth is rejected, try re-fetching the token once
-                if response.status_code in (401, 403):
-                    logger.debug(
-                        f"TCP auth rejected ({response.status_code}), re-fetching token..."
-                    )
-                    self._auth_token = await self._fetch_auth_token()
-                    if self._auth_token:
-                        response = await client.get(
-                            f"{self.tcp_base_url}/ping",
-                            headers=self._tcp_headers,
-                            timeout=5,
-                        )
                 return response.status_code == 200
         except Exception as e:
             logger.debug(f"TCP connection test failed: {e}")
@@ -330,10 +354,8 @@ class PortalClient:
         """Get state via TCP."""
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    f"{self.tcp_base_url}/state_full",
-                    headers=self._tcp_headers,
-                    timeout=10,
+                response = await self._tcp_request(
+                    client, "GET", f"{self.tcp_base_url}/state_full", timeout=10
                 )
                 if response.status_code == 200:
                     data = response.json()
@@ -427,12 +449,13 @@ class PortalClient:
         try:
             encoded = base64.b64encode(text.encode()).decode()
             payload = {"base64_text": encoded, "clear": clear}
-            headers = {**self._tcp_headers, "Content-Type": "application/json"}
             async with httpx.AsyncClient() as client:
-                response = await client.post(
+                response = await self._tcp_request(
+                    client,
+                    "POST",
                     f"{self.tcp_base_url}/keyboard/input",
+                    extra_headers={"Content-Type": "application/json"},
                     json=payload,
-                    headers=headers,
                     timeout=10,
                 )
                 if response.status_code == 200:
@@ -488,8 +511,8 @@ class PortalClient:
                 url += "?hideOverlay=false"
 
             async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    url, headers=self._tcp_headers, timeout=10.0
+                response = await self._tcp_request(
+                    client, "GET", url, timeout=10.0
                 )
                 if response.status_code == 200:
                     data = response.json()
@@ -605,10 +628,8 @@ class PortalClient:
         if self.tcp_available:
             try:
                 async with httpx.AsyncClient() as client:
-                    response = await client.get(
-                        f"{self.tcp_base_url}/version",
-                        headers=self._tcp_headers,
-                        timeout=5.0,
+                    response = await self._tcp_request(
+                        client, "GET", f"{self.tcp_base_url}/version", timeout=5.0
                     )
                     if response.status_code == 200:
                         data = response.json()
@@ -655,10 +676,8 @@ class PortalClient:
         if self.tcp_available:
             try:
                 async with httpx.AsyncClient() as client:
-                    response = await client.get(
-                        f"{self.tcp_base_url}/ping",
-                        headers=self._tcp_headers,
-                        timeout=5.0,
+                    response = await self._tcp_request(
+                        client, "GET", f"{self.tcp_base_url}/ping", timeout=5.0
                     )
                     if response.status_code == 200:
                         try:
