@@ -71,7 +71,7 @@ llm_profiles:
   # Manager: Plans and reasons about task progress
   manager:
     provider: GoogleGenAI
-    model: models/gemini-2.5-pro
+    model: gemini-3.1-flash-lite-preview
     temperature: 0.2
     # kwargs: # optional kwargs, add api_key in kwargs if not already in .env
     #   max_tokens: 8192
@@ -79,7 +79,7 @@ llm_profiles:
   # Executor: Selects and executes atomic actions
   executor:
     provider: GoogleGenAI
-    model: models/gemini-2.5-flash
+    model: gemini-3.1-flash-lite-preview
     temperature: 0.1
     # kwargs:
     #   max_tokens: 4096
@@ -87,7 +87,7 @@ llm_profiles:
   # Fast Agent: Direct execution agent (XML tool-calling or code generation)
   fast_agent:
     provider: GoogleGenAI
-    model: models/gemini-2.5-pro
+    model: gemini-3.1-flash-lite-preview
     temperature: 0.2
     # kwargs:
     #   max_tokens: 8192
@@ -95,7 +95,7 @@ llm_profiles:
   # App Opener: Opens apps by name/description
   app_opener:
     provider: GoogleGenAI
-    model: models/gemini-2.5-flash
+    model: gemini-3.1-flash-lite-preview
     temperature: 0.0
     # kwargs:
     #   max_tokens: 512
@@ -103,7 +103,7 @@ llm_profiles:
   # Structured Output: Extracts structured data from final answers
   structured_output:
     provider: GoogleGenAI
-    model: models/gemini-2.5-flash
+    model: gemini-3.1-flash-lite-preview
     temperature: 0.0
     # kwargs:
     #   max_tokens: 2048

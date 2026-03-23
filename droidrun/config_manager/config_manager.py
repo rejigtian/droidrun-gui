@@ -15,7 +15,7 @@ class LLMProfile:
     """LLM profile configuration."""
 
     provider: str = "GoogleGenAI"
-    model: str = "gemini-2.5-pro"
+    model: str = "gemini-3.1-flash-lite-preview"
     temperature: float = 0.2
     base_url: Optional[str] = None
     api_base: Optional[str] = None
@@ -188,31 +188,31 @@ class DroidrunConfig:
         return {
             "manager": LLMProfile(
                 provider="GoogleGenAI",
-                model="gemini-2.5-pro",
+                model="gemini-3.1-flash-lite-preview",
                 temperature=0.2,
                 kwargs={},
             ),
             "executor": LLMProfile(
                 provider="GoogleGenAI",
-                model="gemini-2.5-pro",
+                model="gemini-3.1-flash-lite-preview",
                 temperature=0.1,
                 kwargs={},
             ),
             "fast_agent": LLMProfile(
                 provider="GoogleGenAI",
-                model="gemini-2.5-pro",
+                model="gemini-3.1-flash-lite-preview",
                 temperature=0.2,
                 kwargs={},
             ),
             "app_opener": LLMProfile(
                 provider="GoogleGenAI",
-                model="gemini-2.5-pro",
+                model="gemini-3.1-flash-lite-preview",
                 temperature=0.0,
                 kwargs={},
             ),
             "structured_output": LLMProfile(
                 provider="GoogleGenAI",
-                model="gemini-2.5-flash",
+                model="gemini-3.1-flash-lite-preview",
                 temperature=0.0,
                 kwargs={},
             ),
