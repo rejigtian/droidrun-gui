@@ -1,7 +1,6 @@
 """ToolRegistry — single source of truth for available tools.
 
-Replaces ``ATOMIC_ACTION_SIGNATURES`` dispatch + executor if/elif chain +
-FastAgent closure-building loop.
+Central registry for agent-callable tools.
 """
 
 from __future__ import annotations
@@ -91,7 +90,7 @@ class ToolRegistry:
         Args:
             exclude: Optional set of tool names to omit.  Used by
                      ExecutorAgent to hide flow-control tools (remember,
-                     complete) that only FastAgent/CodeAct should see.
+                     complete) that only FastAgent should see.
         """
         exclude = exclude or set()
         return {
@@ -204,7 +203,7 @@ class ToolRegistry:
         return "\n".join(lines)
 
     def get_tool_descriptions_text(self, exclude: Optional[Set[str]] = None) -> str:
-        """Build text tool descriptions for executor/codeact prompts."""
+        """Build text tool descriptions for executor prompts."""
         exclude = exclude or set()
         descriptions = []
         for name, entry in self.tools.items():

@@ -158,7 +158,7 @@ class ManagerAgent(Workflow):
                 app_cards_dir=self.app_card_config.app_cards_dir
             )
 
-    async def _build_system_prompt(self, has_text_to_modify: bool) -> str:
+    async def _build_system_prompt(self) -> str:
         """Build system prompt with all context."""
         # Build error history if needed
         error_history = None
@@ -200,11 +200,7 @@ class ManagerAgent(Workflow):
             "app_card": self.shared_state.app_card,
             "important_notes": "",  # TODO: implement
             "error_history": error_history,
-            "text_manipulation_enabled": has_text_to_modify
-            and self.agent_config.fast_agent.codeact,
             "custom_tools_descriptions": custom_tools_descriptions,
-            "scripter_execution_enabled": self.agent_config.scripter.enabled,
-            "scripter_max_steps": self.agent_config.scripter.max_steps,
             "available_secrets": available_secrets,
             "variables": self.shared_state.custom_variables,
             "output_schema": output_schema,
@@ -287,19 +283,6 @@ class ManagerAgent(Workflow):
             # Add screenshot if vision enabled
             if screenshot and self.vision:
                 messages[last_user_idx].blocks.append(ImageBlock(image=screenshot))
-
-            # Add script result if available
-            if self.shared_state.last_scripter_message:
-                status = (
-                    "SUCCESS" if self.shared_state.last_scripter_success else "FAILED"
-                )
-                script_context = (
-                    f'\n<script_result status="{status}">\n'
-                    f"{self.shared_state.last_scripter_message}\n"
-                    f"</script_result>\n"
-                )
-                messages[last_user_idx].blocks.append(TextBlock(text=script_context))
-                self.shared_state.last_scripter_message = ""
 
             # Add previous device state to second-to-last user message
             if len(user_indices) >= 2:
@@ -446,12 +429,6 @@ class ManagerAgent(Workflow):
         else:
             self.shared_state.app_card = ""
 
-        # Detect text manipulation mode
-        focused_text_clean = self.shared_state.focused_text.replace("'", "").strip()
-        has_text_to_modify = focused_text_clean != ""
-
-        # Store for next step
-        self.shared_state.has_text_to_modify = has_text_to_modify
         self.shared_state.screenshot = screenshot
 
         # Build user message and add to history
@@ -491,11 +468,10 @@ class ManagerAgent(Workflow):
         """Get LLM response."""
         logger.debug("🧠 Manager thinking about the plan...")
 
-        has_text_to_modify = self.shared_state.has_text_to_modify
         screenshot = self.shared_state.screenshot
 
         # Build system prompt
-        system_prompt = await self._build_system_prompt(has_text_to_modify)
+        system_prompt = await self._build_system_prompt()
 
         # Build messages with context
         messages = self._build_messages_with_context(

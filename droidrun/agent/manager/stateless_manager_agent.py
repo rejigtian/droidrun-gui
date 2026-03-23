@@ -88,7 +88,7 @@ class StatelessManagerAgent(Workflow):
             )
         ]
 
-    async def _build_prompt(self, has_text_to_modify: bool) -> str:
+    async def _build_prompt(self) -> str:
         variables = {
             "instruction": self.shared_state.instruction,
             "device_date": self.shared_state.device_date,
@@ -99,8 +99,6 @@ class StatelessManagerAgent(Workflow):
             "progress_summary": self.shared_state.progress_summary,
             "action_history": self._build_action_history(),
             "current_state": self.shared_state.formatted_device_state,
-            "text_manipulation_enabled": has_text_to_modify
-            and self.agent_config.fast_agent.codeact,
         }
 
         custom_prompt = self.prompt_resolver.get_prompt("manager_system")
@@ -215,10 +213,6 @@ class StatelessManagerAgent(Workflow):
 
         ctx.write_event_to_stream(RecordUIStateEvent(ui_state=ui_state.elements))
 
-        focused_text_clean = self.shared_state.focused_text.replace("'", "").strip()
-        has_text_to_modify = focused_text_clean != ""
-
-        self.shared_state.has_text_to_modify = has_text_to_modify
         self.shared_state.screenshot = screenshot
 
         event = ManagerContextEvent()
@@ -229,10 +223,9 @@ class StatelessManagerAgent(Workflow):
     async def get_response(
         self, ctx: Context, ev: ManagerContextEvent
     ) -> ManagerResponseEvent:
-        has_text_to_modify = self.shared_state.has_text_to_modify
         screenshot = self.shared_state.screenshot
 
-        prompt_text = await self._build_prompt(has_text_to_modify)
+        prompt_text = await self._build_prompt()
         messages = [{"role": "user", "content": [{"text": prompt_text}]}]
 
         if self.vision and screenshot:

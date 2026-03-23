@@ -48,7 +48,7 @@ _current_agent: ContextVar[Optional["DroidAgent"]] = ContextVar(
 _root_span_context: ContextVar[Optional[Context]] = ContextVar(
     "_root_span_context", default=None
 )
-# Track last active step span (FastAgent/CodeAct/Manager/Executor) to parent screenshots
+# Track last active step span (FastAgent/Manager/Executor) to parent screenshots
 _last_step_span_context: ContextVar[Optional[Context]] = ContextVar(
     "_last_step_span_context", default=None
 )
@@ -206,16 +206,14 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
 
             active_llms = []
             if self.agent.config.agent.reasoning:
-                # Reasoning mode uses manager, executor, scripter
+                # Reasoning mode uses manager, executor
                 llm_attrs = ["manager_llm", "executor_llm"]
-                if self.agent.config.agent.scripter.enabled:
-                    llm_attrs.append("scripter_llm")
             else:
                 # Direct mode uses fast_agent
                 llm_attrs = ["fast_agent_llm"]
 
             # Add helper LLMs
-            llm_attrs.extend(["text_manipulator_llm", "app_opener_llm"])
+            llm_attrs.append("app_opener_llm")
 
             # Add structured_output if output_model is present
             if self.agent.output_model:
@@ -445,7 +443,6 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
             elif span.name in (
                 "ManagerAgent.run",
                 "StatelessManagerAgent.run",
-                "CodeActAgent.run",
                 "FastAgent.run",
                 "ExecutorAgent.run",
             ):
@@ -467,7 +464,7 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
                         self.agent.shared_state.current_subgoal or "Unknown"
                     )
 
-                if span.name in ("FastAgent.run", "CodeActAgent.run"):
+                if span.name == "FastAgent.run":
                     input_data["fast_memory_count"] = len(
                         self.agent.shared_state.fast_memory
                     )
@@ -505,7 +502,6 @@ class LangfuseSpanProcessor(BaseLangfuseSpanProcessor):
                 "StatelessManagerAgent.run",
                 "ExecutorAgent.run",
                 "FastAgent.run",
-                "CodeActAgent.run",
             ):
                 if "input.value" in span._attributes:
                     del span._attributes["input.value"]

@@ -8,12 +8,7 @@ whichever ``logging.Handler`` is attached (CLILogHandler, TUILogHandler, …).
 
 import logging
 
-from droidrun.agent.codeact.events import (
-    CodeActCodeEvent,
-    CodeActEndEvent,
-    CodeActInputEvent,
-    CodeActOutputEvent,
-    CodeActResponseEvent,
+from droidrun.agent.fast_agent.events import (
     FastAgentEndEvent,
     FastAgentInputEvent,
     FastAgentOutputEvent,
@@ -39,7 +34,6 @@ from droidrun.agent.manager.events import (
     ManagerPlanDetailsEvent,
     ManagerResponseEvent,
 )
-from droidrun.agent.scripter.events import ScripterThinkingEvent
 
 logger = logging.getLogger("droidrun")
 
@@ -122,45 +116,6 @@ class EventHandler:
         elif isinstance(event, ExecutorResultEvent):
             logger.debug("Step complete", extra={"color": "magenta"})
 
-        # ── CodeAct events (direct mode) ────────────────────────────
-        elif isinstance(event, CodeActInputEvent):
-            logger.debug("💬 Task input received...")
-
-        elif isinstance(event, CodeActResponseEvent):
-            logger.debug("CodeAct response", extra={"color": "magenta"})
-            if event.thought:
-                preview = (
-                    event.thought[:150] + "..."
-                    if len(event.thought) > 150
-                    else event.thought
-                )
-                logger.debug(f"🧠 Thinking: {preview}", extra={"color": "cyan"})
-            if event.code:
-                logger.debug("💻 Executing action code", extra={"color": "yellow"})
-                logger.debug(f"{event.code}", extra={"color": "blue"})
-
-        elif isinstance(event, CodeActCodeEvent):
-            logger.debug("⚡ Executing action...", extra={"color": "yellow"})
-
-        elif isinstance(event, CodeActOutputEvent):
-            if event.output:
-                output = str(event.output)
-                preview = output[:100] + "..." if len(output) > 100 else output
-                if "Error" in output or "Exception" in output:
-                    logger.debug(f"❌ Action error: {preview}", extra={"color": "red"})
-                else:
-                    logger.debug(
-                        f"⚡ Action result: {preview}", extra={"color": "green"}
-                    )
-
-        elif isinstance(event, CodeActEndEvent):
-            status = "done" if event.success else "failed"
-            color = "green" if event.success else "red"
-            logger.debug(
-                f"■ {status}: {event.reason} ({event.code_executions} runs)",
-                extra={"color": color},
-            )
-
         # ── FastAgent events (direct mode, XML tool-calling) ────────
         elif isinstance(event, FastAgentInputEvent):
             logger.debug("💬 Task input received...")
@@ -199,16 +154,6 @@ class EventHandler:
                 f"■ {status}: {event.reason} ({event.tool_call_count} runs)",
                 extra={"color": color},
             )
-
-        # ── Scripter events ─────────────────────────────────────────
-        elif isinstance(event, ScripterThinkingEvent):
-            if event.thought:
-                logger.debug(f"    {event.thought}", extra={"color": "cyan"})
-            if event.code:
-                logger.debug("  $ script", extra={"color": "blue"})
-                for line in event.code.split("\n")[:5]:
-                    if line.strip():
-                        logger.debug(f"    {line}", extra={"color": "blue"})
 
         # ── Droid coordination events ───────────────────────────────
         elif isinstance(event, FastAgentExecuteEvent):

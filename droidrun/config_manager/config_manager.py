@@ -6,7 +6,6 @@ from typing import Any, Dict, List, Optional
 import yaml
 
 from droidrun.config_manager.path_resolver import PathResolver
-from droidrun.config_manager.safe_execution import SafeExecutionConfig
 from droidrun.mcp.config import MCPConfig, MCPServerConfig
 
 
@@ -41,12 +40,9 @@ class LLMProfile:
 @dataclass
 class FastAgentConfig:
     vision: bool = False
-    codeact: bool = False
     parallel_tools: bool = True
-    system_prompt: str = "config/prompts/codeact/tools_system.jinja2"
-    user_prompt: str = "config/prompts/codeact/tools_user.jinja2"
-    safe_execution: bool = False
-    execution_timeout: float = 50.0
+    system_prompt: str = "config/prompts/fast_agent/system.jinja2"
+    user_prompt: str = "config/prompts/fast_agent/user.jinja2"
 
 
 @dataclass
@@ -60,15 +56,6 @@ class ManagerConfig:
 class ExecutorConfig:
     vision: bool = False
     system_prompt: str = "config/prompts/executor/system.jinja2"
-
-
-@dataclass
-class ScripterConfig:
-    enabled: bool = True
-    max_steps: int = 10
-    execution_timeout: float = 30.0
-    system_prompt: str = "config/prompts/scripter/system.jinja2"
-    safe_execution: bool = False
 
 
 @dataclass
@@ -96,7 +83,6 @@ class AgentConfig:
     fast_agent: FastAgentConfig = field(default_factory=FastAgentConfig)
     manager: ManagerConfig = field(default_factory=ManagerConfig)
     executor: ExecutorConfig = field(default_factory=ExecutorConfig)
-    scripter: ScripterConfig = field(default_factory=ScripterConfig)
     app_cards: AppCardConfig = field(default_factory=AppCardConfig)
 
     def get_fast_agent_system_prompt_path(self) -> str:
@@ -110,9 +96,6 @@ class AgentConfig:
 
     def get_executor_system_prompt_path(self) -> str:
         return str(PathResolver.resolve(self.executor.system_prompt, must_exist=True))
-
-    def get_scripter_system_prompt_path(self) -> str:
-        return str(PathResolver.resolve(self.scripter.system_prompt, must_exist=True))
 
 
 @dataclass
@@ -191,7 +174,6 @@ class DroidrunConfig:
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     tools: ToolsConfig = field(default_factory=ToolsConfig)
     credentials: CredentialsConfig = field(default_factory=CredentialsConfig)
-    safe_execution: SafeExecutionConfig = field(default_factory=SafeExecutionConfig)
     external_agents: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     mcp: MCPConfig = field(default_factory=MCPConfig)
 
@@ -222,22 +204,10 @@ class DroidrunConfig:
                 temperature=0.2,
                 kwargs={},
             ),
-            "text_manipulator": LLMProfile(
-                provider="GoogleGenAI",
-                model="gemini-2.5-pro",
-                temperature=0.3,
-                kwargs={},
-            ),
             "app_opener": LLMProfile(
                 provider="GoogleGenAI",
                 model="gemini-2.5-pro",
                 temperature=0.0,
-                kwargs={},
-            ),
-            "scripter": LLMProfile(
-                provider="GoogleGenAI",
-                model="gemini-2.5-flash",
-                temperature=0.1,
                 kwargs={},
             ),
             "structured_output": LLMProfile(
@@ -255,7 +225,6 @@ class DroidrunConfig:
         result["llm_profiles"] = {
             name: asdict(profile) for name, profile in self.llm_profiles.items()
         }
-        # safe_execution is already converted by asdict
         return result
 
     @classmethod
@@ -284,11 +253,6 @@ class DroidrunConfig:
             ExecutorConfig(**executor_data) if executor_data else ExecutorConfig()
         )
 
-        script_data = agent_data.get("scripter", {})
-        scripter_config = (
-            ScripterConfig(**script_data) if script_data else ScripterConfig()
-        )
-
         app_cards_data = agent_data.get("app_cards", {})
         app_cards_config = (
             AppCardConfig(**app_cards_data) if app_cards_data else AppCardConfig()
@@ -307,15 +271,7 @@ class DroidrunConfig:
             fast_agent=fast_agent_config,
             manager=manager_config,
             executor=executor_config,
-            scripter=scripter_config,
             app_cards=app_cards_config,
-        )
-
-        safe_exec_data = data.get("safe_execution", {})
-        safe_execution_config = (
-            SafeExecutionConfig(**safe_exec_data)
-            if safe_exec_data
-            else SafeExecutionConfig()
         )
 
         # External agents config - just pass through as-is
@@ -349,7 +305,6 @@ class DroidrunConfig:
             logging=LoggingConfig(**data.get("logging", {})),
             tools=ToolsConfig(**data.get("tools", {})),
             credentials=CredentialsConfig(**data.get("credentials", {})),
-            safe_execution=safe_execution_config,
             external_agents=external_agents,
             mcp=mcp_config,
         )

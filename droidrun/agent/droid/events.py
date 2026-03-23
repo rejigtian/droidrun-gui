@@ -63,43 +63,6 @@ class ExecutorResultEvent(Event):
 
 
 # ============================================================================
-# Script executor coordination events
-# ============================================================================
-
-
-class ScripterExecutorInputEvent(Event):
-    """Trigger ScripterAgent workflow for off-device operations"""
-
-    task: str
-
-
-class ScripterExecutorResultEvent(Event):
-    """Scripter finished."""
-
-    task: str
-    message: str
-    success: bool
-    code_executions: int
-
-
-# ============================================================================
-# TEXT MANIPULATOR WORKFLOW EVENTS
-# ============================================================================
-
-
-class TextManipulatorInputEvent(Event):
-    """Trigger TextManipulatorAgent workflow for text manipulation"""
-
-    task: str
-
-
-class TextManipulatorResultEvent(Event):
-    task: str
-    text_to_type: str
-    code_ran: str
-
-
-# ============================================================================
 # EXTERNAL USER MESSAGE EVENTS
 # ============================================================================
 

@@ -6,7 +6,7 @@ import pkgutil
 from pathlib import Path
 
 
-CURRENT_VERSION = 3
+CURRENT_VERSION = 4
 
 
 def get_migrations() -> List:

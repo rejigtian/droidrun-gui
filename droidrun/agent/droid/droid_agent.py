@@ -1,9 +1,9 @@
 """
 DroidAgent - A wrapper class that coordinates the planning and execution of tasks
-to achieve a user's goal on an Android device.
+to achieve a user's goal on a mobile device.
 
 Architecture:
-- When reasoning=False: Uses CodeActAgent directly
+- When reasoning=False: Uses FastAgent directly
 - When reasoning=True: Uses Manager (planning) + Executor (action) workflows
 """
 
@@ -21,8 +21,8 @@ from workflows.events import Event
 from workflows.handler import WorkflowHandler
 
 from droidrun.agent.action_context import ActionContext
-from droidrun.agent.codeact import CodeActAgent, FastAgent
-from droidrun.agent.codeact.events import CodeActOutputEvent, FastAgentOutputEvent
+from droidrun.agent.fast_agent import FastAgent
+from droidrun.agent.fast_agent.events import FastAgentOutputEvent
 from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
 from droidrun.agent.droid.events import (
     ExecutorInputEvent,
@@ -34,18 +34,12 @@ from droidrun.agent.droid.events import (
     ManagerInputEvent,
     ManagerPlanEvent,
     ResultEvent,
-    ScripterExecutorInputEvent,
-    ScripterExecutorResultEvent,
-    TextManipulatorInputEvent,
-    TextManipulatorResultEvent,
 )
 from droidrun.agent.droid.state import DroidAgentState, QueuedUserMessage
 from droidrun.agent.executor import ExecutorAgent
 from droidrun.agent.external import load_agent
 from droidrun.agent.manager import ManagerAgent, StatelessManagerAgent
 from droidrun.agent.oneflows.structured_output_agent import StructuredOutputAgent
-from droidrun.agent.oneflows.text_manipulator import run_text_manipulation_agent
-from droidrun.agent.scripter import ScripterAgent
 from droidrun.agent.tool_registry import ToolRegistry
 from droidrun.agent.trajectory import TrajectoryWriter
 from droidrun.agent.utils.actions import complete, open_app, remember
@@ -74,7 +68,6 @@ from droidrun.config_manager.config_manager import (
     ToolsConfig,
     TracingConfig,
 )
-from droidrun.config_manager.safe_execution import SafeExecutionConfig
 from droidrun.credential_manager import CredentialManager, FileCredentialManager
 from droidrun.log_handlers import CLILogHandler, configure_logging
 from droidrun.mcp.adapter import mcp_to_droidrun_tools
@@ -109,7 +102,7 @@ class DroidAgent(Workflow):
     A wrapper class that coordinates between agents to achieve a user's goal.
 
     Reasoning modes:
-    - reasoning=False: Uses CodeActAgent directly for immediate execution
+    - reasoning=False: Uses FastAgent directly for immediate execution
     - reasoning=True: Uses ManagerAgent (planning) + ExecutorAgent (actions)
     """
 
@@ -189,7 +182,6 @@ class DroidAgent(Workflow):
             telemetry=config.telemetry if config else TelemetryConfig(),
             llm_profiles=config.llm_profiles if config else {},
             credentials=config.credentials if config else CredentialsConfig(),
-            safe_execution=config.safe_execution if config else SafeExecutionConfig(),
             external_agents=config.external_agents if config else {},
             mcp=config.mcp if config else MCPConfig(),
         )
@@ -250,9 +242,7 @@ class DroidAgent(Workflow):
                 self.manager_llm = llms.get("manager")
                 self.executor_llm = llms.get("executor")
                 self.fast_agent_llm = llms.get("fast_agent")
-                self.text_manipulator_llm = llms.get("text_manipulator")
                 self.app_opener_llm = llms.get("app_opener")
-                self.scripter_llm = llms.get("scripter", self.fast_agent_llm)
                 self.structured_output_llm = llms.get(
                     "structured_output", self.fast_agent_llm
                 )
@@ -260,18 +250,14 @@ class DroidAgent(Workflow):
                 self.manager_llm = llms
                 self.executor_llm = llms
                 self.fast_agent_llm = llms
-                self.text_manipulator_llm = llms
                 self.app_opener_llm = llms
-                self.scripter_llm = llms
                 self.structured_output_llm = llms
         else:
             logger.debug(f"🔄 Using external agent: {self.config.agent.name}")
             self.manager_llm = None
             self.executor_llm = None
             self.fast_agent_llm = None
-            self.text_manipulator_llm = None
             self.app_opener_llm = None
-            self.scripter_llm = None
             self.structured_output_llm = None
 
         if self.config.logging.save_trajectory != "none":
@@ -336,11 +322,6 @@ class DroidAgent(Workflow):
                     "fast_agent": (
                         self.fast_agent_llm.class_name()
                         if self.fast_agent_llm
-                        else "None"
-                    ),
-                    "text_manipulator": (
-                        self.text_manipulator_llm.class_name()
-                        if self.text_manipulator_llm
                         else "None"
                     ),
                     "app_opener": (
@@ -606,49 +587,32 @@ class DroidAgent(Workflow):
         return queued
 
     # ========================================================================
-    # execute_task — FastAgent / CodeActAgent
+    # execute_task — FastAgent
     # ========================================================================
 
     @step
     async def execute_task(
         self, ctx: Context, ev: FastAgentExecuteEvent
     ) -> FastAgentResultEvent:
-        """Execute a single task using CodeActAgent or FastAgent."""
+        """Execute a single task using FastAgent."""
 
         logger.debug(f"🔧 Executing task: {ev.instruction}")
 
         try:
-            if self.config.agent.fast_agent.codeact:
-                agent = CodeActAgent(
-                    llm=self.fast_agent_llm,
-                    agent_config=self.config.agent,
-                    registry=self.registry,
-                    action_ctx=self.action_ctx,
-                    state_provider=self.state_provider,
-                    save_trajectory=self.config.logging.save_trajectory,
-                    debug=self.config.logging.debug,
-                    shared_state=self.shared_state,
-                    safe_execution_config=self.config.safe_execution,
-                    output_model=self.output_model,
-                    prompt_resolver=self.prompt_resolver,
-                    timeout=self.timeout,
-                    tracing_config=self.config.tracing,
-                )
-            else:
-                agent = FastAgent(
-                    llm=self.fast_agent_llm,
-                    agent_config=self.config.agent,
-                    registry=self.registry,
-                    action_ctx=self.action_ctx,
-                    state_provider=self.state_provider,
-                    save_trajectory=self.config.logging.save_trajectory,
-                    debug=self.config.logging.debug,
-                    shared_state=self.shared_state,
-                    output_model=self.output_model,
-                    prompt_resolver=self.prompt_resolver,
-                    timeout=self.timeout,
-                    tracing_config=self.config.tracing,
-                )
+            agent = FastAgent(
+                llm=self.fast_agent_llm,
+                agent_config=self.config.agent,
+                registry=self.registry,
+                action_ctx=self.action_ctx,
+                state_provider=self.state_provider,
+                save_trajectory=self.config.logging.save_trajectory,
+                debug=self.config.logging.debug,
+                shared_state=self.shared_state,
+                output_model=self.output_model,
+                prompt_resolver=self.prompt_resolver,
+                timeout=self.timeout,
+                tracing_config=self.config.tracing,
+            )
 
             handler = agent.run(
                 input=ev.instruction,
@@ -658,7 +622,7 @@ class DroidAgent(Workflow):
             async for nested_ev in handler.stream_events():
                 self.handle_stream_event(nested_ev, ctx)
 
-                if isinstance(nested_ev, (CodeActOutputEvent, FastAgentOutputEvent)):
+                if isinstance(nested_ev, FastAgentOutputEvent):
                     if self.config.logging.save_trajectory != "none":
                         self.trajectory_writer.write(
                             self.trajectory,
@@ -764,9 +728,7 @@ class DroidAgent(Workflow):
         self, ctx: Context, ev: ManagerPlanEvent
     ) -> (
         ExecutorInputEvent
-        | ScripterExecutorInputEvent
         | FinalizeEvent
-        | TextManipulatorInputEvent
         | ManagerInputEvent
     ):
         """Process Manager output and decide next step."""
@@ -783,130 +745,8 @@ class DroidAgent(Workflow):
             self.shared_state.progress_summary = f"Answer: {ev.answer}"
             return FinalizeEvent(success=success, reason=ev.answer)
 
-        # Check for <script> tag
-        if "<script>" in ev.current_subgoal:
-            start_idx = ev.plan.find("<script>")
-            end_idx = ev.plan.find("</script>")
-
-            if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-                task = ev.plan[start_idx + len("<script>") : end_idx].strip()
-                logger.debug(f"🐍 Routing to ScripterAgent: {task[:80]}...")
-                event = ScripterExecutorInputEvent(task=task)
-                ctx.write_event_to_stream(event)
-                return event
-            else:
-                logger.warning(
-                    "⚠️ Found <script> in subgoal but not properly closed in plan, treating as regular subgoal"
-                )
-        if "TEXT_TASK" in ev.current_subgoal:
-            if self.config.agent.fast_agent.codeact:
-                return TextManipulatorInputEvent(
-                    task=ev.current_subgoal.replace("TEXT_TASK:", "")
-                    .replace("TEXT_TASK", "")
-                    .strip()
-                )
-            else:
-                logger.debug(
-                    "⚠️ TEXT_TASK in tools mode — routing to Executor instead of TextManipulator"
-                )
-                subgoal = (
-                    ev.current_subgoal.replace("TEXT_TASK:", "")
-                    .replace("TEXT_TASK", "")
-                    .strip()
-                )
-                return ExecutorInputEvent(current_subgoal=subgoal)
-
         logger.debug(f"▶️  Proceeding to Executor with subgoal: {ev.current_subgoal}")
         return ExecutorInputEvent(current_subgoal=ev.current_subgoal)
-
-    @step
-    async def run_text_manipulator(
-        self, ctx: Context, ev: TextManipulatorInputEvent
-    ) -> TextManipulatorResultEvent:
-        logger.debug(f"🔍 Running TextManipulatorAgent for task: {ev.task}")
-
-        if not self.shared_state.focused_text:
-            logger.warning("⚠️ No focused text available, using empty string")
-            current_text = ""
-        else:
-            current_text = self.shared_state.focused_text
-
-        try:
-            text_to_type, code_ran = await run_text_manipulation_agent(
-                instruction=self.shared_state.instruction,
-                current_subgoal=ev.task,
-                current_text=current_text,
-                overall_plan=self.shared_state.plan,
-                llm=self.text_manipulator_llm,
-                stream=self.config.agent.streaming,
-            )
-
-            return TextManipulatorResultEvent(
-                task=ev.task, text_to_type=text_to_type, code_ran=code_ran
-            )
-
-        except Exception as e:
-            logger.error(f"❌ TextManipulator agent failed: {e}")
-            if self.config.logging.debug:
-                logger.error(traceback.format_exc())
-
-            return TextManipulatorResultEvent(
-                task=ev.task, text_to_type="", code_ran=""
-            )
-
-    @step
-    async def handle_text_manipulator_result(
-        self, ctx: Context, ev: TextManipulatorResultEvent
-    ) -> ManagerInputEvent:
-        if not ev.text_to_type or not ev.text_to_type.strip():
-            logger.warning("⚠️ TextManipulator returned empty text, treating as no-op")
-            self.shared_state.last_summary = "Text manipulation returned empty result"
-            self.shared_state.action_outcomes.append(False)
-        else:
-            try:
-                success = await self.action_ctx.driver.input_text(
-                    ev.text_to_type, clear=True
-                )
-
-                if not success:
-                    logger.warning("⚠️ Text input may have failed")
-                    self.shared_state.last_summary = (
-                        "Text manipulation attempted but may have failed"
-                    )
-                    self.shared_state.action_outcomes.append(False)
-                else:
-                    logger.debug(
-                        f"✅ Text manipulator successfully typed {len(ev.text_to_type)} characters"
-                    )
-                    self.shared_state.last_summary = f"Text manipulation successful: typed {len(ev.text_to_type)} characters"
-                    self.shared_state.action_outcomes.append(True)
-            except Exception as e:
-                logger.error(f"❌ Error during text input: {e}")
-                self.shared_state.last_summary = f"Text manipulation error: {str(e)}"
-                self.shared_state.action_outcomes.append(False)
-
-        text_manipulation_record = {
-            "task": ev.task,
-            "code_ran": ev.code_ran,
-            "text_length": len(ev.text_to_type) if ev.text_to_type else 0,
-            "success": (
-                self.shared_state.action_outcomes[-1]
-                if self.shared_state.action_outcomes
-                else False
-            ),
-        }
-
-        self.shared_state.text_manipulation_history.append(text_manipulation_record)
-        self.shared_state.last_text_manipulation_success = text_manipulation_record[
-            "success"
-        ]
-
-        if self.config.logging.save_trajectory != "none":
-            self.trajectory_writer.write(
-                self.trajectory, stage=f"step_{self.shared_state.step_number}"
-            )
-
-        return ManagerInputEvent()
 
     @step
     async def run_executor(
@@ -954,69 +794,6 @@ class DroidAgent(Workflow):
                 if self.shared_state.error_flag_plan:
                     logger.debug("✅ Error resolved - resetting error flag")
                 self.shared_state.error_flag_plan = False
-
-        if self.config.logging.save_trajectory != "none":
-            self.trajectory_writer.write(
-                self.trajectory, stage=f"step_{self.shared_state.step_number}"
-            )
-
-        return ManagerInputEvent()
-
-    # ========================================================================
-    # Script Executor Workflow Steps
-    # ========================================================================
-
-    @step
-    async def run_scripter(
-        self, ctx: Context, ev: ScripterExecutorInputEvent
-    ) -> ScripterExecutorResultEvent:
-        """Instantiate and run ScripterAgent for off-device operations."""
-        logger.debug(f"🐍 Starting ScripterAgent for task: {ev.task[:2000]}...")
-
-        scripter_agent = ScripterAgent(
-            llm=self.scripter_llm,
-            agent_config=self.config.agent,
-            shared_state=self.shared_state,
-            task=ev.task,
-            safe_execution_config=self.config.safe_execution,
-            timeout=self.timeout,
-        )
-
-        handler = scripter_agent.run()
-
-        async for nested_ev in handler.stream_events():
-            self.handle_stream_event(nested_ev, ctx)
-
-        result = await handler
-
-        script_record = {
-            "task": ev.task,
-            "message": result["message"],
-            "success": result["success"],
-            "code_executions": result.get("code_executions", 0),
-        }
-        self.shared_state.scripter_history.append(script_record)
-        self.shared_state.last_scripter_message = result["message"]
-        self.shared_state.last_scripter_success = result["success"]
-
-        return ScripterExecutorResultEvent(
-            task=ev.task,
-            message=result["message"],
-            success=result["success"],
-            code_executions=result.get("code_executions", 0),
-        )
-
-    @step
-    async def handle_scripter_result(
-        self, ctx: Context, ev: ScripterExecutorResultEvent
-    ) -> ManagerInputEvent:
-        """Process ScripterAgent result and loop back to Manager."""
-        if ev.success:
-            logger.debug(
-                f"✅ Script completed successfully in {ev.code_executions} steps"
-            )
-        else:
-            logger.warning(f"⚠️ Script failed or reached max steps: {ev.message}")
 
         if self.config.logging.save_trajectory != "none":
             self.trajectory_writer.write(
