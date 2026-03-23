@@ -11,6 +11,8 @@ from typing import Any
 import requests
 from async_adbutils import AdbDevice, adb
 from rich.console import Console
+import httpx
+from droidrun.tools.android.portal_client import PortalClient
 
 from droidrun import __version__
 from droidrun.portal import (
@@ -408,9 +410,8 @@ async def check_content_provider(device: AdbDevice, debug: bool) -> CheckResult:
 
 
 async def check_tcp(device: AdbDevice, debug: bool) -> CheckResult:
-    """Check TCP mode with explicit steps: enable server, forward port, ping."""
-    import httpx
-
+    """Check TCP mode with explicit steps: enable server, forward port, auth, ping."""
+  
     steps = []
 
     # Step 1: Enable socket server via content provider
@@ -430,7 +431,20 @@ async def check_tcp(device: AdbDevice, debug: bool) -> CheckResult:
     # Wait for server startup
     await asyncio.sleep(1)
 
-    # Step 2: Set up port forward
+    # Step 2: Fetch auth token via content provider
+    auth_headers: dict[str, str] = {}
+    try:
+        portal = PortalClient(device, prefer_tcp=False)
+        token = await portal._fetch_auth_token()
+        if token:
+            auth_headers["Authorization"] = f"Bearer {token}"
+            steps.append("auth token ok")
+        else:
+            steps.append("no auth token")
+    except Exception as e:
+        steps.append(f"auth token failed: {e}")
+
+    # Step 3: Set up port forward
     local_port = None
     try:
         # Check for existing forward first
@@ -459,10 +473,14 @@ async def check_tcp(device: AdbDevice, debug: bool) -> CheckResult:
             detail=str(e),
         )
 
-    # Step 3: Test connection
+    # Step 4: Test connection with auth
     try:
         async with httpx.AsyncClient() as client:
-            resp = await client.get(f"http://localhost:{local_port}/ping", timeout=5)
+            resp = await client.get(
+                f"http://localhost:{local_port}/ping",
+                headers=auth_headers,
+                timeout=5,
+            )
             if resp.status_code == 200:
                 steps.append("ping ok")
                 return CheckResult(
