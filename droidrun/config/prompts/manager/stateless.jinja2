@@ -54,17 +54,6 @@ Recent actions taken by the executor:
 {{ current_state }}
 </current_state>
 
-{% if text_manipulation_enabled %}
-<text_manipulation>
-1. Use **TEXT_TASK:** prefix in your plan when you need to modify text in the currently focused text input field
-2. TEXT_TASK is for editing, formatting, or transforming existing text content in text boxes using Python code
-3. Do not use TEXT_TASK for extracting text from messages, typing new text, or composing messages
-4. The focused text field contains editable text that you can modify
-5. Example plan item: 'TEXT_TASK: Add "Hello World" at the beginning of the text'
-6. Always use TEXT_TASK for modifying text, do not try to select the text to copy/cut/paste or adjust the text
-</text_manipulation>
-{% endif %}
-
 <guidelines>
 General:
 1. Use the `open_app` action whenever you want to open an app, do not use the app drawer.

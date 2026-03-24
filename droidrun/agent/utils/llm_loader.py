@@ -31,9 +31,7 @@ def _get_required_profiles(
         List of required profile names
     """
     if config.agent.reasoning:
-        profiles = ["manager", "executor", "text_manipulator", "app_opener"]
-        if config.agent.scripter.enabled:
-            profiles.append("scripter")
+        profiles = ["manager", "executor", "app_opener"]
     else:
         # Direct execution mode only needs FastAgent and helper agents
         profiles = ["fast_agent", "app_opener"]
@@ -131,8 +129,8 @@ def load_agent_llms(
 
     Returns:
         Dictionary mapping agent type to LLM instance:
-        - If reasoning=True: {manager, executor, text_manipulator, app_opener, scripter, structured_output?}
-        - If reasoning=False: {fast_agent, text_manipulator, app_opener, structured_output?}
+        - If reasoning=True: {manager, executor, app_opener, structured_output?}
+        - If reasoning=False: {fast_agent, app_opener, structured_output?}
         - structured_output is only included if output_model is provided
 
     Raises:
@@ -168,9 +166,7 @@ def load_agent_llms(
             "manager": custom_llm,
             "executor": custom_llm,
             "fast_agent": custom_llm,
-            "text_manipulator": custom_llm,
             "app_opener": custom_llm,
-            "scripter": custom_llm,
         }
 
         # Add structured_output if output_model is provided

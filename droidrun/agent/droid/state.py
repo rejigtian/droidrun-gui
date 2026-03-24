@@ -85,10 +85,10 @@ class DroidAgentState(BaseModel):
     manager_memory: str = ""  # Manager's planning notes (append-only string)
     fast_memory: List[str] = Field(
         default_factory=list
-    )  # FastAgent/CodeAct remember() items
+    )  # FastAgent remember() items
 
     # ========================================================================
-    # Completion State (set by complete() tool, checked by FastAgent/CodeAct)
+    # Completion State (set by complete() tool, checked by FastAgent)
     # ========================================================================
     finished: bool = False
     success: Optional[bool] = None
@@ -103,20 +103,6 @@ class DroidAgentState(BaseModel):
     # ========================================================================
     error_flag_plan: bool = False
     err_to_manager_thresh: int = 2
-
-    # ========================================================================
-    # Script Execution Tracking
-    # ========================================================================
-    scripter_history: List[Dict] = Field(default_factory=list)
-    last_scripter_message: str = ""
-    last_scripter_success: bool = True
-
-    # ========================================================================
-    # Text Manipulation Tracking
-    # ========================================================================
-    has_text_to_modify: bool = False
-    text_manipulation_history: List[Dict] = Field(default_factory=list)
-    last_text_manipulation_success: bool = False
 
     # ========================================================================
     # External User Messages (mid-run injection queue)
@@ -135,7 +121,7 @@ class DroidAgentState(BaseModel):
     # ========================================================================
 
     async def remember(self, information: str) -> str:
-        """Store information in fast_memory for FastAgent/CodeAct context."""
+        """Store information in fast_memory for FastAgent context."""
         if (
             not information
             or not isinstance(information, str)

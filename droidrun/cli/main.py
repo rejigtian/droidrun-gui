@@ -820,7 +820,7 @@ if __name__ == "__main__":
     command = "use open_app to open the settings and search for the battery and enter the first result"
     device = None
     provider = "GoogleGenAI"
-    model = "models/gemini-2.5-flash"
+    model = "gemini-3.1-flash-lite-preview"
     temperature = 0
     api_key = os.getenv("GOOGLE_API_KEY")
     steps = 15

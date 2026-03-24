@@ -43,18 +43,6 @@ General:
 6. Make sure names and titles are not cutoff. If the request is to check who sent a message, make sure to check the message sender's full name not just what appears in the notification because it might be cut off.
 7. Dates and file names must match the user query exactly.
 8. Don't do more than what the user asks for.
-{% if text_manipulation_enabled %}
-
-<text_manipulation>
-1. Use **TEXT_TASK:** prefix in your plan when you need to modify text in the currently focused text input field
-2. TEXT_TASK is for editing, formatting, or transforming existing text content in text boxes using Python code
-3. Do not use TEXT_TASK for extracting text from messages, typing new text, or composing messages
-4. The focused text field contains editable text that you can modify
-5. Example plan item: 'TEXT_TASK: Add "Hello World" at the beginning of the text'
-6. Always use TEXT_TASK for modifying text, do not try to select the text to copy/cut/paste or adjust the text
-</text_manipulation>
-{% endif %}
-
 Memory Usage:
 - Always include step context: "At step [number], I obtained [actual content] from [source]"
 - Store the actual content you observe, not just references (e.g., store full recipe text, not "found recipes")
@@ -82,57 +70,6 @@ The executor has access to the following secret IDs via the type_secret custom a
 
 You can include these secret IDs in your plan when the task requires entering sensitive information (passwords, API keys, etc.). The executor will use `type_secret(secret_id, index)` to type them securely without exposing values.
 </available_secrets>
-{% endif %}
-{% if scripter_execution_enabled %}
-
-<scripter_execution>
-You can delegate off-device Python operations using **<script>** tags in your plan to run code on host machine.
-
-**When to use <script>:**
-- Downloading files from the internet
-- Making HTTP API calls (GET, POST, etc.)
-- Sending webhooks
-- Processing data (JSON, XML, CSV)
-- Any operation that doesn't involve the device UI
-
-**When NOT to use <script>:**
-- Device interactions (use regular subgoals)
-- Text manipulation in input fields (use TEXT_TASK)
-
-**Format:**
-<script>
-Clear description of what needs to be accomplished. Be specific.
-</script>
-
-**Example plan:**
-<plan>
-<script>
-Fetch weather data from https://api.weather.com/city/london and extract the temperature in Celsius
-</script>
-1. Open the weather app
-2. Navigate to settings
-<script>
-Send the temperature to webhook https://webhook.site/abc123 as JSON with format {"city": "london", "temp": value}
-</script>
-3. DONE
-</plan>
-
-**Script results:**
-After a script executes, you'll see:
-<script_result status="SUCCESS|FAILED">
-Message from the scripter agent explaining what happened
-</script_result>
-
-You should:
-- Check the status (SUCCESS/FAILED)
-- React accordingly (continue plan, retry with different approach, or provide final answer)
-- Use information from successful scripts in subsequent planning
-
-**Script capabilities:**
-- HTTP requests (requests library)
-- JSON/data processing (json library)
-- File operations
-</scripter_execution>
 {% endif %}
 {% if output_schema %}
 

@@ -1,7 +1,7 @@
 import logging
 from io import BytesIO
 from pathlib import Path
-from typing import Optional, Tuple, Union
+from typing import Union
 
 from llama_index.core.base.llms.types import ChatMessage, ImageBlock, TextBlock
 from PIL import Image
@@ -54,39 +54,6 @@ def to_chat_messages(messages: list[dict]) -> list[ChatMessage]:
         chat_messages.append(ChatMessage(role=msg["role"], blocks=blocks))
 
     return chat_messages
-
-
-# ============================================================================
-# CODE EXTRACTION
-# ============================================================================
-
-
-def extract_code_and_thought(response_text: str) -> Tuple[Optional[str], str]:
-    """
-    Extract code from <python>...</python> tags and the surrounding text (thought).
-
-    Returns:
-        Tuple[Optional[code_string], thought_string]
-    """
-    open_tag = "<python>"
-    close_tag = "</python>"
-
-    open_idx = response_text.find(open_tag)
-    if open_idx == -1:
-        return None, response_text.strip()
-
-    close_idx = response_text.rfind(close_tag)
-    if close_idx == -1:
-        return None, response_text.strip()
-
-    code_content = response_text[open_idx + len(open_tag) : close_idx]
-    extracted_code = code_content.strip()
-
-    thought_before = response_text[:open_idx].strip()
-    thought_after = response_text[close_idx + len(close_tag) :].strip()
-    thought_text = (thought_before + " " + thought_after).strip()
-
-    return extracted_code, thought_text
 
 
 # ============================================================================

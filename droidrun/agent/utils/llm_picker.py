@@ -24,7 +24,7 @@ def load_llm(provider_name: str, model: str | None = None, **kwargs: Any) -> LLM
     Args:
         provider_name: The case-sensitive name of the provider and the class
                        (e.g., "OpenAI", "Ollama", "HuggingFaceLLM").
-        model: The model name to use (e.g., "gpt-4", "models/gemini-2.5-pro").
+        model: The model name to use (e.g., "gpt-4", "gemini-3.1-flash-lite-preview").
                If provided, will be passed as 'model' kwarg to the LLM constructor.
         **kwargs: Keyword arguments for the LLM class constructor.
 
@@ -202,7 +202,7 @@ if __name__ == "__main__":
         },
         {
             "name": "GoogleGenAI",
-            "model": "gemini-2.5-flash",
+            "model": "gemini-3.1-flash-lite-preview",
         },
         {
             "name": "OpenAI",

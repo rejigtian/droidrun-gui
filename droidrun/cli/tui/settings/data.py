@@ -18,7 +18,7 @@ PROVIDERS = [
     "OpenAILike",
 ]
 
-AGENT_ROLES = ["manager", "executor", "fast_agent", "scripter"]
+AGENT_ROLES = ["manager", "executor", "fast_agent"]
 
 # Maps provider name to the env key slot used by save_env_keys/load_env_keys.
 # Providers not listed here store their api_key in kwargs instead.
@@ -43,7 +43,7 @@ class ProfileSettings:
     """Full LLM profile for one agent role."""
 
     provider: str = "GoogleGenAI"
-    model: str = "gemini-2.5-pro"
+    model: str = "gemini-3.1-flash-lite-preview"
     temperature: float = 0.2
     api_key: str = ""
     base_url: str = ""
@@ -126,7 +126,6 @@ class SettingsData:
             "manager": config.agent.manager.system_prompt,
             "executor": config.agent.executor.system_prompt,
             "fast_agent": config.agent.fast_agent.system_prompt,
-            "scripter": config.agent.scripter.system_prompt,
         }
 
         return cls(
@@ -216,11 +215,11 @@ class SettingsData:
                 continue
             self._apply_profile_to_llm(ps, config.llm_profiles[role])
 
-        # Propagate fast_agent settings to hidden roles (text_manipulator, app_opener, structured_output)
+        # Propagate fast_agent settings to hidden roles (app_opener, structured_output)
         # keeping their existing model (these are usually lighter models)
         fast_agent_ps = self.profiles.get("fast_agent")
         if fast_agent_ps:
-            for hidden_role in ("text_manipulator", "app_opener", "structured_output"):
+            for hidden_role in ("app_opener", "structured_output"):
                 if hidden_role in config.llm_profiles:
                     self._apply_profile_to_llm(
                         fast_agent_ps,
@@ -238,10 +237,6 @@ class SettingsData:
         prompt = self.agent_prompts.get("fast_agent", "")
         if prompt:
             config.agent.fast_agent.system_prompt = prompt
-        prompt = self.agent_prompts.get("scripter", "")
-        if prompt:
-            config.agent.scripter.system_prompt = prompt
-
         # Agent
         config.agent.max_steps = self.max_steps
         config.agent.manager.vision = self.manager_vision
