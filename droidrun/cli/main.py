@@ -34,8 +34,9 @@ from droidrun.portal import (
     ping_portal_tcp,
     setup_portal,
 )
-from droidrun.telemetry import print_telemetry_message
+from droidrun.agent.external import list_agents
 from droidrun.agent.utils.llm_picker import load_llm
+from droidrun.telemetry import print_telemetry_message
 
 # Suppress all warnings
 warnings.filterwarnings("ignore")
@@ -68,6 +69,7 @@ async def run_command(
     command: str,
     config_path: str | None = None,
     device: str | None = None,
+    agent: str | None = None,
     provider: str | None = None,
     model: str | None = None,
     steps: int | None = None,
@@ -140,6 +142,8 @@ async def run_command(
                 config.agent.fast_agent.vision = fast_agent_vision
 
         # Agent overrides
+        if agent is not None:
+            config.agent.name = agent
         if steps is not None:
             config.agent.max_steps = steps
         if reasoning is not None:
@@ -314,10 +318,24 @@ def cli():
     pass
 
 
+try:
+    _available_agents = list_agents()
+except Exception:
+    _available_agents = []
+
+
 @cli.command()
 @click.argument("command", type=str)
 @click.option("--config", "-c", help="Path to custom config file", default=None)
 @click.option("--device", "-d", help="Device serial number or IP address", default=None)
+@click.option(
+    "--agent",
+    "-a",
+    type=click.Choice(_available_agents) if _available_agents else None,
+    help="External agent to use"
+    + (f" [{', '.join(_available_agents)}]" if _available_agents else " (none available)"),
+    default=None,
+)
 @click.option(
     "--provider",
     "-p",
@@ -377,6 +395,7 @@ async def run(
     command: str,
     config: str | None,
     device: str | None,
+    agent: str | None,
     provider: str | None,
     model: str | None,
     steps: int | None,
@@ -399,6 +418,7 @@ async def run(
             command=command,
             config_path=config,
             device=device,
+            agent=agent,
             provider=provider,
             model=model,
             steps=steps,
