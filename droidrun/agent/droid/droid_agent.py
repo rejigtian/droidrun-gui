@@ -260,7 +260,10 @@ class DroidAgent(Workflow):
             self.app_opener_llm = None
             self.structured_output_llm = None
 
-        if self.config.logging.save_trajectory != "none":
+        if (
+            not self._using_external_agent
+            and self.config.logging.save_trajectory != "none"
+        ):
             self.trajectory = Trajectory(
                 goal=self.shared_state.instruction,
                 base_path=self.config.logging.trajectory_path,
@@ -370,6 +373,64 @@ class DroidAgent(Workflow):
 
         if self.trajectory_writer:
             await self.trajectory_writer.start()
+
+        # ── 0. External agent — early exit ────────────────────────────
+        if self._using_external_agent:
+            agent_name = self.config.agent.name
+
+            # Load the agent module
+            agent_module = load_agent(agent_name)
+            if not agent_module:
+                from droidrun.agent.external import list_agents
+
+                available = list_agents()
+                if available:
+                    agents_str = ", ".join(available)
+                    raise ValueError(
+                        f"Failed to load external agent '{agent_name}'.\n"
+                        f"Available agents: {agents_str}"
+                    )
+                raise ValueError(
+                    f"External agent '{agent_name}' not found.\n"
+                    "No external agents are currently installed.\n"
+                    "Run: droidrun run --help  to see available agents."
+                )
+
+            # Resolve config
+            agent_config = self.config.external_agents.get(agent_name)
+            if not agent_config:
+                raise ValueError(
+                    f"No configuration found for agent '{agent_name}'.\n\n"
+                    "Add to your config.yaml:\n\n"
+                    "  external_agents:\n"
+                    f"    {agent_name}:\n"
+                    '      api_key: "your-api-key"\n'
+                    '      model: "model-name"\n'
+                    "      # ... any settings your agent needs"
+                )
+
+            final_config = {**agent_module["config"], **agent_config}
+
+            # Resolve device serial and get raw AdbDevice
+            device_serial = self.resolved_device_config.serial
+            if device_serial is None:
+                devices = await adb.list()
+                if not devices:
+                    raise ValueError("No connected Android devices found.")
+                device_serial = devices[0].serial
+
+            adb_device = await adb.device(serial=device_serial)
+
+            logger.info(f"🤖 Using external agent: {agent_name}")
+
+            result = await agent_module["run"](
+                device=adb_device,
+                instruction=self.shared_state.instruction,
+                config=final_config,
+                max_steps=self.config.agent.max_steps,
+            )
+
+            return FinalizeEvent(success=result["success"], reason=result["reason"])
 
         # ── 1. Create driver ──────────────────────────────────────────
         if self.config.agent.reasoning:
@@ -529,33 +590,6 @@ class DroidAgent(Workflow):
 
         # ── 6. Fetch device date once ─────────────────────────────────
         self.shared_state.device_date = await driver.get_date()
-
-        # ── 7. External agent mode ────────────────────────────────────
-        if self._using_external_agent:
-            agent_name = self.config.agent.name
-            agent_module = load_agent(agent_name)
-            if not agent_module:
-                raise ValueError(f"Failed to load external agent: {agent_name}")
-
-            agent_config = self.config.external_agents.get(agent_name)
-            if not agent_config:
-                raise ValueError(
-                    f"No config found for agent '{agent_name}' in external_agents section"
-                )
-
-            final_config = {**agent_module["config"], **agent_config}
-
-            logger.info(f"🤖 Using external agent: {agent_name}")
-
-            result = await agent_module["run"](
-                driver=self.driver,
-                action_ctx=self.action_ctx,
-                instruction=self.shared_state.instruction,
-                config=final_config,
-                max_steps=self.config.agent.max_steps,
-            )
-
-            return FinalizeEvent(success=result["success"], reason=result["reason"])
 
         if self.config.logging.save_trajectory != "none":
             self.trajectory_writer.write(self.trajectory, stage="init")
