@@ -24,6 +24,7 @@ Optional: ``DEFAULT_CONFIG: dict`` — merged under the user's config.
 
 from __future__ import annotations
 
+import asyncio
 import importlib
 import logging
 from pathlib import Path
@@ -72,6 +73,12 @@ def load_agent(name: str) -> Optional[ExternalAgentModule]:
 
         if not hasattr(module, "run"):
             logger.error(f"External agent '{name}' missing run() function")
+            return None
+
+        if not asyncio.iscoroutinefunction(module.run):
+            logger.error(
+                f"External agent '{name}' has a sync run() — it must be async (async def run)"
+            )
             return None
 
         return {

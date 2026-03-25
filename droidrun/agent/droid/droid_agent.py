@@ -396,19 +396,8 @@ class DroidAgent(Workflow):
                     "Run: droidrun run --help  to see available agents."
                 )
 
-            # Resolve config
-            agent_config = self.config.external_agents.get(agent_name)
-            if not agent_config:
-                raise ValueError(
-                    f"No configuration found for agent '{agent_name}'.\n\n"
-                    "Add to your config.yaml:\n\n"
-                    "  external_agents:\n"
-                    f"    {agent_name}:\n"
-                    '      api_key: "your-api-key"\n'
-                    '      model: "model-name"\n'
-                    "      # ... any settings your agent needs"
-                )
-
+            # Resolve config — missing section is fine, agent may use DEFAULT_CONFIG or env vars
+            agent_config = self.config.external_agents.get(agent_name) or {}
             final_config = {**agent_module["config"], **agent_config}
 
             # Resolve device serial and get raw AdbDevice

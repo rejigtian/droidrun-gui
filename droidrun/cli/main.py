@@ -318,7 +318,10 @@ def cli():
     pass
 
 
-_available_agents = list_agents()
+try:
+    _available_agents = list_agents()
+except Exception:
+    _available_agents = []
 
 
 @cli.command()
