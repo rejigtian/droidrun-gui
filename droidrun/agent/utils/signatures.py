@@ -78,7 +78,7 @@ ATOMIC_ACTION_SIGNATURES = {
         },
         "description": 'Press a system button, including back, home, and enter. Usage example: {"action": "system_button", "button": "Home"}',
         "function": system_button,
-        "deps": {"press_key"},
+        "deps": {"press_button"},
     },
     "swipe": {
         "parameters": {

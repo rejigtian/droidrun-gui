@@ -27,6 +27,10 @@ class RecordingDriver:
     def supported(self) -> set[str]:
         return self.inner.supported
 
+    @property
+    def supported_buttons(self) -> set[str]:
+        return self.inner.supported_buttons
+
     def __getattr__(self, name: str):
         """Delegate all non-overridden attribute lookups to the inner driver."""
         return getattr(self.inner, name)
@@ -62,9 +66,9 @@ class RecordingDriver:
         self.log.append({"action_type": "input_text", "text": text, "clear": clear})
         return result
 
-    async def press_key(self, keycode: int) -> None:
-        await self.inner.press_key(keycode)
-        self.log.append({"action_type": "key_press", "keycode": keycode})
+    async def press_button(self, button: str) -> None:
+        await self.inner.press_button(button)
+        self.log.append({"action_type": "button_press", "button": button})
 
     async def start_app(self, package: str, activity: Optional[str] = None) -> str:
         result = await self.inner.start_app(package, activity)

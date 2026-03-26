@@ -5,7 +5,7 @@ through the same ``DeviceDriver`` interface used by Android.
 
 Known limitations (pre-existing, documented as TODOs):
 - ``clear`` parameter in ``input_text`` is ignored
-- ``press_key`` only maps HOME; BACK and ENTER have no iOS equivalent
+- ``press_button`` only supports HOME; BACK and ENTER have no iOS equivalent
 - ``get_date`` not available (no iOS portal endpoint)
 - ``drag`` not implemented
 - ``get_apps`` returns bundle identifiers, not real app metadata
@@ -45,15 +45,6 @@ SYSTEM_BUNDLE_IDENTIFIERS = [
     "com.apple.webapp",
 ]
 
-# Android keycode → iOS keycode translation.
-# Only HOME is mapped; others have no iOS equivalent.
-_ANDROID_TO_IOS_KEYCODE = {
-    3: 0,  # HOME
-    # TODO: 4 (BACK) has no iOS equivalent
-    # TODO: 66 (ENTER) has no iOS equivalent
-}
-
-
 class IOSDriver(DeviceDriver):
     """iOS device driver communicating via HTTP REST to the iOS portal app."""
 
@@ -61,12 +52,18 @@ class IOSDriver(DeviceDriver):
         "tap",
         "swipe",
         "input_text",
-        "press_key",
+        "press_button",
         "start_app",
         "screenshot",
         "get_ui_tree",
         "list_packages",
         "get_apps",
+    }
+
+    supported_buttons = {"home"}
+
+    _BUTTON_IOS_KEYCODES = {
+        "home": 0,
     }
 
     def __init__(
@@ -128,13 +125,16 @@ class IOSDriver(DeviceDriver):
         )
         return resp.status_code == 200
 
-    async def press_key(self, keycode: int) -> None:
-        ios_keycode = _ANDROID_TO_IOS_KEYCODE.get(keycode)
-        if ios_keycode is None:
-            # TODO: BACK (4) and ENTER (66) have no iOS equivalent
-            logger.warning(f"Keycode {keycode} not supported on iOS, ignoring")
-            return
-        resp = await self._client.post("/inputs/key", json={"key": ios_keycode})
+    async def press_button(self, button: str) -> None:
+        await self.ensure_connected()
+        button_lower = button.lower()
+        if button_lower not in self.supported_buttons:
+            raise ValueError(
+                f"Button '{button}' not supported on iOS. "
+                f"Supported: {', '.join(sorted(self.supported_buttons))}"
+            )
+        keycode = self._BUTTON_IOS_KEYCODES[button_lower]
+        resp = await self._client.post("/inputs/key", json={"key": keycode})
         resp.raise_for_status()
 
     # -- app management ------------------------------------------------------
