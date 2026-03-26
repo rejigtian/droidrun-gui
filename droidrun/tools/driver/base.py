@@ -24,6 +24,7 @@ class DeviceDriver:
     """
 
     supported: set[str] = set()
+    supported_buttons: set[str] = set()
 
     # -- lifecycle -----------------------------------------------------------
 
@@ -61,8 +62,11 @@ class DeviceDriver:
         """
         raise NotImplementedError
 
-    async def press_key(self, keycode: int) -> None:
-        """Send a single key-event."""
+    async def press_button(self, button: str) -> None:
+        """Press a named button (e.g. back, home, enter).
+
+        Raises ``ValueError`` if *button* is not in ``supported_buttons``.
+        """
         raise NotImplementedError
 
     async def drag(

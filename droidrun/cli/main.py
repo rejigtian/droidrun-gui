@@ -23,6 +23,7 @@ from droidrun import ResultEvent, DroidAgent
 from droidrun.log_handlers import CLILogHandler, configure_logging
 from droidrun.cli.event_handler import EventHandler
 from droidrun.config_manager import ConfigLoader
+from droidrun.cli.device_commands import device_cli
 from droidrun.macro.cli import macro_cli
 from droidrun.portal import (
     PORTAL_PACKAGE_NAME,
@@ -257,15 +258,6 @@ async def run_command(
         return False
 
 
-class DroidRunCLI(click.Group):
-    def parse_args(self, ctx, args):
-        # If the first arg is not an option and not a known command, treat as 'run'
-        if args and not args[0].startswith("-") and args[0] not in self.commands:
-            args.insert(0, "run")
-
-        return super().parse_args(ctx, args)
-
-
 def _print_version(ctx, param, value):
     """Click callback to print version and exit early when --version is passed."""
     if not value or ctx.resilient_parsing:
@@ -304,7 +296,7 @@ def _print_version(ctx, param, value):
     ctx.exit()
 
 
-@click.group(cls=DroidRunCLI)
+@click.group()
 @click.option(
     "--version",
     is_flag=True,
@@ -689,6 +681,9 @@ async def ping(device: str | None, tcp: bool | None, debug: bool | None):
 
 # Add macro commands as a subgroup
 cli.add_command(macro_cli, name="macro")
+
+# Add device action commands as a subgroup
+cli.add_command(device_cli, name="device")
 
 
 @cli.command()
