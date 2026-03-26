@@ -124,14 +124,25 @@ async def type(
 
 async def system_button(button: str, *, ctx: "ActionContext") -> ActionResult:
     """Press a system button (back, home, or enter)."""
+    button_map = {"back": 4, "home": 3, "enter": 66}
+    button_lower = button.lower()
+
+    if button_lower not in button_map:
+        return ActionResult(
+            success=False,
+            summary=f"Failed to press {button} button: unknown button. Valid options: back, home, enter",
+        )
+
+    keycode = button_map[button_lower]
+    key_names = {66: "ENTER", 4: "BACK", 3: "HOME"}
+    key_name = key_names.get(keycode, str(keycode))
+
     try:
-        await ctx.driver.press_button(button)
-        return ActionResult(success=True, summary=f"Pressed {button.upper()} button")
-    except ValueError as e:
-        return ActionResult(success=False, summary=str(e))
+        await ctx.driver.press_key(keycode)
+        return ActionResult(success=True, summary=f"Pressed {key_name} button")
     except Exception as e:
         return ActionResult(
-            success=False, summary=f"Failed to press {button} button: {e}"
+            success=False, summary=f"Failed to press {key_name} button: {e}"
         )
 
 

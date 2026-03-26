@@ -28,7 +28,7 @@ class AndroidDriver(DeviceDriver):
         "tap",
         "swipe",
         "input_text",
-        "press_button",
+        "press_key",
         "start_app",
         "screenshot",
         "get_ui_tree",
@@ -37,14 +37,6 @@ class AndroidDriver(DeviceDriver):
         "list_packages",
         "install_app",
         "drag",
-    }
-
-    supported_buttons = {"back", "home", "enter"}
-
-    _BUTTON_KEYCODES = {
-        "back": 4,
-        "home": 3,
-        "enter": 66,
     }
 
     def __init__(
@@ -105,15 +97,9 @@ class AndroidDriver(DeviceDriver):
         await self.ensure_connected()
         return await self.portal.input_text(text, clear)
 
-    async def press_button(self, button: str) -> None:
+    async def press_key(self, keycode: int) -> None:
         await self.ensure_connected()
-        button_lower = button.lower()
-        if button_lower not in self.supported_buttons:
-            raise ValueError(
-                f"Button '{button}' not supported. "
-                f"Supported: {', '.join(sorted(self.supported_buttons))}"
-            )
-        await self.device.keyevent(self._BUTTON_KEYCODES[button_lower])
+        await self.device.keyevent(keycode)
 
     async def drag(
         self,
