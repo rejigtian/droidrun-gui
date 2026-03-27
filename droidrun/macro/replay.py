@@ -14,6 +14,9 @@ from droidrun.tools.driver.android import AndroidDriver
 
 logger = logging.getLogger("droidrun-macro")
 
+# Reverse map for legacy key_press macro entries
+_KEYCODE_TO_BUTTON = {4: "back", 3: "home", 66: "enter"}
+
 
 class MacroPlayer:
     """
@@ -133,13 +136,23 @@ class MacroPlayer:
 
             elif action_type == "key_press":
                 keycode = action.get("keycode", 0)
-                logger.info(f"🔘 Pressing key: {keycode}")
-                await driver.press_key(keycode)
+                button = _KEYCODE_TO_BUTTON.get(keycode)
+                if button:
+                    logger.info(f"🔘 Pressing button: {button}")
+                    await driver.press_button(button)
+                else:
+                    logger.warning(f"⚠️  Unknown keycode {keycode}, skipping")
+                return True
+
+            elif action_type == "button_press":
+                button = action.get("button", "")
+                logger.info(f"🔘 Pressing button: {button}")
+                await driver.press_button(button)
                 return True
 
             elif action_type == "back":
                 logger.info("⬅️  Pressing back button")
-                await driver.press_key(4)
+                await driver.press_button("back")
                 return True
 
             elif action_type == "wait":

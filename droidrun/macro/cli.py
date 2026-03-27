@@ -220,6 +220,9 @@ async def _show_dry_run(
         elif action_type == "key_press":
             key_name = action.get("key_name", "UNKNOWN")
             details = f"{key_name}"
+        elif action_type == "button_press":
+            button = action.get("button", "unknown")
+            details = f"{button}"
         elif action_type == "wait":
             duration = action.get("duration", 1.0)
             details = f"{duration}s"

@@ -26,7 +26,7 @@ class CloudDriver(DeviceDriver):
         "tap",
         "swipe",
         "input_text",
-        "press_key",
+        "press_button",
         "start_app",
         "screenshot",
         "get_ui_tree",
@@ -35,9 +35,13 @@ class CloudDriver(DeviceDriver):
         "list_packages",
     }
 
-    # MobileRun global action codes (accessibility service)
-    _GLOBAL_BACK = 1
-    _GLOBAL_HOME = 2
+    supported_buttons = {"back", "home", "enter"}
+
+    _BUTTON_ACTIONS = {
+        "back": 1,   # global action: BACK
+        "home": 2,   # global action: HOME
+        "enter": 66, # keycode passthrough
+    }
 
     def __init__(
         self,
@@ -144,16 +148,21 @@ class CloudDriver(DeviceDriver):
         )
         return True
 
-    async def press_key(self, keycode: int) -> None:
-        # Map Android keycodes to MobileRun global actions where needed
-        if keycode == 4:  # KEYCODE_BACK
-            await self.global_action(self._GLOBAL_BACK)
-        elif keycode == 3:  # KEYCODE_HOME
-            await self.global_action(self._GLOBAL_HOME)
+    async def press_button(self, button: str) -> None:
+        button_lower = button.lower()
+        if button_lower not in self.supported_buttons:
+            raise ValueError(
+                f"Button '{button}' not supported. "
+                f"Supported: {', '.join(sorted(self.supported_buttons))}"
+            )
+        if button_lower in ("back", "home"):
+            await self.global_action(self._BUTTON_ACTIONS[button_lower])
         else:
             await self._call(
                 self._client.devices.keyboard.key(
-                    self.device_id, key=keycode, **self._display_kw
+                    self.device_id,
+                    key=self._BUTTON_ACTIONS[button_lower],
+                    **self._display_kw,
                 )
             )
 
