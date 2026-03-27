@@ -16,7 +16,7 @@ A wrapper class that coordinates between agents to achieve a user's goal.
 
 **Architecture:**
 - When `reasoning=False`: Uses FastAgent directly for immediate execution
-- When `reasoning=True`: Uses ManagerAgent (planning) + ExecutorAgent (actions) + ScripterAgent (off-device operations)
+- When `reasoning=True`: Uses ManagerAgent (planning) + ExecutorAgent (actions)
 
 <a id="droidrun.agent.droid.droid_agent.DroidAgent.__init__"></a>
 
@@ -45,14 +45,14 @@ Initialize the DroidAgent wrapper.
 - `goal` _str_ - User's goal or command to execute
 - `config` _DroidrunConfig | None_ - Full configuration object (required if llms not provided). Contains agent settings, LLM profiles, device config, and more.
 - `llms` _dict[str, LLM] | LLM | None_ - Optional LLM configuration:
-  - `dict[str, LLM]`: Agent-specific LLMs with keys: "manager", "executor", "fast_agent", "text_manipulator", "app_opener", "scripter", "structured_output"
+  - `dict[str, LLM]`: Agent-specific LLMs with keys: "manager", "executor", "fast_agent", "app_opener", "structured_output"
   - `LLM`: Single LLM instance used for all agents
   - `None`: LLMs will be loaded from config.llm_profiles
 - `custom_tools` _dict_ - Custom tool definitions. Format: `{"tool_name": {"parameters": {...}, "description": "...", "function": callable}}`. These are merged with auto-generated credential tools.
 - `credentials` _Union[dict, CredentialManager, None]_ - Direct credential mapping `{"SECRET_ID": "value"}`, a CredentialManager instance, or None. If None, credentials will be loaded from config.credentials if available.
 - `variables` _dict | None_ - Custom variables accessible throughout execution. Available in shared_state.custom_variables.
 - `output_model` _Type[BaseModel] | None_ - Pydantic model for structured output extraction from final answer. If provided, the final answer will be parsed into this model.
-- `prompts` _dict[str, str] | None_ - Custom Jinja2 prompt templates to override defaults. Keys: "fast_agent_system", "fast_agent_user", "manager_system", "executor_system", "scripter_system". Values: Jinja2 template strings (NOT file paths).
+- `prompts` _dict[str, str] | None_ - Custom Jinja2 prompt templates to override defaults. Keys: "fast_agent_system", "fast_agent_user", "manager_system", "executor_system". Values: Jinja2 template strings (NOT file paths).
 - `driver` _DeviceDriver | None_ - Pre-configured device driver instance (AndroidDriver or IOSDriver). If None, a driver will be created from config.
 - `state_provider` _StateProvider | None_ - Pre-configured state provider instance. If None, a state provider will be created from config.
 - `timeout` _int_ - Workflow timeout in seconds (default: 1000)
@@ -111,9 +111,7 @@ llms = {
     "manager": Anthropic(model="claude-sonnet-4-5-latest", temperature=0.2),
     "executor": Anthropic(model="claude-sonnet-4-5-latest", temperature=0.1),
     "fast_agent": OpenAI(model="gpt-4o", temperature=0.2),
-    "text_manipulator": OpenAI(model="gpt-4o-mini", temperature=0.3),
     "app_opener": OpenAI(model="gpt-4o-mini", temperature=0.0),
-    "scripter": OpenAI(model="gpt-4o", temperature=0.1),
     "structured_output": OpenAI(model="gpt-4o-mini", temperature=0.0),
 }
 
@@ -283,6 +281,38 @@ async for event in agent.run_event_stream():
         print(f"Reason: {event.reason}")
 ```
 
+#### DroidAgent.send\_user\_message
+
+```python
+def send_user_message(message: str) -> QueuedUserMessage
+```
+
+Inject an external user message into the running workflow. The message is queued and consumed by the active agent (FastAgent or Manager) at its next step.
+
+**Arguments**:
+
+- `message` _str_ - The message to inject
+
+**Returns**:
+
+- `QueuedUserMessage` - Object with `id`, `message`, and `queued_at_step` fields
+
+**Usage:**
+
+```python
+agent = DroidAgent(goal="...", config=config)
+handler = agent.run()
+
+# Inject a message mid-run (e.g., from a UI callback)
+queued = agent.send_user_message("Actually, search for 'Python' instead")
+
+result = await handler
+```
+
+<Note>
+If the agent has already finished or the message arrives at `max_steps`, the message will be dropped and an `ExternalUserMessageDroppedEvent` is emitted. Pending messages also block `complete()` until they are consumed.
+</Note>
+
 ## Event Types
 
 DroidAgent emits various events during execution:
@@ -300,10 +330,8 @@ DroidAgent emits various events during execution:
 - `ExecutorActionEvent` - Executor action details
 - `ExecutorActionResultEvent` - Executor action result details
 - `ExecutorResultEvent` - Executor completed an action
-- `ScripterExecutorInputEvent` - ScripterAgent started
-- `ScripterExecutorResultEvent` - ScripterAgent completed
-- `TextManipulatorInputEvent` - TextManipulatorAgent started
-- `TextManipulatorResultEvent` - TextManipulatorAgent completed
+- `ExternalUserMessageAppliedEvent` - External message consumed by agent
+- `ExternalUserMessageDroppedEvent` - External message dropped (e.g., at max steps)
 - `FastAgentExecuteEvent` - FastAgent started (direct mode)
 - `FastAgentResultEvent` - FastAgent completed
 - `FinalizeEvent` - Workflow finalizing
@@ -327,8 +355,6 @@ agent:
 
   fast_agent:
     vision: false         # Enable screenshot analysis
-    safe_execution: false # Restrict code execution
-
   manager:
     vision: false         # Enable screenshot analysis
 
@@ -416,13 +442,12 @@ agent = DroidAgent(
 result = await agent.run()
 ```
 
-Available prompt keys: "fast_agent_system", "fast_agent_user", "manager_system", "executor_system", "scripter_system"
+Available prompt keys: "fast_agent_system", "fast_agent_user", "manager_system", "executor_system"
 
 ## Notes
 
 - **Config requirement**: Either `config` or `llms` must be provided. If `llms` is not provided, `config` is required to load LLMs from profiles.
 - **Vision mode**: Enabling vision (agent_config.*.vision = True) increases token usage as screenshots are sent to the LLM.
 - **Reasoning mode**: `reasoning=True` uses Manager/Executor workflow for complex planning. `reasoning=False` uses FastAgent for direct execution.
-- **Safe execution**: When enabled, restricts imports and builtins in FastAgent and ScripterAgent (see safe_execution config).
 - **Timeout**: Default is 1000 seconds. Increase for long-running tasks.
 - **Credentials**: When credentials are provided, the `type_secret(secret_id, index)` tool is automatically registered. The agent never sees the actual secret values, only the secret IDs.

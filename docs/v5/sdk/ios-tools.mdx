@@ -19,7 +19,7 @@ iOS device driver communicating via HTTP REST to the iOS Portal app.
 **Key Limitations**:
 - `get_date()` - Not available (returns empty string)
 - `drag()` - Not supported (not in `supported` set)
-- `press_key()` - Only HOME is mapped; BACK and ENTER have no iOS equivalent
+- `press_button()` - Only `home` is supported; `back` and `enter` raise `ValueError`
 - `input_text()` - `clear` parameter is ignored
 
 <a id="droidrun.tools.driver.ios.IOSDriver.__init__"></a>
@@ -59,10 +59,12 @@ driver = IOSDriver(
 
 ```python
 IOSDriver.supported = {
-    "tap", "swipe", "input_text", "press_key",
+    "tap", "swipe", "input_text", "press_button",
     "start_app", "screenshot", "get_ui_tree",
     "list_packages", "get_apps",
 }
+
+IOSDriver.supported_buttons = {"home"}
 ```
 
 **Setup Requirements:**
@@ -197,29 +199,28 @@ success = await driver.input_text("Hello World")
 - Uses last tapped coordinates for targeting
 - `clear` parameter is ignored on iOS
 
-<a id="droidrun.tools.driver.ios.IOSDriver.press_key"></a>
+<a id="droidrun.tools.driver.ios.IOSDriver.press_button"></a>
 
-#### IOSDriver.press\_key
+#### IOSDriver.press\_button
 
 ```python
-async def press_key(keycode: int) -> None
+async def press_button(button: str) -> None
 ```
 
-Press a hardware key.
+Press a named system button.
 
-**Supported keycodes:**
-- `3` (Android HOME) maps to iOS HOME button
+**Supported buttons:** `home`
 
-Unsupported keycodes (BACK=4, ENTER=66, etc.) are silently ignored with a warning log.
+Raises `ValueError` if the button name is not in `supported_buttons` (e.g. `back`, `enter`).
 
 **Arguments**:
 
-- `keycode` _int_ - Android-style keycode (translated to iOS internally)
+- `button` _str_ - Button name (case-insensitive)
 
 **Usage:**
 
 ```python
-await driver.press_key(3)  # Home button
+await driver.press_button("home")
 ```
 
 ---
@@ -393,11 +394,10 @@ driver.supported              # Set of supported method names
 
 | Feature | IOSDriver | AndroidDriver |
 |---------|-----------|---------------|
-| Back button | Not available | Full Android keycodes |
+| press_button | home only | back, home, enter |
 | Swipe | Direction-based | Coordinate-based |
 | Drag | Not supported | Declared (not yet implemented) |
 | App IDs | Bundle identifiers | Package names |
-| Key codes | HOME only | Full Android keycodes |
 | Connection | HTTP (Portal app) | ADB over USB/TCP |
 | get_date() | Returns empty | Via ADB shell |
 | input_text() clear | Ignored | Supported |

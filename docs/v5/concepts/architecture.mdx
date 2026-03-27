@@ -9,7 +9,7 @@ Droidrun uses a **multi-agent architecture** where specialized agents work toget
 
 ```
 DroidAgent (orchestrator)
-├── Reasoning Mode: ManagerAgent → ExecutorAgent → ScripterAgent
+├── Reasoning Mode: ManagerAgent → ExecutorAgent
 └── Direct Mode: FastAgent
 ```
 
@@ -53,7 +53,7 @@ Executes atomic actions for each subgoal. Reasoning mode only.
 ### FastAgent (Direct Executor)
 Uses XML tool-calling for device interaction. Direct mode only.
 
-**Location**: `droidrun/agent/codeact/tools_agent.py`
+**Location**: `droidrun/agent/fast_agent/fast_agent.py`
 
 **Available Actions**:
 ```python
@@ -64,11 +64,6 @@ swipe(coordinate, coordinate2), system_button(button),
 wait(duration), open_app(text),
 remember(information), complete(success, reason)
 ```
-
-### ScripterAgent (Off-Device)
-Executes Python for API calls, file operations, and computations. Triggered by Manager when needed.
-
-**Location**: `droidrun/agent/scripter/`
 
 ## Configuration
 
@@ -84,11 +79,7 @@ llm_profiles:
     model: gpt-4o
   fast_agent:
     provider: GoogleGenAI
-    model: models/gemini-2.0-flash-exp
-  scripter:
-    provider: OpenAI
-    model: gpt-4o
-
+    model: gemini-3.1-flash-lite-preview
 agent:
   reasoning: true       # Enable Manager/Executor workflow
   max_steps: 15         # Maximum execution steps (global)
@@ -99,10 +90,6 @@ agent:
   fast_agent:
     vision: false
     parallel_tools: true
-    safe_execution: false
-  scripter:
-    max_steps: 10       # Scripter-specific max steps
-    safe_execution: false
 ```
 
 ## When to Use Each Mode
@@ -123,7 +110,6 @@ All agents share `DroidAgentState` for coordination:
 - Action history and outcomes
 - Error tracking and recovery
 - Memory and context
-- Scripter results
 - Current plan and progress
 
 ## Quick Reference
@@ -134,4 +120,3 @@ All agents share `DroidAgentState` for coordination:
 | ManagerAgent | Planner | Strategy, recovery | Reasoning | `agent.manager.*` |
 | ExecutorAgent | Actor | Action execution | Reasoning | `agent.executor.*` |
 | FastAgent | Direct | Simple tasks | Direct | `agent.fast_agent.*` |
-| ScripterAgent | Python Executor | APIs, files, data | Reasoning | `agent.scripter.*` |
