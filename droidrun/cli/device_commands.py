@@ -5,6 +5,7 @@ and talk directly to the device driver.
 """
 
 import asyncio
+import os
 import tempfile
 from functools import wraps
 from typing import Optional
@@ -127,10 +128,10 @@ async def screenshot(device, config_path, tcp, ios):
     try:
         png_bytes = await driver.screenshot()
         fd, path = tempfile.mkstemp(prefix="droidrun_", suffix=".png")
-        import os
-
-        os.write(fd, png_bytes)
-        os.close(fd)
+        try:
+            os.write(fd, png_bytes)
+        finally:
+            os.close(fd)
         click.echo(path)
     finally:
         await _teardown_android(driver)
@@ -199,12 +200,10 @@ async def swipe_cmd(x1, y1, x2, y2, duration, device, config_path, tcp, ios):
 @coro
 async def long_press(x, y, device, config_path, tcp, ios):
     """Long press at screen coordinates."""
-    driver, is_ios = await _create_driver(device, config_path, tcp, ios)
+    if ios:
+        raise click.ClickException("long-press is not supported on iOS")
+    driver, _ = await _create_driver(device, config_path, tcp, ios)
     try:
-        if is_ios:
-            raise click.ClickException(
-                "long-press is not supported on iOS"
-            )
         await driver.swipe(x, y, x, y, 1000)
         click.echo(f"Long pressed ({x}, {y})")
     finally:
@@ -239,8 +238,6 @@ async def press(button, device, config_path, tcp, ios):
     try:
         await driver.press_button(button)
         click.echo(f"Pressed {button}")
-    except ValueError as e:
-        raise click.ClickException(str(e)) from None
     finally:
         await _teardown_android(driver)
 
