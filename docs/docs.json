@@ -64,7 +64,6 @@
                 "group": "Concepts",
                 "pages": [
                   "/v5/concepts/architecture",
-                  "/v5/concepts/scripter-agent",
                   "/v5/concepts/shared-state",
                   "/v5/concepts/events-and-workflows",
                   "/v5/concepts/prompts"

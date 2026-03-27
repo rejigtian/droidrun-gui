@@ -13,17 +13,12 @@ The Droidrun CLI lets you control Android and iOS devices using natural language
 # Setup device
 droidrun setup
 
-# Run a command (shorthand - no "run" needed)
-droidrun "Open Spotify and play my Discover Weekly"
-
-# Or explicit
-droidrun run "Turn on Do Not Disturb"
+# Run a command
+droidrun run "Open Spotify and play my Discover Weekly"
 ```
 
 <Note>
 **Auto-configuration**: If no config exists, Droidrun creates a default `config.yaml` at `~/.config/droidrun/config.yaml` automatically.
-
-**Command shorthand**: `droidrun "task"` is equivalent to `droidrun run "task"`
 </Note>
 
 ---
@@ -39,15 +34,13 @@ Execute natural language commands on your device.
 
 ```bash
 droidrun run "<command>" [OPTIONS]
-
-# Shorthand (omit "run")
-droidrun "<command>" [OPTIONS]
 ```
 
 ### Common Flags
 
 | Flag | Description | Default |
 |------|-------------|---------|
+| `--agent`, `-a` | External agent to use (not yet supported — reserved for future use) | None |
 | `--provider`, `-p` | LLM provider (GoogleGenAI, OpenAI, Anthropic, etc.) | From config |
 | `--model`, `-m` | Model name | From config |
 | `--device`, `-d` | Device serial or IP | Auto-detect |
@@ -65,13 +58,13 @@ droidrun "<command>" [OPTIONS]
   <Tab title="Basic">
 ```bash
 # Simple command
-droidrun "Open Settings"
+droidrun run "Open Settings"
 
 # Multi-step task
-droidrun "Send WhatsApp to John: I'll be late"
+droidrun run "Send WhatsApp to John: I'll be late"
 
 # Specific device
-droidrun "Check battery" --device emulator-5554
+droidrun run "Check battery" --device emulator-5554
 ```
   </Tab>
 
@@ -79,24 +72,24 @@ droidrun "Check battery" --device emulator-5554
 ```bash
 # Google Gemini
 export GOOGLE_API_KEY=your-key
-droidrun "Archive old emails" \
+droidrun run "Archive old emails" \
   --provider GoogleGenAI \
-  --model models/gemini-2.5-flash
+  --model gemini-3.1-flash-lite-preview
 
 # OpenAI
 export OPENAI_API_KEY=your-key
-droidrun "Create shopping list" \
+droidrun run "Create shopping list" \
   --provider OpenAI \
   --model gpt-4o
 
 # Anthropic Claude
 export ANTHROPIC_API_KEY=your-key
-droidrun "Reply to latest email" \
+droidrun run "Reply to latest email" \
   --provider Anthropic \
   --model claude-sonnet-4-5-latest
 
 # Local Ollama (free)
-droidrun "Turn on dark mode" \
+droidrun run "Turn on dark mode" \
   --provider Ollama \
   --model llama3.3:70b \
   --base_url http://localhost:11434
@@ -106,23 +99,23 @@ droidrun "Turn on dark mode" \
   <Tab title="Advanced">
 ```bash
 # Complex task with planning
-droidrun "Organize inbox by sender" \
+droidrun run "Organize inbox by sender" \
   --reasoning \
   --vision \
   --steps 30
 
 # Debug failing command
-droidrun "Book Uber to airport" \
+droidrun run "Book Uber to airport" \
   --debug \
   --save-trajectory action
 
 # Wireless execution
-droidrun "Clear cache" \
+droidrun run "Clear cache" \
   --device 192.168.1.100:5555 \
   --tcp
 
 # Custom config
-droidrun "Enable 2FA" \
+droidrun run "Enable 2FA" \
   --config /path/to/config.yaml
 ```
   </Tab>
@@ -229,6 +222,43 @@ Disconnect from device.
 droidrun disconnect 192.168.1.100:5555
 ```
 
+---
+
+### `droidrun device`
+
+Direct device actions that bypass the LLM agent.
+
+```bash
+# Take a screenshot
+droidrun device screenshot
+
+# Print the UI accessibility tree
+droidrun device ui
+
+# Tap at coordinates
+droidrun device tap 500 500
+
+# Swipe from point to point
+droidrun device swipe 100 500 100 200 --duration 0.5
+
+# Long press at coordinates
+droidrun device long-press 500 500
+
+# Type text into focused field
+droidrun device type "Hello world" --clear
+
+# Press a system button (back, home, enter)
+droidrun device press back
+
+# List installed apps
+droidrun device apps --system
+
+# Launch an app by package name
+droidrun device start com.example.app
+```
+
+All `device` subcommands support `--device`, `--config`, `--tcp`, and `--ios` flags.
+
   </Tab>
 
   <Tab title="Macros">
@@ -299,10 +329,10 @@ droidrun macro replay trajectories/test --dry-run
 
 ```bash
 # Record at action level (most detailed)
-droidrun "Create alarm for 7am" --save-trajectory action
+droidrun run "Create alarm for 7am" --save-trajectory action
 
 # Record at step level
-droidrun "Export contacts" --save-trajectory step
+droidrun run "Export contacts" --save-trajectory step
 ```
 
 **Trajectory structure:**
@@ -332,13 +362,13 @@ trajectories/2025-10-16_14-30-45/
 <CodeGroup>
 
 ```bash Quick Test
-droidrun "Turn on dark mode" \
+droidrun run "Turn on dark mode" \
   --provider GoogleGenAI \
-  --model models/gemini-2.5-flash
+  --model gemini-3.1-flash-lite-preview
 ```
 
 ```bash Debug Task
-droidrun "Book ride to airport" \
+droidrun run "Book ride to airport" \
   --debug \
   --reasoning \
   --vision \
@@ -346,15 +376,15 @@ droidrun "Book ride to airport" \
 ```
 
 ```bash Cost Optimization
-droidrun "Set alarm" \
+droidrun run "Set alarm" \
   --provider GoogleGenAI \
-  --model models/gemini-2.5-flash \
+  --model gemini-3.1-flash-lite-preview \
   --no-vision
 ```
 
 ```bash Multiple Devices
 for device in $(adb devices | awk 'NR>1 {print $1}'); do
-  droidrun "Clear notifications" --device $device
+  droidrun run "Clear notifications" --device $device
 done
 ```
 
@@ -407,13 +437,13 @@ export GOOGLE_API_KEY=your-key
   <Accordion title="Command times out">
 ```bash
 # Increase steps
-droidrun "Complex task" --steps 50
+droidrun run "Complex task" --steps 50
 
 # Enable debug mode
-droidrun "Task" --debug
+droidrun run "Task" --debug
 
 # Try reasoning mode
-droidrun "Multi-step task" --reasoning
+droidrun run "Multi-step task" --reasoning
 ```
   </Accordion>
 

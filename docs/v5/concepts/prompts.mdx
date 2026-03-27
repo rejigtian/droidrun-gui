@@ -12,8 +12,7 @@ custom_prompts = {
     "manager_system": "Your Jinja2 template here...",
     "executor_system": "Another template...",
     "fast_agent_system": "...",
-    "fast_agent_user": "...",
-    "scripter_system": "..."
+    "fast_agent_user": "..."
 }
 
 agent = DroidAgent(
@@ -41,7 +40,6 @@ agent = DroidAgent(
 | `executor_system` | Executor | Action selection (only in reasoning mode) |
 | `fast_agent_system` | FastAgent | Direct execution (always used) |
 | `fast_agent_user` | FastAgent | Task input formatting (always used) |
-| `scripter_system` | Scripter | Off-device Python execution (when enabled) |
 
 ## Context Variables
 
@@ -54,7 +52,6 @@ Each agent has access to different variables in its templates:
 - `app_card` - App-specific guidance (empty if none available)
 - `error_history` - List of recent failed actions with details
 - `custom_tools_descriptions` - Custom tool documentation
-- `scripter_execution_enabled` - Whether Scripter is available
 - `available_secrets` - Available credential IDs
 - `variables` - Custom variables passed to DroidAgent
 - `output_schema` - Pydantic model schema (if provided)
@@ -82,12 +79,6 @@ Each agent has access to different variables in its templates:
 **User prompt:**
 - `goal` - Task description
 - `variables` - Custom variables
-
-### Scripter
-
-- `task` - Task description from Manager
-- `max_steps` - Maximum execution steps allowed
-- `available_libraries` - Descriptions of available Python libraries
 
 ## Example: Custom Manager Prompt
 

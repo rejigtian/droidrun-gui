@@ -55,10 +55,12 @@ driver = AndroidDriver(serial="emulator-5554", use_tcp=True)
 
 ```python
 AndroidDriver.supported = {
-    "tap", "swipe", "input_text", "press_key", "drag",
+    "tap", "swipe", "input_text", "press_button", "drag",
     "start_app", "install_app", "screenshot",
     "get_ui_tree", "get_date", "get_apps", "list_packages",
 }
+
+AndroidDriver.supported_buttons = {"back", "home", "enter"}
 ```
 
 **Notes:**
@@ -194,34 +196,30 @@ success = await driver.input_text("New text", clear=True)
 - Uses the Droidrun Portal app keyboard for reliable text input via PortalClient
 - Supports Unicode characters and special characters
 
-<a id="droidrun.tools.driver.android.AndroidDriver.press_key"></a>
+<a id="droidrun.tools.driver.android.AndroidDriver.press_button"></a>
 
-#### AndroidDriver.press\_key
+#### AndroidDriver.press\_button
 
 ```python
-async def press_key(keycode: int) -> None
+async def press_button(button: str) -> None
 ```
 
-Send a single key-event to the device.
+Press a named system button.
 
-**Common keycodes:**
-- `3`: HOME
-- `4`: BACK
-- `66`: ENTER
-- `67`: DELETE
+**Supported buttons:** `back`, `home`, `enter`
 
-Full keycode reference: [Android KeyEvent Documentation](https://developer.android.com/reference/android/view/KeyEvent)
+Raises `ValueError` if the button name is not in `supported_buttons`.
 
 **Arguments**:
 
-- `keycode` _int_ - Android keycode to press
+- `button` _str_ - Button name (case-insensitive)
 
 **Usage:**
 
 ```python
-await driver.press_key(66)  # Press enter
-await driver.press_key(3)   # Press home
-await driver.press_key(4)   # Press back
+await driver.press_button("enter")
+await driver.press_button("home")
+await driver.press_button("back")
 ```
 
 <a id="droidrun.tools.driver.android.AndroidDriver.drag"></a>
@@ -464,7 +462,7 @@ async def main():
     await driver.input_text("Droidrun framework")
 
     # Press enter
-    await driver.press_key(66)
+    await driver.press_button("enter")
 
     # Take screenshot
     png_bytes = await driver.screenshot()

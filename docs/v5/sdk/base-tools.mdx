@@ -21,10 +21,11 @@ Every method raises `NotImplementedError` by default. Concrete drivers override 
 ## Quick Reference
 
 **Driver Methods:**
-- `connect()`, `ensure_connected()`, `tap()`, `swipe()`, `input_text()`, `press_key()`, `drag()`, `start_app()`, `install_app()`, `get_apps()`, `list_packages()`, `screenshot()`, `get_ui_tree()`, `get_date()`
+- `connect()`, `ensure_connected()`, `tap()`, `swipe()`, `input_text()`, `press_button()`, `drag()`, `start_app()`, `install_app()`, `get_apps()`, `list_packages()`, `screenshot()`, `get_ui_tree()`, `get_date()`
 
-**Key Attribute:**
+**Key Attributes:**
 - `supported`: `set[str]` - Set of method names the driver implements. Check membership before calling.
+- `supported_buttons`: `set[str]` - Set of button names accepted by `press_button()` (e.g. `{"back", "home", "enter"}`).
 
 ---
 
@@ -75,8 +76,8 @@ All DeviceDriver implementations may provide these methods (check `supported` se
 - `tap(x: int, y: int) -> None` - Tap at absolute pixel coordinates
 - `swipe(x1: int, y1: int, x2: int, y2: int, duration_ms: float = 1000) -> None` - Swipe gesture
 - `drag(x1: int, y1: int, x2: int, y2: int, duration: float = 3.0) -> None` - Drag gesture
-- `input_text(text: str, clear: bool = False) -> bool` - Text input into focused field
-- `press_key(keycode: int) -> None` - Key press
+- `input_text(text: str, clear: bool = False, stealth: bool = False, wpm: int = 0) -> bool` - Text input into focused field. `stealth` enables human-like typing delays; `wpm` sets the typing speed in words per minute (0 = instant).
+- `press_button(button: str) -> None` - Press a named button (e.g. back, home, enter). Raises `ValueError` if not in `supported_buttons`.
 
 ### App Management
 
@@ -271,7 +272,7 @@ agent = DroidAgent(
 | swipe | Coordinate-based | Direction-based |
 | drag | Declared but not yet implemented | Not supported |
 | input_text | With clear support | No clear support |
-| press_key | Full Android keycodes | HOME only (BACK/ENTER unsupported) |
+| press_button | back, home, enter | home only (back/enter raise ValueError) |
 | screenshot | PNG via Portal | PNG via HTTP |
 | get_ui_tree | Accessibility tree + phone state | Accessibility tree + phone state |
 | get_date | Via ADB shell | Not available (returns empty) |

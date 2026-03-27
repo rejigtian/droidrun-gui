@@ -87,24 +87,16 @@ class ExecutorResultEvent(Event):
     error: str
     summary: str
 
-# Scripter coordination
-class ScripterExecutorInputEvent(Event):
-    task: str
+# External user message events
+class ExternalUserMessageAppliedEvent(Event):
+    message_ids: List[str]
+    consumer: str
+    step_number: int
 
-class ScripterExecutorResultEvent(Event):
-    task: str
-    message: str
-    success: bool
-    code_executions: int
-
-# Text manipulation
-class TextManipulatorInputEvent(Event):
-    task: str
-
-class TextManipulatorResultEvent(Event):
-    task: str
-    text_to_type: str
-    code_ran: str
+class ExternalUserMessageDroppedEvent(Event):
+    message_ids: List[str]
+    reason: str
+    step_number: int
 ```
   </Accordion>
 
@@ -179,32 +171,6 @@ class FastAgentEndEvent(Event):
     success: bool
     reason: str
     tool_call_count: int = 0
-```
-  </Accordion>
-
-  <Accordion title="Scripter Events (Internal)">
-Internal to ScripterAgent, for off-device script execution.
-
-```python
-class ScripterInputEvent(Event):
-    pass
-
-class ScripterThinkingEvent(Event):
-    thought: str
-    code: Optional[str] = None
-    full_response: str = ""
-    usage: Optional[UsageResult] = None
-
-class ScripterExecutionEvent(Event):
-    code: str
-
-class ScripterExecutionResultEvent(Event):
-    output: str
-
-class ScripterEndEvent(Event):
-    message: str
-    success: bool
-    code_executions: int = 0
 ```
   </Accordion>
 
@@ -362,10 +328,6 @@ async def monitor_execution(goal: str):
 - Tool execution: `ToolExecutionEvent` (after every tool dispatch)
 - Visual: `ScreenshotEvent`, `RecordUIStateEvent` (when enabled)
 
-**ScripterAgent** (when triggered by `<script>` tags) emits:
-- Coordination: `ScripterExecutorInputEvent`, `ScripterExecutorResultEvent`
-- Internal Scripter: `ScripterInputEvent`, `ScripterThinkingEvent`, `ScripterExecutionEvent`, `ScripterExecutionResultEvent`, `ScripterEndEvent`
-
 **All Modes** emit:
 - Finalization: `FinalizeEvent`, `ResultEvent`
 - Telemetry: `DroidAgentInitEvent`, `PackageVisitEvent`, `DroidAgentFinalizeEvent` (when telemetry enabled)
@@ -374,7 +336,7 @@ async def monitor_execution(goal: str):
 
 **Coordination Events** - Used for workflow routing between agents (minimal data)
 - Located in `droidrun/agent/droid/events.py`
-- Examples: `ManagerPlanEvent`, `ExecutorResultEvent`, `ScripterExecutorResultEvent`
+- Examples: `ManagerPlanEvent`, `ExecutorResultEvent`, `ExternalUserMessageAppliedEvent`
 
 **Internal Events** - Used for streaming to frontend/logging (full debug data)
 - Located in agent-specific event files
