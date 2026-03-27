@@ -55,9 +55,9 @@ def setup_tracing(
         return
 
     if provider == "phoenix":
-        _setup_phoenix_tracing()
-        _tracing_initialized = True
-        _tracing_provider = "phoenix"
+        if _setup_phoenix_tracing():
+            _tracing_initialized = True
+            _tracing_provider = "phoenix"
     elif provider == "langfuse":
         _setup_langfuse_tracing(tracing_config, agent)
         _tracing_initialized = True
@@ -70,15 +70,23 @@ def setup_tracing(
         )
 
 
-def _setup_phoenix_tracing() -> None:
-    """Set up Arize Phoenix tracing."""
+def _check_phoenix_reachable(endpoint: str, timeout: float = 3.0) -> bool:
+    """Ping the Phoenix server to check if it's reachable."""
+    import urllib.request
+    import urllib.error
+
+    try:
+        req = urllib.request.Request(endpoint, method="GET")
+        urllib.request.urlopen(req, timeout=timeout)
+        return True
+    except (urllib.error.URLError, OSError, ValueError):
+        return False
+
+
+def _setup_phoenix_tracing() -> bool:
+    """Set up Arize Phoenix tracing. Returns True if successful."""
     try:
         from droidrun.telemetry.phoenix import arize_phoenix_callback_handler
-
-        handler = arize_phoenix_callback_handler()
-        llama_index.core.global_handler = handler
-        llama_index.core.set_global_handler
-        logger.debug("🔍 Arize Phoenix tracing enabled globally")
     except ImportError:
         logger.warning(
             "⚠️  Arize Phoenix is not installed.\n"
@@ -86,6 +94,20 @@ def _setup_phoenix_tracing() -> None:
             "    • If installed via tool: `uv tool install droidrun[phoenix]`"
             "    • If installed via pip: `uv pip install droidrun[phoenix]`\n"
         )
+        return False
+
+    endpoint = os.getenv("PHOENIX_URL", "http://0.0.0.0:6006")
+    if not _check_phoenix_reachable(endpoint):
+        logger.warning(
+            f"⚠️  Phoenix server is not reachable at {endpoint}. "
+            "Tracing will be disabled for this session."
+        )
+        return False
+
+    handler = arize_phoenix_callback_handler()
+    llama_index.core.global_handler = handler
+    logger.debug("🔍 Arize Phoenix tracing enabled globally")
+    return True
 
 
 def _setup_langfuse_tracing(
