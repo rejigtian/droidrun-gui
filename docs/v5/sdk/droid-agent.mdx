@@ -300,13 +300,18 @@ Inject an external user message into the running workflow. The message is queued
 **Usage:**
 
 ```python
+import asyncio
+
 agent = DroidAgent(goal="...", config=config)
-handler = agent.run()
+
+# Start the agent as a background task so it begins executing
+task = asyncio.create_task(agent.run())
+await asyncio.sleep(0)  # Yield to let the agent start
 
 # Inject a message mid-run (e.g., from a UI callback)
 queued = agent.send_user_message("Actually, search for 'Python' instead")
 
-result = await handler
+result = await task
 ```
 
 <Note>

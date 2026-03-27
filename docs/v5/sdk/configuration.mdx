@@ -588,7 +588,7 @@ droidrun run "Task" --config /path/to/config.yaml
 **All CLI Flags:**
 - `--config PATH` - Custom config file
 - `--device SERIAL` - Device serial/IP
-- `--agent NAME` - External agent to use (e.g., `--agent my_agent`)
+- `--agent NAME` - Use an external agent instead of DroidRun's built-in agent. External agents are self-contained modules in `droidrun/agent/external/` that receive raw ADB access and run independently. Configure them under `external_agents` in config.yaml.
 - `--provider PROVIDER` - LLM provider (OpenAI, Ollama, Anthropic, GoogleGenAI, DeepSeek)
 - `--model MODEL` - LLM model name
 - `--temperature FLOAT` - LLM temperature

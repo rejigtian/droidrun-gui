@@ -76,7 +76,7 @@ All DeviceDriver implementations may provide these methods (check `supported` se
 - `tap(x: int, y: int) -> None` - Tap at absolute pixel coordinates
 - `swipe(x1: int, y1: int, x2: int, y2: int, duration_ms: float = 1000) -> None` - Swipe gesture
 - `drag(x1: int, y1: int, x2: int, y2: int, duration: float = 3.0) -> None` - Drag gesture
-- `input_text(text: str, clear: bool = False, stealth: bool = False, wpm: int = 0) -> bool` - Text input into focused field
+- `input_text(text: str, clear: bool = False, stealth: bool = False, wpm: int = 0) -> bool` - Text input into focused field. `stealth` enables human-like typing delays; `wpm` sets the typing speed in words per minute (0 = instant).
 - `press_button(button: str) -> None` - Press a named button (e.g. back, home, enter). Raises `ValueError` if not in `supported_buttons`.
 
 ### App Management
