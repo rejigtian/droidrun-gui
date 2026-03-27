@@ -1,5 +1,5 @@
 """
-Trajectory utilities for DroidRun agents.
+Trajectory utilities for Droidrun agents.
 
 This module provides the Trajectory data container and utilities for
 loading and analyzing saved trajectory data.
@@ -32,7 +32,7 @@ class Trajectory:
         self.screenshot_queue: List[bytes] = []
         self.ui_states: List[Dict[str, Any]] = []
         self.macro: List[Dict[str, Any]] = []  # populated from RecordingDriver.log
-        self.goal = goal or "DroidRun automation sequence"
+        self.goal = goal or "Droidrun automation sequence"
 
         self.base_path = self._resolve_path(base_path)
         self.trajectory_folder = self._create_trajectory_folder()

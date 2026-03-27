@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from droidrun.config_manager.config_manager import DroidrunConfig
+    from droidrun.config_manager.config_manager import DroidConfig
 
 from droidrun.config_manager.env_keys import load_env_keys, save_env_keys
 
@@ -89,8 +89,8 @@ class SettingsData:
     wait_for_stable_ui: float = 0.3
 
     @classmethod
-    def from_config(cls, config: DroidrunConfig) -> SettingsData:
-        """Build settings from a loaded DroidrunConfig."""
+    def from_config(cls, config: DroidConfig) -> SettingsData:
+        """Build settings from a loaded DroidConfig."""
         llm_profiles = config.llm_profiles or {}
         env_keys = load_env_keys()
 
@@ -165,9 +165,9 @@ class SettingsData:
         try:
             config = ConfigLoader.load()
         except Exception:
-            from droidrun.config_manager.config_manager import DroidrunConfig
+            from droidrun.config_manager.config_manager import DroidConfig
 
-            config = DroidrunConfig()
+            config = DroidConfig()
 
         self.apply_to_config(config)
         ConfigLoader.save(config)
@@ -208,8 +208,8 @@ class SettingsData:
             cp.api_base = None
         cp.kwargs = SettingsData._build_kwargs(ps)
 
-    def apply_to_config(self, config: DroidrunConfig) -> None:
-        """Apply all TUI settings onto a DroidrunConfig, in place."""
+    def apply_to_config(self, config: DroidConfig) -> None:
+        """Apply all TUI settings onto a DroidConfig, in place."""
         for role, ps in self.profiles.items():
             if role not in config.llm_profiles:
                 continue

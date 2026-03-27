@@ -31,7 +31,7 @@ from droidrun.config_manager import (
     CredentialsConfig,
     # Feature configs
     DeviceConfig,
-    DroidrunConfig,
+    DroidConfig,
     ExecutorConfig,
     LLMProfile,
     LoggingConfig,
@@ -60,7 +60,7 @@ __all__ = [
     "replay_macro_file",
     "replay_macro_folder",
     # Configuration
-    "DroidrunConfig",
+    "DroidConfig",
     "AgentConfig",
     "FastAgentConfig",
     "ManagerConfig",

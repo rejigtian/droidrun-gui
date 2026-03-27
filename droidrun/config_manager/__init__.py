@@ -4,7 +4,7 @@ from droidrun.config_manager.config_manager import (
     FastAgentConfig,
     CredentialsConfig,
     DeviceConfig,
-    DroidrunConfig,
+    DroidConfig,
     ExecutorConfig,
     LLMProfile,
     LoggingConfig,
@@ -18,7 +18,7 @@ from droidrun.config_manager.path_resolver import PathResolver
 from droidrun.config_manager.prompt_loader import PromptLoader
 
 __all__ = [
-    "DroidrunConfig",
+    "DroidConfig",
     "LLMProfile",
     "AgentConfig",
     "FastAgentConfig",

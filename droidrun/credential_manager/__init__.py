@@ -1,4 +1,4 @@
-"""Credential management for DroidRun."""
+"""Credential management for Droidrun."""
 
 from droidrun.credential_manager.credential_manager import (
     CredentialManager,

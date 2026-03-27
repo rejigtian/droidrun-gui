@@ -1,4 +1,4 @@
-"""Device driver abstractions for DroidRun."""
+"""Device driver abstractions for Droidrun."""
 
 from droidrun.tools.driver.android import AndroidDriver
 from droidrun.tools.driver.base import DeviceDisconnectedError, DeviceDriver

@@ -270,7 +270,7 @@ Follow instructions exactly. Do not make assumptions.
 
 ```python
 from droidrun import DroidAgent
-from droidrun.config_manager import DroidrunConfig
+from droidrun.config_manager import DroidConfig
 
 # E-commerce automation with custom prompts
 ecommerce_prompts = {
@@ -308,7 +308,7 @@ Output:
 """
 }
 
-config = DroidrunConfig()
+config = DroidConfig()
 agent = DroidAgent(
     goal="Buy iPhone 15 Pro from Amazon",
     config=config,

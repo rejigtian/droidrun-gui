@@ -1,5 +1,5 @@
 """
-Entry point for running DroidRun macro CLI as a module.
+Entry point for running Droidrun macro CLI as a module.
 
 Usage: python -m droidrun.macro <command>
 """

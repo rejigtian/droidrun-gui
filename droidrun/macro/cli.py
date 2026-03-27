@@ -1,5 +1,5 @@
 """
-Command-line interface for DroidRun macro replay.
+Command-line interface for Droidrun macro replay.
 """
 
 import asyncio
@@ -74,7 +74,7 @@ def replay(
     """Replay a macro from a file or trajectory folder."""
     logger = configure_logging(debug)
 
-    logger.info("🎬 DroidRun Macro Replay")
+    logger.info("🎬 Droidrun Macro Replay")
 
     # Convert start_from from 1-based to 0-based
     start_from_zero = max(0, start_from - 1)

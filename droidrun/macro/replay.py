@@ -20,7 +20,7 @@ _KEYCODE_TO_BUTTON = {4: "back", 3: "home", 66: "enter"}
 
 class MacroPlayer:
     """
-    A class for loading and replaying DroidRun macro sequences.
+    A class for loading and replaying Droidrun macro sequences.
 
     This player can execute recorded UI actions (taps, swipes, text input, key presses)
     on Android devices using AndroidDriver.

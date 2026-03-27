@@ -1,5 +1,5 @@
 """
-Unified path resolution for DroidRun.
+Unified path resolution for Droidrun.
 
 This module provides a single path resolver that handles all file path resolution
 with consistent priority: working directory first, then package directory.
@@ -11,7 +11,7 @@ from typing import Union
 
 class PathResolver:
     """
-    Unified path resolver for all DroidRun file operations.
+    Unified path resolver for all Droidrun file operations.
 
     Resolution order:
     1. Absolute paths → use as-is

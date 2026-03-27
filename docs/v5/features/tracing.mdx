@@ -67,9 +67,9 @@ tracing:
 **Via code:**
 
 ```python
-from droidrun import DroidAgent, DroidrunConfig
+from droidrun import DroidAgent, DroidConfig
 
-config = DroidrunConfig()
+config = DroidConfig()
 config.tracing.enabled = True
 
 agent = DroidAgent(goal="Open settings", config=config)
@@ -137,9 +137,9 @@ tracing:
 
 **Via code:**
 ```python
-from droidrun import DroidAgent, DroidrunConfig, TracingConfig
+from droidrun import DroidAgent, DroidConfig, TracingConfig
 
-config = DroidrunConfig(
+config = DroidConfig(
     tracing=TracingConfig(
         enabled=True,
         provider="langfuse",
@@ -198,9 +198,9 @@ logging:
 **Via code:**
 
 ```python
-from droidrun import DroidAgent, DroidrunConfig
+from droidrun import DroidAgent, DroidConfig
 
-config = DroidrunConfig()
+config = DroidConfig()
 config.logging.save_trajectory = "action"
 
 agent = DroidAgent(goal="Open settings", config=config)

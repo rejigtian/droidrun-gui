@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional
 import platformdirs
 import yaml
 
-from .config_manager import DroidrunConfig
+from .config_manager import DroidConfig
 from .migrations import CURRENT_VERSION, migrate
 
 
@@ -34,7 +34,7 @@ class ConfigLoader:
         return cls.get_user_config_dir() / cls.CONFIG_FILE
 
     @classmethod
-    def load(cls, config_path: Optional[str] = None) -> DroidrunConfig:
+    def load(cls, config_path: Optional[str] = None) -> DroidConfig:
         """
         Load config with resolution order:
         1. Explicit config_path argument
@@ -57,7 +57,7 @@ class ConfigLoader:
         return cls._init_user_config()
 
     @classmethod
-    def _load_user_config(cls, user_config_path: Path) -> DroidrunConfig:
+    def _load_user_config(cls, user_config_path: Path) -> DroidConfig:
         """Load user config and run migrations."""
         with open(user_config_path, "r", encoding="utf-8") as f:
             user_dict = yaml.safe_load(f) or {}
@@ -75,17 +75,17 @@ class ConfigLoader:
         if user_dict.get("_version", 0) > old_version:
             cls._save_dict(user_dict, user_config_path)
 
-        return DroidrunConfig.from_dict(user_dict)
+        return DroidConfig.from_dict(user_dict)
 
     @classmethod
-    def _init_user_config(cls) -> DroidrunConfig:
+    def _init_user_config(cls) -> DroidConfig:
         """Create user config from defaults on first run."""
-        config = DroidrunConfig()
+        config = DroidConfig()
         cls.save(config)
         return config
 
     @classmethod
-    def save(cls, config: DroidrunConfig) -> Path:
+    def save(cls, config: DroidConfig) -> Path:
         """Save config to user config path."""
         config_dict = config.to_dict()
         config_dict["_version"] = CURRENT_VERSION

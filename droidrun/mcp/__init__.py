@@ -1,4 +1,4 @@
-"""MCP client integration for DroidRun."""
+"""MCP client integration for Droidrun."""
 
 from droidrun.mcp.config import MCPConfig, MCPServerConfig
 from droidrun.mcp.client import MCPClientManager, MCPToolInfo

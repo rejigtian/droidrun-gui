@@ -62,7 +62,7 @@ from droidrun.config_manager.config_manager import (
     AgentConfig,
     CredentialsConfig,
     DeviceConfig,
-    DroidrunConfig,
+    DroidConfig,
     LoggingConfig,
     TelemetryConfig,
     ToolsConfig,
@@ -126,7 +126,7 @@ class DroidAgent(Workflow):
     def __init__(
         self,
         goal: str,
-        config: DroidrunConfig | None = None,
+        config: DroidConfig | None = None,
         llms: dict[str, LLM] | LLM | None = None,
         custom_tools: dict = None,
         credentials: Union[dict, "CredentialManager", None] = None,
@@ -173,7 +173,7 @@ class DroidAgent(Workflow):
 
         self.resolved_device_config = config.device if config else DeviceConfig()
 
-        self.config = DroidrunConfig(
+        self.config = DroidConfig(
             agent=config.agent if config else AgentConfig(),
             device=self.resolved_device_config,
             tools=config.tools if config else ToolsConfig(),
@@ -215,7 +215,7 @@ class DroidAgent(Workflow):
         # Initialize MCP manager (connections made lazily in start_handler)
         self.mcp_manager = None
 
-        # Only load LLMs for native DroidRun agents
+        # Only load LLMs for native Droidrun agents
         if not self._using_external_agent:
             if llms is None:
                 if config is None:

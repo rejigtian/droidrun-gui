@@ -1,6 +1,6 @@
 # External Agents
 
-External agents are self-contained modules that receive raw ADB access and run independently from DroidRun's internal tools.
+External agents are self-contained modules that receive raw ADB access and run independently from Droidrun's internal tools.
 
 ## Quick Start
 

@@ -88,7 +88,7 @@ The Portal only communicates locally via ADB. No data is sent to external server
     droidrun run "your command" --tcp
 
     # Python
-    config = DroidrunConfig(device=DeviceConfig(serial="DEVICE_SERIAL", use_tcp=True))
+    config = DroidConfig(device=DeviceConfig(serial="DEVICE_SERIAL", use_tcp=True))
     ```
 
     **Troubleshooting:**
@@ -117,7 +117,7 @@ The Portal only communicates locally via ADB. No data is sent to external server
     droidrun ping
 
     # Python
-    config = DroidrunConfig(device=DeviceConfig(serial="DEVICE_SERIAL", use_tcp=False))
+    config = DroidConfig(device=DeviceConfig(serial="DEVICE_SERIAL", use_tcp=False))
     ```
 
     **Troubleshooting:**
@@ -214,7 +214,7 @@ The Portal only communicates locally via ADB. No data is sent to external server
     droidrun run "your command" --device emulator-5554
 
     # Python
-    config = DroidrunConfig(device=DeviceConfig(serial="emulator-5554"))
+    config = DroidConfig(device=DeviceConfig(serial="emulator-5554"))
     agent = DroidAgent(goal="your task", config=config)
     ```
 
@@ -222,12 +222,12 @@ The Portal only communicates locally via ADB. No data is sent to external server
 
     ```python
     import asyncio
-    from droidrun import DeviceConfig, DroidrunConfig, DroidAgent
+    from droidrun import DeviceConfig, DroidConfig, DroidAgent
     from async_adbutils import adb
 
     async def control_device(serial: str, command: str):
         device_config = DeviceConfig(serial=serial)
-        config = DroidrunConfig(device=device_config)
+        config = DroidConfig(device=device_config)
         agent = DroidAgent(goal=command, config=config)
         return await agent.run()
 
@@ -380,10 +380,10 @@ iOS Portal uses a different architecture than Android:
 ### Python API
 
 ```python
-from droidrun import DroidAgent, DroidrunConfig, DeviceConfig
+from droidrun import DroidAgent, DroidConfig, DeviceConfig
 
 # Configure for iOS
-config = DroidrunConfig(
+config = DroidConfig(
     device=DeviceConfig(platform="ios")
 )
 

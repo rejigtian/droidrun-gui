@@ -1,4 +1,4 @@
-"""DroidRun Doctor - System health checks and diagnostics."""
+"""Droidrun Doctor - System health checks and diagnostics."""
 
 import asyncio
 import json
@@ -74,7 +74,7 @@ def _parse_version_tuple(version_str: str) -> tuple:
 
 
 async def check_sdk_version(debug: bool) -> CheckResult:
-    """Check DroidRun SDK version against latest GitHub release."""
+    """Check Droidrun SDK version against latest GitHub release."""
     current = __version__
     latest = None
 
@@ -581,7 +581,7 @@ async def check_screenshot(portal: Any, debug: bool) -> CheckResult:
 
 
 async def check_keyboard(device: AdbDevice, debug: bool) -> CheckResult:
-    """Check if DroidRun keyboard IME is available."""
+    """Check if Droidrun keyboard IME is available."""
     try:
         output = await device.shell("ime list -s")
         ime_id = "com.droidrun.portal/.input.DroidrunKeyboardIME"
@@ -642,7 +642,7 @@ async def run_doctor(
     """Run all doctor checks and auto-fix where possible."""
     debug = debug or False
 
-    console.print("\n[bold]DroidRun Doctor[/]\n")
+    console.print("\n[bold]Droidrun Doctor[/]\n")
 
     results: list[CheckResult] = []
 

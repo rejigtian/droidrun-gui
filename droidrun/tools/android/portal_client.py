@@ -1,5 +1,5 @@
 """
-Portal Client - Unified communication layer for DroidRun Portal app.
+Portal Client - Unified communication layer for Droidrun Portal app.
 
 This module provides automatic TCP/Content Provider fallback for Portal communication.
 """
@@ -22,7 +22,7 @@ PORTAL_REMOTE_PORT = 8080  # Port on device where Portal HTTP server runs
 
 class PortalClient:
     """
-    Unified client for DroidRun Portal communication.
+    Unified client for Droidrun Portal communication.
 
     Automatically handles TCP vs Content Provider fallback with the following strategy:
     - On init, checks for existing port forward and reuses it
