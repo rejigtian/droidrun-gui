@@ -416,7 +416,7 @@ Current iOS support has these limitations:
 | Feature | Status | Notes |
 |---------|--------|-------|
 | `get_date()` | ❌ | Not available on iOS |
-| `back()` | ❌ | No iOS equivalent, silently ignored |
+| `press_button("back")` | ❌ | No iOS equivalent, raises ValueError |
 | `drag()` | ❌ | Not supported, auto-disabled |
 | `get_apps()` | ⚠️ | Use `list_packages()` instead |
 | `input_text()` | ⚠️ | No `index` or `clear` parameters |

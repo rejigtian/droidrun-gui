@@ -5,7 +5,7 @@ description: 'DroidAgentState - the coordination mechanism for multi-agent workf
 
 ## What is Shared State?
 
-**DroidAgentState** is a Pydantic model that serves as the **central coordination mechanism** for DroidRun's multi-agent workflow. It's a shared data structure that all agents (Manager, Executor, FastAgent, Scripter) can read from and write to.
+**DroidAgentState** is a Pydantic model that serves as the **central coordination mechanism** for DroidRun's multi-agent workflow. It's a shared data structure that all agents (Manager, Executor, FastAgent) can read from and write to.
 
 Shared state enables:
 - **Cross-agent communication**: Agents share information about actions, results, and errors
@@ -54,9 +54,9 @@ class DroidAgentState(BaseModel):
     # Message history (for stateful agents)
     message_history: List[ChatMessage] = []    # Preserves ThinkingBlock, ImageBlock, etc.
 
-    # Script execution (Scripter)
-    scripter_history: List[Dict] = []          # Scripter results
-    last_scripter_success: bool = True         # Last execution status
+    # External user messages (mid-run injection queue)
+    pending_user_messages: List[QueuedUserMessage] = []  # Queued external messages
+    workflow_completed: bool = False                      # Set True at finalization
 
     # Custom variables
     custom_variables: Dict = {}                # User-defined data

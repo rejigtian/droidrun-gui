@@ -124,7 +124,7 @@ By default, extraction uses the `structured_output` LLM profile. If not configur
 llm_profiles:
   fast_agent:
     provider: GoogleGenAI
-    model: models/gemini-2.0-flash
+    model: gemini-3.1-flash-lite-preview
     temperature: 0.3
 
   structured_output:
@@ -140,7 +140,7 @@ from droidrun import load_llm
 config = DroidrunConfig()
 
 llms = {
-    "fast_agent": load_llm("GoogleGenAI", "models/gemini-2.0-flash"),
+    "fast_agent": load_llm("GoogleGenAI", "gemini-3.1-flash-lite-preview"),
     "structured_output": load_llm("OpenAI", "gpt-4o-mini"),
 }
 
