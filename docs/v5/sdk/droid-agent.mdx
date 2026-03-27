@@ -306,9 +306,13 @@ agent = DroidAgent(goal="...", config=config)
 
 # Start the agent as a background task so it begins executing
 task = asyncio.create_task(agent.run())
-await asyncio.sleep(0)  # Yield to let the agent start
 
-# Inject a message mid-run (e.g., from a UI callback)
+# Wait for the agent to be running before injecting messages.
+# In practice, call send_user_message from an external trigger
+# (e.g., a UI callback or API endpoint) once the agent is active.
+await asyncio.sleep(1)
+
+# Inject a message mid-run
 queued = agent.send_user_message("Actually, search for 'Python' instead")
 
 result = await task
