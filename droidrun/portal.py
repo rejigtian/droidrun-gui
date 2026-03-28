@@ -1,7 +1,7 @@
 """
 Portal APK management and device communication utilities.
 
-This module handles downloading, installing, and managing the DroidRun Portal app
+This module handles downloading, installing, and managing the Droidrun Portal app
 on Android devices. It also provides utilities for checking accessibility service
 status and managing device communication modes (TCP and content provider).
 """
@@ -349,8 +349,8 @@ async def toggle_overlay(device: AdbDevice, visible: bool):
 
 async def setup_keyboard(device: AdbDevice):
     """
-    Set up the DroidRun keyboard as the default input method.
-    Simple setup that just switches to DroidRun keyboard without saving/restoring.
+    Set up the Droidrun keyboard as the default input method.
+    Simple setup that just switches to Droidrun keyboard without saving/restoring.
 
     throws:
         Exception: If the keyboard setup fails
@@ -368,10 +368,10 @@ async def disable_keyboard(
 ):
     """
     Disable a specific IME (keyboard) and optionally switch to another.
-    By default, disables the DroidRun keyboard.
+    By default, disables the Droidrun keyboard.
 
     Args:
-        target_ime: The IME package/activity to disable (default: DroidRun keyboard)
+        target_ime: The IME package/activity to disable (default: Droidrun keyboard)
 
     Returns:
         bool: True if disabled successfully, False otherwise

@@ -1,5 +1,5 @@
 """
-Logging handlers for DroidRun.
+Logging handlers for Droidrun.
 
 Provides CLILogHandler (Rich colored terminal output) and TUILogHandler
 (record buffer for deferred Textual rendering). Both support extra params:

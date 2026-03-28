@@ -1,4 +1,4 @@
-"""DroidRun TUI - Main application."""
+"""Droidrun TUI - Main application."""
 
 from __future__ import annotations
 
@@ -48,7 +48,7 @@ BANNER = """[#CAD3F6]
 [#838BBC]Type a command or [bold]/[/bold] for options[/#838BBC]"""
 
 
-class DroidrunTUI(App):
+class DroidTUI(App):
 
     ALLOW_SELECT = False
     CSS_PATH = "css/app.tcss"
@@ -601,9 +601,9 @@ class DroidrunTUI(App):
             self._dbg(f"_check_device failed: {e}")
             picker.set_options(
                 serial,
-                "DroidRun Portal is not set up on this device",
+                "Droidrun Portal is not set up on this device",
                 [
-                    ("setup", "Auto-install and set up DroidRun Portal"),
+                    ("setup", "Auto-install and set up Droidrun Portal"),
                     ("back", "Back to devices"),
                 ],
             )

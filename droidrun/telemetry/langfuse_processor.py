@@ -87,7 +87,7 @@ MAX_IMAGE_SIZE_KB = 10000
 MAX_UPLOAD_WORKERS = 50  # Maximum concurrent upload threads
 SHUTDOWN_TIMEOUT = 30  # Seconds to wait for pending uploads on shutdown
 
-# Use DroidRun's logger
+# Use Droidrun's logger
 logger = logging.getLogger("droidrun")
 
 

@@ -1,12 +1,12 @@
-"""DroidRun Terminal User Interface."""
+"""Droidrun Terminal User Interface."""
 
-from droidrun.cli.tui.app import DroidrunTUI
+from droidrun.cli.tui.app import DroidTUI
 
 
 def run_tui():
-    """Run the DroidRun TUI application."""
-    app = DroidrunTUI()
+    """Run the Droidrun TUI application."""
+    app = DroidTUI()
     app.run()
 
 
-__all__ = ["DroidrunTUI", "run_tui"]
+__all__ = ["DroidTUI", "run_tui"]

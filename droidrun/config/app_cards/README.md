@@ -1,12 +1,12 @@
 # App Cards
 
-App cards provide app-specific guidance to DroidRun agents. They help agents understand how to operate specific apps more effectively.
+App cards provide app-specific guidance to Droidrun agents. They help agents understand how to operate specific apps more effectively.
 
 ## How It Works
 
 1. **Mapping File**: `app_cards.json` maps Android package names to markdown files
 2. **App Card Files**: Markdown files containing app-specific guidance
-3. **Automatic Loading**: DroidRun automatically loads the appropriate app card based on the current package name
+3. **Automatic Loading**: Droidrun automatically loads the appropriate app card based on the current package name
 4. **Prompt Injection**: App cards are injected into agent prompts when available
 
 ## File Structure
@@ -87,7 +87,7 @@ To find an app's package name:
 
 2. **From device**:
    - Open the app
-   - Run DroidRun with debug mode to see the current package name in logs
+   - Run Droidrun with debug mode to see the current package name in logs
 
 3. **Common apps**:
    - Gmail: `com.google.android.gm`

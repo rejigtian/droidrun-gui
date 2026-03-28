@@ -93,7 +93,7 @@ async def _create_driver(
 
 
 async def _teardown_android(driver):
-    """Disable DroidRun keyboard after direct command execution."""
+    """Disable Droidrun keyboard after direct command execution."""
     if isinstance(driver, AndroidDriver) and driver.device:
         try:
             await driver.device.shell(

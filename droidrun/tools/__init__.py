@@ -1,5 +1,5 @@
 """
-DroidRun Tools - Public API.
+Droidrun Tools - Public API.
 
     from droidrun.tools import AndroidDriver, RecordingDriver, UIState, StateProvider
 """

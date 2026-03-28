@@ -5,7 +5,7 @@ from .base import TreeFilter
 
 
 class ConciseFilter(TreeFilter):
-    """Concise tree filtering (formerly DroidRun)."""
+    """Concise tree filtering (formerly Droidrun)."""
 
     def filter(
         self, a11y_tree: Dict[str, Any], device_context: Dict[str, Any]

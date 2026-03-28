@@ -1,5 +1,5 @@
 """
-DroidRun CLI logging setup.
+Droidrun CLI logging setup.
 
 Re-exports from ``droidrun.cli.handlers`` for backward compatibility.
 """

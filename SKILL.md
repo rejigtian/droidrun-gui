@@ -1,11 +1,11 @@
 ---
 name: droidrun-docs
-description: DroidRun documentation reference. Use when users ask about DroidRun setup, configuration, SDK usage, CLI commands, device setup, agents, architecture, app cards, credentials, tracing, Docker, migration, structured output, or any DroidRun "how do I..." questions.
+description: Droidrun documentation reference. Use when users ask about Droidrun setup, configuration, SDK usage, CLI commands, device setup, agents, architecture, app cards, credentials, tracing, Docker, migration, structured output, or any Droidrun "how do I..." questions.
 ---
 
-# DroidRun
+# Droidrun
 
-DroidRun is an open-source (MIT) framework for controlling Android and iOS devices through LLM agents.
+Droidrun is an open-source (MIT) framework for controlling Android and iOS devices through LLM agents.
 It enables mobile automation using natural language commands.
 
 - **GitHub**: https://github.com/droidrun/droidrun
@@ -17,7 +17,7 @@ It enables mobile automation using natural language commands.
 
 ## Architecture
 
-DroidRun uses a multi-agent architecture coordinated by `DroidAgent`:
+Droidrun uses a multi-agent architecture coordinated by `DroidAgent`:
 
 - **Reasoning mode** (`reasoning=True`): Manager plans → Executor acts → loop until done
 - **Direct mode** (`reasoning=False`): CodeActAgent generates and executes Python code directly

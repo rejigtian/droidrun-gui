@@ -1,5 +1,5 @@
 """
-DroidRun Macro Module - Record and replay UI automation sequences.
+Droidrun Macro Module - Record and replay UI automation sequences.
 
 This module provides functionality to replay macro sequences that were
 recorded during DroidAgent execution.

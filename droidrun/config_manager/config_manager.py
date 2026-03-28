@@ -163,8 +163,8 @@ class CredentialsConfig:
 
 
 @dataclass
-class DroidrunConfig:
-    """Complete DroidRun configuration schema."""
+class DroidConfig:
+    """Complete Droidrun configuration schema."""
 
     agent: AgentConfig = field(default_factory=AgentConfig)
     llm_profiles: Dict[str, LLMProfile] = field(default_factory=dict)
@@ -228,7 +228,7 @@ class DroidrunConfig:
         return result
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "DroidrunConfig":
+    def from_dict(cls, data: Dict[str, Any]) -> "DroidConfig":
         """Create config from dictionary."""
         # Parse LLM profiles
         llm_profiles = {}
@@ -310,7 +310,7 @@ class DroidrunConfig:
         )
 
     @classmethod
-    def from_yaml(cls, path: str) -> "DroidrunConfig":
+    def from_yaml(cls, path: str) -> "DroidConfig":
         """
         Load config from YAML file.
 
@@ -318,7 +318,7 @@ class DroidrunConfig:
             path: Path to config file (relative to CWD or absolute)
 
         Returns:
-            DroidrunConfig instance
+            DroidConfig instance
 
         Raises:
             FileNotFoundError: If file doesn't exist

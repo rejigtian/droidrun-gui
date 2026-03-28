@@ -1,5 +1,5 @@
 """
-DroidRun CLI - Command line interface for controlling Android devices through LLM agents.
+Droidrun CLI - Command line interface for controlling Android devices through LLM agents.
 """
 
 import asyncio
@@ -100,7 +100,7 @@ async def run_command(
     # Print cloud link in a box
     if config.logging.rich_text:
         cloud_text = Text()
-        cloud_text.append("✨ Try DroidRun Cloud: ", style="bold cyan")
+        cloud_text.append("✨ Try Droidrun Cloud: ", style="bold cyan")
         cloud_text.append(
             "https://cloud.droidrun.ai/sign-in", style="bold blue underline"
         )
@@ -111,7 +111,7 @@ async def run_command(
         )
         console.print(cloud_panel)
     else:
-        console.print("\n✨ Try DroidRun Cloud: https://cloud.droidrun.ai/sign-in\n")
+        console.print("\n✨ Try Droidrun Cloud: https://cloud.droidrun.ai/sign-in\n")
 
     # Initialize logging
     debug_mode = debug if debug is not None else config.logging.debug
@@ -306,7 +306,7 @@ def _print_version(ctx, param, value):
     help="Show droidrun version and exit",
 )
 def cli():
-    """DroidRun - Control your Android device through LLM agents."""
+    """Droidrun - Control your Android device through LLM agents."""
     pass
 
 
@@ -427,7 +427,7 @@ async def run(
             ios=ios if ios is not None else False,
         )
     finally:
-        # Disable DroidRun keyboard after execution
+        # Disable Droidrun keyboard after execution
         # Note: Port forwards are managed automatically and persist until device disconnect
         try:
             if not (ios if ios is not None else False):
@@ -437,7 +437,7 @@ async def run(
                         "ime disable com.droidrun.portal/.input.DroidrunKeyboardIME"
                     )
         except Exception:
-            click.echo("Failed to disable DroidRun keyboard")
+            click.echo("Failed to disable Droidrun keyboard")
 
     # Exit with appropriate code
     sys.exit(0 if success else 1)
@@ -497,7 +497,7 @@ async def _setup_portal(
     latest: bool = False,
     specific_version: str | None = None,
 ):
-    """Internal async function to install and enable the DroidRun Portal on a device."""
+    """Internal async function to install and enable the Droidrun Portal on a device."""
     try:
         if not device:
             devices = await adb.list()
@@ -534,7 +534,7 @@ async def _setup_portal(
             success = await setup_portal(device_obj, debug)
             if success:
                 console.print(
-                    "\n[bold green]Setup complete![/] The DroidRun Portal is now installed and ready to use."
+                    "\n[bold green]Setup complete![/] The Droidrun Portal is now installed and ready to use."
                 )
             else:
                 console.print(
@@ -566,7 +566,7 @@ async def _setup_portal(
 
                 console.print("[green]Accessibility service enabled successfully![/]")
                 console.print(
-                    "\n[bold green]Setup complete![/] The DroidRun Portal is now installed and ready to use."
+                    "\n[bold green]Setup complete![/] The Droidrun Portal is now installed and ready to use."
                 )
 
             except Exception as e:
@@ -636,7 +636,7 @@ async def setup(
     latest: bool,
     debug: bool,
 ):
-    """Install and enable the DroidRun Portal on a device."""
+    """Install and enable the Droidrun Portal on a device."""
     await _setup_portal(path, device, debug, latest, portal_version)
 
 
@@ -699,7 +699,7 @@ async def doctor(device: str | None, debug: bool | None):
 
 @cli.command()
 def tui():
-    """Launch the DroidRun Terminal User Interface."""
+    """Launch the Droidrun Terminal User Interface."""
     from droidrun.cli.tui import run_tui
 
     run_tui()
