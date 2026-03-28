@@ -511,9 +511,7 @@ class PortalClient:
                 url += "?hideOverlay=false"
 
             async with httpx.AsyncClient() as client:
-                response = await self._tcp_request(
-                    client, "GET", url, timeout=10.0
-                )
+                response = await self._tcp_request(client, "GET", url, timeout=10.0)
                 if response.status_code == 200:
                     data = response.json()
                     # Check for 'result' first (new portal format), then 'data' (legacy)

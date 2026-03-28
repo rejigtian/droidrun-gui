@@ -749,11 +749,7 @@ class DroidAgent(Workflow):
     @step
     async def handle_manager_plan(
         self, ctx: Context, ev: ManagerPlanEvent
-    ) -> (
-        ExecutorInputEvent
-        | FinalizeEvent
-        | ManagerInputEvent
-    ):
+    ) -> ExecutorInputEvent | FinalizeEvent | ManagerInputEvent:
         """Process Manager output and decide next step."""
         # Check for answer-type termination
         if ev.answer.strip():

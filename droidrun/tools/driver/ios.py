@@ -45,6 +45,7 @@ SYSTEM_BUNDLE_IDENTIFIERS = [
     "com.apple.webapp",
 ]
 
+
 class IOSDriver(DeviceDriver):
     """iOS device driver communicating via HTTP REST to the iOS portal app."""
 

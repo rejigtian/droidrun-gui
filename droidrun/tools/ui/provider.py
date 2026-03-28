@@ -68,9 +68,7 @@ async def fetch_state_with_retry(
             combined_data = await fetch()
 
             if "error" in combined_data:
-                raise Exception(
-                    f"Portal returned error: {combined_data}"
-                )
+                raise Exception(f"Portal returned error: {combined_data}")
 
             required_keys = ["a11y_tree", "phone_state", "device_context"]
             missing = [k for k in required_keys if k not in combined_data]
@@ -203,9 +201,7 @@ class AndroidStateProvider(StateProvider):
         screen_width = screen_bounds.get("width")
         screen_height = screen_bounds.get("height")
 
-        filtered = self.tree_filter.filter(
-            combined_data["a11y_tree"], device_context
-        )
+        filtered = self.tree_filter.filter(combined_data["a11y_tree"], device_context)
 
         self.tree_formatter.screen_width = screen_width
         self.tree_formatter.screen_height = screen_height

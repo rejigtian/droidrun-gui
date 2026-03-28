@@ -54,7 +54,11 @@ class DeviceDriver:
         raise NotImplementedError
 
     async def input_text(
-        self, text: str, clear: bool = False, stealth: bool = False, wpm: int = 0,
+        self,
+        text: str,
+        clear: bool = False,
+        stealth: bool = False,
+        wpm: int = 0,
     ) -> bool:
         """Type *text* into the currently focused field.
 

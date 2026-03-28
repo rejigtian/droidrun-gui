@@ -83,9 +83,7 @@ class DroidAgentState(BaseModel):
     # Memory
     # ========================================================================
     manager_memory: str = ""  # Manager's planning notes (append-only string)
-    fast_memory: List[str] = Field(
-        default_factory=list
-    )  # FastAgent remember() items
+    fast_memory: List[str] = Field(default_factory=list)  # FastAgent remember() items
 
     # ========================================================================
     # Completion State (set by complete() tool, checked by FastAgent)

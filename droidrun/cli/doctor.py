@@ -411,7 +411,7 @@ async def check_content_provider(device: AdbDevice, debug: bool) -> CheckResult:
 
 async def check_tcp(device: AdbDevice, debug: bool) -> CheckResult:
     """Check TCP mode with explicit steps: enable server, forward port, auth, ping."""
-  
+
     steps = []
 
     # Step 1: Enable socket server via content provider

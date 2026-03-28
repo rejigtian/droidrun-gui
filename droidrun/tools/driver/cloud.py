@@ -38,9 +38,9 @@ class CloudDriver(DeviceDriver):
     supported_buttons = {"back", "home", "enter"}
 
     _BUTTON_ACTIONS = {
-        "back": 1,   # global action: BACK
-        "home": 2,   # global action: HOME
-        "enter": 66, # keycode passthrough
+        "back": 1,  # global action: BACK
+        "home": 2,  # global action: HOME
+        "enter": 66,  # keycode passthrough
     }
 
     def __init__(
@@ -102,7 +102,9 @@ class CloudDriver(DeviceDriver):
     async def tap(self, x: int, y: int) -> None:
         await self._call(
             self._client.devices.actions.tap(
-                self.device_id, x=x, y=y,
+                self.device_id,
+                x=x,
+                y=y,
                 extra_body=self._stealth_extra,
                 **self._display_kw,
             )
@@ -130,7 +132,10 @@ class CloudDriver(DeviceDriver):
         )
 
     async def input_text(
-        self, text: str, clear: bool = False, wpm: int = 0,
+        self,
+        text: str,
+        clear: bool = False,
+        wpm: int = 0,
     ) -> bool:
         extra_body: dict = {}
         if self._stealth:

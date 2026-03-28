@@ -325,7 +325,11 @@ except Exception:
     "-a",
     type=click.Choice(_available_agents) if _available_agents else None,
     help="External agent to use"
-    + (f" [{', '.join(_available_agents)}]" if _available_agents else " (none available)"),
+    + (
+        f" [{', '.join(_available_agents)}]"
+        if _available_agents
+        else " (none available)"
+    ),
     default=None,
 )
 @click.option(

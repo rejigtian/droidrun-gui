@@ -42,12 +42,8 @@ def device_options(f):
     f = click.option(
         "--config", "-c", "config_path", help="Path to config file", default=None
     )(f)
-    f = click.option(
-        "--tcp/--no-tcp", default=None, help="Use TCP communication"
-    )(f)
-    f = click.option(
-        "--ios", is_flag=True, default=False, help="Target iOS device"
-    )(f)
+    f = click.option("--tcp/--no-tcp", default=None, help="Use TCP communication")(f)
+    f = click.option("--ios", is_flag=True, default=False, help="Target iOS device")(f)
     return f
 
 
@@ -180,7 +176,9 @@ async def tap(x, y, device, config_path, tcp, ios):
 @click.argument("y1", type=int)
 @click.argument("x2", type=int)
 @click.argument("y2", type=int)
-@click.option("--duration", type=float, default=1.0, show_default=True, help="Duration in seconds")
+@click.option(
+    "--duration", type=float, default=1.0, show_default=True, help="Duration in seconds"
+)
 @device_options
 @coro
 async def swipe_cmd(x1, y1, x2, y2, duration, device, config_path, tcp, ios):
@@ -229,7 +227,9 @@ async def type_text(text, clear, device, config_path, tcp, ios):
 
 
 @device_cli.command()
-@click.argument("button", type=click.Choice(["back", "home", "enter"], case_sensitive=False))
+@click.argument(
+    "button", type=click.Choice(["back", "home", "enter"], case_sensitive=False)
+)
 @device_options
 @coro
 async def press(button, device, config_path, tcp, ios):
@@ -243,9 +243,7 @@ async def press(button, device, config_path, tcp, ios):
 
 
 @device_cli.command()
-@click.option(
-    "--system/--no-system", default=False, help="Include system apps"
-)
+@click.option("--system/--no-system", default=False, help="Include system apps")
 @device_options
 @coro
 async def apps(system, device, config_path, tcp, ios):
