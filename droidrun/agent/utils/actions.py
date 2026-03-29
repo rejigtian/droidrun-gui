@@ -176,7 +176,7 @@ async def open_app(text: str, *, ctx: "ActionContext") -> ActionResult:
         )
 
     workflow = AppStarter(
-        tools=ctx.driver,
+        driver=ctx.driver,
         llm=ctx.app_opener_llm,
         timeout=60,
         stream=ctx.streaming,

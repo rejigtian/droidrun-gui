@@ -21,8 +21,11 @@ class DeviceDriver:
     Every method raises ``NotImplementedError`` by default.
     Concrete drivers override the methods they support and declare them
     in the ``supported`` class-level set.
+
+    ``platform`` identifies the device type (e.g. "Android", "iOS").
     """
 
+    platform: str = "Android"
     supported: set[str] = set()
     supported_buttons: set[str] = set()
 

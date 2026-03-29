@@ -49,6 +49,8 @@ SYSTEM_BUNDLE_IDENTIFIERS = [
 class IOSDriver(DeviceDriver):
     """iOS device driver communicating via HTTP REST to the iOS portal app."""
 
+    platform = "iOS"
+
     supported = {
         "tap",
         "swipe",

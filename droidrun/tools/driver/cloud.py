@@ -22,6 +22,8 @@ T = TypeVar("T")
 class CloudDriver(DeviceDriver):
     """Cloud device I/O via the MobileRun SDK."""
 
+    platform = "Android"
+
     supported = {
         "tap",
         "swipe",

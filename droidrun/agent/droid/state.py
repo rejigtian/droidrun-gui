@@ -26,6 +26,7 @@ class DroidAgentState(BaseModel):
     step_number: int = 0
     runtype: str = "developer"
     user_id: str | None = None
+    platform: str = "Android"
 
     # ========================================================================
     # Device State (current)

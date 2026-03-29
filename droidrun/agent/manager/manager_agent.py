@@ -39,7 +39,6 @@ from droidrun.agent.usage import get_usage_from_response
 from droidrun.agent.utils.chat_utils import filter_empty_messages
 from droidrun.agent.utils.inference import acall_with_retries
 from droidrun.agent.utils.prompt_resolver import PromptResolver
-from droidrun.agent.utils.signatures import ATOMIC_ACTION_SIGNATURES
 from droidrun.agent.utils.tracing_setup import record_langfuse_screenshot
 from droidrun.app_cards.app_card_provider import AppCardProvider
 from droidrun.app_cards.providers import (
@@ -103,6 +102,7 @@ class ManagerAgent(Workflow):
         self.app_card_config = self.agent_config.app_cards
         self.prompt_resolver = prompt_resolver or PromptResolver()
         self.tracing_config = tracing_config
+        self.standard_tool_names: set[str] | None = None
 
         # Initialize app card provider
         self.app_card_provider: AppCardProvider = self._initialize_app_card_provider()
@@ -174,9 +174,14 @@ class ManagerAgent(Workflow):
                 )
             ]
 
-        # Get available secrets
+        # Get available secrets (only if type_secret is actually in the registry)
         available_secrets = []
-        if self.action_ctx and self.action_ctx.credential_manager:
+        if (
+            self.registry
+            and "type_secret" in self.registry.tools
+            and self.action_ctx
+            and self.action_ctx.credential_manager
+        ):
             available_secrets = await self.action_ctx.credential_manager.get_keys()
 
         # Output schema if provided
@@ -185,11 +190,10 @@ class ManagerAgent(Workflow):
             output_schema = self.output_model.model_json_schema()
 
         # Build custom tools descriptions from registry.
-        # Exclude standard atomic actions (Manager prompt already describes them)
-        # and flow-control tools (remember, complete) which Manager doesn't use.
+        # Exclude standard tools (already described in the prompt template).
         custom_tools_descriptions = ""
         if self.registry:
-            _standard = set(ATOMIC_ACTION_SIGNATURES.keys()) | {"remember", "complete"}
+            _standard = self.standard_tool_names or set()
             custom_tools_descriptions = self.registry.get_tool_descriptions_text(
                 exclude=_standard
             )
@@ -204,6 +208,7 @@ class ManagerAgent(Workflow):
             "available_secrets": available_secrets,
             "variables": self.shared_state.custom_variables,
             "output_schema": output_schema,
+            "platform": self.shared_state.platform,
         }
 
         custom_prompt = self.prompt_resolver.get_prompt("manager_system")

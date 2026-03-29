@@ -40,18 +40,13 @@ from droidrun.agent.executor import ExecutorAgent
 from droidrun.agent.external import load_agent
 from droidrun.agent.manager import ManagerAgent, StatelessManagerAgent
 from droidrun.agent.oneflows.structured_output_agent import StructuredOutputAgent
-from droidrun.agent.tool_registry import ToolRegistry
 from droidrun.agent.trajectory import TrajectoryWriter
-from droidrun.agent.utils.actions import complete, open_app, remember
 from droidrun.agent.utils.llm_loader import (
     load_agent_llms,
     merge_llms_with_config,
 )
 from droidrun.agent.utils.prompt_resolver import PromptResolver
-from droidrun.agent.utils.signatures import (
-    ATOMIC_ACTION_SIGNATURES,
-    build_credential_tools,
-)
+from droidrun.agent.utils.signatures import build_tool_registry
 from droidrun.agent.utils.tracing_setup import (
     apply_session_context,
     record_langfuse_screenshot,
@@ -310,46 +305,9 @@ class DroidAgent(Workflow):
             self.manager_agent = None
             self.executor_agent = None
 
-        atomic_tools = list(ATOMIC_ACTION_SIGNATURES.keys())
-
-        capture(
-            DroidAgentInitEvent(
-                goal=self.shared_state.instruction,
-                llms={
-                    "manager": (
-                        self.manager_llm.class_name() if self.manager_llm else "None"
-                    ),
-                    "executor": (
-                        self.executor_llm.class_name() if self.executor_llm else "None"
-                    ),
-                    "fast_agent": (
-                        self.fast_agent_llm.class_name()
-                        if self.fast_agent_llm
-                        else "None"
-                    ),
-                    "app_opener": (
-                        self.app_opener_llm.class_name()
-                        if self.app_opener_llm
-                        else "None"
-                    ),
-                },
-                tools=",".join(atomic_tools + ["remember", "complete"]),
-                max_steps=self.config.agent.max_steps,
-                timeout=timeout,
-                vision={
-                    "manager": self.config.agent.manager.vision,
-                    "executor": self.config.agent.executor.vision,
-                    "fast_agent": self.config.agent.fast_agent.vision,
-                },
-                reasoning=self.config.agent.reasoning,
-                enable_tracing=self.config.tracing.enabled,
-                debug=self.config.logging.debug,
-                save_trajectories=self.config.logging.save_trajectory,
-                runtype=self.runtype,
-                custom_prompts=prompts,
-            ),
-            self.user_id,
-        )
+        # Telemetry init event is fired in start_handler after registry is built.
+        self._init_prompts = prompts  # stash for telemetry
+        self._init_timeout = timeout
 
         logger.debug("✅ DroidAgent initialized successfully.")
 
@@ -468,6 +426,7 @@ class DroidAgent(Workflow):
                 driver = RecordingDriver(driver)
 
         self.driver = driver
+        self.shared_state.platform = driver.platform
 
         # ── 2. Create state provider ──────────────────────────────────
         if self._injected_state_provider is not None:
@@ -489,52 +448,16 @@ class DroidAgent(Workflow):
             )
 
         # ── 3. Build tool registry ────────────────────────────────────
-        registry = ToolRegistry()
-
-        # 3a. Atomic tools (click, long_press, type, system_button, swipe, etc.)
-        registry.register_from_dict(ATOMIC_ACTION_SIGNATURES)
-
-        # 3b. open_app (always registered)
-        registry.register(
-            "open_app",
-            fn=open_app,
-            params={"text": {"type": "string", "required": True}},
-            description='Open an app by name or description. Usage: {"action": "open_app", "text": "Gmail"}',
-            deps={"start_app", "get_apps"},
+        registry, standard_tool_names = await build_tool_registry(
+            supported_buttons=driver.supported_buttons,
+            credential_manager=self.credential_manager,
         )
 
-        # 3c. remember + complete (always registered, from DroidAgentState methods)
-        registry.register(
-            "remember",
-            fn=remember,
-            params={"information": {"type": "string", "required": True}},
-            description="Remember information for later use",
-        )
-        registry.register(
-            "complete",
-            fn=complete,
-            params={
-                "success": {"type": "boolean", "required": True},
-                "message": {"type": "string", "required": True},
-            },
-            description=(
-                "Mark task as complete. "
-                "success=true if task succeeded, false if failed. "
-                "message contains the result, answer, or explanation."
-            ),
-        )
-
-        # 3d. type_secret (conditional)
-        if self.credential_manager:
-            credential_tools = await build_credential_tools(self.credential_manager)
-            if credential_tools:
-                registry.register_from_dict(credential_tools)
-
-        # 3e. User custom tools
+        # User custom tools
         if self.user_custom_tools:
             registry.register_from_dict(self.user_custom_tools)
 
-        # 3f. MCP tools
+        # MCP tools
         if self.config.mcp and self.config.mcp.enabled:
             self.mcp_manager = MCPClientManager(self.config.mcp)
             await self.mcp_manager.discover_tools()
@@ -542,11 +465,11 @@ class DroidAgent(Workflow):
             if mcp_tools:
                 registry.register_from_dict(mcp_tools)
 
-        # 3g. Disable unsupported tools based on driver + state provider capabilities
+        # Capability-based filtering (deps vs driver+provider supported)
         capabilities = driver.supported | self.state_provider.supported
         registry.disable_unsupported(capabilities)
 
-        # 3h. Disable tools from config
+        # Config-level filtering
         disabled_tools = (
             self.config.tools.disabled_tools
             if self.config.tools and self.config.tools.disabled_tools
@@ -556,6 +479,7 @@ class DroidAgent(Workflow):
             registry.disable(disabled_tools)
 
         self.registry = registry
+        self.standard_tool_names = standard_tool_names
 
         # ── 4. Create ActionContext ────────────────────────────────────
         self.action_ctx = ActionContext(
@@ -574,11 +498,52 @@ class DroidAgent(Workflow):
             self.manager_agent.state_provider = self.state_provider
             self.manager_agent.registry = self.registry
             self.manager_agent.save_trajectory = self.config.logging.save_trajectory
+            self.manager_agent.standard_tool_names = self.standard_tool_names
             self.executor_agent.registry = self.registry
             self.executor_agent.action_ctx = self.action_ctx
 
         # ── 6. Fetch device date once ─────────────────────────────────
         self.shared_state.device_date = await driver.get_date()
+
+        # ── 7. Telemetry init event ───────────────────────────────────
+        capture(
+            DroidAgentInitEvent(
+                goal=self.shared_state.instruction,
+                llms={
+                    "manager": (
+                        self.manager_llm.class_name() if self.manager_llm else "None"
+                    ),
+                    "executor": (
+                        self.executor_llm.class_name() if self.executor_llm else "None"
+                    ),
+                    "fast_agent": (
+                        self.fast_agent_llm.class_name()
+                        if self.fast_agent_llm
+                        else "None"
+                    ),
+                    "app_opener": (
+                        self.app_opener_llm.class_name()
+                        if self.app_opener_llm
+                        else "None"
+                    ),
+                },
+                tools=",".join(sorted(standard_tool_names)),
+                max_steps=self.config.agent.max_steps,
+                timeout=self._init_timeout,
+                vision={
+                    "manager": self.config.agent.manager.vision,
+                    "executor": self.config.agent.executor.vision,
+                    "fast_agent": self.config.agent.fast_agent.vision,
+                },
+                reasoning=self.config.agent.reasoning,
+                enable_tracing=self.config.tracing.enabled,
+                debug=self.config.logging.debug,
+                save_trajectories=self.config.logging.save_trajectory,
+                runtype=self.runtype,
+                custom_prompts=self._init_prompts,
+            ),
+            self.user_id,
+        )
 
         if self.config.logging.save_trajectory != "none":
             self.trajectory_writer.write(self.trajectory, stage="init")

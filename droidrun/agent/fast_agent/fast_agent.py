@@ -127,6 +127,7 @@ class FastAgent(Workflow):
             "output_schema": self._output_schema,
             "parallel_tools": self.config.parallel_tools,
             "vision": self.vision,
+            "platform": self.shared_state.platform,
         }
 
         custom_system_prompt = self.prompt_resolver.get_prompt("fast_agent_system")
@@ -172,8 +173,13 @@ class FastAgent(Workflow):
         """Initialize message history with goal."""
         logger.debug("Preparing chat for task execution...")
 
-        # Get available secrets
-        if self.action_ctx and self.action_ctx.credential_manager:
+        # Get available secrets (only if type_secret is actually in the registry)
+        if (
+            self.registry
+            and "type_secret" in self.registry.tools
+            and self.action_ctx
+            and self.action_ctx.credential_manager
+        ):
             self._available_secrets = (
                 await self.action_ctx.credential_manager.get_keys()
             )

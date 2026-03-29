@@ -24,6 +24,8 @@ PORTAL_DEFAULT_TCP_PORT = 8080
 class AndroidDriver(DeviceDriver):
     """Raw Android device I/O via ADB + Portal."""
 
+    platform = "Android"
+
     supported = {
         "tap",
         "swipe",
