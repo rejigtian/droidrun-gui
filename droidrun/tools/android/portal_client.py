@@ -355,7 +355,7 @@ class PortalClient:
         try:
             async with httpx.AsyncClient() as client:
                 response = await self._tcp_request(
-                    client, "GET", f"{self.tcp_base_url}/state_full", timeout=10
+                    client, "GET", f"{self.tcp_base_url}/state", timeout=10
                 )
                 if response.status_code == 200:
                     data = response.json()
@@ -391,7 +391,7 @@ class PortalClient:
         """Get state via content provider (fallback)."""
         try:
             output = await self.device.shell(
-                "content query --uri content://com.droidrun.portal/state_full"
+                "content query --uri content://com.droidrun.portal/state"
             )
             state_data = self._parse_content_provider_output(output)
 

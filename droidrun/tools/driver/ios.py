@@ -168,7 +168,7 @@ class IOSDriver(DeviceDriver):
         ``device_context`` keys — matching the format expected by
         ``fetch_state_with_retry()``.
         """
-        resp = await self._client.get("/state_full")
+        resp = await self._client.get("/state")
         resp.raise_for_status()
         return resp.json()
 
