@@ -3,13 +3,9 @@
 Wraps the iOS portal HTTP API (running on the device) to provide device I/O
 through the same ``DeviceDriver`` interface used by Android.
 
-Known limitations (pre-existing, documented as TODOs):
-- ``clear`` parameter in ``input_text`` is ignored
-- ``press_button`` only supports HOME; BACK and ENTER have no iOS equivalent
-- ``get_date`` not available (no iOS portal endpoint)
-- ``drag`` not implemented
-- ``get_apps`` returns bundle identifiers, not real app metadata
-- Screen dimensions inferred from element bounds (no portal endpoint)
+Known limitations:
+- ``get_apps`` returns a hardcoded list of system bundle identifiers
+- ``packageName`` is not tracked (iOS has no API to detect the foreground app)
 """
 
 from __future__ import annotations
@@ -61,12 +57,13 @@ class IOSDriver(DeviceDriver):
         "get_ui_tree",
         "list_packages",
         "get_apps",
+        "get_date",
     }
 
-    supported_buttons = {"home"}
+    supported_buttons = {"home", "back"}
 
     _BUTTON_IOS_KEYCODES = {
-        "home": 0,
+        "home": 1,  # XCUIDeviceButtonHome = 1
     }
 
     def __init__(
@@ -77,14 +74,12 @@ class IOSDriver(DeviceDriver):
         self.url = url.rstrip("/")
         self.bundle_identifiers = bundle_identifiers or []
         self._client: Optional[httpx.AsyncClient] = None
-        self._last_tapped_rect: Optional[str] = None
         self._connected = False
 
     # -- lifecycle -----------------------------------------------------------
 
     async def connect(self) -> None:
         self._client = httpx.AsyncClient(base_url=self.url, timeout=30.0)
-        # TODO: verify URL is reachable (ping /vision/state or similar)
         self._connected = True
         logger.info(f"Connected to iOS device at {self.url}")
 
@@ -96,9 +91,6 @@ class IOSDriver(DeviceDriver):
 
     async def tap(self, x: int, y: int) -> None:
         ios_rect = f"{{{{{x},{y}}},{{{1},{1}}}}}"
-        # Store for input_text (iOS API requires a rect for typing)
-        # TODO: stores center point as 1x1 rect, not full element bounds
-        self._last_tapped_rect = f"{x},{y},1,1"
         resp = await self._client.post(
             "/gestures/tap",
             json={"rect": ios_rect, "count": 1, "longPress": False},
@@ -108,23 +100,21 @@ class IOSDriver(DeviceDriver):
     async def swipe(
         self, x1: int, y1: int, x2: int, y2: int, duration_ms: float = 1000
     ) -> None:
-        # iOS API is direction-based, not coordinate-based
-        dx, dy = x2 - x1, y2 - y1
-        if abs(dx) > abs(dy):
-            direction = "right" if dx > 0 else "left"
-        else:
-            direction = "down" if dy > 0 else "up"
         resp = await self._client.post(
             "/gestures/swipe",
-            json={"x": float(x1), "y": float(y1), "dir": direction},
+            json={
+                "x1": float(x1),
+                "y1": float(y1),
+                "x2": float(x2),
+                "y2": float(y2),
+                "durationMs": float(duration_ms),
+            },
         )
         resp.raise_for_status()
 
     async def input_text(self, text: str, clear: bool = False) -> bool:
-        # TODO: clear not supported on iOS portal
-        rect = self._last_tapped_rect or "0,0,100,100"
         resp = await self._client.post(
-            "/inputs/type", json={"rect": rect, "text": text}
+            "/inputs/type", json={"text": text, "clear": clear}
         )
         return resp.status_code == 200
 
@@ -136,6 +126,10 @@ class IOSDriver(DeviceDriver):
                 f"Button '{button}' not supported on iOS. "
                 f"Supported: {', '.join(sorted(self.supported_buttons))}"
             )
+        if button_lower == "back":
+            resp = await self._client.post("/gestures/back")
+            resp.raise_for_status()
+            return
         keycode = self._BUTTON_IOS_KEYCODES[button_lower]
         resp = await self._client.post("/inputs/key", json={"key": keycode})
         resp.raise_for_status()
@@ -151,8 +145,6 @@ class IOSDriver(DeviceDriver):
         return f"Failed to launch {package}: HTTP {resp.status_code}"
 
     async def get_apps(self, include_system: bool = True) -> List[Dict[str, str]]:
-        # TODO: iOS portal has no app listing endpoint.
-        # Returns bundle identifiers as both package and label.
         all_ids: set[str] = set(self.bundle_identifiers)
         if include_system:
             all_ids.update(SYSTEM_BUNDLE_IDENTIFIERS)
@@ -170,34 +162,18 @@ class IOSDriver(DeviceDriver):
         return resp.content
 
     async def get_ui_tree(self) -> Dict[str, Any]:
-        """Return raw iOS accessibility data and phone state.
+        """Return unified state from the iOS portal.
 
-        Returns a dict with:
-        - ``a11y_raw``: the raw accessibility tree text from the portal
-        - ``phone_state``: dict with ``current_activity`` and ``keyboard_shown``
+        Returns a dict with ``a11y_tree``, ``phone_state``, and
+        ``device_context`` keys — matching the format expected by
+        ``fetch_state_with_retry()``.
         """
-        a11y_resp = await self._client.get("/vision/a11y")
-        a11y_resp.raise_for_status()
-        a11y_data = a11y_resp.json()
-
-        state_resp = await self._client.get("/vision/state")
-        if state_resp.status_code == 200:
-            state_data = state_resp.json()
-            phone_state = {
-                "currentApp": state_data.get("activity", "Unknown"),
-                "keyboardVisible": state_data.get("keyboardShown", False),
-            }
-        else:
-            phone_state = {
-                "currentApp": "Unknown",
-                "keyboardVisible": False,
-            }
-
-        return {
-            "a11y_raw": a11y_data["accessibilityTree"],
-            "phone_state": phone_state,
-        }
+        resp = await self._client.get("/state_full")
+        resp.raise_for_status()
+        return resp.json()
 
     async def get_date(self) -> str:
-        # TODO: not available on iOS portal
+        resp = await self._client.get("/device/date")
+        if resp.status_code == 200:
+            return resp.json().get("date", "")
         return ""

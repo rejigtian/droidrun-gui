@@ -3,9 +3,7 @@
 Parses the raw text-based accessibility tree returned by the iOS portal
 into structured elements compatible with UIState.
 
-Known limitations (pre-existing, documented as TODOs):
-- Screen dimensions inferred from element bounds with hardcoded fallback
-- ``focused_text`` always empty (iOS portal doesn't expose it)
+Known limitations:
 - Normalized coordinates untested on iOS
 - No filter/formatter pipeline (iOS a11y tree is raw text, not structured JSON)
 """
@@ -14,10 +12,10 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 from droidrun.tools.driver.base import DeviceDriver
-from droidrun.tools.ui.provider import StateProvider
+from droidrun.tools.ui.provider import StateProvider, fetch_state_with_retry
 from droidrun.tools.ui.state import UIState
 
 logger = logging.getLogger("droidrun")
@@ -50,22 +48,37 @@ class IOSStateProvider(StateProvider):
 
     def __init__(self, driver: DeviceDriver, use_normalized: bool = False) -> None:
         super().__init__(driver)
-        # TODO: normalized coordinates untested on iOS
         self.use_normalized = use_normalized
 
     async def get_state(self) -> UIState:
-        raw = await self.driver.get_ui_tree()
-        a11y_text = raw.get("a11y_raw", "")
+        raw = await fetch_state_with_retry(
+            fetch=self.driver.get_ui_tree,
+            recovery=None,  # no iOS equivalent of a11y service restart
+        )
+
+        a11y_text = raw.get("a11y_tree", "")
         phone_state = raw.get("phone_state", {})
+        device_context = raw.get("device_context", {})
 
         elements = _parse_a11y_tree(a11y_text)
-        screen_width, screen_height = _infer_screen_size(elements)
+
+        # Screen size from device_context
+        screen_bounds = device_context.get("screen_bounds", {})
+        screen_width = int(screen_bounds.get("width", 390))
+        screen_height = int(screen_bounds.get("height", 844))
+
         formatted_text = _format_elements(elements, screen_width, screen_height)
+
+        # Extract focused text from phone_state
+        focused_element = phone_state.get("focusedElement")
+        focused_text = ""
+        if focused_element and isinstance(focused_element, dict):
+            focused_text = focused_element.get("text", "")
 
         return UIState(
             elements=elements,
             formatted_text=formatted_text,
-            focused_text="",  # TODO: iOS doesn't expose focused element text
+            focused_text=focused_text,
             phone_state=phone_state,
             screen_width=screen_width,
             screen_height=screen_height,
@@ -145,34 +158,6 @@ def _parse_a11y_tree(a11y_text: str) -> List[Dict[str, Any]]:
         element_index += 1
 
     return elements
-
-
-# ---------------------------------------------------------------------------
-# Screen size inference
-# ---------------------------------------------------------------------------
-
-
-def _infer_screen_size(
-    elements: List[Dict[str, Any]],
-) -> Tuple[int, int]:
-    """Best-effort screen dimensions from element bounds.
-
-    Falls back to iPhone 14 dimensions if no elements are available.
-    """
-    max_right = 0
-    max_bottom = 0
-    for el in elements:
-        bounds = el.get("bounds", "")
-        if not bounds:
-            continue
-        parts = bounds.split(",")
-        if len(parts) == 4:
-            max_right = max(max_right, int(float(parts[2])))
-            max_bottom = max(max_bottom, int(float(parts[3])))
-    if max_right > 0 and max_bottom > 0:
-        return max_right, max_bottom
-    # TODO: hardcoded iPhone 14 fallback — no portal endpoint for screen size
-    return 390, 844
 
 
 # ---------------------------------------------------------------------------
