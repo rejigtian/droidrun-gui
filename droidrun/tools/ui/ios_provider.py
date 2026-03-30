@@ -20,17 +20,18 @@ from droidrun.tools.ui.state import UIState
 
 logger = logging.getLogger("droidrun")
 
-# Element types considered interactive on iOS.
-_INTERACTIVE_TYPES = {
-    "Button",
-    "SearchField",
-    "TextField",
-    "Cell",
-    "Switch",
-    "Slider",
-    "Stepper",
-    "Picker",
-    "Link",
+# Element types to skip — layout containers that add noise without useful info.
+# Everything else is kept (buttons, cells, text, icons, images, etc.)
+_SKIP_TYPES = {
+    "Window",
+    "Window (Main)",
+    "ScrollView",
+    "CollectionView",
+    "Table",
+    "Toolbar",
+    "TabBar",
+    "StatusBar",
+    "PageIndicator",
 }
 
 _COORD_RE = re.compile(r"\{\{([0-9.]+),\s*([0-9.]+)\},\s*\{([0-9.]+),\s*([0-9.]+)\}\}")
@@ -53,7 +54,9 @@ class IOSStateProvider(StateProvider):
     async def get_state(self) -> UIState:
         raw = await fetch_state_with_retry(
             fetch=self.driver.get_ui_tree,
-            recovery=None,  # no iOS equivalent of a11y service restart
+            recovery=None,
+            max_retries=3,
+            retry_delays=[1.0, 2.0],
         )
 
         a11y_text = raw.get("a11y_tree", "")
@@ -116,13 +119,17 @@ def _parse_a11y_tree(a11y_text: str) -> List[Dict[str, Any]]:
 
         x, y, width, height = map(float, coord_match.groups())
 
+        # Skip elements with no tappable area
+        if width == 0 or height == 0:
+            continue
+
         # Element type
         type_match = _ELEMENT_TYPE_RE.match(line)
         element_type = type_match.group(1).strip() if type_match else "Unknown"
         element_type = re.sub(r"^[→\s]+", "", element_type)
 
-        # Only keep interactive elements
-        if not any(it in element_type for it in _INTERACTIVE_TYPES):
+        # Skip layout containers that add noise without useful info
+        if element_type in _SKIP_TYPES:
             continue
 
         # Extract properties
@@ -173,9 +180,9 @@ def _format_elements(
     """Build the text representation shown to the agent."""
     schema = "'index. className: text - bounds(x1,y1,x2,y2)'"
     if not elements:
-        return f"Current Clickable UI elements:\n{schema}:\nNo UI elements found"
+        return f"Current UI elements:\n{schema}:\nNo UI elements found"
 
-    lines = [f"Current Clickable UI elements:\n{schema}:"]
+    lines = [f"Current UI elements:\n{schema}:"]
     for el in elements:
         idx = el.get("index", 0)
         cls = el.get("className", "Unknown")

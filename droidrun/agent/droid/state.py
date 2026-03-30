@@ -191,8 +191,8 @@ class DroidAgentState(BaseModel):
 
         capture(
             PackageVisitEvent(
-                package_name=package_name or "Unknown",
-                activity_name=activity_name or "Unknown",
+                package_name=effective_package or "Unknown",
+                activity_name=effective_activity or "Unknown",
                 step_number=self.step_number,
             ),
             user_id=self.user_id,
