@@ -44,7 +44,7 @@ class IndexedFormatter(TreeFormatter):
         """Format phone state."""
         if isinstance(phone_state, dict) and "error" not in phone_state:
             current_app = phone_state.get("currentApp", "")
-            package_name = phone_state.get("packageName", "Unknown")
+            package_name = phone_state.get("packageName", "")
             focused_element = phone_state.get("focusedElement")
             is_editable = phone_state.get("isEditable", False)
 
@@ -53,10 +53,23 @@ class IndexedFormatter(TreeFormatter):
             else:
                 focused_desc = "''"
 
-            phone_state_text = f"""**Current Phone State:**
-• **App:** {current_app} ({package_name})
-• **Keyboard:** {'Visible' if is_editable else 'Hidden'}
-• **Focused Element:** {focused_desc}"""
+            # Build app line — skip package if empty, skip whole line if both empty
+            if current_app and package_name:
+                app_line = f"• **App:** {current_app} ({package_name})"
+            elif current_app:
+                app_line = f"• **App:** {current_app}"
+            elif package_name:
+                app_line = f"• **App:** {package_name}"
+            else:
+                app_line = ""
+
+            lines = ["**Current Phone State:**"]
+            if app_line:
+                lines.append(app_line)
+            lines.append(f"• **Keyboard:** {'Visible' if is_editable else 'Hidden'}")
+            lines.append(f"• **Focused Element:** {focused_desc}")
+
+            phone_state_text = "\n".join(lines)
         else:
             if isinstance(phone_state, dict) and "error" in phone_state:
                 phone_state_text = f"📱 **Phone State Error:** {phone_state.get('message', 'Unknown error')}"

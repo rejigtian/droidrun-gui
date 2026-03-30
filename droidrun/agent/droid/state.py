@@ -166,20 +166,28 @@ class DroidAgentState(BaseModel):
     def update_current_app(self, package_name: str, activity_name: str):
         """
         Update package and activity together, capturing telemetry event only once.
+        Skips empty values — won't overwrite a known package/activity with "".
         """
-        package_changed = package_name != self.current_package_name
-        activity_changed = activity_name != self.current_activity_name
+        package_name = package_name.strip() if package_name else ""
+        activity_name = activity_name.strip() if activity_name else ""
+
+        # Don't overwrite known values with empty strings
+        effective_package = package_name or self.current_package_name
+        effective_activity = activity_name or self.current_activity_name
+
+        package_changed = effective_package != self.current_package_name
+        activity_changed = effective_activity != self.current_activity_name
 
         if not (package_changed or activity_changed):
             return
 
-        if package_changed and package_name:
-            self.visited_packages.add(package_name)
-        if activity_changed and activity_name:
-            self.visited_activities.add(activity_name)
+        if package_changed and effective_package:
+            self.visited_packages.add(effective_package)
+        if activity_changed and effective_activity:
+            self.visited_activities.add(effective_activity)
 
-        self.current_package_name = package_name
-        self.current_activity_name = activity_name
+        self.current_package_name = effective_package
+        self.current_activity_name = effective_activity
 
         capture(
             PackageVisitEvent(
