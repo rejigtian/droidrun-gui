@@ -77,7 +77,7 @@ from droidrun.telemetry import (
 )
 from droidrun.tools.driver.android import AndroidDriver
 from droidrun.tools.driver.base import DeviceDisconnectedError
-from droidrun.tools.driver.ios import IOSDriver
+from droidrun.tools.driver.ios import IOSDriver, discover_ios_portal
 from droidrun.tools.driver.recording import RecordingDriver
 from droidrun.tools.driver.stealth import StealthDriver
 from droidrun.tools.filters import ConciseFilter, DetailedFilter
@@ -392,8 +392,7 @@ class DroidAgent(Workflow):
         elif is_ios:
             ios_url = self.resolved_device_config.serial
             if not ios_url:
-                raise ValueError("iOS device URL required in config.device.serial")
-            # TODO: bundle_identifiers not configurable yet
+                ios_url = await discover_ios_portal()
             driver = IOSDriver(url=ios_url)
             await driver.connect()
         else:
@@ -451,6 +450,7 @@ class DroidAgent(Workflow):
         registry, standard_tool_names = await build_tool_registry(
             supported_buttons=driver.supported_buttons,
             credential_manager=self.credential_manager,
+            platform="ios" if is_ios else "android",
         )
 
         # User custom tools

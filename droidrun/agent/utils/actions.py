@@ -99,7 +99,7 @@ async def click_area(
         return ActionResult(success=False, summary=f"Failed to tap area center: {e}")
 
 
-async def type(
+async def type_text(
     text: str, index: int, clear: bool = False, *, ctx: "ActionContext"
 ) -> ActionResult:
     """Type text into the element with the given index."""
@@ -131,7 +131,7 @@ async def system_button(button: str, *, ctx: "ActionContext") -> ActionResult:
         return ActionResult(success=False, summary=str(e))
     except Exception as e:
         return ActionResult(
-            success=False, summary=f"Failed to press {button} button: {e}"
+            success=False, summary=f"Failed to press {button} button: {e.__class__.__name__}: {e}"
         )
 
 
@@ -189,6 +189,28 @@ async def open_app(text: str, *, ctx: "ActionContext") -> ActionResult:
     if isinstance(result, str) and "could not open app" in result.lower():
         return ActionResult(success=False, summary=result)
     return ActionResult(success=True, summary=str(result))
+
+
+async def open_bundle_id(bundle_id: str, *, ctx: "ActionContext") -> ActionResult:
+    """Open an app by exact package name or iOS bundle identifier."""
+    hint = (
+        "Maybe you got the wrong bundle ID. You could try using swipes and search "
+        "to find the app."
+    )
+    try:
+        result = await ctx.driver.start_app(bundle_id)
+        await asyncio.sleep(1)
+        if isinstance(result, str) and result.lower().startswith("failed"):
+            return ActionResult(
+                success=False,
+                summary=f"Failed to open app '{bundle_id}': {result}\n{hint}",
+            )
+        return ActionResult(success=True, summary=str(result))
+    except Exception as e:
+        return ActionResult(
+            success=False,
+            summary=f"Failed to open app '{bundle_id}': {e.__class__.__name__}: {e}\n{hint}",
+        )
 
 
 async def wait(duration: float = 1.0, *, ctx: "ActionContext") -> ActionResult:

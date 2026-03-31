@@ -14,7 +14,7 @@ import logging
 import re
 from typing import Any, Dict, List
 
-from droidrun.tools.driver.base import DeviceDriver
+from droidrun.tools.driver.base import DeviceDisconnectedError, DeviceDriver
 from droidrun.tools.ui.provider import StateProvider, fetch_state_with_retry
 from droidrun.tools.ui.state import UIState
 
@@ -40,6 +40,7 @@ _LABEL_RE = re.compile(r"label:\s*'([^']*)'")
 _IDENTIFIER_RE = re.compile(r"identifier:\s*'([^']*)'")
 _PLACEHOLDER_RE = re.compile(r"placeholderValue:\s*'([^']*)'")
 _VALUE_RE = re.compile(r"value:\s*([^,}]+)")
+_CLOCK_RE = re.compile(r"^\d{1,2}:\d{2}$")
 
 
 class IOSStateProvider(StateProvider):
@@ -52,18 +53,33 @@ class IOSStateProvider(StateProvider):
         self.use_normalized = use_normalized
 
     async def get_state(self) -> UIState:
-        raw = await fetch_state_with_retry(
-            fetch=self.driver.get_ui_tree,
-            recovery=None,
-            max_retries=3,
-            retry_delays=[1.0, 2.0],
-        )
+        try:
+            raw = await fetch_state_with_retry(
+                fetch=self.driver.get_ui_tree,
+                recovery=None,
+                max_retries=2,
+                retry_delays=[1.0],
+            )
+        except DeviceDisconnectedError:
+            raise
+        except Exception as e:
+            logger.warning(f"iOS state retrieval failed, returning empty state: {e}")
+            return UIState(
+                elements=[],
+                formatted_text="No UI elements available — device may be loading.",
+                focused_text="",
+                phone_state={},
+                screen_width=390,
+                screen_height=844,
+                use_normalized=self.use_normalized,
+            )
 
         a11y_text = raw.get("a11y_tree", "")
-        phone_state = raw.get("phone_state", {})
+        phone_state = dict(raw.get("phone_state", {}) or {})
         device_context = raw.get("device_context", {})
 
         elements = _parse_a11y_tree(a11y_text)
+        phone_state = _normalize_phone_state(phone_state, a11y_text)
 
         # Screen size from device_context
         screen_bounds = device_context.get("screen_bounds", {})
@@ -101,6 +117,8 @@ def _parse_a11y_tree(a11y_text: str) -> List[Dict[str, Any]]:
     """
     elements: List[Dict[str, Any]] = []
     element_index = 0
+
+    seen_signatures: set[tuple[str, str, str]] = set()
 
     for line in a11y_text.strip().split("\n"):
         stripped = line.strip()
@@ -147,6 +165,14 @@ def _parse_a11y_tree(a11y_text: str) -> List[Dict[str, Any]]:
         # Bounds in "left,top,right,bottom" format — compatible with UIState
         bounds_str = f"{int(x)},{int(y)},{int(x + width)},{int(y + height)}"
 
+        # Filter noisy wrapper nodes that duplicate a more useful action target.
+        signature = (element_type, text, bounds_str)
+        if element_type == "Other" and not (label or identifier or placeholder or value):
+            continue
+        if signature in seen_signatures:
+            continue
+        seen_signatures.add(signature)
+
         elements.append(
             {
                 "index": element_index,
@@ -164,7 +190,41 @@ def _parse_a11y_tree(a11y_text: str) -> List[Dict[str, Any]]:
         )
         element_index += 1
 
-    return elements
+    return _prioritize_actionable_elements(elements)
+
+
+def _normalize_phone_state(
+    phone_state: Dict[str, Any], a11y_text: str
+) -> Dict[str, Any]:
+    package_name = phone_state.get("packageName", "") or ""
+    current_app = phone_state.get("currentApp", "") or ""
+
+    is_home = package_name == "com.apple.springboard" or "Home screen icons" in a11y_text
+    if is_home:
+        phone_state["packageName"] = "com.apple.springboard"
+        if not current_app or _CLOCK_RE.match(current_app):
+            phone_state["currentApp"] = "Home Screen"
+    elif current_app and _CLOCK_RE.match(current_app):
+        phone_state["currentApp"] = ""
+
+    return phone_state
+
+
+def _prioritize_actionable_elements(
+    elements: List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
+    actionable_types = {"Icon", "Button", "SearchField", "TextField", "SecureTextField", "TextView", "Cell", "StaticText", "Image", "Switch"}
+
+    def sort_key(el: Dict[str, Any]) -> tuple[int, int]:
+        class_name = el.get("className", "")
+        text = el.get("text", "")
+        actionable_rank = 0 if class_name in actionable_types and text else 1
+        return (actionable_rank, el.get("index", 0))
+
+    ordered = sorted(elements, key=sort_key)
+    for i, el in enumerate(ordered):
+        el["index"] = i
+    return ordered
 
 
 # ---------------------------------------------------------------------------

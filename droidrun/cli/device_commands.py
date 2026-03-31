@@ -17,7 +17,7 @@ from rich.console import Console
 from droidrun.config_manager import ConfigLoader
 from droidrun.portal import ensure_portal_ready
 from droidrun.tools.driver.android import AndroidDriver
-from droidrun.tools.driver.ios import IOSDriver
+from droidrun.tools.driver.ios import IOSDriver, discover_ios_portal, validate_ios_portal_url
 from droidrun.tools.filters import ConciseFilter
 from droidrun.tools.formatters import IndexedFormatter
 from droidrun.tools.ui.ios_provider import IOSStateProvider
@@ -66,9 +66,11 @@ async def _create_driver(
     is_ios = config.device.platform.lower() == "ios"
 
     if is_ios:
-        if not config.device.serial:
-            raise click.ClickException("iOS device URL required (--device)")
-        driver = IOSDriver(url=config.device.serial)
+        if config.device.serial:
+            url = validate_ios_portal_url(config.device.serial)
+        else:
+            url = await discover_ios_portal()
+        driver = IOSDriver(url=url)
         await driver.connect()
         return driver, True
 

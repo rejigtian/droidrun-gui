@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, List, Optional
 
 from droidrun.tools.driver.base import DeviceDisconnectedError
@@ -61,11 +62,18 @@ async def fetch_state_with_retry(
     last_error: Optional[Exception] = None
     recovery_attempted = False
 
+    is_debug = logger.isEnabledFor(logging.DEBUG)
+
     for attempt in range(max_retries):
         try:
             logger.debug(f"Getting state (attempt {attempt + 1}/{max_retries})")
 
+            t0 = time.monotonic() if is_debug else 0
             combined_data = await fetch()
+
+            if is_debug:
+                elapsed = (time.monotonic() - t0) * 1000
+                logger.debug(f"State fetched in {elapsed:.0f}ms")
 
             if "error" in combined_data:
                 raise Exception(f"Portal returned error: {combined_data}")
@@ -84,8 +92,11 @@ async def fetch_state_with_retry(
             is_last = attempt >= max_retries - 1
             delay = delays[attempt] if attempt < len(delays) else delays[-1]
 
+            err_desc = str(e) or type(e).__name__
             suffix = f" (retrying in {delay:.0f}s)" if not is_last else ""
-            logger.warning(f"get_state attempt {attempt + 1} failed: {e}{suffix}")
+            logger.warning(
+                f"get_state attempt {attempt + 1} failed: {err_desc}{suffix}"
+            )
 
             # Mid-retry recovery: restart the a11y service once
             if (
@@ -105,7 +116,8 @@ async def fetch_state_with_retry(
             if not is_last:
                 await asyncio.sleep(delay)
 
-    error_msg = f"Failed to get state after {max_retries} attempts: {last_error}"
+    last_desc = str(last_error) or type(last_error).__name__
+    error_msg = f"Failed to get state after {max_retries} attempts: {last_desc}"
     logger.error(error_msg)
     raise Exception(error_msg) from last_error
 

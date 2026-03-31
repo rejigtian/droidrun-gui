@@ -292,7 +292,10 @@ class FastAgent(Workflow):
         except DeviceDisconnectedError:
             raise
         except Exception as e:
-            logger.warning(f"⚠️ Error retrieving state from the connected device: {e}")
+            err_desc = str(e) or type(e).__name__
+            logger.warning(
+                f"⚠️ Error retrieving state from the connected device: {err_desc}"
+            )
             if self.debug:
                 logger.error("State retrieval error details:", exc_info=True)
 
