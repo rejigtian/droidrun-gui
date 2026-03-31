@@ -123,6 +123,10 @@ class StealthDriver:
         self.inner = inner
 
     @property
+    def platform(self) -> str:
+        return self.inner.platform
+
+    @property
     def supported(self) -> set[str]:
         return self.inner.supported
 

@@ -10,10 +10,7 @@ from .chat_utils import (
 )
 
 from .prompt_resolver import PromptResolver
-from .signatures import (
-    ATOMIC_ACTION_SIGNATURES,
-    build_credential_tools,
-)
+from .signatures import build_tool_registry
 
 from .trajectory import Trajectory
 
@@ -26,8 +23,7 @@ __all__ = [
     # Prompt utilities
     "PromptResolver",
     # Tool utilities
-    "ATOMIC_ACTION_SIGNATURES",
-    "build_credential_tools",
+    "build_tool_registry",
     # Trajectory
     "Trajectory",
 ]

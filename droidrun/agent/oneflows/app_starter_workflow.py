@@ -21,19 +21,19 @@ class AppStarter(Workflow):
     to an installed app's package name, then opens it.
     """
 
-    def __init__(self, tools, llm, timeout: int = 60, stream: bool = False, **kwargs):
+    def __init__(self, driver, llm, timeout: int = 60, stream: bool = False, **kwargs):
         """
         Initialize the OpenAppWorkflow.
 
         Args:
-            tools: A Tools instance or DeviceDriver with get_apps()/start_app()
+            driver: DeviceDriver with get_apps()/start_app() methods
             llm: An LLM instance (e.g., OpenAI) to determine which app to open
             timeout: Workflow timeout in seconds (default: 60)
             stream: If True, stream LLM response to console in real-time
             **kwargs: Additional arguments passed to Workflow
         """
         super().__init__(timeout=timeout, **kwargs)
-        self.tools = tools
+        self.driver = driver
         self.llm = llm
         self.stream = stream
 
@@ -51,7 +51,7 @@ class AppStarter(Workflow):
         app_description = ev.app_description
 
         # Get list of installed apps
-        apps = await self.tools.get_apps(include_system=True)
+        apps = await self.driver.get_apps(include_system=True)
 
         # Format apps list for LLM
         apps_list = "\n".join(
@@ -105,7 +105,7 @@ Choose the most appropriate app based on the description. Return the package nam
             )
 
         logger.info(f"Starting app {package_name}")
-        result = await self.tools.start_app(package_name)
+        result = await self.driver.start_app(package_name)
 
         return StopEvent(result=result)
 
@@ -120,14 +120,14 @@ async def main():
     from droidrun.tools.driver.android import AndroidDriver
 
     # Initialize driver with device serial (None for default device)
-    tools = AndroidDriver(serial=None)
-    await tools.connect()
+    driver = AndroidDriver(serial=None)
+    await driver.connect()
 
     # Initialize LLM
     llm = OpenAI(model="gpt-4o-mini")
 
     # Create workflow instance
-    workflow = AppStarter(tools=tools, llm=llm, timeout=60, verbose=True)
+    workflow = AppStarter(driver=driver, llm=llm, timeout=60, verbose=True)
 
     # Run workflow to open an app
     result = await workflow.run(app_description="Settings")

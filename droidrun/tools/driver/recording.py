@@ -24,6 +24,10 @@ class RecordingDriver:
         self.log: List[Dict[str, Any]] = []
 
     @property
+    def platform(self) -> str:
+        return self.inner.platform
+
+    @property
     def supported(self) -> set[str]:
         return self.inner.supported
 

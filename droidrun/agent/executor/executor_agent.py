@@ -95,9 +95,14 @@ class ExecutorAgent(Workflow):
                 )
             ]
 
-        # Get available secrets
+        # Get available secrets (only if type_secret is actually in the registry)
         available_secrets = []
-        if self.action_ctx and self.action_ctx.credential_manager:
+        if (
+            self.registry
+            and "type_secret" in self.registry.tools
+            and self.action_ctx
+            and self.action_ctx.credential_manager
+        ):
             available_secrets = await self.action_ctx.credential_manager.get_keys()
 
         # Build prompt variables
@@ -112,6 +117,7 @@ class ExecutorAgent(Workflow):
             "action_history": action_history,
             "available_secrets": available_secrets,
             "variables": self.shared_state.custom_variables,
+            "platform": self.shared_state.platform,
         }
 
         custom_prompt = self.prompt_resolver.get_prompt("executor_system")

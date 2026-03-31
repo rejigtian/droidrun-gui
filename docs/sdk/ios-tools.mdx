@@ -14,13 +14,10 @@ class IOSDriver(DeviceDriver)
 
 iOS device driver communicating via HTTP REST to the iOS Portal app.
 
-**Status**: iOS support is in beta with limited functionality compared to AndroidDriver.
-
-**Key Limitations**:
-- `get_date()` - Not available (returns empty string)
-- `drag()` - Not supported (not in `supported` set)
-- `press_button()` - Only `home` is supported; `back` and `enter` raise `ValueError`
-- `input_text()` - `clear` parameter is ignored
+**Unsupported methods**:
+- `drag()` — not in `supported` set
+- `install_app()` — not in `supported` set
+- `press_button()` — `home` only
 
 <a id="droidrun.tools.driver.ios.IOSDriver.__init__"></a>
 
@@ -37,7 +34,7 @@ Initialize the IOSDriver instance.
 
 **Arguments**:
 
-- `url` _str_ - iOS Portal app URL (e.g., "http://192.168.1.100:8080")
+- `url` _str_ - iOS Portal URL (e.g., "http://127.0.0.1:6643")
 - `bundle_identifiers` _List[str] | None_ - Optional list of custom app bundle identifiers
 
 **Usage:**
@@ -45,12 +42,12 @@ Initialize the IOSDriver instance.
 ```python
 from droidrun.tools.driver import IOSDriver
 
-# Connect to iOS device
-driver = IOSDriver(url="http://192.168.1.100:8080")
+# Connect via iproxy
+driver = IOSDriver(url="http://127.0.0.1:6643")
 
 # With specific bundle identifiers
 driver = IOSDriver(
-    url="http://192.168.1.100:8080",
+    url="http://127.0.0.1:6643",
     bundle_identifiers=["com.example.app1", "com.example.app2"]
 )
 ```
@@ -61,7 +58,7 @@ driver = IOSDriver(
 IOSDriver.supported = {
     "tap", "swipe", "input_text", "press_button",
     "start_app", "screenshot", "get_ui_tree",
-    "list_packages", "get_apps",
+    "list_packages", "get_apps", "get_date",
 }
 
 IOSDriver.supported_buttons = {"home"}
@@ -69,10 +66,11 @@ IOSDriver.supported_buttons = {"home"}
 
 **Setup Requirements:**
 
-1. Install Droidrun iOS Portal app on device
-2. Launch Portal app (starts HTTP server)
-3. Connect device and computer to same network
-4. Use displayed URL to initialize IOSDriver
+1. Build and run the iOS Portal via Xcode (runs as a UI test)
+2. Forward port with `iproxy 6643 6643`
+3. Use `http://127.0.0.1:6643` as the URL
+
+See [Device Setup — iOS](/guides/device-setup) for full instructions.
 
 ---
 
@@ -86,7 +84,7 @@ IOSDriver.supported_buttons = {"home"}
 async def connect() -> None
 ```
 
-Create an HTTP client connection to the iOS Portal app.
+Create an HTTP client and verify connectivity by calling `/device/date`.
 
 <a id="droidrun.tools.driver.ios.IOSDriver.ensure_connected"></a>
 
@@ -110,7 +108,7 @@ Connect if not already connected. Safe to call multiple times.
 async def tap(x: int, y: int) -> None
 ```
 
-Tap at absolute pixel coordinates.
+Tap at coordinates.
 
 **Arguments**:
 
@@ -122,9 +120,6 @@ Tap at absolute pixel coordinates.
 ```python
 await driver.tap(200, 400)
 ```
-
-**Notes:**
-- Stores tap coordinates internally for `input_text()` targeting
 
 <a id="droidrun.tools.driver.ios.IOSDriver.swipe"></a>
 
@@ -140,7 +135,7 @@ async def swipe(
 ) -> None
 ```
 
-Perform directional swipe gesture (up, down, left, right).
+Swipe from one point to another.
 
 **Arguments**:
 
@@ -148,7 +143,7 @@ Perform directional swipe gesture (up, down, left, right).
 - `y1` _int_ - Starting Y coordinate
 - `x2` _int_ - Ending X coordinate
 - `y2` _int_ - Ending Y coordinate
-- `duration_ms` _float_ - Duration in milliseconds (ignored on iOS)
+- `duration_ms` _float_ - Duration in milliseconds
 
 **Usage:**
 
@@ -159,11 +154,6 @@ await driver.swipe(200, 800, 200, 200)
 # Swipe left
 await driver.swipe(600, 400, 100, 400)
 ```
-
-**Notes:**
-- iOS uses directional swipes, not precise coordinates
-- Direction calculated from coordinate delta (largest axis wins)
-- `duration_ms` parameter is ignored by iOS API
 
 <a id="droidrun.tools.driver.ios.IOSDriver.input_text"></a>
 
@@ -178,7 +168,7 @@ Input text into the currently focused element.
 **Arguments**:
 
 - `text` _str_ - Text to input (supports Unicode)
-- `clear` _bool_ - Not supported on iOS (ignored)
+- `clear` _bool_ - Clear existing text before input
 
 **Returns**:
 
@@ -192,12 +182,10 @@ await driver.tap(200, 400)
 
 # Input text
 success = await driver.input_text("Hello World")
-```
 
-**Notes:**
-- Must tap text field before calling this method
-- Uses last tapped coordinates for targeting
-- `clear` parameter is ignored on iOS
+# Clear field and type new text
+success = await driver.input_text("new text", clear=True)
+```
 
 <a id="droidrun.tools.driver.ios.IOSDriver.press_button"></a>
 
@@ -211,7 +199,7 @@ Press a named system button.
 
 **Supported buttons:** `home`
 
-Raises `ValueError` if the button name is not in `supported_buttons` (e.g. `back`, `enter`).
+Raises `ValueError` for unsupported button names.
 
 **Arguments**:
 
@@ -250,7 +238,6 @@ Launch an app by bundle identifier.
 - Messages: `com.apple.MobileSMS`
 - Safari: `com.apple.mobilesafari`
 - Settings: `com.apple.Preferences`
-- Mail: `com.apple.mobilemail`
 - Calendar: `com.apple.mobilecal`
 - Photos: `com.apple.mobileslideshow`
 - Maps: `com.apple.Maps`
@@ -293,7 +280,9 @@ List known bundle identifiers.
 async def get_apps(include_system: bool = True) -> List[Dict[str, str]]
 ```
 
-Return known apps as list of dicts. Since iOS has no app listing endpoint, this returns bundle identifiers as both 'package' and 'label'.
+Return known apps as list of dicts with `package` (bundle identifier) and `label` (human-readable name).
+
+System apps are mapped to friendly names (e.g., `com.apple.mobilesafari` → `Safari`). Third-party bundle identifiers are humanized from the last segment.
 
 **Arguments**:
 
@@ -301,7 +290,7 @@ Return known apps as list of dicts. Since iOS has no app listing endpoint, this 
 
 **Returns**:
 
-- `List[Dict[str, str]]` - List of dicts with 'package' and 'label' keys (both set to bundle identifier)
+- `List[Dict[str, str]]` - List of dicts with 'package' and 'label' keys
 
 ---
 
@@ -341,13 +330,14 @@ with open("screenshot.png", "wb") as f:
 async def get_ui_tree() -> Dict[str, Any]
 ```
 
-Return raw iOS accessibility data and phone state.
+Return unified state from the iOS portal.
 
 **Returns**:
 
 Dictionary with:
-- `a11y_raw` - The raw accessibility tree text from the portal
+- `a11y_tree` - The accessibility tree elements
 - `phone_state` - Dict with `currentApp` and `keyboardVisible`
+- `device_context` - Additional device context
 
 **Usage:**
 
@@ -364,7 +354,11 @@ print(tree["phone_state"]["currentApp"])
 async def get_date() -> str
 ```
 
-Not available on iOS. Returns an empty string.
+Get the current date and time from the device.
+
+**Returns**:
+
+- `str` - Date string, or empty string on failure
 
 ---
 
@@ -373,10 +367,10 @@ Not available on iOS. Returns an empty string.
 The following DeviceDriver methods are **not in `supported`** and will raise `NotImplementedError`:
 
 #### drag()
-Not supported on iOS. Not declared in `supported` set.
+Not supported on iOS.
 
 #### install\_app()
-Not supported on iOS. Not declared in `supported` set.
+Not supported on iOS.
 
 ---
 
@@ -386,26 +380,8 @@ Not supported on iOS. Not declared in `supported` set.
 driver.url                    # iOS Portal URL
 driver.bundle_identifiers     # Custom bundle IDs
 driver.supported              # Set of supported method names
+driver.supported_buttons      # Set of supported button names
 ```
-
----
-
-## iOS vs Android Differences
-
-| Feature | IOSDriver | AndroidDriver |
-|---------|-----------|---------------|
-| press_button | home only | back, home, enter |
-| Swipe | Direction-based | Coordinate-based |
-| Drag | Not supported | Declared (not yet implemented) |
-| App IDs | Bundle identifiers | Package names |
-| Connection | HTTP (Portal app) | ADB over USB/TCP |
-| get_date() | Returns empty | Via ADB shell |
-| input_text() clear | Ignored | Supported |
-
-**Setup differences:**
-
-**Android**: USB or `adb connect` + Portal APK
-**iOS**: Portal app + same network + HTTP connection
 
 ---
 
@@ -417,7 +393,7 @@ from droidrun.tools.driver import IOSDriver
 
 async def main():
     # Initialize and connect
-    driver = IOSDriver(url="http://192.168.1.100:8080")
+    driver = IOSDriver(url="http://127.0.0.1:6643")
     await driver.connect()
 
     # Launch Messages
@@ -448,5 +424,6 @@ asyncio.run(main())
 
 ## See Also
 
-- [AndroidDriver](/sdk/adb-tools) - Android device driver with full functionality
+- [AndroidDriver](/sdk/adb-tools) - Android device driver
 - [DeviceDriver Base Class](/sdk/base-tools) - Base class and architecture reference
+- [Device Setup — iOS](/guides/device-setup) - Full setup instructions

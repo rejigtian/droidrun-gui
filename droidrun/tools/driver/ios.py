@@ -3,19 +3,18 @@
 Wraps the iOS portal HTTP API (running on the device) to provide device I/O
 through the same ``DeviceDriver`` interface used by Android.
 
-Known limitations (pre-existing, documented as TODOs):
-- ``clear`` parameter in ``input_text`` is ignored
-- ``press_button`` only supports HOME; BACK and ENTER have no iOS equivalent
-- ``get_date`` not available (no iOS portal endpoint)
-- ``drag`` not implemented
-- ``get_apps`` returns bundle identifiers, not real app metadata
-- Screen dimensions inferred from element bounds (no portal endpoint)
+Known limitations:
+- ``get_apps`` returns a hardcoded list of system bundle identifiers
+- ``packageName`` is not tracked (iOS has no API to detect the foreground app)
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import re
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 import httpx
 
@@ -23,31 +22,111 @@ from droidrun.tools.driver.base import DeviceDriver
 
 logger = logging.getLogger("droidrun")
 
-SYSTEM_BUNDLE_IDENTIFIERS = [
-    "ai.droidrun.droidrun-ios-portal",
-    "com.apple.Bridge",
-    "com.apple.DocumentsApp",
-    "com.apple.Fitness",
-    "com.apple.Health",
-    "com.apple.Maps",
-    "com.apple.MobileAddressBook",
-    "com.apple.MobileSMS",
-    "com.apple.Passbook",
-    "com.apple.Passwords",
-    "com.apple.Preferences",
-    "com.apple.PreviewShell",
-    "com.apple.mobilecal",
-    "com.apple.mobilesafari",
-    "com.apple.mobileslideshow",
-    "com.apple.news",
-    "com.apple.reminders",
-    "com.apple.shortcuts",
-    "com.apple.webapp",
-]
+SYSTEM_APP_LABELS = {
+    "ai.droidrun.droidrun-ios-portal": "Droidrun Portal",
+    "com.apple.Bridge": "Watch",
+    "com.apple.DocumentsApp": "Files",
+    "com.apple.Fitness": "Fitness",
+    "com.apple.Health": "Health",
+    "com.apple.Maps": "Maps",
+    "com.apple.MobileAddressBook": "Contacts",
+    "com.apple.MobileSMS": "Messages",
+    "com.apple.Passbook": "Wallet",
+    "com.apple.Passwords": "Passwords",
+    "com.apple.Preferences": "Settings",
+    "com.apple.PreviewShell": "Freeform",
+    "com.apple.mobilecal": "Calendar",
+    "com.apple.mobilesafari": "Safari",
+    "com.apple.mobileslideshow": "Photos",
+    "com.apple.news": "News",
+    "com.apple.reminders": "Reminders",
+    "com.apple.shortcuts": "Shortcuts",
+    "com.apple.webapp": "Web App",
+}
+
+
+IOS_PORTAL_DEFAULT_PORT = 6643
+IOS_PORTAL_SCAN_RANGE = 10
+
+
+def validate_ios_portal_url(url: str) -> str:
+    """Validate and normalize an iOS portal base URL."""
+    normalized = url.rstrip("/")
+    parsed = urlparse(normalized)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError(
+            "iOS device must be the portal base URL, e.g. http://127.0.0.1:6643"
+        )
+    return normalized
+
+
+async def discover_ios_portal(
+    host: str = "127.0.0.1",
+    start_port: int = IOS_PORTAL_DEFAULT_PORT,
+    scan_range: int = IOS_PORTAL_SCAN_RANGE,
+    timeout: float = 1.0,
+) -> str:
+    """Auto-discover the iOS portal by scanning a small port range.
+
+    Tries ``start_port`` first (fast path), then scans the remaining ports
+    in ``[start_port, start_port + scan_range)`` concurrently.
+
+    Returns:
+        The portal base URL, e.g. ``http://127.0.0.1:6643``.
+
+    Raises:
+        ConnectionError: If no portal is found in the scan range.
+    """
+
+    async def _probe(client: httpx.AsyncClient, port: int) -> Optional[str]:
+        url = f"http://{host}:{port}"
+        try:
+            resp = await client.get(f"{url}/device/date")
+            if resp.status_code == 200 and "date" in resp.json():
+                return url
+        except Exception:
+            pass
+        return None
+
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        # Fast path: try the default port first
+        result = await _probe(client, start_port)
+        if result:
+            logger.info(f"iOS portal found at {result}")
+            return result
+
+        # Scan remaining ports concurrently
+        results = await asyncio.gather(
+            *[_probe(client, p) for p in range(start_port + 1, start_port + scan_range)]
+        )
+        for r in results:
+            if r is not None:
+                logger.info(f"iOS portal found at {r}")
+                return r
+
+    raise ConnectionError(
+        f"Could not find iOS portal on {host} "
+        f"(scanned ports {start_port}-{start_port + scan_range - 1}). "
+        "Make sure the Droidrun Portal app is running and iproxy is forwarding the port."
+    )
+
+
+def _humanize_bundle_identifier(bundle_id: str) -> str:
+    mapped = SYSTEM_APP_LABELS.get(bundle_id)
+    if mapped:
+        return mapped
+
+    last_segment = bundle_id.rsplit(".", 1)[-1]
+    words = re.findall(r"[A-Z]?[a-z]+|[A-Z]+(?=[A-Z][a-z]|\b)|\d+", last_segment)
+    if words:
+        return " ".join(words)
+    return last_segment or bundle_id
 
 
 class IOSDriver(DeviceDriver):
     """iOS device driver communicating via HTTP REST to the iOS portal app."""
+
+    platform = "iOS"
 
     supported = {
         "tap",
@@ -59,30 +138,36 @@ class IOSDriver(DeviceDriver):
         "get_ui_tree",
         "list_packages",
         "get_apps",
+        "get_date",
     }
 
     supported_buttons = {"home"}
-
-    _BUTTON_IOS_KEYCODES = {
-        "home": 0,
-    }
 
     def __init__(
         self,
         url: str,
         bundle_identifiers: Optional[List[str]] = None,
     ) -> None:
-        self.url = url.rstrip("/")
+        self.url = validate_ios_portal_url(url)
         self.bundle_identifiers = bundle_identifiers or []
         self._client: Optional[httpx.AsyncClient] = None
-        self._last_tapped_rect: Optional[str] = None
         self._connected = False
 
     # -- lifecycle -----------------------------------------------------------
 
     async def connect(self) -> None:
         self._client = httpx.AsyncClient(base_url=self.url, timeout=30.0)
-        # TODO: verify URL is reachable (ping /vision/state or similar)
+        try:
+            resp = await self._client.get("/device/date")
+            resp.raise_for_status()
+        except Exception as exc:
+            await self._client.aclose()
+            self._client = None
+            raise ConnectionError(
+                f"Could not connect to iOS portal at {self.url}. "
+                "Make sure the Droidrun Portal app is running on the device "
+                "and the URL/port is correct."
+            ) from exc
         self._connected = True
         logger.info(f"Connected to iOS device at {self.url}")
 
@@ -94,9 +179,6 @@ class IOSDriver(DeviceDriver):
 
     async def tap(self, x: int, y: int) -> None:
         ios_rect = f"{{{{{x},{y}}},{{{1},{1}}}}}"
-        # Store for input_text (iOS API requires a rect for typing)
-        # TODO: stores center point as 1x1 rect, not full element bounds
-        self._last_tapped_rect = f"{x},{y},1,1"
         resp = await self._client.post(
             "/gestures/tap",
             json={"rect": ios_rect, "count": 1, "longPress": False},
@@ -106,23 +188,21 @@ class IOSDriver(DeviceDriver):
     async def swipe(
         self, x1: int, y1: int, x2: int, y2: int, duration_ms: float = 1000
     ) -> None:
-        # iOS API is direction-based, not coordinate-based
-        dx, dy = x2 - x1, y2 - y1
-        if abs(dx) > abs(dy):
-            direction = "right" if dx > 0 else "left"
-        else:
-            direction = "down" if dy > 0 else "up"
         resp = await self._client.post(
             "/gestures/swipe",
-            json={"x": float(x1), "y": float(y1), "dir": direction},
+            json={
+                "x1": float(x1),
+                "y1": float(y1),
+                "x2": float(x2),
+                "y2": float(y2),
+                "durationMs": float(duration_ms),
+            },
         )
         resp.raise_for_status()
 
     async def input_text(self, text: str, clear: bool = False) -> bool:
-        # TODO: clear not supported on iOS portal
-        rect = self._last_tapped_rect or "0,0,100,100"
         resp = await self._client.post(
-            "/inputs/type", json={"rect": rect, "text": text}
+            "/inputs/type", json={"text": text, "clear": clear}
         )
         return resp.status_code == 200
 
@@ -134,9 +214,10 @@ class IOSDriver(DeviceDriver):
                 f"Button '{button}' not supported on iOS. "
                 f"Supported: {', '.join(sorted(self.supported_buttons))}"
             )
-        keycode = self._BUTTON_IOS_KEYCODES[button_lower]
-        resp = await self._client.post("/inputs/key", json={"key": keycode})
-        resp.raise_for_status()
+        if button_lower == "home":
+            resp = await self._client.post("/inputs/key", json={"key": 1})
+            resp.raise_for_status()
+            return
 
     # -- app management ------------------------------------------------------
 
@@ -149,12 +230,13 @@ class IOSDriver(DeviceDriver):
         return f"Failed to launch {package}: HTTP {resp.status_code}"
 
     async def get_apps(self, include_system: bool = True) -> List[Dict[str, str]]:
-        # TODO: iOS portal has no app listing endpoint.
-        # Returns bundle identifiers as both package and label.
         all_ids: set[str] = set(self.bundle_identifiers)
         if include_system:
-            all_ids.update(SYSTEM_BUNDLE_IDENTIFIERS)
-        return [{"package": bid, "label": bid} for bid in sorted(all_ids)]
+            all_ids.update(SYSTEM_APP_LABELS)
+        return [
+            {"package": bid, "label": _humanize_bundle_identifier(bid)}
+            for bid in sorted(all_ids)
+        ]
 
     async def list_packages(self, include_system: bool = False) -> List[str]:
         apps = await self.get_apps(include_system)
@@ -168,34 +250,21 @@ class IOSDriver(DeviceDriver):
         return resp.content
 
     async def get_ui_tree(self) -> Dict[str, Any]:
-        """Return raw iOS accessibility data and phone state.
+        """Return unified state from the iOS portal.
 
-        Returns a dict with:
-        - ``a11y_raw``: the raw accessibility tree text from the portal
-        - ``phone_state``: dict with ``current_activity`` and ``keyboard_shown``
+        Returns a dict with ``a11y_tree``, ``phone_state``, and
+        ``device_context`` keys — matching the format expected by
+        ``fetch_state_with_retry()``.
         """
-        a11y_resp = await self._client.get("/vision/a11y")
-        a11y_resp.raise_for_status()
-        a11y_data = a11y_resp.json()
-
-        state_resp = await self._client.get("/vision/state")
-        if state_resp.status_code == 200:
-            state_data = state_resp.json()
-            phone_state = {
-                "currentApp": state_data.get("activity", "Unknown"),
-                "keyboardVisible": state_data.get("keyboardShown", False),
-            }
-        else:
-            phone_state = {
-                "currentApp": "Unknown",
-                "keyboardVisible": False,
-            }
-
-        return {
-            "a11y_raw": a11y_data["accessibilityTree"],
-            "phone_state": phone_state,
-        }
+        resp = await self._client.get("/state", timeout=15.0)
+        resp.raise_for_status()
+        try:
+            return resp.json()
+        except Exception as e:
+            raise ValueError(f"Invalid response from /state: {e}") from e
 
     async def get_date(self) -> str:
-        # TODO: not available on iOS portal
+        resp = await self._client.get("/device/date")
+        if resp.status_code == 200:
+            return resp.json().get("date", "")
         return ""
