@@ -214,10 +214,6 @@ class IOSDriver(DeviceDriver):
                 f"Button '{button}' not supported on iOS. "
                 f"Supported: {', '.join(sorted(self.supported_buttons))}"
             )
-        if button_lower == "back":
-            resp = await self._client.post("/gestures/back")
-            resp.raise_for_status()
-            return
         if button_lower == "home":
             resp = await self._client.post("/inputs/key", json={"key": 1})
             resp.raise_for_status()

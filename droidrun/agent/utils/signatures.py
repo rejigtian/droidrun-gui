@@ -135,12 +135,13 @@ async def build_tool_registry(
     # -- system_button (dynamic description) ---------------------------------
 
     buttons = ", ".join(sorted(supported_buttons or set()))
+    buttons_desc = f"Available buttons: {buttons}. " if buttons else ""
     registry.register(
         "system_button",
         fn=system_button,
         params={"button": {"type": "string", "required": True}},
         description=(
-            f"Press a system button. Available buttons: {buttons}. "
+            f"Press a system button. {buttons_desc}"
             'Usage example: {"action": "system_button", "button": "home"}'
         ),
         deps={"press_button"},

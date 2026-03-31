@@ -327,38 +327,135 @@ iOS support is currently **experimental**. Functionality is limited compared to 
 
 ## Prerequisites
 
-- **macOS** with Xcode installed
-- **iOS device** with Developer mode enabled
-- **iOS Portal app** (separate from Android Portal)
+- **macOS** with **Xcode 15+** installed (iOS Portal must be built from source)
+- **Apple Developer account** (free or paid — needed for code signing)
+- **iOS device** (iPhone or iPad) with **Developer Mode** enabled
+- **USB cable** to connect the device to your Mac (for initial build and deployment)
+- **`iproxy`** from `libimobiledevice` (for USB port forwarding)
+
+### Install `iproxy`
+
+```bash
+brew install libimobiledevice
+```
+
+### Enable Developer Mode on your device
+
+1. Go to **Settings** > **Privacy & Security** > **Developer Mode**
+2. Toggle **Developer Mode** on
+3. Restart the device when prompted
+4. After restart, confirm the prompt to enable Developer Mode
 
 ---
 
-## Setup
+## Build and Install the iOS Portal
+
+The iOS Portal is an Xcode project that runs as a UI test — it launches an HTTP server on port **6643** that Droidrun communicates with.
 
 <Steps>
-  <Step title="Install iOS Portal">
-    The iOS Portal app must be manually installed on your device.
+  <Step title="Clone the iOS Portal repository">
+    ```bash
+    git clone https://github.com/droidrun/ios-portal.git
+    cd ios-portal
+    ```
+  </Step>
+
+  <Step title="Open the project in Xcode">
+    ```bash
+    open droidrun-ios-portal.xcodeproj
+    ```
+  </Step>
+
+  <Step title="Configure code signing">
+    You must change the signing team and bundle identifier to your own:
+
+    1. In Xcode, select the **droidrun-ios-portal** project in the navigator
+    2. For **each target** (`droidrun-ios-portal`, `droidrun-ios-portalUITests`):
+       - Select the target
+       - Go to the **Signing & Capabilities** tab
+       - Set **Team** to your Apple Developer account
+       - Change the **Bundle Identifier** to something unique, e.g.:
+         - `com.yourname.droidrun-ios-portal`
+         - `com.yourname.droidrun-ios-portalUITests`
+    3. Let Xcode automatically manage provisioning profiles
+
+    <Warning>
+    You **must** change the bundle identifiers — the default ones are tied to the Droidrun team's signing certificate and will fail to build on your machine.
+    </Warning>
+  </Step>
+
+  <Step title="Select your device and run the test">
+    1. Connect your iOS device via USB
+    2. In Xcode, select your device from the device dropdown (top bar)
+    3. If this is your first time deploying to the device, trust the developer certificate:
+       - On the device: **Settings** > **General** > **VPN & Device Management** > tap your developer profile > **Trust**
+    4. Run the portal using either method:
+
+    **Option A — Xcode UI:**
+    - Go to **Product** > **Test** (or press `Cmd + U`)
+    - This builds the app, installs it, and starts the "Droidrun Server" UI test
+
+    **Option B — Command line:**
+    ```bash
+    # Find your device ID
+    xcrun xctrace list devices
+
+    # Run the portal server
+    ./device.sh YOUR_DEVICE_UDID
+    ```
+
+    The HTTP server starts on port **6643** and keeps running until the test session ends.
+  </Step>
+
+  <Step title="Set up port forwarding with iproxy">
+    The portal server runs on the device's localhost. To reach it from your Mac, forward the port over USB:
+
+    ```bash
+    iproxy 6643 6643
+    ```
+
+    Keep this running in a separate terminal. The portal is now accessible at `http://127.0.0.1:6643`.
 
     <Note>
-    Installation instructions and download link coming soon.
+    `iproxy` forwards over USB, so you don't need WiFi connectivity between your Mac and the device.
     </Note>
   </Step>
 
-  <Step title="Get Device IP">
-    Find your iOS device's IP address in Settings > WiFi > (i) icon
-  </Step>
+  <Step title="Verify the connection">
+    ```bash
+    # Quick health check
+    curl http://127.0.0.1:6643/device/date
 
-  <Step title="Test Connection">
-    Run a simple task to verify connectivity:
+    # Should return something like: {"date": "2026-03-31 10:30:00"}
+    ```
+
+    Then test with Droidrun:
     ```bash
     droidrun run "take a screenshot" --ios
     ```
 
-    <Note>
-    The `droidrun ping` command is Android-only (uses ADB). For iOS, run a simple task with `--ios` to verify the connection.
-    </Note>
+    Droidrun will auto-discover the portal on port 6643. If it's on a different port, pass the URL explicitly:
+    ```bash
+    droidrun run "take a screenshot" --ios --device http://127.0.0.1:6643
+    ```
   </Step>
 </Steps>
+
+---
+
+## Running on the Simulator
+
+You can also run the portal on the iOS Simulator (no code signing or physical device needed):
+
+```bash
+# List available simulators
+xcrun simctl list devices available
+
+# Run the portal on a simulator by name
+./simulator.sh "iPhone 16 Pro"
+```
+
+The simulator portal is accessible at `http://127.0.0.1:6643` directly (no `iproxy` needed).
 
 ---
 
@@ -368,26 +465,41 @@ iOS Portal uses a different architecture than Android:
 
 | Feature | Android | iOS |
 |---------|---------|-----|
-| Communication | ADB + TCP/Content Provider | HTTP server only |
-| Setup Tool | `droidrun setup` | Manual installation |
-| Accessibility | Android Accessibility API | iOS Accessibility API |
-| Text Input | Custom keyboard IME | Direct text input |
+| Communication | ADB + TCP/Content Provider | HTTP server (port 6643) |
+| Portal type | APK (auto-installed) | Xcode UI test (built from source) |
+| Setup tool | `droidrun setup` | Xcode build + `iproxy` |
+| Accessibility | Android Accessibility API | iOS XCUITest framework |
+| Text Input | Custom keyboard IME | Direct XCUITest text input |
+| Connection | ADB over USB/TCP | USB via `iproxy` or WiFi |
+
+The iOS Portal leverages XCUITest to extract accessibility trees, perform gestures, and capture screenshots — all exposed through a REST API.
 
 ---
 
 ## Usage
+
+### CLI
+
+```bash
+# Auto-discovers portal on port 6643
+droidrun run "your command" --ios
+
+# Explicit portal URL
+droidrun run "your command" --ios --device http://127.0.0.1:6643
+```
 
 ### Python API
 
 ```python
 from droidrun import DroidAgent, DroidConfig, DeviceConfig
 
-# Configure for iOS
 config = DroidConfig(
-    device=DeviceConfig(platform="ios")
+    device=DeviceConfig(
+        platform="ios",
+        serial="http://127.0.0.1:6643",  # optional, auto-discovered if omitted
+    )
 )
 
-# Create agent
 agent = DroidAgent(
     goal="Open Settings and check WiFi",
     config=config
@@ -396,33 +508,62 @@ agent = DroidAgent(
 result = await agent.run()
 ```
 
-### CLI
-
-```bash
-# Use --ios flag
-droidrun run "your command" --ios
-
-# Or set platform in config.yaml:
-# device:
-#   platform: ios
-```
-
 ---
 
-## Limitations
-
-Current iOS support has these limitations:
+## Supported Features
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| `get_date()` | ❌ | Not available on iOS |
-| `press_button("back")` | ❌ | No iOS equivalent, raises ValueError |
-| `drag()` | ❌ | Not supported, auto-disabled |
-| `get_apps()` | ⚠️ | Use `list_packages()` instead |
-| `input_text()` | ⚠️ | No `index` or `clear` parameters |
-| `tap()`, `swipe()` | ✅ | Fully supported |
-| `get_state()` | ✅ | Returns accessibility tree |
-| `take_screenshot()` | ✅ | Fully supported |
+| `tap()` | ✅ | |
+| `swipe()` | ✅ | |
+| `input_text()` | ✅ | |
+| `screenshot()` | ✅ | |
+| `get_state()` | ✅ | Accessibility tree extraction |
+| `start_app()` | ✅ | By bundle identifier |
+| `get_date()` | ✅ | |
+| `press_button()` | ✅ | `home` only |
+| `drag()` | ❌ | |
+| `install_app()` | ❌ | |
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Build fails with signing error">
+    **Symptoms:** Xcode shows "Signing for target requires a development team"
+
+    **Solutions:**
+    1. Make sure you changed the **Team** and **Bundle Identifier** for both targets
+    2. If using a free Apple Developer account, you may need to re-trust the certificate on the device every 7 days (**Settings** > **General** > **VPN & Device Management**)
+  </Accordion>
+
+  <Accordion title="Portal not reachable">
+    **Symptoms:** `curl http://127.0.0.1:6643/device/date` times out or connection refused
+
+    **Solutions:**
+    1. Verify `iproxy 6643 6643` is running
+    2. Check the Xcode test is still running (the portal stops when the test ends)
+    3. Re-run the test with `Cmd + U` in Xcode or `./device.sh UDID`
+  </Accordion>
+
+  <Accordion title="Auto-discovery fails">
+    **Symptoms:** `droidrun run ... --ios` says "Could not find iOS portal"
+
+    **Solutions:**
+    1. Auto-discovery scans ports 6643-6652. Make sure `iproxy` is forwarding to one of these.
+    2. Pass the URL explicitly: `--device http://127.0.0.1:6643`
+  </Accordion>
+
+  <Accordion title="Test session keeps stopping">
+    **Symptoms:** The portal server stops after a few minutes
+
+    **Solutions:**
+    1. Keep Xcode open and the test running — closing Xcode ends the test session
+    2. Disable auto-lock on the device (**Settings** > **Display & Brightness** > **Auto-Lock** > **Never**)
+    3. Keep the device plugged in to prevent sleep
+  </Accordion>
+</AccordionGroup>
 
   </Tab>
 </Tabs>
