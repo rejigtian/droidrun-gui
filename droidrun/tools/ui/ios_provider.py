@@ -167,7 +167,9 @@ def _parse_a11y_tree(a11y_text: str) -> List[Dict[str, Any]]:
 
         # Filter noisy wrapper nodes that duplicate a more useful action target.
         signature = (element_type, text, bounds_str)
-        if element_type == "Other" and not (label or identifier or placeholder or value):
+        if element_type == "Other" and not (
+            label or identifier or placeholder or value
+        ):
             continue
         if signature in seen_signatures:
             continue
@@ -199,7 +201,9 @@ def _normalize_phone_state(
     package_name = phone_state.get("packageName", "") or ""
     current_app = phone_state.get("currentApp", "") or ""
 
-    is_home = package_name == "com.apple.springboard" or "Home screen icons" in a11y_text
+    is_home = (
+        package_name == "com.apple.springboard" or "Home screen icons" in a11y_text
+    )
     if is_home:
         phone_state["packageName"] = "com.apple.springboard"
         if not current_app or _CLOCK_RE.match(current_app):
@@ -211,9 +215,20 @@ def _normalize_phone_state(
 
 
 def _prioritize_actionable_elements(
-    elements: List[Dict[str, Any]]
+    elements: List[Dict[str, Any]],
 ) -> List[Dict[str, Any]]:
-    actionable_types = {"Icon", "Button", "SearchField", "TextField", "SecureTextField", "TextView", "Cell", "StaticText", "Image", "Switch"}
+    actionable_types = {
+        "Icon",
+        "Button",
+        "SearchField",
+        "TextField",
+        "SecureTextField",
+        "TextView",
+        "Cell",
+        "StaticText",
+        "Image",
+        "Switch",
+    }
 
     def sort_key(el: Dict[str, Any]) -> tuple[int, int]:
         class_name = el.get("className", "")

@@ -131,7 +131,8 @@ async def system_button(button: str, *, ctx: "ActionContext") -> ActionResult:
         return ActionResult(success=False, summary=str(e))
     except Exception as e:
         return ActionResult(
-            success=False, summary=f"Failed to press {button} button: {e.__class__.__name__}: {e}"
+            success=False,
+            summary=f"Failed to press {button} button: {e.__class__.__name__}: {e}",
         )
 
 

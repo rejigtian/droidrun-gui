@@ -17,7 +17,11 @@ from rich.console import Console
 from droidrun.config_manager import ConfigLoader
 from droidrun.portal import ensure_portal_ready
 from droidrun.tools.driver.android import AndroidDriver
-from droidrun.tools.driver.ios import IOSDriver, discover_ios_portal, validate_ios_portal_url
+from droidrun.tools.driver.ios import (
+    IOSDriver,
+    discover_ios_portal,
+    validate_ios_portal_url,
+)
 from droidrun.tools.filters import ConciseFilter
 from droidrun.tools.formatters import IndexedFormatter
 from droidrun.tools.ui.ios_provider import IOSStateProvider
