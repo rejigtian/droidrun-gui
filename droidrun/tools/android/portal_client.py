@@ -705,7 +705,7 @@ class PortalClient:
             # Test content provider
             try:
                 output = await self.device.shell(
-                    "content query --uri content://com.droidrun.portal/state"
+                    "content query --uri content://com.droidrun.portal/state_full"
                 )
                 if "Row: 0 result=" in output:
                     result = {"status": "success", "method": "content_provider"}
