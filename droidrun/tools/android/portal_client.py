@@ -355,7 +355,7 @@ class PortalClient:
         try:
             async with httpx.AsyncClient() as client:
                 response = await self._tcp_request(
-                    client, "GET", f"{self.tcp_base_url}/stat_full", timeout=10
+                    client, "GET", f"{self.tcp_base_url}/state_full", timeout=10
                 )
                 if response.status_code == 200:
                     data = response.json()
