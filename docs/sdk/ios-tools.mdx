@@ -332,6 +332,8 @@ async def get_ui_tree() -> Dict[str, Any]
 
 Return unified state from the iOS portal.
 
+Droidrun requests `GET /state?timeout=4`, giving the portal a single 4-second state collection budget. There is no Droidrun-side retry on iOS state fetches.
+
 **Returns**:
 
 Dictionary with:

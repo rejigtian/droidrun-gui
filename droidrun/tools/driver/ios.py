@@ -47,6 +47,8 @@ SYSTEM_APP_LABELS = {
 
 IOS_PORTAL_DEFAULT_PORT = 6643
 IOS_PORTAL_SCAN_RANGE = 10
+IOS_STATE_TIMEOUT_SECONDS = 4.0
+IOS_STATE_HTTP_TIMEOUT_SECONDS = 6.0
 
 
 def validate_ios_portal_url(url: str) -> str:
@@ -256,7 +258,11 @@ class IOSDriver(DeviceDriver):
         ``device_context`` keys — matching the format expected by
         ``fetch_state_with_retry()``.
         """
-        resp = await self._client.get("/state", timeout=15.0)
+        resp = await self._client.get(
+            "/state",
+            params={"timeout": str(IOS_STATE_TIMEOUT_SECONDS)},
+            timeout=IOS_STATE_HTTP_TIMEOUT_SECONDS,
+        )
         resp.raise_for_status()
         try:
             return resp.json()

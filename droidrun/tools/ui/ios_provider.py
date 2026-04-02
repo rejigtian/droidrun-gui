@@ -15,7 +15,7 @@ import re
 from typing import Any, Dict, List
 
 from droidrun.tools.driver.base import DeviceDisconnectedError, DeviceDriver
-from droidrun.tools.ui.provider import StateProvider, fetch_state_with_retry
+from droidrun.tools.ui.provider import StateProvider
 from droidrun.tools.ui.state import UIState
 
 logger = logging.getLogger("droidrun")
@@ -54,12 +54,7 @@ class IOSStateProvider(StateProvider):
 
     async def get_state(self) -> UIState:
         try:
-            raw = await fetch_state_with_retry(
-                fetch=self.driver.get_ui_tree,
-                recovery=None,
-                max_retries=2,
-                retry_delays=[1.0],
-            )
+            raw = await self.driver.get_ui_tree()
         except DeviceDisconnectedError:
             raise
         except Exception as e:
