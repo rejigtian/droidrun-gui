@@ -94,3 +94,68 @@ def test_prompt_model_choice_returns_catalog_selection(monkeypatch) -> None:
     )
 
     assert selected == "gpt-5.4-mini"
+
+
+def test_configure_wizard_accepts_fixed_custom_model(monkeypatch) -> None:
+    saved_configs = []
+
+    monkeypatch.setattr(
+        configure_wizard,
+        "family_choices",
+        lambda: (
+            SimpleNamespace(
+                id="openai",
+                display_name="OpenAI",
+                variants=(
+                    SimpleNamespace(
+                        id="OpenAI",
+                        auth_mode="api_key",
+                        requires_api_key=False,
+                        requires_base_url=False,
+                        credential_path=None,
+                        default_model="gpt-5.4",
+                    ),
+                ),
+            ),
+        ),
+    )
+    monkeypatch.setattr(configure_wizard, "auth_mode_choices", lambda *args: ("api_key",))
+    monkeypatch.setattr(configure_wizard, "variant_models", lambda *args: ("gpt-5.4",))
+    monkeypatch.setattr(configure_wizard, "_print_configure_intro", lambda *args, **kwargs: None)
+    monkeypatch.setattr(configure_wizard, "_print_configure_summary", lambda *args, **kwargs: None)
+    monkeypatch.setattr(configure_wizard, "_prepare_variant_auth", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        configure_wizard,
+        "_apply_model_selection",
+        lambda config, **kwargs: saved_configs.append((config, kwargs)),
+    )
+    monkeypatch.setattr(
+        configure_wizard,
+        "_select_with_back",
+        lambda *args, **kwargs: "finish",
+    )
+    monkeypatch.setattr(
+        configure_wizard.ConfigLoader,
+        "load",
+        lambda: SimpleNamespace(),
+    )
+    monkeypatch.setattr(
+        configure_wizard.ConfigLoader,
+        "save",
+        lambda config: None,
+    )
+
+    configure_wizard.run_configure_wizard(
+        console=SimpleNamespace(print=lambda *args, **kwargs: None),
+        callbacks=SimpleNamespace(),
+        provider="openai",
+        auth_mode="api_key",
+        model="custom-model-id",
+        api_key=None,
+        base_url=None,
+        apply_to_all=True,
+        roles=(),
+    )
+
+    assert saved_configs
+    assert saved_configs[0][1]["selected_model"] == "custom-model-id"

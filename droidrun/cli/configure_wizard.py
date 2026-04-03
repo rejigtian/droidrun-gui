@@ -186,7 +186,6 @@ def _prompt_model_choice(
                 SelectChoice(
                     value="enter_model",
                     label="Enter custom model",
-                    hint="Use a model id not listed in the built-in catalog",
                 ),
             ],
             default=default_model or None,
@@ -204,7 +203,6 @@ def _prompt_model_choice(
             SelectChoice(
                 value="enter_model",
                 label="Enter custom model",
-                hint="Use a model id not listed in the built-in catalog",
             )
         ],
         default="enter_model",
@@ -533,11 +531,7 @@ def run_configure_wizard(
         default_model = models[0] if models else (variant.default_model or "")
 
         if model_is_fixed:
-            state.selected_model = (
-                click.Choice(models, case_sensitive=True).convert(model, None, None)
-                if models
-                else model
-            )
+            state.selected_model = model
         else:
             while True:
                 state.selected_model = _prompt_model_choice(
