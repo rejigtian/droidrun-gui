@@ -337,6 +337,156 @@ class PortalClient:
         except json.JSONDecodeError:
             return None
 
+    @staticmethod
+    def _parse_bounds_string(bounds: str) -> Optional[Dict[str, int]]:
+        """Parse legacy ``left,top,right,bottom`` bounds strings."""
+        try:
+            parts = [int(part.strip()) for part in bounds.split(",")]
+        except (AttributeError, TypeError, ValueError):
+            return None
+
+        if len(parts) != 4:
+            return None
+
+        left, top, right, bottom = parts
+        return {
+            "left": left,
+            "top": top,
+            "right": right,
+            "bottom": bottom,
+        }
+
+    @classmethod
+    def _normalize_legacy_tree_node(cls, node: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize older Portal tree nodes to the current schema."""
+        normalized = dict(node)
+
+        bounds = normalized.get("boundsInScreen")
+        if not isinstance(bounds, dict):
+            parsed_bounds = cls._parse_bounds_string(normalized.get("bounds", ""))
+            if parsed_bounds is not None:
+                normalized["boundsInScreen"] = parsed_bounds
+
+        children = normalized.get("children", [])
+        if isinstance(children, list):
+            normalized["children"] = [
+                cls._normalize_legacy_tree_node(child)
+                for child in children
+                if isinstance(child, dict)
+            ]
+        else:
+            normalized["children"] = []
+
+        return normalized
+
+    @classmethod
+    def _collect_tree_bounds(cls, node: Dict[str, Any]) -> Dict[str, int]:
+        """Compute the overall bounds of a normalized tree."""
+        bounds = node.get("boundsInScreen") or {}
+        left = bounds.get("left", 0)
+        top = bounds.get("top", 0)
+        right = bounds.get("right", 0)
+        bottom = bounds.get("bottom", 0)
+
+        for child in node.get("children", []):
+            child_bounds = cls._collect_tree_bounds(child)
+            left = min(left, child_bounds["left"])
+            top = min(top, child_bounds["top"])
+            right = max(right, child_bounds["right"])
+            bottom = max(bottom, child_bounds["bottom"])
+
+        return {
+            "left": left,
+            "top": top,
+            "right": right,
+            "bottom": bottom,
+        }
+
+    @classmethod
+    def _normalize_a11y_tree(cls, tree: Any) -> Any:
+        """Normalize legacy Android accessibility tree payloads."""
+        if isinstance(tree, dict):
+            return cls._normalize_legacy_tree_node(tree)
+
+        if isinstance(tree, list):
+            nodes = [
+                cls._normalize_legacy_tree_node(node)
+                for node in tree
+                if isinstance(node, dict)
+            ]
+            if not nodes:
+                return {"children": []}
+            if len(nodes) == 1:
+                return nodes[0]
+
+            aggregate_bounds = {
+                "left": min(
+                    node.get("boundsInScreen", {}).get("left", 0) for node in nodes
+                ),
+                "top": min(node.get("boundsInScreen", {}).get("top", 0) for node in nodes),
+                "right": max(
+                    node.get("boundsInScreen", {}).get("right", 0) for node in nodes
+                ),
+                "bottom": max(
+                    node.get("boundsInScreen", {}).get("bottom", 0) for node in nodes
+                ),
+            }
+            return {
+                "className": "Root",
+                "resourceId": "",
+                "text": "",
+                "boundsInScreen": aggregate_bounds,
+                "children": nodes,
+            }
+
+        return tree
+
+    @classmethod
+    def _normalize_state_payload(cls, state: Dict[str, Any]) -> Dict[str, Any]:
+        """Make Portal state backward compatible across payload versions."""
+        if not isinstance(state, dict) or "error" in state:
+            return state
+
+        normalized = dict(state)
+        normalized_tree = cls._normalize_a11y_tree(normalized.get("a11y_tree"))
+        normalized["a11y_tree"] = normalized_tree
+
+        device_context = normalized.get("device_context")
+        if not isinstance(device_context, dict):
+            device_context = {}
+
+        if isinstance(normalized_tree, dict):
+            overall_bounds = cls._collect_tree_bounds(normalized_tree)
+            screen_bounds = device_context.get("screen_bounds")
+            if not isinstance(screen_bounds, dict):
+                screen_bounds = {}
+
+            device_context["screen_bounds"] = {
+                "left": int(screen_bounds.get("left", overall_bounds["left"])),
+                "top": int(screen_bounds.get("top", overall_bounds["top"])),
+                "right": int(screen_bounds.get("right", overall_bounds["right"])),
+                "bottom": int(screen_bounds.get("bottom", overall_bounds["bottom"])),
+                "width": int(
+                    screen_bounds.get(
+                        "width", max(0, overall_bounds["right"] - overall_bounds["left"])
+                    )
+                ),
+                "height": int(
+                    screen_bounds.get(
+                        "height", max(0, overall_bounds["bottom"] - overall_bounds["top"])
+                    )
+                ),
+            }
+
+        filtering_params = device_context.get("filtering_params")
+        if not isinstance(filtering_params, dict):
+            filtering_params = {}
+        filtering_params.setdefault("min_element_size", 5)
+        device_context["filtering_params"] = filtering_params
+
+        normalized["device_context"] = device_context
+        return normalized
+
     async def get_state(self) -> Dict[str, Any]:
         """
         Get device state (accessibility tree + phone state).
@@ -355,7 +505,7 @@ class PortalClient:
         try:
             async with httpx.AsyncClient() as client:
                 response = await self._tcp_request(
-                    client, "GET", f"{self.tcp_base_url}/state_full", timeout=10
+                    client, "GET", f"{self.tcp_base_url}/state", timeout=10
                 )
                 if response.status_code == 200:
                     data = response.json()
@@ -372,12 +522,14 @@ class PortalClient:
                             inner_value = data[inner_key]
                             if isinstance(inner_value, str):
                                 try:
-                                    return json.loads(inner_value)
+                                    return self._normalize_state_payload(
+                                        json.loads(inner_value)
+                                    )
                                 except json.JSONDecodeError:
                                     pass
                             elif isinstance(inner_value, dict):
-                                return inner_value
-                    return data
+                                return self._normalize_state_payload(inner_value)
+                    return self._normalize_state_payload(data)
                 else:
                     logger.debug(
                         f"TCP get_state failed ({response.status_code}), using fallback"
@@ -391,7 +543,7 @@ class PortalClient:
         """Get state via content provider (fallback)."""
         try:
             output = await self.device.shell(
-                "content query --uri content://com.droidrun.portal/state_full"
+                "content query --uri content://com.droidrun.portal/state"
             )
             state_data = self._parse_content_provider_output(output)
 
@@ -413,16 +565,16 @@ class PortalClient:
                     inner_value = state_data[inner_key]
                     if isinstance(inner_value, str):
                         try:
-                            return json.loads(inner_value)
+                            return self._normalize_state_payload(json.loads(inner_value))
                         except json.JSONDecodeError:
                             return {
                                 "error": "Parse Error",
                                 "message": "Failed to parse nested JSON data",
                             }
                     elif isinstance(inner_value, dict):
-                        return inner_value
+                        return self._normalize_state_payload(inner_value)
 
-            return state_data
+            return self._normalize_state_payload(state_data)
 
         except Exception as e:
             return {"error": "ContentProvider Error", "message": str(e)}
@@ -705,7 +857,7 @@ class PortalClient:
             # Test content provider
             try:
                 output = await self.device.shell(
-                    "content query --uri content://com.droidrun.portal/state_full"
+                    "content query --uri content://com.droidrun.portal/state"
                 )
                 if "Row: 0 result=" in output:
                     result = {"status": "success", "method": "content_provider"}
