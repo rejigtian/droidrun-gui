@@ -416,19 +416,25 @@ def _run_anthropic_setup_token_oauth(
     )
 
 
-def _prompt_anthropic_setup_token(token: str | None = None) -> str:
-    if token is None:
-        console.print("Run Droidrun's native setup-token flow first, then paste the returned token here.")
-        console.print("[blue]Suggested command:[/] `droidrun setup-token`")
-        token = click.prompt("Anthropic setup-token", hide_input=False).strip()
-    else:
-        token = token.strip()
-
-    if not token:
-        raise click.ClickException("Setup-token was empty.")
-    if len(token) < 80:
-        raise click.ClickException("Setup-token looks too short; paste the full token.")
-    return token
+def _run_anthropic_oauth_login(
+    credential_path: str,
+    timeout: float = 300.0,
+    callback_host: str = "127.0.0.1",
+    callback_port: int = 0,
+    callback_path: str = "/callback",
+    open_browser: bool = True,
+) -> None:
+    """Run the full Anthropic OAuth flow inline and save the token."""
+    console.print("[blue]Opening browser for Anthropic login...[/]")
+    token = _run_anthropic_setup_token_oauth(
+        timeout=timeout,
+        callback_host=callback_host,
+        callback_port=callback_port,
+        callback_path=callback_path,
+        open_browser=open_browser,
+    )
+    _save_anthropic_setup_token(credential_path, token)
+    _print_oauth_login_success("Anthropic", credential_path)
 
 
 def _save_anthropic_setup_token(credential_path: str, token: str) -> None:
@@ -954,9 +960,7 @@ def configure(
         console,
         ConfigureWizardCallbacks(
             run_openai_oauth_login=_run_openai_oauth_login,
-            save_anthropic_setup_token=_save_anthropic_setup_token,
-            prompt_anthropic_setup_token=_prompt_anthropic_setup_token,
-            print_oauth_login_success=_print_oauth_login_success,
+            run_anthropic_oauth_login=_run_anthropic_oauth_login,
             run_gemini_oauth_login=_run_gemini_oauth_login,
         ),
         provider=provider,
