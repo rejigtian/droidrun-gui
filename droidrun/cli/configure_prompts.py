@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, Sequence
+from typing import Sequence
 
 import click
 
@@ -73,15 +73,3 @@ def text_prompt(
         prompt = inquirer.secret if secret else inquirer.text
         return str(prompt(message=message, default=normalized_default).execute()).strip()
     return click.prompt(message, default=normalized_default, hide_input=secret).strip()
-
-
-def normalize_role_targets(
-    apply_to_all: bool | None,
-    roles: Iterable[str],
-) -> tuple[str, ...]:
-    role_tuple = tuple(roles)
-    if apply_to_all is True:
-        return ("manager", "executor", "fast_agent", "app_opener", "structured_output")
-    if role_tuple:
-        return role_tuple
-    return ("manager",)

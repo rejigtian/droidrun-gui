@@ -931,31 +931,14 @@ def setup_token(
 @click.option("--model", type=str, default=None, help="Model to configure.")
 @click.option("--api-key", type=str, default=None, help="API key for API-key providers.")
 @click.option("--base-url", type=str, default=None, help="Base URL override for compatible providers.")
-@click.option(
-    "--apply-to-all/--single-role",
-    default=None,
-    help="Apply the selected provider setup to all main roles or a specific role.",
-)
-@click.option(
-    "--role",
-    "roles",
-    multiple=True,
-    type=click.Choice(
-        ["manager", "executor", "fast_agent", "app_opener", "structured_output"],
-        case_sensitive=False,
-    ),
-    help="Specific role to configure when not applying to all. Can be repeated.",
-)
 def configure(
     provider: str | None,
     auth_mode: str | None,
     model: str | None,
     api_key: str | None,
     base_url: str | None,
-    apply_to_all: bool | None,
-    roles: tuple[str, ...],
 ):
-    """Configure LLM provider, auth mode, model, and role application."""
+    """Configure LLM provider, auth mode, and model."""
     run_configure_wizard(
         console,
         ConfigureWizardCallbacks(
@@ -968,8 +951,6 @@ def configure(
         model=model,
         api_key=api_key,
         base_url=base_url,
-        apply_to_all=apply_to_all,
-        roles=roles,
     )
 
 

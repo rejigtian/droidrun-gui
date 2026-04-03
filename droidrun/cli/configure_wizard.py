@@ -10,7 +10,6 @@ from rich.panel import Panel
 
 from droidrun.cli.configure_prompts import (
     SelectChoice,
-    normalize_role_targets,
     select_prompt,
     text_prompt,
 )
@@ -26,9 +25,7 @@ from droidrun.agent.providers.setup_service import (
 
 _BACK = "__back__"
 
-_MAIN_AGENT_ROLES = ("manager", "executor", "fast_agent")
-_HELPER_AGENT_ROLES = ("app_opener", "structured_output")
-_ALL_CONFIG_ROLES = _MAIN_AGENT_ROLES + _HELPER_AGENT_ROLES
+_ALL_CONFIG_ROLES = ("manager", "executor", "fast_agent", "app_opener", "structured_output")
 _VARIANT_ENV_KEY_SLOT = {
     "GoogleGenAI": "google",
     "OpenAI": "openai",
@@ -50,7 +47,6 @@ class ConfigureWizardState:
     family_id: str | None = None
     selected_auth_mode: str | None = None
     selected_model: str | None = None
-    target_roles: tuple[str, ...] = _ALL_CONFIG_ROLES
     selected_api_key: str | None = None
     selected_api_key_source: str | None = None
     selected_base_url: str | None = None
@@ -99,7 +95,6 @@ def _print_configure_summary(
     provider_label: str,
     variant_id: str,
     model: str,
-    applied_to: str,
     used_advanced_settings: bool,
 ) -> None:
     advanced_line = "Yes" if used_advanced_settings else "No"
@@ -107,7 +102,6 @@ def _print_configure_summary(
         Panel(
             f"Provider: {provider_label} ({variant_id})\n"
             f"Model: {model}\n"
-            f"Applied to: {applied_to}\n"
             f"Advanced settings changed: {advanced_line}",
             title="Configuration Saved",
             border_style="green",
@@ -142,31 +136,6 @@ def _resolve_variant(
         for variant in next(f for f in families if f.id == family_id).variants
         if variant.auth_mode == auth_mode
     )
-
-
-def _prompt_grouped_role_targets() -> tuple[str, ...] | None:
-    choice = _select_with_back(
-        "Apply this model configuration to",
-        [
-            SelectChoice(value="all", label="All", hint="Use this setup everywhere"),
-            SelectChoice(
-                value="main", label="Main agents", hint="Manager, executor, fast agent"
-            ),
-            SelectChoice(
-                value="helper",
-                label="Helper agents",
-                hint="App opener and structured output",
-            ),
-        ],
-        default="all",
-    )
-    if choice == _BACK:
-        return None
-    if choice == "main":
-        return _MAIN_AGENT_ROLES
-    if choice == "helper":
-        return _HELPER_AGENT_ROLES
-    return _ALL_CONFIG_ROLES
 
 
 def _prompt_model_choice(
@@ -248,16 +217,6 @@ def _prompt_oauth_credential_action(credential_path: str) -> str:
     )
 
 
-def _target_role_label(target_roles: tuple[str, ...]) -> str:
-    if target_roles == _MAIN_AGENT_ROLES:
-        return "Main agents"
-    if target_roles == _HELPER_AGENT_ROLES:
-        return "Helper agents"
-    if target_roles == _ALL_CONFIG_ROLES:
-        return "All"
-    return ", ".join(target_roles)
-
-
 def _apply_model_selection(
     config,
     *,
@@ -269,7 +228,6 @@ def _apply_model_selection(
     selected_api_key_source: str | None,
     selected_base_url: str | None,
     credential_path: str | None,
-    target_roles: tuple[str, ...],
 ) -> None:
     selection = SetupSelection(
         family_id=family_id,
@@ -281,7 +239,7 @@ def _apply_model_selection(
         base_url=selected_base_url,
         credential_path=credential_path,
     )
-    apply_selection_to_roles(config, selection, target_roles)
+    apply_selection_to_roles(config, selection, _ALL_CONFIG_ROLES)
 
 
 def _prepare_variant_auth(
@@ -332,9 +290,8 @@ def _set_vision_all(config, enabled: bool) -> None:
 def _configure_advanced_settings(
     console: Console,
     config,
-    target_roles: tuple[str, ...],
-) -> tuple[str, ...]:
-    default_selection = "apply_model_to"
+) -> None:
+    default_selection = "vision"
     while True:
         vision_on = _is_vision_enabled(config)
         reasoning_on = config.agent.reasoning
@@ -342,10 +299,6 @@ def _configure_advanced_settings(
         selected = _select_with_back(
             "Advanced settings",
             [
-                SelectChoice(
-                    value="apply_model_to",
-                    label=f"Apply model to ({_target_role_label(target_roles)})",
-                ),
                 SelectChoice(
                     value="vision",
                     label=f"Vision {_toggle_label(vision_on)}",
@@ -372,13 +325,9 @@ def _configure_advanced_settings(
         )
 
         if selected in {_BACK, "done"}:
-            return target_roles
+            return
 
-        if selected == "apply_model_to":
-            updated_roles = _prompt_grouped_role_targets()
-            if updated_roles is not None:
-                target_roles = updated_roles
-        elif selected == "vision":
+        if selected == "vision":
             _set_vision_all(config, not vision_on)
         elif selected == "reasoning":
             config.agent.reasoning = not reasoning_on
@@ -387,12 +336,13 @@ def _configure_advanced_settings(
                 console, "Maximum steps", default=config.agent.max_steps
             )
         elif selected == "temperature":
-            default_temp = config.llm_profiles[target_roles[0]].temperature
+            default_temp = config.llm_profiles[_ALL_CONFIG_ROLES[0]].temperature
             value = _prompt_float(console, "Temperature", default=default_temp)
-            for role in target_roles:
-                config.llm_profiles[role].temperature = value
+            for role in _ALL_CONFIG_ROLES:
+                if role in config.llm_profiles:
+                    config.llm_profiles[role].temperature = value
         elif selected == "max_tokens":
-            current_value = config.llm_profiles[target_roles[0]].kwargs.get(
+            current_value = config.llm_profiles[_ALL_CONFIG_ROLES[0]].kwargs.get(
                 "max_tokens", 1024
             )
             try:
@@ -400,8 +350,9 @@ def _configure_advanced_settings(
             except (TypeError, ValueError):
                 current_default = 1024
             value = _prompt_int(console, "Max tokens", default=current_default)
-            for role in target_roles:
-                _set_profile_max_tokens(config.llm_profiles[role], value)
+            for role in _ALL_CONFIG_ROLES:
+                if role in config.llm_profiles:
+                    _set_profile_max_tokens(config.llm_profiles[role], value)
 
         default_selection = selected
 
@@ -583,7 +534,6 @@ def _configure_provider_model(
             selected_api_key_source=state.selected_api_key_source,
             selected_base_url=state.selected_base_url,
             credential_path=credential_path,
-            target_roles=state.target_roles,
         )
         return True
 
@@ -597,8 +547,6 @@ def run_configure_wizard(
     model: str | None,
     api_key: str | None,
     base_url: str | None,
-    apply_to_all: bool | None,
-    roles: tuple[str, ...],
 ) -> None:
     config = ConfigLoader.load()
     _print_configure_intro(console)
@@ -615,7 +563,6 @@ def run_configure_wizard(
     provider_is_fixed = provider is not None
     auth_mode_is_fixed = auth_mode is not None
     model_is_fixed = model is not None
-    roles_are_fixed = apply_to_all is not None or bool(roles)
 
     if provider_is_fixed:
         state.family_id = click.Choice(family_ids, case_sensitive=False).convert(
@@ -625,8 +572,6 @@ def run_configure_wizard(
         state.selected_auth_mode = auth_mode
     if model_is_fixed:
         state.selected_model = model
-    if roles_are_fixed:
-        state.target_roles = normalize_role_targets(apply_to_all, roles)
 
     # When CLI flags fully specify provider+model, run the flow automatically
     # and save without showing the menu.
@@ -647,7 +592,6 @@ def run_configure_wizard(
                 provider_label=family_labels[state.family_id],
                 variant_id=state.last_variant_id or state.family_id,
                 model=state.selected_model or "",
-                applied_to=_target_role_label(state.target_roles),
                 used_advanced_settings=False,
             )
             return
@@ -688,9 +632,7 @@ def run_configure_wizard(
 
         elif action == "advanced":
             state.used_advanced_settings = True
-            state.target_roles = _configure_advanced_settings(
-                console, config, state.target_roles
-            )
+            _configure_advanced_settings(console, config)
 
         elif action == "finish":
             ConfigLoader.save(config)
@@ -700,7 +642,6 @@ def run_configure_wizard(
                     provider_label=family_labels[state.family_id],
                     variant_id=state.last_variant_id or state.family_id,
                     model=state.selected_model or "",
-                    applied_to=_target_role_label(state.target_roles),
                     used_advanced_settings=state.used_advanced_settings,
                 )
             else:
