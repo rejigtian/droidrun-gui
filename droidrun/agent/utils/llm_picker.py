@@ -2,6 +2,11 @@ import importlib
 import logging
 from typing import TYPE_CHECKING, Any
 
+from droidrun.agent.utils.oauth import (
+    anthropic_oauth_llm,
+    gemini_oauth_code_assist_llm,
+    openai_oauth_llm,
+)
 from llama_index.core.llms.llm import LLM
 
 from droidrun.agent.usage import track_usage
@@ -13,13 +18,45 @@ if TYPE_CHECKING:
 logger = logging.getLogger("droidrun")
 
 
+PROVIDER_MODULE_MAP: dict[str, tuple[str, str, str]] = {
+    "OpenAI": ("llama_index.llms.openai", "OpenAI", "llama-index-llms-openai"),
+    "OpenAILike": (
+        "llama_index.llms.openai_like",
+        "OpenAILike",
+        "llama-index-llms-openai-like",
+    ),
+    "GoogleGenAI": (
+        "llama_index.llms.google_genai",
+        "GoogleGenAI",
+        "llama-index-llms-google-genai",
+    ),
+    "Ollama": ("llama_index.llms.ollama", "Ollama", "llama-index-llms-ollama"),
+    "Anthropic": (
+        "llama_index.llms.anthropic",
+        "Anthropic",
+        "llama-index-llms-anthropic",
+    ),
+    "DeepSeek": (
+        "llama_index.llms.deepseek",
+        "DeepSeek",
+        "llama-index-llms-deepseek",
+    ),
+    "OpenRouter": (
+        "llama_index.llms.openrouter",
+        "OpenRouter",
+        "llama-index-llms-openrouter",
+    ),
+    "MiniMax": ("llama_index.llms.minimax", "MiniMax", "llama-index-llms-minimax"),
+}
+
+
 def load_llm(provider_name: str, model: str | None = None, **kwargs: Any) -> LLM:
     """
-    Dynamically loads and initializes a LlamaIndex LLM.
+    Load and initialize a configured LLM backend.
 
-    Imports `llama_index.llms.<provider_name_lower>`, finds the class named
-    `provider_name` within that module, verifies it's an LLM subclass,
-    and initializes it with kwargs.
+    Provider identity is owned by Droidrun via an explicit provider map. The
+    selected backend may still come from a llama-index integration, but we no
+    longer derive module paths from free-form provider strings at runtime.
 
     Args:
         provider_name: The case-sensitive name of the provider and the class
@@ -32,8 +69,8 @@ def load_llm(provider_name: str, model: str | None = None, **kwargs: Any) -> LLM
         An initialized LLM instance.
 
     Raises:
-        ModuleNotFoundError: If the provider's module cannot be found.
-        AttributeError: If the class `provider_name` is not found in the module.
+        ModuleNotFoundError: If the provider backend module cannot be found.
+        AttributeError: If the expected class is not found in the backend module.
         TypeError: If the found class is not a subclass of LLM or if kwargs are invalid.
         RuntimeError: For other initialization errors.
     """
@@ -44,24 +81,32 @@ def load_llm(provider_name: str, model: str | None = None, **kwargs: Any) -> LLM
     if model is not None:
         kwargs["model"] = model
 
+    if provider_name == "openai_oauth":
+        filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None}
+        return openai_oauth_llm.OpenAIOAuth(**filtered_kwargs)
+    elif provider_name == "anthropic_oauth":
+        filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None}
+        return anthropic_oauth_llm.AnthropicOAuthLLM(**filtered_kwargs)
+    elif provider_name == "gemini_oauth_code_assist":
+        filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None}
+        return gemini_oauth_code_assist_llm.GeminiOAuthCodeAssistLLM(
+            **filtered_kwargs
+        )
+
+    module_info = PROVIDER_MODULE_MAP.get(provider_name)
+    if module_info is None:
+        raise ValueError(
+            f"Unsupported provider '{provider_name}'. "
+            f"Supported providers: {sorted(PROVIDER_MODULE_MAP)}"
+        )
+
+    module_path, class_name, install_package_name = module_info
+
     if provider_name == "OpenAILike":
-        module_provider_part = "openai_like"
         kwargs.setdefault("is_chat_model", True)
         # OpenAILike uses api_base, not base_url - handle both for convenience
         if "base_url" in kwargs and "api_base" not in kwargs:
             kwargs["api_base"] = kwargs.pop("base_url")
-    elif provider_name == "GoogleGenAI":
-        module_provider_part = "google_genai"
-    else:
-        # Use lowercase for module path, handle hyphens for package name suggestion
-        lower_provider_name = provider_name.lower()
-        # Special case common variations like HuggingFaceLLM -> huggingface module
-        if lower_provider_name.endswith("llm"):
-            module_provider_part = lower_provider_name[:-3].replace("-", "_")
-        else:
-            module_provider_part = lower_provider_name.replace("-", "_")
-    module_path = f"llama_index.llms.{module_provider_part}"
-    install_package_name = f"llama-index-llms-{module_provider_part.replace('_', '-')}"
 
     try:
         logger.debug(f"Attempting to import module: {module_path}")
@@ -78,9 +123,9 @@ def load_llm(provider_name: str, model: str | None = None, **kwargs: Any) -> LLM
 
     try:
         logger.debug(
-            f"Attempting to get class '{provider_name}' from module {module_path}"
+            f"Attempting to get class '{class_name}' from module {module_path}"
         )
-        llm_class = getattr(llm_module, provider_name)
+        llm_class = getattr(llm_module, class_name)
         logger.debug(f"Found class: {llm_class.__name__}")
 
         # Verify the class is a subclass of LLM
@@ -89,10 +134,8 @@ def load_llm(provider_name: str, model: str | None = None, **kwargs: Any) -> LLM
                 f"Class '{provider_name}' found in '{module_path}' is not a valid LLM subclass."
             )
 
-        # Filter out None values from kwargs
-        filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None}
-
         # Initialize
+        filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None}
         logger.debug(
             f"Initializing {llm_class.__name__} with kwargs: {list(filtered_kwargs.keys())}"
         )
@@ -105,9 +148,9 @@ def load_llm(provider_name: str, model: str | None = None, **kwargs: Any) -> LLM
         return llm_instance
 
     except AttributeError:
-        logger.error(f"Class '{provider_name}' not found in module '{module_path}'.")
+        logger.error(f"Class '{class_name}' not found in module '{module_path}'.")
         raise AttributeError(
-            f"Could not find class '{provider_name}' in module '{module_path}'. Check spelling and capitalization."
+            f"Could not find class '{class_name}' in module '{module_path}'."
         ) from None
     except TypeError as e:
         logger.error(f"Error initializing {provider_name}: {e}")

@@ -18,6 +18,11 @@ from droidrun.cli.tui.settings.section import Section
 
 
 PROVIDER_OPTIONS = [(p, p) for p in PROVIDERS]
+API_KEY_SOURCE_OPTIONS = [
+    ("auto", "Auto"),
+    ("env", "Shell env"),
+    ("file", "Saved file"),
+]
 
 
 class _KwargsRow(HorizontalGroup):
@@ -131,6 +136,19 @@ class _ProfileCard(Section):
                     classes="field-input",
                 )
 
+            source_cls = (
+                "field-row" if pf.get("api_source") else "field-row hidden-field"
+            )
+            with HorizontalGroup(classes=source_cls, id=f"row-apikey-source-{self._role}"):
+                yield Label("Key Source", classes="field-label")
+                yield Select(
+                    API_KEY_SOURCE_OPTIONS,
+                    value=self._profile.api_key_source,
+                    allow_blank=False,
+                    id=f"apikey-source-{self._role}",
+                    classes="field-select",
+                )
+
             url_cls = "field-row" if pf.get("base_url") else "field-row hidden-field"
             with HorizontalGroup(classes=url_cls, id=f"row-baseurl-{self._role}"):
                 yield Label("Base URL", classes="field-label")
@@ -160,12 +178,18 @@ class _ProfileCard(Section):
         pf = PROVIDER_FIELDS.get(provider, {})
 
         api_row = self.query_one(f"#row-apikey-{self._role}")
+        source_row = self.query_one(f"#row-apikey-source-{self._role}")
         url_row = self.query_one(f"#row-baseurl-{self._role}")
 
         if pf.get("api_key"):
             api_row.remove_class("hidden-field")
         else:
             api_row.add_class("hidden-field")
+
+        if pf.get("api_source"):
+            source_row.remove_class("hidden-field")
+        else:
+            source_row.add_class("hidden-field")
 
         if pf.get("base_url"):
             url_row.remove_class("hidden-field")
@@ -176,6 +200,8 @@ class _ProfileCard(Section):
         provider = str(self.query_one(f"#provider-{self._role}", Select).value)
         model = self.query_one(f"#model-{self._role}", Input).value.strip()
         api_key = self.query_one(f"#apikey-{self._role}", Input).value.strip()
+        api_key_source = str(
+            self.query_one(f"#apikey-source-{self._role}", Select).value)
         base_url = self.query_one(f"#baseurl-{self._role}", Input).value.strip()
         temp_str = self.query_one(f"#temp-{self._role}", Input).value.strip()
         try:
@@ -188,6 +214,7 @@ class _ProfileCard(Section):
             model=model,
             temperature=temperature,
             api_key=api_key,
+            api_key_source=api_key_source,
             base_url=base_url,
             kwargs=kwargs,
         )
@@ -222,16 +249,24 @@ class ModelsTab(VerticalGroup):
             card.query_one(f"#provider-{card._role}", Select).value = source.provider
             card.query_one(f"#model-{card._role}", Input).value = source.model
             card.query_one(f"#apikey-{card._role}", Input).value = source.api_key
+            card.query_one(f"#apikey-source-{card._role}", Select).value = (
+                source.api_key_source
+            )
             card.query_one(f"#baseurl-{card._role}", Input).value = source.base_url
             card.query_one(f"#temp-{card._role}", Input).value = str(source.temperature)
             # Trigger field visibility update
             pf = PROVIDER_FIELDS.get(source.provider, {})
             api_row = card.query_one(f"#row-apikey-{card._role}")
+            source_row = card.query_one(f"#row-apikey-source-{card._role}")
             url_row = card.query_one(f"#row-baseurl-{card._role}")
             if pf.get("api_key"):
                 api_row.remove_class("hidden-field")
             else:
                 api_row.add_class("hidden-field")
+            if pf.get("api_source"):
+                source_row.remove_class("hidden-field")
+            else:
+                source_row.add_class("hidden-field")
             if pf.get("base_url"):
                 url_row.remove_class("hidden-field")
             else:

@@ -85,9 +85,11 @@ class DroidTUI(App):
             config = ConfigLoader.load()
             self.settings = SettingsData.from_config(config)
             self._config_serial = config.device.serial or ""
+            self.reasoning = config.agent.reasoning
         except Exception:
             self.settings = SettingsData()
             self._config_serial = ""
+            self.reasoning = self.settings.reasoning
 
     def compose(self) -> ComposeResult:
         yield Static(BANNER, id="banner")
@@ -485,6 +487,7 @@ class DroidTUI(App):
             return
 
         self.settings = result
+        self.reasoning = result.reasoning
         self.settings.save()
         self._sync_status_bar()
 
