@@ -81,15 +81,7 @@ def load_llm(provider_name: str, model: str | None = None, **kwargs: Any) -> LLM
     if model is not None:
         kwargs["model"] = model
 
-    if provider_name == "ZaiLLM":
-        from droidrun.agent.utils.zai_llm import ZaiLLM
-
-        # ZAI uses api_base, not base_url
-        if "base_url" in kwargs and "api_base" not in kwargs:
-            kwargs["api_base"] = kwargs.pop("base_url")
-        filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None}
-        return ZaiLLM(**filtered_kwargs)
-    elif provider_name == "openai_oauth":
+    if provider_name == "openai_oauth":
         filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None}
         return openai_oauth_llm.OpenAIOAuth(**filtered_kwargs)
     elif provider_name == "anthropic_oauth":

@@ -16,7 +16,6 @@ SUPPORTED_PROVIDERS = [
     "GeminiOAuthCodeAssistLLM",
     "OpenAI",
     "OpenAILike",
-    "ZaiLLM",
     "OpenAIOAuth",
     "OpenAIResponsesLLM",
     "openai_llm",
@@ -80,7 +79,6 @@ def get_usage_from_response(provider: str, chat_rsp: ChatResponse) -> UsageResul
     elif (
         provider == "OpenAI"
         or provider == "OpenAILike"
-        or provider == "ZaiLLM"
         or provider == "openai_llm"
     ):
         from openai.types import CompletionUsage as OpenAIUsage

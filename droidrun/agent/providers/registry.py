@@ -165,7 +165,7 @@ PROVIDER_FAMILIES: tuple[ProviderFamilySpec, ...] = (
             ProviderVariantSpec(
                 id="ZAI",
                 runtime_provider_name="ZAI",
-                runtime_transport_provider_name="ZaiLLM",
+                runtime_transport_provider_name="OpenAILike",
                 auth_mode="api_key",
                 default_model="glm-5",
                 models=(
@@ -180,7 +180,7 @@ PROVIDER_FAMILIES: tuple[ProviderFamilySpec, ...] = (
             ProviderVariantSpec(
                 id="ZAI_Coding",
                 runtime_provider_name="ZAI",
-                runtime_transport_provider_name="ZaiLLM",
+                runtime_transport_provider_name="OpenAILike",
                 auth_mode="coding_api",
                 default_model="glm-4.7",
                 models=(
