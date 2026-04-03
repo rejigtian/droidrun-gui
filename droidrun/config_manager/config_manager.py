@@ -48,11 +48,7 @@ class LLMProfile:
         # Merge additional kwargs
         result.update(self.kwargs)
         env_slot = PROVIDER_ENV_KEY_SLOT.get(self.provider)
-        if (
-            env_slot is None
-            and self.provider == "OpenAILike"
-            and self.provider_family == "zai"
-        ):
+        if env_slot is None and self.provider_family == "zai":
             env_slot = "zai"
         if env_slot and "api_key" not in result:
             sources = load_env_key_sources().get(env_slot)
