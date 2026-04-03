@@ -3,6 +3,7 @@ Droidrun CLI - Command line interface for controlling Android devices through LL
 """
 
 import asyncio
+import json
 import logging
 import os
 import sys
@@ -21,6 +22,10 @@ from rich.text import Text
 
 from droidrun import ResultEvent, DroidAgent
 from droidrun.log_handlers import CLILogHandler, configure_logging
+from droidrun.cli.configure_wizard import (
+    ConfigureWizardCallbacks,
+    run_configure_wizard,
+)
 from droidrun.cli.event_handler import EventHandler
 from droidrun.config_manager import ConfigLoader
 from droidrun.cli.device_commands import device_cli
@@ -37,6 +42,24 @@ from droidrun.portal import (
 )
 from droidrun.agent.external import list_agents
 from droidrun.agent.utils.llm_picker import load_llm
+from droidrun.agent.utils.oauth.anthropic_oauth_llm import (
+    AnthropicOAuthLLM,
+    DEFAULT_SETUP_TOKEN_SCOPE,
+)
+from droidrun.agent.utils.oauth.gemini_oauth_code_assist_llm import (
+    GeminiOAuthCodeAssistLLM,
+)
+from droidrun.agent.utils.oauth.openai_oauth_llm import (
+    DEFAULT_OPENAI_OAUTH_CALLBACK_HOST,
+    DEFAULT_OPENAI_OAUTH_CALLBACK_PATH,
+    DEFAULT_OPENAI_OAUTH_CALLBACK_PORT,
+    DEFAULT_OPENAI_OAUTH_CREDENTIAL_PATH,
+    OpenAIOAuth,
+)
+from droidrun.config_manager.credential_paths import (
+    ANTHROPIC_OAUTH_CREDENTIAL_PATH,
+    GEMINI_OAUTH_CREDENTIAL_PATH,
+)
 from droidrun.telemetry import print_telemetry_message
 from droidrun.tools.driver.ios import discover_ios_portal, validate_ios_portal_url
 
@@ -46,6 +69,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["GRPC_ENABLE_FORK_SUPPORT"] = "false"
 
 console = Console()
+SETUP_TOKEN_EXPIRES_IN_SECONDS = 365 * 24 * 60 * 60
 
 
 def _setup_cli_logging(debug: bool) -> None:
@@ -65,6 +89,8 @@ def coro(f):
         return asyncio.run(f(*args, **kwargs))
 
     return wrapper
+
+
 
 
 async def run_command(
@@ -318,6 +344,116 @@ def cli():
     pass
 
 
+def _print_oauth_login_success(provider_label: str, credential_path: str) -> None:
+    console.print(f"[green]{provider_label} login succeeded.[/]")
+    console.print(f"[blue]Credentials saved to:[/] {Path(credential_path).expanduser()}")
+
+
+def _run_openai_oauth_login(
+    credential_path: str,
+    model: str | None,
+    timeout: float = 300.0,
+    callback_host: str = DEFAULT_OPENAI_OAUTH_CALLBACK_HOST,
+    callback_port: int = DEFAULT_OPENAI_OAUTH_CALLBACK_PORT,
+    callback_path: str = DEFAULT_OPENAI_OAUTH_CALLBACK_PATH,
+    open_browser: bool = True,
+) -> None:
+    llm = OpenAIOAuth(model=model, oauth_credential_path=credential_path)
+    llm.login(
+        open_browser=open_browser,
+        timeout_seconds=timeout,
+        callback_host=callback_host,
+        callback_port=callback_port,
+        callback_path=callback_path,
+        redirect_host=callback_host,
+    )
+    _print_oauth_login_success("OpenAI", credential_path)
+
+
+def _run_gemini_oauth_login(
+    credential_path: str,
+    model: str | None,
+    timeout: float = 300.0,
+    callback_host: str = "127.0.0.1",
+    callback_port: int = 0,
+    callback_path: str = "/oauth2callback",
+    open_browser: bool = True,
+) -> None:
+    llm = GeminiOAuthCodeAssistLLM(
+        model=model or "gemini-3.1-pro-preview",
+        credential_path=credential_path,
+    )
+    llm.login(
+        open_browser=open_browser,
+        timeout_seconds=timeout,
+        callback_host=callback_host,
+        callback_port=callback_port,
+        callback_path=callback_path,
+    )
+    _print_oauth_login_success("Gemini", credential_path)
+
+
+def _run_anthropic_setup_token_oauth(
+    *,
+    timeout: float = 300.0,
+    callback_host: str = "127.0.0.1",
+    callback_port: int = 0,
+    callback_path: str = "/callback",
+    open_browser: bool = True,
+) -> str:
+    llm = AnthropicOAuthLLM(
+        credential_path=None,
+        authorize_url="https://claude.com/cai/oauth/authorize",
+        login_scope=DEFAULT_SETUP_TOKEN_SCOPE,
+    )
+    return llm.login(
+        open_browser=open_browser,
+        timeout_seconds=timeout,
+        callback_host=callback_host,
+        callback_port=callback_port,
+        callback_path=callback_path,
+        expires_in=SETUP_TOKEN_EXPIRES_IN_SECONDS,
+    )
+
+
+def _prompt_anthropic_setup_token(token: str | None = None) -> str:
+    if token is None:
+        console.print("Run Droidrun's native setup-token flow first, then paste the returned token here.")
+        console.print("[blue]Suggested command:[/] `droidrun setup-token`")
+        token = click.prompt("Anthropic setup-token", hide_input=False).strip()
+    else:
+        token = token.strip()
+
+    if not token:
+        raise click.ClickException("Setup-token was empty.")
+    if len(token) < 80:
+        raise click.ClickException("Setup-token looks too short; paste the full token.")
+    return token
+
+
+def _save_anthropic_setup_token(credential_path: str, token: str) -> None:
+    cred_path = Path(credential_path).expanduser()
+    cred_path.parent.mkdir(parents=True, exist_ok=True)
+
+    existing: dict[str, object] = {}
+    if cred_path.exists():
+        try:
+            loaded = json.loads(cred_path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                existing = loaded
+        except Exception:
+            existing = {}
+
+    existing["claudeAiOauth"] = {
+        "accessToken": token,
+        "refreshToken": None,
+        "expiresAt": None,
+        "scopes": [],
+    }
+    cred_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
+    os.chmod(cred_path, 0o600)
+
+
 try:
     _available_agents = list_agents()
 except Exception:
@@ -343,7 +479,7 @@ except Exception:
 @click.option(
     "--provider",
     "-p",
-    help="LLM provider (OpenAI, Ollama, Anthropic, GoogleGenAI, DeepSeek)",
+    help="LLM provider (OpenAI, openai_oauth, Ollama, Anthropic, anthropic_oauth, GoogleGenAI, gemini_oauth_code_assist, DeepSeek)",
     default=None,
 )
 @click.option(
@@ -715,6 +851,299 @@ def tui():
     from droidrun.cli.tui import run_tui
 
     run_tui()
+
+
+@cli.command(name="setup-token")
+@click.option(
+    "--timeout",
+    type=float,
+    default=300.0,
+    show_default=True,
+    help="Max seconds to wait for the browser callback.",
+)
+@click.option(
+    "--callback-host",
+    default="127.0.0.1",
+    show_default=True,
+    help="Host to bind the local OAuth callback server.",
+)
+@click.option(
+    "--callback-port",
+    type=int,
+    default=0,
+    show_default=True,
+    help="Port to bind the local OAuth callback server. Use 0 for auto.",
+)
+@click.option(
+    "--callback-path",
+    default="/callback",
+    show_default=True,
+    help="Callback path for the local OAuth server.",
+)
+@click.option(
+    "--open-browser/--no-browser",
+    default=True,
+    show_default=True,
+    help="Open the authorization URL automatically.",
+)
+def setup_token(
+    timeout: float,
+    callback_host: str,
+    callback_port: int,
+    callback_path: str,
+    open_browser: bool,
+):
+    """Create a long-lived Anthropic setup token using Droidrun's native OAuth flow."""
+    console.print(
+        "This will guide you through long-lived (1-year) auth token setup for your Claude account."
+    )
+    token = _run_anthropic_setup_token_oauth(
+        timeout=timeout,
+        callback_host=callback_host,
+        callback_port=callback_port,
+        callback_path=callback_path,
+        open_browser=open_browser,
+    )
+    console.print("\n[green]Setup token created.[/]")
+    console.print("Paste this token into `droidrun configure` or `droidrun anthropic login`.")
+    click.echo(token)
+
+
+@cli.command(name="configure")
+@click.option(
+    "--provider",
+    type=str,
+    default=None,
+    help="Provider family (gemini, openai, anthropic, ollama, openai_like, minimax, zai).",
+)
+@click.option(
+    "--auth-mode",
+    type=str,
+    default=None,
+    help="Auth mode for the selected provider family.",
+)
+@click.option("--model", type=str, default=None, help="Model to configure.")
+@click.option("--api-key", type=str, default=None, help="API key for API-key providers.")
+@click.option("--base-url", type=str, default=None, help="Base URL override for compatible providers.")
+@click.option(
+    "--apply-to-all/--single-role",
+    default=None,
+    help="Apply the selected provider setup to all main roles or a specific role.",
+)
+@click.option(
+    "--role",
+    "roles",
+    multiple=True,
+    type=click.Choice(
+        ["manager", "executor", "fast_agent", "app_opener", "structured_output"],
+        case_sensitive=False,
+    ),
+    help="Specific role to configure when not applying to all. Can be repeated.",
+)
+def configure(
+    provider: str | None,
+    auth_mode: str | None,
+    model: str | None,
+    api_key: str | None,
+    base_url: str | None,
+    apply_to_all: bool | None,
+    roles: tuple[str, ...],
+):
+    """Configure LLM provider, auth mode, model, and role application."""
+    run_configure_wizard(
+        console,
+        ConfigureWizardCallbacks(
+            run_openai_oauth_login=_run_openai_oauth_login,
+            save_anthropic_setup_token=_save_anthropic_setup_token,
+            prompt_anthropic_setup_token=_prompt_anthropic_setup_token,
+            print_oauth_login_success=_print_oauth_login_success,
+            run_gemini_oauth_login=_run_gemini_oauth_login,
+        ),
+        provider=provider,
+        auth_mode=auth_mode,
+        model=model,
+        api_key=api_key,
+        base_url=base_url,
+        apply_to_all=apply_to_all,
+        roles=roles,
+    )
+
+
+@cli.group()
+def openai():
+    """OpenAI OAuth commands."""
+    pass
+
+
+@openai.command("login")
+@click.option(
+    "--credential-path",
+    default=str(DEFAULT_OPENAI_OAUTH_CREDENTIAL_PATH),
+    show_default=True,
+    help="Where to store OpenAI OAuth credentials.",
+)
+@click.option("--model", default=None, help="Optional model override for later API calls.")
+@click.option(
+    "--timeout",
+    type=float,
+    default=300.0,
+    show_default=True,
+    help="Max seconds to wait for the browser callback.",
+)
+@click.option(
+    "--callback-host",
+    default=DEFAULT_OPENAI_OAUTH_CALLBACK_HOST,
+    show_default=True,
+    help="Host to bind the local OAuth callback server.",
+)
+@click.option(
+    "--callback-port",
+    type=int,
+    default=DEFAULT_OPENAI_OAUTH_CALLBACK_PORT,
+    show_default=True,
+    help="Port to bind the local OAuth callback server.",
+)
+@click.option(
+    "--callback-path",
+    default=DEFAULT_OPENAI_OAUTH_CALLBACK_PATH,
+    show_default=True,
+    help="Callback path for the local OAuth server.",
+)
+@click.option(
+    "--open-browser/--no-browser",
+    default=True,
+    show_default=True,
+    help="Open the authorization URL automatically.",
+)
+def openai_login(
+    credential_path: str,
+    model: str | None,
+    timeout: float,
+    callback_host: str,
+    callback_port: int,
+    callback_path: str,
+    open_browser: bool,
+):
+    """Login with ChatGPT/OpenAI OAuth and save credentials locally."""
+    _run_openai_oauth_login(
+        credential_path=credential_path,
+        model=model,
+        timeout=timeout,
+        callback_host=callback_host,
+        callback_port=callback_port,
+        callback_path=callback_path,
+        open_browser=open_browser,
+    )
+
+
+@cli.group()
+def anthropic():
+    """Anthropic authentication commands."""
+    pass
+
+
+@anthropic.command("login")
+@click.option(
+    "--credential-path",
+    default=str(ANTHROPIC_OAUTH_CREDENTIAL_PATH),
+    show_default=True,
+    help="Where to store the Anthropic setup-token.",
+)
+@click.option(
+    "--token",
+    default=None,
+    help="Anthropic setup-token value. If omitted, you will be prompted.",
+)
+def anthropic_login(credential_path: str, token: str | None):
+    """Save an Anthropic setup-token. This is the only supported Anthropic auth flow."""
+    token_value = _prompt_anthropic_setup_token(token)
+    _save_anthropic_setup_token(credential_path, token_value)
+    _print_oauth_login_success("Anthropic setup-token", credential_path)
+
+
+@anthropic.command("setup-token")
+@click.option(
+    "--credential-path",
+    default=str(ANTHROPIC_OAUTH_CREDENTIAL_PATH),
+    show_default=True,
+    help="Where to store the Anthropic setup-token.",
+)
+@click.option(
+    "--token",
+    default=None,
+    help="Setup-token value. If omitted, you will be prompted.",
+)
+def anthropic_setup_token(credential_path: str, token: str | None):
+    """Paste and save an Anthropic setup-token."""
+    _save_anthropic_setup_token(credential_path, _prompt_anthropic_setup_token(token))
+    _print_oauth_login_success("Anthropic setup-token", credential_path)
+
+
+@cli.group(name="gemini")
+def gemini_group():
+    """Gemini OAuth commands."""
+    pass
+
+
+@gemini_group.command("login")
+@click.option(
+    "--credential-path",
+    default=str(GEMINI_OAUTH_CREDENTIAL_PATH),
+    show_default=True,
+    help="Where to store Gemini OAuth credentials.",
+)
+@click.option("--model", default=None, help="Optional model override for later API calls.")
+@click.option(
+    "--timeout",
+    type=float,
+    default=300.0,
+    show_default=True,
+    help="Max seconds to wait for the browser callback.",
+)
+@click.option(
+    "--callback-host",
+    default="127.0.0.1",
+    show_default=True,
+    help="Host to bind the local OAuth callback server.",
+)
+@click.option(
+    "--callback-port",
+    type=int,
+    default=0,
+    show_default=True,
+    help="Port to bind the local OAuth callback server. Use 0 for auto.",
+)
+@click.option(
+    "--callback-path",
+    default="/oauth2callback",
+    show_default=True,
+    help="Callback path for the local OAuth server.",
+)
+@click.option(
+    "--open-browser/--no-browser",
+    default=True,
+    show_default=True,
+    help="Open the authorization URL automatically.",
+)
+def gemini_login(
+    credential_path: str,
+    model: str | None,
+    timeout: float,
+    callback_host: str,
+    callback_port: int,
+    callback_path: str,
+    open_browser: bool,
+):
+    """Login with Gemini Code Assist OAuth and save credentials locally."""
+    _run_gemini_oauth_login(
+        credential_path=credential_path,
+        model=model,
+        timeout=timeout,
+        callback_host=callback_host,
+        callback_port=callback_port,
+        callback_path=callback_path,
+        open_browser=open_browser,
+    )
 
 
 async def test(

@@ -1,6 +1,6 @@
 [project]
 name = "droidrun"
-version = "0.5.7"
+version = "0.5.3"
 description = "A framework for controlling Android devices through LLM agents"
 authors = [{ name = "Niels Schmidt", email = "niels.schmidt@droidrun.ai" }]
 dependencies = [
@@ -9,6 +9,7 @@ dependencies = [
     "posthog>=6.7.6",
     "pydantic>=2.11.10",
     "rich>=14.1.0",
+    "InquirerPy>=0.3.4",
     "arize-phoenix>=12.3.0",
     "httpx>=0.27.0",
     "llama-index-callbacks-arize-phoenix>=0.6.1",
