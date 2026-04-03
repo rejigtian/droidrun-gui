@@ -169,6 +169,7 @@ PROVIDER_FAMILIES: tuple[ProviderFamilySpec, ...] = (
                 default_model="glm-5",
                 models=(
                     ModelSpec("glm-5"),
+                    ModelSpec("glm-5v-turbo"),
                     ModelSpec("glm-4.7"),
                 ),
                 requires_api_key=True,
@@ -180,9 +181,8 @@ PROVIDER_FAMILIES: tuple[ProviderFamilySpec, ...] = (
                 runtime_provider_name="ZAI",
                 runtime_transport_provider_name="ZaiLLM",
                 auth_mode="coding_api",
-                default_model="glm-5",
+                default_model="glm-4.7",
                 models=(
-                    ModelSpec("glm-5"),
                     ModelSpec("glm-4.7"),
                 ),
                 requires_api_key=True,

@@ -34,24 +34,44 @@ _ZAI_UNSUPPORTED_PARAMS = {
 }
 
 
-def _flatten_content(message_dicts: list) -> list:
-    """Flatten multipart content arrays to plain strings when no images."""
+# ZAI models with vision support (v = vision variant)
+_ZAI_VISION_MODELS = {"glm-5v-turbo", "glm-4.6v", "glm-4.5v"}
+
+
+def _flatten_content(message_dicts: list, *, strip_images: bool = False) -> list:
+    """Flatten multipart content arrays for ZAI compatibility.
+
+    When strip_images is True (text-only models), removes image parts
+    and flattens to plain strings. When False (vision models), keeps
+    image parts but still flattens text-only messages.
+    """
     out = []
     for msg in message_dicts:
         content = msg.get("content")
         if isinstance(content, list):
-            has_non_text = any(
-                isinstance(part, dict) and part.get("type") != "text"
-                for part in content
-            )
-            if not has_non_text:
+            if strip_images:
+                # Text-only model: drop all non-text parts
                 text_parts = []
                 for part in content:
-                    if isinstance(part, dict):
+                    if isinstance(part, dict) and part.get("type") == "text":
                         text_parts.append(part.get("text", ""))
                     elif isinstance(part, str):
                         text_parts.append(part)
                 msg = {**msg, "content": "\n".join(text_parts)}
+            else:
+                # Vision model: flatten only if all parts are text
+                has_non_text = any(
+                    isinstance(part, dict) and part.get("type") != "text"
+                    for part in content
+                )
+                if not has_non_text:
+                    text_parts = []
+                    for part in content:
+                        if isinstance(part, dict):
+                            text_parts.append(part.get("text", ""))
+                        elif isinstance(part, str):
+                            text_parts.append(part)
+                    msg = {**msg, "content": "\n".join(text_parts)}
         out.append(msg)
     return out
 
@@ -87,7 +107,8 @@ class ZaiLLM(OpenAILike):
         from llama_index.llms.openai.utils import to_openai_message_dicts
 
         message_dicts = to_openai_message_dicts(messages, model=self.model)
-        return _flatten_content(message_dicts)
+        strip_images = self.model.lower() not in _ZAI_VISION_MODELS
+        return _flatten_content(message_dicts, strip_images=strip_images)
 
     def _chat(self, messages: Sequence[ChatMessage], **kwargs: Any) -> ChatResponse:
         from llama_index.llms.openai.utils import from_openai_message, from_openai_token_logprobs
