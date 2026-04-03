@@ -10,7 +10,6 @@ from rich.panel import Panel
 
 from droidrun.cli.configure_prompts import (
     SelectChoice,
-    confirm_prompt,
     normalize_role_targets,
     select_prompt,
     text_prompt,
@@ -42,9 +41,7 @@ _VARIANT_ENV_KEY_SLOT = {
 @dataclass
 class ConfigureWizardCallbacks:
     run_openai_oauth_login: Callable[..., None]
-    save_anthropic_setup_token: Callable[[str, str], None]
-    prompt_anthropic_setup_token: Callable[..., str]
-    print_oauth_login_success: Callable[[str, str], None]
+    run_anthropic_oauth_login: Callable[..., None]
     run_gemini_oauth_login: Callable[..., None]
 
 
@@ -218,28 +215,10 @@ def _prompt_api_key_source(variant: Any) -> str:
     sources = load_env_key_sources().get(env_slot) if env_slot else None
     choices: list[SelectChoice] = []
     if sources and sources.shell:
-        choices.append(
-            SelectChoice(
-                value="env",
-                label="Use env key",
-                hint=f"Read {env_slot.upper()} from the shell environment",
-            )
-        )
+        choices.append(SelectChoice(value="env", label="Use env key"))
     if sources and sources.saved:
-        choices.append(
-            SelectChoice(
-                value="file",
-                label="Use saved key",
-                hint="Use the key already stored in the credentials env file",
-            )
-        )
-    choices.append(
-        SelectChoice(
-            value="paste",
-            label="Paste new key",
-            hint="Store a new key in the credentials env file",
-        )
-    )
+        choices.append(SelectChoice(value="file", label="Use saved key"))
+    choices.append(SelectChoice(value="paste", label="Paste new key"))
     return _select_with_back("API key source", choices, default=choices[0].value)
 
 
@@ -262,16 +241,8 @@ def _prompt_oauth_credential_action(credential_path: str) -> str:
     return _select_with_back(
         "OAuth credentials found",
         [
-            SelectChoice(
-                value="use_existing",
-                label="Use existing login",
-                hint=f"Keep credentials from {Path(credential_path).expanduser()}",
-            ),
-            SelectChoice(
-                value="login_again",
-                label="Log in again",
-                hint="Authenticate with another account or refresh credentials",
-            ),
+            SelectChoice(value="use_existing", label="Use existing login"),
+            SelectChoice(value="login_again", label="Log in again"),
         ],
         default="use_existing",
     )
@@ -325,11 +296,7 @@ def _prepare_variant_auth(
             credential_path=credential_path, model=selected_model
         )
     elif variant.id == "anthropic_oauth" and credential_path:
-        callbacks.save_anthropic_setup_token(
-            credential_path,
-            callbacks.prompt_anthropic_setup_token(),
-        )
-        callbacks.print_oauth_login_success("Anthropic setup-token", credential_path)
+        callbacks.run_anthropic_oauth_login(credential_path=credential_path)
     elif variant.id == "gemini_oauth_code_assist" and credential_path:
         callbacks.run_gemini_oauth_login(
             credential_path=credential_path, model=selected_model
@@ -341,6 +308,27 @@ def _set_profile_max_tokens(profile: Any, value: int) -> None:
     profile.kwargs["max_tokens"] = value
 
 
+def _toggle_label(enabled: bool) -> str:
+    """Return a toggle indicator: ON/OFF."""
+    return "[ON]" if enabled else "[OFF]"
+
+
+def _is_vision_enabled(config) -> bool:
+    """Check if vision is enabled on any agent."""
+    return (
+        config.agent.manager.vision
+        or config.agent.executor.vision
+        or config.agent.fast_agent.vision
+    )
+
+
+def _set_vision_all(config, enabled: bool) -> None:
+    """Set vision on all agents at once."""
+    config.agent.manager.vision = enabled
+    config.agent.executor.vision = enabled
+    config.agent.fast_agent.vision = enabled
+
+
 def _configure_advanced_settings(
     console: Console,
     config,
@@ -348,50 +336,37 @@ def _configure_advanced_settings(
 ) -> tuple[str, ...]:
     default_selection = "apply_model_to"
     while True:
+        vision_on = _is_vision_enabled(config)
+        reasoning_on = config.agent.reasoning
+
         selected = _select_with_back(
             "Advanced settings",
             [
                 SelectChoice(
                     value="apply_model_to",
                     label=f"Apply model to ({_target_role_label(target_roles)})",
-                    hint="Change which agent group uses this model setup",
+                ),
+                SelectChoice(
+                    value="vision",
+                    label=f"Vision {_toggle_label(vision_on)}",
                 ),
                 SelectChoice(
                     value="reasoning",
-                    label="Reasoning mode",
-                    hint="Planning mode for multi-step tasks",
+                    label=f"Reasoning {_toggle_label(reasoning_on)}",
                 ),
                 SelectChoice(
                     value="max_steps",
                     label="Maximum steps",
-                    hint="Cap how long tasks can run",
-                ),
-                SelectChoice(
-                    value="planning_vision",
-                    label="Planning mode vision",
-                    hint="Manager and executor can use screenshots",
-                ),
-                SelectChoice(
-                    value="direct_vision",
-                    label="Direct mode vision",
-                    hint="Fast agent can use screenshots",
-                ),
-                SelectChoice(
-                    value="manager_stateless",
-                    label="Manager stateless mode",
-                    hint="Rebuild planning context each turn",
                 ),
                 SelectChoice(
                     value="temperature",
                     label="Temperature",
-                    hint="Adjust creativity for the selected agent group",
                 ),
                 SelectChoice(
                     value="max_tokens",
                     label="Max tokens",
-                    hint="Limit response length for the selected agent group",
                 ),
-                SelectChoice(value="done", label="Done", hint="Save and finish"),
+                SelectChoice(value="done", label="Done"),
             ],
             default=default_selection,
         )
@@ -403,30 +378,13 @@ def _configure_advanced_settings(
             updated_roles = _prompt_grouped_role_targets()
             if updated_roles is not None:
                 target_roles = updated_roles
+        elif selected == "vision":
+            _set_vision_all(config, not vision_on)
         elif selected == "reasoning":
-            config.agent.reasoning = confirm_prompt(
-                "Enable reasoning mode?", default=config.agent.reasoning
-            )
+            config.agent.reasoning = not reasoning_on
         elif selected == "max_steps":
             config.agent.max_steps = _prompt_int(
                 console, "Maximum steps", default=config.agent.max_steps
-            )
-        elif selected == "planning_vision":
-            enabled = confirm_prompt(
-                "Enable planning mode vision?",
-                default=(config.agent.manager.vision or config.agent.executor.vision),
-            )
-            config.agent.manager.vision = enabled
-            config.agent.executor.vision = enabled
-        elif selected == "direct_vision":
-            config.agent.fast_agent.vision = confirm_prompt(
-                "Enable direct mode vision?",
-                default=config.agent.fast_agent.vision,
-            )
-        elif selected == "manager_stateless":
-            config.agent.manager.stateless = confirm_prompt(
-                "Enable manager stateless mode?",
-                default=config.agent.manager.stateless,
             )
         elif selected == "temperature":
             default_temp = config.llm_profiles[target_roles[0]].temperature
@@ -446,6 +404,162 @@ def _configure_advanced_settings(
                 _set_profile_max_tokens(config.llm_profiles[role], value)
 
         default_selection = selected
+
+
+def _configure_provider_model(
+    console: Console,
+    config,
+    callbacks: ConfigureWizardCallbacks,
+    state: ConfigureWizardState,
+    families,
+    family_labels: dict[str, str],
+    *,
+    provider_is_fixed: bool,
+    auth_mode_is_fixed: bool,
+    model_is_fixed: bool,
+    api_key: str | None,
+    base_url: str | None,
+) -> bool:
+    """Run the provider → auth → model → credentials flow.
+
+    Returns True when the flow completes and the selection has been applied
+    to *config*.  Returns False when the user backs out entirely.
+    """
+    while True:
+        # --- Provider family ---
+        if state.family_id is None:
+            state.family_id = _select_with_back(
+                "Choose provider",
+                [
+                    SelectChoice(value=family.id, label=family.display_name)
+                    for family in families
+                ],
+                default="gemini",
+                include_back=True,
+            )
+            if state.family_id == _BACK:
+                state.family_id = None
+                return False
+        console.print(f"Selected provider family: {family_labels[state.family_id]}")
+
+        # --- Auth mode ---
+        modes = auth_mode_choices(state.family_id)
+        if auth_mode_is_fixed:
+            state.selected_auth_mode = click.Choice(
+                list(modes), case_sensitive=False
+            ).convert(state.selected_auth_mode or "", None, None)
+        else:
+            while True:
+                if len(modes) == 1:
+                    state.selected_auth_mode = modes[0]
+                    break
+                state.selected_auth_mode = _select_with_back(
+                    "Choose auth mode",
+                    [
+                        SelectChoice(value=mode, label=mode.replace("_", " "))
+                        for mode in modes
+                    ],
+                    default=modes[0],
+                )
+                if state.selected_auth_mode == _BACK:
+                    state.family_id = None
+                    break
+                break
+            if state.selected_auth_mode is None:
+                continue
+            if state.selected_auth_mode == _BACK:
+                state.family_id = None
+                state.selected_auth_mode = None
+                continue
+
+        # --- Model ---
+        models = list(variant_models(state.family_id, state.selected_auth_mode))
+        variant = _resolve_variant(families, state.family_id, state.selected_auth_mode)
+        default_model = models[0] if models else (variant.default_model or "")
+
+        if not model_is_fixed:
+            while True:
+                state.selected_model = _prompt_model_choice(
+                    models,
+                    default_model=default_model,
+                )
+                if state.selected_model == _BACK:
+                    state.selected_model = None
+                    if auth_mode_is_fixed or len(modes) == 1:
+                        if not provider_is_fixed:
+                            state.family_id = None
+                        if not auth_mode_is_fixed:
+                            state.selected_auth_mode = None
+                    else:
+                        state.selected_auth_mode = None
+                    break
+                break
+            if state.selected_model is None:
+                continue
+
+        # --- Credentials ---
+        credential_path: str | None = variant.credential_path
+
+        if variant.id != state.last_variant_id:
+            if api_key is None:
+                state.selected_api_key = None
+                state.selected_api_key_source = None
+            if base_url is None:
+                state.selected_base_url = None
+            state.last_variant_id = variant.id
+            state.prepared_auth_variant_id = None
+
+        if variant.requires_api_key and not state.selected_api_key:
+            selected_key, selected_source = _prompt_api_key_for_variant(variant)
+            if selected_key == _BACK:
+                if model_is_fixed:
+                    return False
+                state.selected_model = None
+                continue
+            state.selected_api_key = selected_key
+            state.selected_api_key_source = selected_source
+        if variant.requires_base_url and not state.selected_base_url:
+            state.selected_base_url = text_prompt(
+                "Base URL", default=variant.base_url or "", secret=False
+            )
+        if (
+            credential_path
+            and variant.auth_mode == "oauth"
+            and state.prepared_auth_variant_id != variant.id
+            and Path(credential_path).expanduser().exists()
+        ):
+            oauth_action = _prompt_oauth_credential_action(credential_path)
+            if oauth_action == _BACK:
+                if model_is_fixed:
+                    return False
+                state.selected_model = None
+                continue
+            if oauth_action == "use_existing":
+                state.prepared_auth_variant_id = variant.id
+
+        # --- Apply ---
+        if credential_path and state.prepared_auth_variant_id != variant.id:
+            _prepare_variant_auth(
+                callbacks=callbacks,
+                variant=variant,
+                credential_path=credential_path,
+                selected_model=state.selected_model,
+            )
+            state.prepared_auth_variant_id = variant.id
+
+        _apply_model_selection(
+            config,
+            family_id=state.family_id,
+            variant=variant,
+            selected_auth_mode=state.selected_auth_mode,
+            selected_model=state.selected_model,
+            selected_api_key=state.selected_api_key,
+            selected_api_key_source=state.selected_api_key_source,
+            selected_base_url=state.selected_base_url,
+            credential_path=credential_path,
+            target_roles=state.target_roles,
+        )
+        return True
 
 
 def run_configure_wizard(
@@ -481,171 +595,77 @@ def run_configure_wizard(
         state.family_id = click.Choice(family_ids, case_sensitive=False).convert(
             provider, None, None
         )
+    if auth_mode_is_fixed:
+        state.selected_auth_mode = auth_mode
+    if model_is_fixed:
+        state.selected_model = model
     if roles_are_fixed:
         state.target_roles = normalize_role_targets(apply_to_all, roles)
 
+    # When CLI flags fully specify provider+model, run the flow automatically
+    # before showing the menu.
+    provider_configured = False
+    if provider_is_fixed and model_is_fixed:
+        provider_configured = _configure_provider_model(
+            console, config, callbacks, state, families, family_labels,
+            provider_is_fixed=provider_is_fixed,
+            auth_mode_is_fixed=auth_mode_is_fixed,
+            model_is_fixed=model_is_fixed,
+            api_key=api_key,
+            base_url=base_url,
+        )
+
+    # --- Top-level menu ---
     while True:
-        if state.family_id is None:
-            state.family_id = _select_with_back(
-                "Choose provider",
-                [
-                    SelectChoice(value=family.id, label=family.display_name)
-                    for family in families
-                ],
-                default="gemini",
-                include_back=False,
-            )
-        console.print(f"Selected provider family: {family_labels[state.family_id]}")
+        action = select_prompt(
+            "Configure",
+            [
+                SelectChoice(value="provider_model", label="Provider / Model"),
+                SelectChoice(value="advanced", label="Advanced settings"),
+                SelectChoice(value="finish", label="Finish"),
+            ],
+            default="finish" if provider_configured else "provider_model",
+        )
 
-        modes = auth_mode_choices(state.family_id)
-        if auth_mode_is_fixed:
-            state.selected_auth_mode = click.Choice(
-                list(modes), case_sensitive=False
-            ).convert(auth_mode, None, None)
-        else:
-            while True:
-                if len(modes) == 1:
-                    state.selected_auth_mode = modes[0]
-                    break
-                state.selected_auth_mode = _select_with_back(
-                    "Choose auth mode",
-                    [
-                        SelectChoice(value=mode, label=mode.replace("_", " "))
-                        for mode in modes
-                    ],
-                    default=modes[0],
-                )
-                if state.selected_auth_mode == _BACK:
-                    state.family_id = None
-                    break
-                break
-            if state.selected_auth_mode is None:
-                continue
-            if state.selected_auth_mode == _BACK:
-                state.family_id = None
-                state.selected_auth_mode = None
-                continue
-
-        models = list(variant_models(state.family_id, state.selected_auth_mode))
-        variant = _resolve_variant(families, state.family_id, state.selected_auth_mode)
-        default_model = models[0] if models else (variant.default_model or "")
-
-        if model_is_fixed:
-            state.selected_model = model
-        else:
-            while True:
-                state.selected_model = _prompt_model_choice(
-                    models,
-                    default_model=default_model,
-                )
-                if state.selected_model == _BACK:
-                    state.selected_model = None
-                    if auth_mode_is_fixed or len(modes) == 1:
-                        if not provider_is_fixed:
-                            state.family_id = None
-                        if not auth_mode_is_fixed:
-                            state.selected_auth_mode = None
-                    else:
-                        state.selected_auth_mode = None
-                    break
-                break
-            if state.selected_model is None:
-                continue
-        credential_path: str | None = variant.credential_path
-
-        if variant.id != state.last_variant_id:
-            if api_key is None:
-                state.selected_api_key = None
-                state.selected_api_key_source = None
-            if base_url is None:
-                state.selected_base_url = None
-            state.last_variant_id = variant.id
+        if action == "provider_model":
+            # Reset provider state so the user can re-pick
+            state.family_id = None
+            state.selected_auth_mode = None
+            state.selected_model = None
+            state.selected_api_key = api_key
+            state.selected_api_key_source = "file" if api_key else None
+            state.selected_base_url = base_url
+            state.last_variant_id = None
             state.prepared_auth_variant_id = None
 
-        if variant.requires_api_key and not state.selected_api_key:
-            selected_key, selected_source = _prompt_api_key_for_variant(variant)
-            if selected_key == _BACK:
-                if model_is_fixed:
-                    break
-                state.selected_model = None
-                break
-            state.selected_api_key = selected_key
-            state.selected_api_key_source = selected_source
-        if variant.requires_base_url and not state.selected_base_url:
-            state.selected_base_url = text_prompt(
-                "Base URL", default=variant.base_url or "", secret=False
+            completed = _configure_provider_model(
+                console, config, callbacks, state, families, family_labels,
+                provider_is_fixed=False,
+                auth_mode_is_fixed=False,
+                model_is_fixed=False,
+                api_key=api_key,
+                base_url=base_url,
             )
-        if (
-            credential_path
-            and variant.auth_mode == "oauth"
-            and state.prepared_auth_variant_id != variant.id
-            and Path(credential_path).expanduser().exists()
-        ):
-            oauth_action = _prompt_oauth_credential_action(credential_path)
-            if oauth_action == _BACK:
-                if model_is_fixed:
-                    break
-                state.selected_model = None
-                break
-            if oauth_action == "use_existing":
-                state.prepared_auth_variant_id = variant.id
-        while True:
-            action = _select_with_back(
-                "Configuration complete",
-                [
-                    SelectChoice(value="finish", label="Finish", hint="Save and exit"),
-                    SelectChoice(
-                        value="advanced",
-                        label="Advanced settings",
-                        hint="Reasoning, vision, temperature, max tokens",
-                    ),
-                ],
-                default="finish",
-            )
-            if action == _BACK:
-                if model_is_fixed:
-                    break
-                state.selected_model = None
-                break
+            if completed:
+                provider_configured = True
 
-            if action == "advanced":
-                state.used_advanced_settings = True
-                state.target_roles = _configure_advanced_settings(
-                    console, config, state.target_roles
-                )
-
-            if credential_path and state.prepared_auth_variant_id != variant.id:
-                _prepare_variant_auth(
-                    callbacks=callbacks,
-                    variant=variant,
-                    credential_path=credential_path,
-                    selected_model=state.selected_model,
-                )
-                state.prepared_auth_variant_id = variant.id
-
-            _apply_model_selection(
-                config,
-                family_id=state.family_id,
-                variant=variant,
-                selected_auth_mode=state.selected_auth_mode,
-                selected_model=state.selected_model,
-                selected_api_key=state.selected_api_key,
-                selected_api_key_source=state.selected_api_key_source,
-                selected_base_url=state.selected_base_url,
-                credential_path=credential_path,
-                target_roles=state.target_roles,
+        elif action == "advanced":
+            state.used_advanced_settings = True
+            state.target_roles = _configure_advanced_settings(
+                console, config, state.target_roles
             )
 
+        elif action == "finish":
             ConfigLoader.save(config)
-            _print_configure_summary(
-                console,
-                provider_label=family_labels[state.family_id],
-                variant_id=variant.id,
-                model=state.selected_model,
-                applied_to=_target_role_label(state.target_roles),
-                used_advanced_settings=state.used_advanced_settings,
-            )
+            if provider_configured and state.family_id:
+                _print_configure_summary(
+                    console,
+                    provider_label=family_labels[state.family_id],
+                    variant_id=state.last_variant_id or state.family_id,
+                    model=state.selected_model or "",
+                    applied_to=_target_role_label(state.target_roles),
+                    used_advanced_settings=state.used_advanced_settings,
+                )
+            else:
+                console.print("[green]Configuration saved.[/]")
             return
-
-        if state.selected_model is None:
-            continue

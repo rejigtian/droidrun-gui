@@ -61,13 +61,6 @@ def select_prompt(
     )
 
 
-def confirm_prompt(message: str, *, default: bool = True) -> bool:
-    inquirer = _import_inquirer_select()
-    if inquirer is not None:
-        return bool(inquirer.confirm(message=message, default=default).execute())
-    return bool(click.confirm(message, default=default))
-
-
 def text_prompt(
     message: str,
     *,
