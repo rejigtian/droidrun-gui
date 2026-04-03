@@ -509,33 +509,59 @@ def _configure_provider_model(
             state.last_variant_id = variant.id
             state.prepared_auth_variant_id = None
 
+        non_interactive = provider_is_fixed and model_is_fixed
+
         if variant.requires_api_key and not state.selected_api_key:
-            selected_key, selected_source = _prompt_api_key_for_variant(variant)
-            if selected_key == _BACK:
-                if model_is_fixed:
-                    return False
-                state.selected_model = None
-                continue
-            state.selected_api_key = selected_key
-            state.selected_api_key_source = selected_source
+            if non_interactive:
+                # Auto-resolve key from saved credentials
+                env_slot = _VARIANT_ENV_KEY_SLOT.get(variant.id)
+                if env_slot:
+                    key = resolve_env_key(env_slot, "auto")
+                    if key:
+                        state.selected_api_key = key
+                        state.selected_api_key_source = "auto"
+                    else:
+                        raise click.ClickException(
+                            f"No API key found for {variant.id}. "
+                            f"Pass --api-key or save one first."
+                        )
+                else:
+                    raise click.ClickException(
+                        f"No API key provided for {variant.id}. Pass --api-key."
+                    )
+            else:
+                selected_key, selected_source = _prompt_api_key_for_variant(variant)
+                if selected_key == _BACK:
+                    if model_is_fixed:
+                        return False
+                    state.selected_model = None
+                    continue
+                state.selected_api_key = selected_key
+                state.selected_api_key_source = selected_source
         if variant.requires_base_url and not state.selected_base_url:
-            state.selected_base_url = text_prompt(
-                "Base URL", default=variant.base_url or "", secret=False
-            )
+            if non_interactive and variant.base_url:
+                state.selected_base_url = variant.base_url
+            else:
+                state.selected_base_url = text_prompt(
+                    "Base URL", default=variant.base_url or "", secret=False
+                )
         if (
             credential_path
             and variant.auth_mode == "oauth"
             and state.prepared_auth_variant_id != variant.id
             and Path(credential_path).expanduser().exists()
         ):
-            oauth_action = _prompt_oauth_credential_action(credential_path)
-            if oauth_action == _BACK:
-                if model_is_fixed:
-                    return False
-                state.selected_model = None
-                continue
-            if oauth_action == "use_existing":
+            if non_interactive:
                 state.prepared_auth_variant_id = variant.id
+            else:
+                oauth_action = _prompt_oauth_credential_action(credential_path)
+                if oauth_action == _BACK:
+                    if model_is_fixed:
+                        return False
+                    state.selected_model = None
+                    continue
+                if oauth_action == "use_existing":
+                    state.prepared_auth_variant_id = variant.id
 
         # --- Apply ---
         if credential_path and state.prepared_auth_variant_id != variant.id:
@@ -603,7 +629,7 @@ def run_configure_wizard(
         state.target_roles = normalize_role_targets(apply_to_all, roles)
 
     # When CLI flags fully specify provider+model, run the flow automatically
-    # before showing the menu.
+    # and save without showing the menu.
     provider_configured = False
     if provider_is_fixed and model_is_fixed:
         provider_configured = _configure_provider_model(
@@ -614,6 +640,17 @@ def run_configure_wizard(
             api_key=api_key,
             base_url=base_url,
         )
+        if provider_configured:
+            ConfigLoader.save(config)
+            _print_configure_summary(
+                console,
+                provider_label=family_labels[state.family_id],
+                variant_id=state.last_variant_id or state.family_id,
+                model=state.selected_model or "",
+                applied_to=_target_role_label(state.target_roles),
+                used_advanced_settings=False,
+            )
+            return
 
     # --- Top-level menu ---
     while True:
