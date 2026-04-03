@@ -17,7 +17,7 @@ SUPPORTED_PROVIDERS = [
     "OpenAI",
     "OpenAILike",
     "OpenAIOAuth",
-    "OpenAIResponsesLLM",
+    "OpenAIResponses",
     "openai_llm",
     "Anthropic",
     "Anthropic_LLM",
@@ -90,7 +90,7 @@ def get_usage_from_response(provider: str, chat_rsp: ChatResponse) -> UsageResul
             total_tokens=usage.total_tokens,
             requests=1,
         )
-    elif provider in ("OpenAIResponsesLLM", "OpenAIOAuth"):
+    elif provider in ("OpenAIResponses", "OpenAIOAuth"):
         usage = getattr(rsp, "usage", None)
         if usage is None:
             return UsageResult(request_tokens=0, response_tokens=0, total_tokens=0, requests=1)

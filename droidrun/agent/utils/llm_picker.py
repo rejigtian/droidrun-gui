@@ -93,12 +93,14 @@ def load_llm(provider_name: str, model: str | None = None, **kwargs: Any) -> LLM
             **filtered_kwargs
         )
 
-    # Route gpt-5.x models to Responses API when using OpenAI provider
-    if provider_name == "OpenAI" and kwargs.get("model", "").startswith("gpt-5"):
-        from droidrun.agent.utils.openai_responses_llm import OpenAIResponsesLLM
+    # Route Responses API-only models to OpenAIResponses
+    if provider_name == "OpenAI" and kwargs.get("model", "") in (
+        "gpt-5.2-pro", "gpt-5.4-pro",
+    ):
+        from llama_index.llms.openai.responses import OpenAIResponses
 
         filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None}
-        return OpenAIResponsesLLM(**filtered_kwargs)
+        return OpenAIResponses(**filtered_kwargs)
 
     module_info = PROVIDER_MODULE_MAP.get(provider_name)
     if module_info is None:
