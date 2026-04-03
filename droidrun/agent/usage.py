@@ -15,7 +15,10 @@ SUPPORTED_PROVIDERS = [
     "GenAI",
     "GeminiOAuthCodeAssistLLM",
     "OpenAI",
+    "OpenAILike",
+    "ZaiLLM",
     "OpenAIOAuth",
+    "OpenAIResponsesLLM",
     "openai_llm",
     "Anthropic",
     "Anthropic_LLM",
@@ -77,8 +80,8 @@ def get_usage_from_response(provider: str, chat_rsp: ChatResponse) -> UsageResul
     elif (
         provider == "OpenAI"
         or provider == "OpenAILike"
+        or provider == "ZaiLLM"
         or provider == "openai_llm"
-        or provider == "OpenAIOAuth"
     ):
         from openai.types import CompletionUsage as OpenAIUsage
 
@@ -87,6 +90,16 @@ def get_usage_from_response(provider: str, chat_rsp: ChatResponse) -> UsageResul
             request_tokens=usage.prompt_tokens,
             response_tokens=usage.completion_tokens,
             total_tokens=usage.total_tokens,
+            requests=1,
+        )
+    elif provider in ("OpenAIResponsesLLM", "OpenAIOAuth"):
+        usage = getattr(rsp, "usage", None)
+        if usage is None:
+            return UsageResult(request_tokens=0, response_tokens=0, total_tokens=0, requests=1)
+        return UsageResult(
+            request_tokens=getattr(usage, "input_tokens", 0) or 0,
+            response_tokens=getattr(usage, "output_tokens", 0) or 0,
+            total_tokens=getattr(usage, "total_tokens", 0) or 0,
             requests=1,
         )
     elif (

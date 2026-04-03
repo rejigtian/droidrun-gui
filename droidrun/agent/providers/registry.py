@@ -14,7 +14,8 @@ from droidrun.config_manager.credential_paths import (
 
 OPENAI_OAUTH_MODELS = (
     ModelSpec("gpt-5.4"),
-    ModelSpec("gpt-5.3-codex-spark"),
+    ModelSpec("gpt-5.4-mini"),
+    ModelSpec("gpt-5.3-codex"),
 )
 
 
