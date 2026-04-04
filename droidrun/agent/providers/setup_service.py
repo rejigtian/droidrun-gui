@@ -155,6 +155,10 @@ def create_profile_for_variant(
     elif variant.id == "MiniMax":
         kwargs["api_key"] = selection.api_key or ""
 
+    # OpenAI models require temperature=1
+    if selection.family_id == "openai":
+        temperature = 1.0
+
     return LLMProfile(
         provider=runtime_provider_name,
         provider_family=selection.family_id,

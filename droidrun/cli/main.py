@@ -1260,10 +1260,10 @@ if __name__ == "__main__":
     command = "open youtube and play a song by shakira"
     command = "use open_app to open the settings and search for the battery and enter the first result"
     device = None
-    provider = "GoogleGenAI"
-    model = "gemini-3.1-flash-lite-preview"
-    temperature = 0
-    api_key = os.getenv("GOOGLE_API_KEY")
+    provider = "OpenAI"
+    model = "gpt-5.4-pro"
+    temperature = 1
+    api_key = os.getenv("OPENAI_API_KEY")
     steps = 15
     vision = True
     reasoning = False

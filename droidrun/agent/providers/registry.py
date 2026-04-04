@@ -61,7 +61,6 @@ PROVIDER_FAMILIES: tuple[ProviderFamilySpec, ...] = (
                 default_model="gpt-5.4",
                 models=(
                     ModelSpec("gpt-5.4"),
-                    ModelSpec("gpt-5.4-pro"),
                     ModelSpec("gpt-5.4-mini"),
                     ModelSpec("gpt-5.4-nano"),
                 ),

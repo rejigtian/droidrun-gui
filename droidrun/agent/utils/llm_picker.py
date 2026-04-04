@@ -1,4 +1,3 @@
-import importlib
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -8,6 +7,15 @@ from droidrun.agent.utils.oauth import (
     openai_oauth_llm,
 )
 from llama_index.core.llms.llm import LLM
+from llama_index.llms.anthropic import Anthropic
+from llama_index.llms.deepseek import DeepSeek
+from llama_index.llms.google_genai import GoogleGenAI
+from llama_index.llms.minimax import MiniMax
+from llama_index.llms.ollama import Ollama
+from llama_index.llms.openai import OpenAI
+from llama_index.llms.openai.responses import OpenAIResponses
+from llama_index.llms.openai_like import OpenAILike
+from llama_index.llms.openrouter import OpenRouter
 
 from droidrun.agent.usage import track_usage
 
@@ -18,35 +26,16 @@ if TYPE_CHECKING:
 logger = logging.getLogger("droidrun")
 
 
-PROVIDER_MODULE_MAP: dict[str, tuple[str, str, str]] = {
-    "OpenAI": ("llama_index.llms.openai", "OpenAI", "llama-index-llms-openai"),
-    "OpenAILike": (
-        "llama_index.llms.openai_like",
-        "OpenAILike",
-        "llama-index-llms-openai-like",
-    ),
-    "GoogleGenAI": (
-        "llama_index.llms.google_genai",
-        "GoogleGenAI",
-        "llama-index-llms-google-genai",
-    ),
-    "Ollama": ("llama_index.llms.ollama", "Ollama", "llama-index-llms-ollama"),
-    "Anthropic": (
-        "llama_index.llms.anthropic",
-        "Anthropic",
-        "llama-index-llms-anthropic",
-    ),
-    "DeepSeek": (
-        "llama_index.llms.deepseek",
-        "DeepSeek",
-        "llama-index-llms-deepseek",
-    ),
-    "OpenRouter": (
-        "llama_index.llms.openrouter",
-        "OpenRouter",
-        "llama-index-llms-openrouter",
-    ),
-    "MiniMax": ("llama_index.llms.minimax", "MiniMax", "llama-index-llms-minimax"),
+PROVIDER_CLASS_MAP: dict[str, type[LLM]] = {
+    "OpenAI": OpenAI,
+    "OpenAILike": OpenAILike,
+    "OpenAIResponses": OpenAIResponses,
+    "GoogleGenAI": GoogleGenAI,
+    "Ollama": Ollama,
+    "Anthropic": Anthropic,
+    "DeepSeek": DeepSeek,
+    "OpenRouter": OpenRouter,
+    "MiniMax": MiniMax,
 }
 
 
@@ -97,19 +86,14 @@ def load_llm(provider_name: str, model: str | None = None, **kwargs: Any) -> LLM
     if provider_name == "OpenAI" and kwargs.get("model", "") in (
         "gpt-5.2-pro", "gpt-5.4-pro",
     ):
-        from llama_index.llms.openai.responses import OpenAIResponses
+        provider_name = "OpenAIResponses"
 
-        filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None}
-        return OpenAIResponses(**filtered_kwargs)
-
-    module_info = PROVIDER_MODULE_MAP.get(provider_name)
-    if module_info is None:
+    llm_class = PROVIDER_CLASS_MAP.get(provider_name)
+    if llm_class is None:
         raise ValueError(
             f"Unsupported provider '{provider_name}'. "
-            f"Supported providers: {sorted(PROVIDER_MODULE_MAP)}"
+            f"Supported providers: {sorted(PROVIDER_CLASS_MAP)}"
         )
-
-    module_path, class_name, install_package_name = module_info
 
     if provider_name == "OpenAILike":
         kwargs.setdefault("is_chat_model", True)
@@ -117,56 +101,11 @@ def load_llm(provider_name: str, model: str | None = None, **kwargs: Any) -> LLM
         if "base_url" in kwargs and "api_base" not in kwargs:
             kwargs["api_base"] = kwargs.pop("base_url")
 
-    try:
-        logger.debug(f"Attempting to import module: {module_path}")
-        llm_module = importlib.import_module(module_path)
-        logger.debug(f"Successfully imported module: {module_path}")
-
-    except ModuleNotFoundError:
-        logger.error(
-            f"Module '{module_path}' not found. Try: pip install {install_package_name}"
-        )
-        raise ModuleNotFoundError(
-            f"Could not import '{module_path}'. Is '{install_package_name}' installed?"
-        ) from None
-
-    try:
-        logger.debug(
-            f"Attempting to get class '{class_name}' from module {module_path}"
-        )
-        llm_class = getattr(llm_module, class_name)
-        logger.debug(f"Found class: {llm_class.__name__}")
-
-        # Verify the class is a subclass of LLM
-        if not isinstance(llm_class, type) or not issubclass(llm_class, LLM):
-            raise TypeError(
-                f"Class '{provider_name}' found in '{module_path}' is not a valid LLM subclass."
-            )
-
-        # Initialize
-        filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None}
-        logger.debug(
-            f"Initializing {llm_class.__name__} with kwargs: {list(filtered_kwargs.keys())}"
-        )
-        llm_instance = llm_class(**filtered_kwargs)
-        logger.debug(f"Successfully loaded and initialized LLM: {provider_name}")
-        if not llm_instance:
-            raise RuntimeError(
-                f"Failed to initialize LLM instance for {provider_name}."
-            )
-        return llm_instance
-
-    except AttributeError:
-        logger.error(f"Class '{class_name}' not found in module '{module_path}'.")
-        raise AttributeError(
-            f"Could not find class '{class_name}' in module '{module_path}'."
-        ) from None
-    except TypeError as e:
-        logger.error(f"Error initializing {provider_name}: {e}")
-        raise  # Re-raise TypeError (could be from issubclass check or __init__)
-    except Exception as e:
-        logger.error(f"An unexpected error occurred initializing {provider_name}: {e}")
-        raise e
+    filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None}
+    logger.debug(
+        f"Initializing {llm_class.__name__} with kwargs: {list(filtered_kwargs.keys())}"
+    )
+    return llm_class(**filtered_kwargs)
 
 
 def load_llms_from_profiles(
