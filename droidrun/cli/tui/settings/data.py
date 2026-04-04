@@ -12,7 +12,7 @@ from droidrun.config_manager.env_keys import load_env_key_sources, save_env_keys
 
 PROVIDERS = [
     "GoogleGenAI",
-    "OpenAI",
+    "OpenAIResponses",
     "Anthropic",
     "Ollama",
     "OpenAILike",
@@ -24,14 +24,23 @@ AGENT_ROLES = ["manager", "executor", "fast_agent"]
 # Providers not listed here store their api_key in kwargs instead.
 PROVIDER_ENV_KEY_SLOT: dict[str, str] = {
     "GoogleGenAI": "google",
-    "OpenAI": "openai",
+    "OpenAIResponses": "openai",
     "Anthropic": "anthropic",
+}
+
+# Maps TUI provider name to the provider_family used by the backend.
+PROVIDER_FAMILY: dict[str, str] = {
+    "GoogleGenAI": "gemini",
+    "OpenAIResponses": "openai",
+    "Anthropic": "anthropic",
+    "Ollama": "ollama",
+    "OpenAILike": "openai_like",
 }
 
 # Which fields are relevant per provider.
 PROVIDER_FIELDS: dict[str, dict[str, Any]] = {
     "GoogleGenAI": {"api_key": True, "api_source": True, "base_url": False},
-    "OpenAI": {"api_key": True, "api_source": True, "base_url": False},
+    "OpenAIResponses": {"api_key": True, "api_source": True, "base_url": False},
     "Anthropic": {"api_key": True, "api_source": True, "base_url": False},
     "Ollama": {"api_key": False, "api_source": False, "base_url": True},
     "OpenAILike": {"api_key": True, "api_source": False, "base_url": True},
@@ -213,6 +222,9 @@ class SettingsData:
     ) -> None:
         """Write a ProfileSettings onto an LLMProfile config object."""
         cp.provider = ps.provider
+        cp.provider_family = PROVIDER_FAMILY.get(ps.provider, "")
+        cp.auth_mode = "api_key"
+        cp.credential_path = None
         if update_model:
             cp.model = ps.model
         cp.temperature = ps.temperature

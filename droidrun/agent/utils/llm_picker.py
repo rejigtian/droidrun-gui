@@ -1,21 +1,7 @@
 import logging
 from typing import TYPE_CHECKING, Any
 
-from droidrun.agent.utils.oauth import (
-    anthropic_oauth_llm,
-    gemini_oauth_code_assist_llm,
-    openai_oauth_llm,
-)
 from llama_index.core.llms.llm import LLM
-from llama_index.llms.anthropic import Anthropic
-from llama_index.llms.deepseek import DeepSeek
-from llama_index.llms.google_genai import GoogleGenAI
-from llama_index.llms.minimax import MiniMax
-from llama_index.llms.ollama import Ollama
-from llama_index.llms.openai import OpenAI
-from llama_index.llms.openai.responses import OpenAIResponses
-from llama_index.llms.openai_like import OpenAILike
-from llama_index.llms.openrouter import OpenRouter
 
 from droidrun.agent.usage import track_usage
 
@@ -26,17 +12,43 @@ if TYPE_CHECKING:
 logger = logging.getLogger("droidrun")
 
 
-PROVIDER_CLASS_MAP: dict[str, type[LLM]] = {
-    "OpenAI": OpenAI,
-    "OpenAILike": OpenAILike,
-    "OpenAIResponses": OpenAIResponses,
-    "GoogleGenAI": GoogleGenAI,
-    "Ollama": Ollama,
-    "Anthropic": Anthropic,
-    "DeepSeek": DeepSeek,
-    "OpenRouter": OpenRouter,
-    "MiniMax": MiniMax,
-}
+SUPPORTED_PROVIDERS = [
+    "OpenAIResponses", "OpenAILike", "GoogleGenAI",
+    "Ollama", "Anthropic", "DeepSeek", "OpenRouter", "MiniMax",
+]
+
+
+def _get_provider_class(provider_name: str) -> type[LLM]:
+    """Lazily import and return the LLM class for the given provider."""
+    if provider_name == "OpenAIResponses":
+        from llama_index.llms.openai.responses import OpenAIResponses
+        return OpenAIResponses
+    elif provider_name == "OpenAILike":
+        from llama_index.llms.openai_like import OpenAILike
+        return OpenAILike
+    elif provider_name == "GoogleGenAI":
+        from llama_index.llms.google_genai import GoogleGenAI
+        return GoogleGenAI
+    elif provider_name == "Ollama":
+        from llama_index.llms.ollama import Ollama
+        return Ollama
+    elif provider_name == "Anthropic":
+        from llama_index.llms.anthropic import Anthropic
+        return Anthropic
+    elif provider_name == "DeepSeek":
+        from llama_index.llms.deepseek import DeepSeek
+        return DeepSeek
+    elif provider_name == "OpenRouter":
+        from llama_index.llms.openrouter import OpenRouter
+        return OpenRouter
+    elif provider_name == "MiniMax":
+        from llama_index.llms.minimax import MiniMax
+        return MiniMax
+    else:
+        raise ValueError(
+            f"Unsupported provider '{provider_name}'. "
+            f"Supported providers: {sorted(SUPPORTED_PROVIDERS)}"
+        )
 
 
 def load_llm(provider_name: str, model: str | None = None, **kwargs: Any) -> LLM:
@@ -71,29 +83,21 @@ def load_llm(provider_name: str, model: str | None = None, **kwargs: Any) -> LLM
         kwargs["model"] = model
 
     if provider_name == "openai_oauth":
+        from droidrun.agent.utils.oauth import openai_oauth_llm
         filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None}
         return openai_oauth_llm.OpenAIOAuth(**filtered_kwargs)
     elif provider_name == "anthropic_oauth":
+        from droidrun.agent.utils.oauth import anthropic_oauth_llm
         filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None}
         return anthropic_oauth_llm.AnthropicOAuthLLM(**filtered_kwargs)
     elif provider_name == "gemini_oauth_code_assist":
+        from droidrun.agent.utils.oauth import gemini_oauth_code_assist_llm
         filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None}
         return gemini_oauth_code_assist_llm.GeminiOAuthCodeAssistLLM(
             **filtered_kwargs
         )
 
-    # Route Responses API-only models to OpenAIResponses
-    if provider_name == "OpenAI" and kwargs.get("model", "") in (
-        "gpt-5.2-pro", "gpt-5.4-pro",
-    ):
-        provider_name = "OpenAIResponses"
-
-    llm_class = PROVIDER_CLASS_MAP.get(provider_name)
-    if llm_class is None:
-        raise ValueError(
-            f"Unsupported provider '{provider_name}'. "
-            f"Supported providers: {sorted(PROVIDER_CLASS_MAP)}"
-        )
+    llm_class = _get_provider_class(provider_name)
 
     if provider_name == "OpenAILike":
         kwargs.setdefault("is_chat_model", True)
@@ -196,7 +200,7 @@ if __name__ == "__main__":
             "model": "gemini-3.1-flash-lite-preview",
         },
         {
-            "name": "OpenAI",
+            "name": "OpenAIResponses",
             "model": "gpt-4",
         },
         {

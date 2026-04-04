@@ -28,7 +28,7 @@ _BACK = "__back__"
 _ALL_CONFIG_ROLES = ("manager", "executor", "fast_agent", "app_opener", "structured_output")
 _VARIANT_ENV_KEY_SLOT = {
     "GoogleGenAI": "google",
-    "OpenAI": "openai",
+    "OpenAIResponses": "openai",
     "Anthropic": "anthropic",
     "ZAI": "zai",
     "ZAI_Coding": "zai",

@@ -1260,7 +1260,7 @@ if __name__ == "__main__":
     command = "open youtube and play a song by shakira"
     command = "use open_app to open the settings and search for the battery and enter the first result"
     device = None
-    provider = "OpenAI"
+    provider = "OpenAIResponses"
     model = "gpt-5.4-pro"
     temperature = 1
     api_key = os.getenv("OPENAI_API_KEY")

@@ -55,8 +55,8 @@ PROVIDER_FAMILIES: tuple[ProviderFamilySpec, ...] = (
         display_name="OpenAI",
         variants=(
             ProviderVariantSpec(
-                id="OpenAI",
-                runtime_provider_name="OpenAI",
+                id="OpenAIResponses",
+                runtime_provider_name="OpenAIResponses",
                 auth_mode="api_key",
                 default_model="gpt-5.4",
                 models=(

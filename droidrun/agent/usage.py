@@ -14,10 +14,10 @@ SUPPORTED_PROVIDERS = [
     "GoogleGenAI",
     "GenAI",
     "GeminiOAuthCodeAssistLLM",
-    "OpenAI",
+    "gemini_oauth_code_assist",
+    "OpenAIResponses",
     "OpenAILike",
     "OpenAIOAuth",
-    "openai_llm",
     "Anthropic",
     "Anthropic_LLM",
     "AnthropicOAuthLLM",
@@ -61,10 +61,11 @@ def get_usage_from_response(provider: str, chat_rsp: ChatResponse) -> UsageResul
         or provider == "GoogleGenAI"
         or provider == "GenAI"
         or provider == "GeminiOAuthCodeAssistLLM"
+        or provider == "gemini_oauth_code_assist"
     ):
         usage = (
             rsp.get("response", {}).get("usageMetadata", {})
-            if provider == "GeminiOAuthCodeAssistLLM"
+            if provider in ("GeminiOAuthCodeAssistLLM", "gemini_oauth_code_assist")
             else rsp["usage_metadata"]
         )
         return UsageResult(
@@ -75,11 +76,7 @@ def get_usage_from_response(provider: str, chat_rsp: ChatResponse) -> UsageResul
             total_tokens=_usage_field(usage, "totalTokenCount", "total_token_count"),
             requests=1,
         )
-    elif (
-        provider == "OpenAI"
-        or provider == "OpenAILike"
-        or provider == "openai_llm"
-    ):
+    elif provider == "OpenAILike":
         from openai.types import CompletionUsage as OpenAIUsage
 
         usage: OpenAIUsage = rsp.usage
@@ -89,7 +86,7 @@ def get_usage_from_response(provider: str, chat_rsp: ChatResponse) -> UsageResul
             total_tokens=usage.total_tokens,
             requests=1,
         )
-    elif provider == "OpenAIOAuth":
+    elif provider in ("OpenAIResponses", "OpenAIOAuth"):
         usage = getattr(rsp, "usage", None)
         if usage is None:
             return UsageResult(request_tokens=0, response_tokens=0, total_tokens=0, requests=1)

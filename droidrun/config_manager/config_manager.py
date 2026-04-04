@@ -11,7 +11,7 @@ from droidrun.mcp.config import MCPConfig, MCPServerConfig
 
 PROVIDER_ENV_KEY_SLOT: Dict[str, str] = {
     "GoogleGenAI": "google",
-    "OpenAI": "openai",
+    "OpenAIResponses": "openai",
     "Anthropic": "anthropic",
 }
 

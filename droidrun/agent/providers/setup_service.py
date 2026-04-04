@@ -17,7 +17,7 @@ from droidrun.config_manager.env_keys import load_env_keys, save_env_keys
 
 ENV_KEY_SLOTS_BY_VARIANT: dict[str, str] = {
     "GoogleGenAI": "google",
-    "OpenAI": "openai",
+    "OpenAIResponses": "openai",
     "Anthropic": "anthropic",
     "ZAI": "zai",
     "ZAI_Coding": "zai",
@@ -216,6 +216,7 @@ def apply_selection_to_roles(
                     api_base=fast_agent_profile.api_base,
                     provider_family=fast_agent_profile.provider_family,
                     auth_mode=fast_agent_profile.auth_mode,
+                    api_key_source=fast_agent_profile.api_key_source,
                     credential_path=fast_agent_profile.credential_path,
                     kwargs=dict(fast_agent_profile.kwargs),
                 )
