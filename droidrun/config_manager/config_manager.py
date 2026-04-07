@@ -42,6 +42,9 @@ class LLMProfile:
             result["credential_path"] = self.credential_path
         # Merge additional kwargs
         result.update(self.kwargs)
+        # OAuth providers handle auth via credential files, not API keys.
+        if self.auth_mode == "oauth":
+            return result
         # Look up by provider name first (works for GoogleGenAI, Anthropic, etc.).
         # Fall back to provider_family for transport-wrapped providers like
         # MiniMax/ZAI that route through OpenAILike.
