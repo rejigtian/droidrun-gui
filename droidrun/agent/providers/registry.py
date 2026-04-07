@@ -162,8 +162,6 @@ PROVIDER_FAMILIES: tuple[ProviderFamilySpec, ...] = (
                     "MiniMax-M2.5-highspeed",
                 ),
                 requires_api_key=True,
-                requires_base_url=True,
-                base_url="https://api.minimax.io/v1",
             ),
         ),
     ),
