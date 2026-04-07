@@ -340,6 +340,10 @@ class OpenAIOAuthSessionManager:
 class OpenAIOAuth(OpenAI):
     """OpenAI LLM backed by ChatGPT OAuth refresh/access tokens."""
 
+    @classmethod
+    def class_name(cls) -> str:
+        return "OpenAIOAuth"
+
     @property
     def metadata(self) -> LLMMetadata:
         # Codex model IDs are not always in llama-index's static OpenAI map.
