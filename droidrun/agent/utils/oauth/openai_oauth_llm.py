@@ -115,11 +115,15 @@ class OpenAIOAuthCredentialStore:
     def __init__(self, path: str | Path = DEFAULT_OPENAI_OAUTH_CREDENTIAL_PATH) -> None:
         self.path = Path(path).expanduser()
 
+    _NESTED_KEY = "openaiOauth"
+
     def load(self) -> Optional[OpenAIOAuthCredentials]:
         if not self.path.exists():
             return None
 
-        payload = json.loads(self.path.read_text())
+        raw = json.loads(self.path.read_text())
+        nested = raw.get(self._NESTED_KEY)
+        payload = nested if isinstance(nested, dict) else raw
         try:
             return OpenAIOAuthCredentials.from_payload(payload)
         except ValueError:
@@ -127,10 +131,21 @@ class OpenAIOAuthCredentialStore:
 
     def save(self, credentials: OpenAIOAuthCredentials) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
+
+        existing: dict = {}
+        if self.path.exists():
+            try:
+                loaded = json.loads(self.path.read_text())
+                if isinstance(loaded, dict):
+                    existing = loaded
+            except Exception:
+                existing = {}
+
+        existing[self._NESTED_KEY] = credentials.to_dict()
+
         tmp_path = self.path.with_suffix(f"{self.path.suffix}.tmp")
-        payload = json.dumps(credentials.to_dict(), indent=2)
         with open(tmp_path, "w", encoding="utf-8") as f:
-            f.write(payload)
+            f.write(json.dumps(existing, indent=2))
             f.flush()
             os.fsync(f.fileno())
         os.replace(tmp_path, self.path)

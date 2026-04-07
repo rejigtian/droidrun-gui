@@ -178,15 +178,20 @@ class GeminiOAuthCodeAssistLLM(CustomLLM):
             is_function_calling_model=False,
         )
 
+    _NESTED_KEY = "geminiOauth"
+
     def _load_credentials_from_file(self, credential_path: str) -> None:
         path = Path(credential_path).expanduser()
         if not path.exists():
             return
 
         try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
+            raw = json.loads(path.read_text(encoding="utf-8"))
         except Exception:
             return
+
+        nested = raw.get(self._NESTED_KEY)
+        payload = nested if isinstance(nested, dict) else raw
 
         file_access = payload.get("access_token")
         file_refresh = payload.get("refresh_token")
@@ -209,7 +214,16 @@ class GeminiOAuthCodeAssistLLM(CustomLLM):
         path = Path(self.credential_path).expanduser()
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        payload: Dict[str, Any] = {
+        existing: Dict[str, Any] = {}
+        if path.exists():
+            try:
+                loaded = json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(loaded, dict):
+                    existing = loaded
+            except Exception:
+                existing = {}
+
+        existing[self._NESTED_KEY] = {
             "access_token": self._cached_access_token,
             "refresh_token": self._cached_refresh_token,
             "token_type": "Bearer",
@@ -218,7 +232,10 @@ class GeminiOAuthCodeAssistLLM(CustomLLM):
             else None,
             "project_id": self.project_id,
         }
-        path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+        tmp_path = path.with_suffix(path.suffix + ".tmp")
+        tmp_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
+        os.replace(tmp_path, path)
         try:
             os.chmod(path, 0o600)
         except OSError:
