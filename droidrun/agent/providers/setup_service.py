@@ -21,6 +21,7 @@ ENV_KEY_SLOTS_BY_VARIANT: dict[str, str] = {
     "Anthropic": "anthropic",
     "ZAI": "zai",
     "ZAI_Coding": "zai",
+    "MiniMax": "minimax",
 }
 
 DEFAULT_KWARGS_BY_VARIANT: dict[str, dict[str, int]] = {
@@ -152,9 +153,6 @@ def create_profile_for_variant(
     elif variant.id in {"ZAI", "ZAI_Coding"}:
         if selection.api_key_source != "env":
             kwargs["api_key"] = selection.api_key or "stub"
-    elif variant.id == "MiniMax":
-        kwargs["api_key"] = selection.api_key or ""
-
     # OpenAI models require temperature=1
     if selection.family_id == "openai":
         temperature = 1.0

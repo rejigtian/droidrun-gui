@@ -822,6 +822,9 @@ langfuse = [
     { name = "llama-index-instrumentation" },
     { name = "openinference-instrumentation-llama-index" },
 ]
+minimax = [
+    { name = "llama-index-llms-minimax" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -850,6 +853,7 @@ requires-dist = [
     { name = "llama-index-llms-anthropic", marker = "extra == 'anthropic'", specifier = ">=0.8.6,<0.9.0" },
     { name = "llama-index-llms-deepseek", marker = "extra == 'deepseek'", specifier = ">=0.2.1" },
     { name = "llama-index-llms-google-genai", specifier = ">=0.8.5" },
+    { name = "llama-index-llms-minimax", marker = "extra == 'minimax'" },
     { name = "llama-index-llms-ollama", specifier = ">=0.7.2" },
     { name = "llama-index-llms-openai", specifier = ">=0.5.6" },
     { name = "llama-index-llms-openai-like", specifier = ">=0.5.1" },
@@ -867,7 +871,7 @@ requires-dist = [
     { name = "safety", marker = "extra == 'dev'", specifier = ">=3.2.11" },
     { name = "textual", specifier = ">=6.11.0" },
 ]
-provides-extras = ["anthropic", "deepseek", "dev", "langfuse"]
+provides-extras = ["anthropic", "minimax", "deepseek", "dev", "langfuse"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1721,6 +1725,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/bd/5d/302b3b78bae87eaf7cceaed774e8d8c91cdc6491b429dda730dee4842d0d/llama_index_llms_google_genai-0.9.1.tar.gz", hash = "sha256:34607f478091befeda2d654d319243cbfb2162980202bc3af691c83b198262cf", size = 13744, upload-time = "2026-03-25T02:30:00.604Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/95/82/7723979fb1398f0c10174d95962442abee9f6e65d2aeab8bb193aced2847/llama_index_llms_google_genai-0.9.1-py3-none-any.whl", hash = "sha256:8284239b2839e97482e136f7ddba96bdc1100e737490fd5c134cc27802da8c0d", size = 14234, upload-time = "2026-03-25T02:29:59.648Z" },
+]
+
+[[package]]
+name = "llama-index-llms-minimax"
+version = "0.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "llama-index-llms-openai-like" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/23/61/50817d1300ade9bdd47a70f136865ae9490949a9f14d3a9430b86955c2b4/llama_index_llms_minimax-0.1.0.tar.gz", hash = "sha256:41e140fc44162de38f5bbf2d337bd12d080b50b6b16357140fcf2391a11ae845", size = 4263, upload-time = "2026-03-18T11:47:16.805Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/95/15/2cd6278d5891411ded4cdbe8aa25467e6fdcc11a2e610eca22f9784186d8/llama_index_llms_minimax-0.1.0-py3-none-any.whl", hash = "sha256:ffec9ba70faf37c3830392d277aad69a164484fa7ffdf4b107cb5f56931b6910", size = 4203, upload-time = "2026-03-18T11:47:15.607Z" },
 ]
 
 [[package]]

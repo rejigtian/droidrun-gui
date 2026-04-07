@@ -13,6 +13,7 @@ PROVIDER_ENV_KEY_SLOT: Dict[str, str] = {
     "GoogleGenAI": "google",
     "OpenAIResponses": "openai",
     "Anthropic": "anthropic",
+    "MiniMax": "minimax",
 }
 
 

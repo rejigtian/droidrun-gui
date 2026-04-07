@@ -657,12 +657,16 @@ class OpenAIOAuth(OpenAI):
             if callable(close):
                 close()
 
+        collected = "".join(text_parts)
+        if collected:
+            return collected, final_response
+
         if final_response is not None:
             final_text = getattr(final_response, "output_text", None)
-            if isinstance(final_text, str):
+            if isinstance(final_text, str) and final_text:
                 return final_text, final_response
 
-        return "".join(text_parts), final_response
+        return collected, final_response
 
     async def _collect_stream_text_async(self, events: Any) -> tuple[str, Any]:
         text_parts: list[str] = []
@@ -681,12 +685,16 @@ class OpenAIOAuth(OpenAI):
             if callable(aclose):
                 await aclose()
 
+        collected = "".join(text_parts)
+        if collected:
+            return collected, final_response
+
         if final_response is not None:
             final_text = getattr(final_response, "output_text", None)
-            if isinstance(final_text, str):
+            if isinstance(final_text, str) and final_text:
                 return final_text, final_response
 
-        return "".join(text_parts), final_response
+        return collected, final_response
 
     @staticmethod
     def _is_not_found_error(exc: Exception) -> bool:

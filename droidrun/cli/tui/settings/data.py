@@ -26,6 +26,7 @@ PROVIDER_ENV_KEY_SLOT: dict[str, str] = {
     "GoogleGenAI": "google",
     "OpenAIResponses": "openai",
     "Anthropic": "anthropic",
+    "MiniMax": "minimax",
 }
 
 # Maps TUI provider name to the provider_family used by the backend.

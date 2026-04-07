@@ -16,6 +16,7 @@ API_KEY_ENV_VARS = {
     "openai": "OPENAI_API_KEY",
     "anthropic": "ANTHROPIC_API_KEY",
     "zai": "ZAI_API_KEY",
+    "minimax": "MINIMAX_API_KEY",
 }
 
 
