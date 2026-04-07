@@ -156,7 +156,11 @@ def create_profile_for_variant(
         temperature=temperature,
         api_key_source=selection.api_key_source,
         base_url=base_url,
-        api_base=base_url if runtime_provider_name == "OpenAILike" else None,
+        api_base=(
+            base_url
+            if runtime_provider_name in {"OpenAILike", "MiniMax"}
+            else None
+        ),
         credential_path=selection.credential_path or variant.credential_path,
         kwargs=kwargs if env_slot is None else {},
     )

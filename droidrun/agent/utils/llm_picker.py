@@ -14,7 +14,7 @@ logger = logging.getLogger("droidrun")
 
 SUPPORTED_PROVIDERS = [
     "OpenAIResponses", "OpenAILike", "GoogleGenAI",
-    "Ollama", "Anthropic", "DeepSeek", "OpenRouter",
+    "Ollama", "Anthropic", "DeepSeek", "OpenRouter", "MiniMax",
 ]
 
 
@@ -46,15 +46,13 @@ def load_llm(provider_name: str, model: str | None = None, **kwargs: Any) -> LLM
         from droidrun.agent.utils.oauth.gemini_oauth_code_assist_llm import GeminiOAuthCodeAssistLLM
         return GeminiOAuthCodeAssistLLM(**{k: v for k, v in kwargs.items() if v is not None})
 
-    # Legacy alias: MiniMax configs now route through OpenAILike.
     if provider_name == "MiniMax":
-        provider_name = "OpenAILike"
-        kwargs.setdefault("is_chat_model", True)
+        from llama_index.llms.minimax import MiniMax
+        llm_class = MiniMax
         if "base_url" in kwargs and "api_base" not in kwargs:
             kwargs["api_base"] = kwargs.pop("base_url")
-
     # --- Standard providers (inline dispatch) ---
-    if provider_name == "OpenAIResponses":
+    elif provider_name == "OpenAIResponses":
         from llama_index.llms.openai.responses import OpenAIResponses
         llm_class = OpenAIResponses
     elif provider_name == "OpenAILike":

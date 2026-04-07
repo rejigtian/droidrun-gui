@@ -155,7 +155,6 @@ PROVIDER_FAMILIES: tuple[ProviderFamilySpec, ...] = (
             ProviderVariantSpec(
                 id="MiniMax",
                 runtime_provider_name="MiniMax",
-                runtime_transport_provider_name="OpenAILike",
                 auth_mode="api_key",
                 default_model="MiniMax-M2.7",
                 models=(
@@ -164,7 +163,7 @@ PROVIDER_FAMILIES: tuple[ProviderFamilySpec, ...] = (
                 ),
                 requires_api_key=True,
                 requires_base_url=True,
-                base_url="https://api.minimax.chat/v1",
+                base_url="https://api.minimax.io/v1",
             ),
         ),
     ),
