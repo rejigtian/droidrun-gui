@@ -71,7 +71,7 @@ llm_profiles:
     provider: GoogleGenAI
     model: gemini-3.1-flash-lite-preview
     temperature: 0.2
-    # api_key_source: auto  # auto = shell env first, then saved env file; env = shell only; file = saved env file
+    # api_key_source: auto  # auto = saved env file first, then shell env; env = shell only; file = saved env file
     # kwargs: # optional kwargs, add api_key in kwargs if not already in .env
     #   max_tokens: 8192
       

@@ -13,6 +13,7 @@ from droidrun.cli.configure_prompts import (
     select_prompt,
     text_prompt,
 )
+from droidrun.agent.providers.registry import VARIANT_ENV_KEY_SLOT, resolve_provider_variant
 from droidrun.config_manager.env_keys import load_env_key_sources, resolve_env_key
 from droidrun.config_manager import ConfigLoader
 from droidrun.agent.providers.setup_service import (
@@ -26,13 +27,6 @@ from droidrun.agent.providers.setup_service import (
 _BACK = "__back__"
 
 _ALL_CONFIG_ROLES = ("manager", "executor", "fast_agent", "app_opener", "structured_output")
-_VARIANT_ENV_KEY_SLOT = {
-    "GoogleGenAI": "google",
-    "OpenAIResponses": "openai",
-    "Anthropic": "anthropic",
-    "ZAI": "zai",
-    "ZAI_Coding": "zai",
-}
 
 
 @dataclass
@@ -128,16 +122,6 @@ def _prompt_float(console: Console, message: str, default: float) -> float:
             console.print("[red]Please enter a number.[/]")
 
 
-def _resolve_variant(
-    families: tuple[Any, ...], family_id: str, auth_mode: str
-) -> Any:
-    return next(
-        variant
-        for variant in next(f for f in families if f.id == family_id).variants
-        if variant.auth_mode == auth_mode
-    )
-
-
 def _prompt_model_choice(
     models: list[str],
     *,
@@ -180,7 +164,7 @@ def _prompt_model_choice(
 
 
 def _prompt_api_key_source(variant: Any) -> str:
-    env_slot = _VARIANT_ENV_KEY_SLOT.get(variant.id)
+    env_slot = VARIANT_ENV_KEY_SLOT.get(variant.id)
     sources = load_env_key_sources().get(env_slot) if env_slot else None
     choices: list[SelectChoice] = []
     if sources and sources.shell:
@@ -192,7 +176,7 @@ def _prompt_api_key_source(variant: Any) -> str:
 
 
 def _prompt_api_key_for_variant(variant: Any) -> tuple[str, str]:
-    env_slot = _VARIANT_ENV_KEY_SLOT.get(variant.id)
+    env_slot = VARIANT_ENV_KEY_SLOT.get(variant.id)
     if not env_slot:
         return text_prompt("API key", secret=True), "file"
 
@@ -425,7 +409,7 @@ def _configure_provider_model(
 
         # --- Model ---
         models = list(variant_models(state.family_id, state.selected_auth_mode))
-        variant = _resolve_variant(families, state.family_id, state.selected_auth_mode)
+        variant = resolve_provider_variant(state.family_id, state.selected_auth_mode)
         default_model = models[0] if models else (variant.default_model or "")
 
         if not model_is_fixed:
@@ -465,7 +449,7 @@ def _configure_provider_model(
         if variant.requires_api_key and not state.selected_api_key:
             if non_interactive:
                 # Auto-resolve key from saved credentials
-                env_slot = _VARIANT_ENV_KEY_SLOT.get(variant.id)
+                env_slot = VARIANT_ENV_KEY_SLOT.get(variant.id)
                 if env_slot:
                     key = resolve_env_key(env_slot, "auto")
                     if key:

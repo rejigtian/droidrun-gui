@@ -6,6 +6,7 @@ from typing import Iterable
 import httpx
 
 from droidrun.agent.providers import (
+    VARIANT_ENV_KEY_SLOT,
     ProviderFamilySpec,
     ProviderVariantSpec,
     list_provider_families,
@@ -13,16 +14,6 @@ from droidrun.agent.providers import (
 )
 from droidrun.config_manager.config_manager import DroidConfig, LLMProfile
 from droidrun.config_manager.env_keys import load_env_keys, save_env_keys
-
-
-ENV_KEY_SLOTS_BY_VARIANT: dict[str, str] = {
-    "GoogleGenAI": "google",
-    "OpenAIResponses": "openai",
-    "Anthropic": "anthropic",
-    "ZAI": "zai",
-    "ZAI_Coding": "zai",
-    "MiniMax": "minimax",
-}
 
 DEFAULT_KWARGS_BY_VARIANT: dict[str, dict[str, int]] = {
     "anthropic_oauth": {"max_tokens": 1024},
@@ -57,7 +48,7 @@ def auth_mode_choices(family_id: str) -> tuple[str, ...]:
 
 def variant_models(family_id: str, auth_mode: str) -> tuple[str, ...]:
     variant = resolve_provider_variant(family_id, auth_mode)
-    return tuple(model.id for model in variant.models)
+    return tuple(variant.models)
 
 
 def _probe_zai_chat_completions(
@@ -142,7 +133,7 @@ def create_profile_for_variant(
     base_url = selection.base_url or variant.base_url
     base_url, resolved_model = _resolve_zai_selection(selection, base_url)
     kwargs: dict[str, str | int] = dict(DEFAULT_KWARGS_BY_VARIANT.get(variant.id, {}))
-    env_slot = ENV_KEY_SLOTS_BY_VARIANT.get(variant.id)
+    env_slot = VARIANT_ENV_KEY_SLOT.get(variant.id)
     runtime_provider_name = (
         variant.runtime_transport_provider_name or variant.runtime_provider_name
     )
@@ -177,7 +168,7 @@ def apply_selection_to_roles(
     roles: Iterable[str],
 ) -> DroidConfig:
     variant = resolve_provider_variant(selection.family_id, selection.auth_mode)
-    env_slot = ENV_KEY_SLOTS_BY_VARIANT.get(variant.id)
+    env_slot = VARIANT_ENV_KEY_SLOT.get(variant.id)
     if selection.api_key and env_slot and selection.api_key_source != "env":
         existing = load_env_keys()
         existing[env_slot] = selection.api_key

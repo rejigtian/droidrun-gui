@@ -3,7 +3,6 @@ Droidrun CLI - Command line interface for controlling Android devices through LL
 """
 
 import asyncio
-import json
 import logging
 import os
 import sys
@@ -42,19 +41,17 @@ from droidrun.portal import (
 )
 from droidrun.agent.external import list_agents
 from droidrun.agent.utils.llm_picker import load_llm
-from droidrun.agent.utils.oauth.anthropic_oauth_llm import (
-    AnthropicOAuthLLM,
-    DEFAULT_SETUP_TOKEN_SCOPE,
-)
-from droidrun.agent.utils.oauth.gemini_oauth_code_assist_llm import (
-    GeminiOAuthCodeAssistLLM,
-)
 from droidrun.agent.utils.oauth.openai_oauth_llm import (
     DEFAULT_OPENAI_OAUTH_CALLBACK_HOST,
     DEFAULT_OPENAI_OAUTH_CALLBACK_PATH,
     DEFAULT_OPENAI_OAUTH_CALLBACK_PORT,
     DEFAULT_OPENAI_OAUTH_CREDENTIAL_PATH,
-    OpenAIOAuth,
+)
+from droidrun.cli.oauth_actions import (
+    run_openai_oauth_login,
+    run_gemini_oauth_login,
+    run_anthropic_setup_token_oauth,
+    save_anthropic_setup_token,
 )
 from droidrun.config_manager.credential_paths import (
     ANTHROPIC_OAUTH_CREDENTIAL_PATH,
@@ -69,7 +66,6 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["GRPC_ENABLE_FORK_SUPPORT"] = "false"
 
 console = Console()
-SETUP_TOKEN_EXPIRES_IN_SECONDS = 365 * 24 * 60 * 60
 
 
 def _setup_cli_logging(debug: bool) -> None:
@@ -349,115 +345,28 @@ def _print_oauth_login_success(provider_label: str, credential_path: str) -> Non
     console.print(f"[blue]Credentials saved to:[/] {Path(credential_path).expanduser()}")
 
 
-def _run_openai_oauth_login(
-    credential_path: str,
-    model: str | None,
-    timeout: float = 300.0,
-    callback_host: str = DEFAULT_OPENAI_OAUTH_CALLBACK_HOST,
-    callback_port: int = DEFAULT_OPENAI_OAUTH_CALLBACK_PORT,
-    callback_path: str = DEFAULT_OPENAI_OAUTH_CALLBACK_PATH,
-    open_browser: bool = True,
-) -> None:
-    llm = OpenAIOAuth(model=model, oauth_credential_path=credential_path)
-    llm.login(
-        open_browser=open_browser,
-        timeout_seconds=timeout,
-        callback_host=callback_host,
-        callback_port=callback_port,
-        callback_path=callback_path,
-        redirect_host=callback_host,
-    )
+def _run_openai_oauth_login(credential_path: str, model: str | None, **kwargs) -> None:
+    run_openai_oauth_login(credential_path=credential_path, model=model, **kwargs)
     _print_oauth_login_success("OpenAI", credential_path)
 
 
-def _run_gemini_oauth_login(
-    credential_path: str,
-    model: str | None,
-    timeout: float = 300.0,
-    callback_host: str = "127.0.0.1",
-    callback_port: int = 0,
-    callback_path: str = "/oauth2callback",
-    open_browser: bool = True,
-) -> None:
-    llm = GeminiOAuthCodeAssistLLM(
-        model=model or "gemini-3.1-pro-preview",
-        credential_path=credential_path,
-    )
-    llm.login(
-        open_browser=open_browser,
-        timeout_seconds=timeout,
-        callback_host=callback_host,
-        callback_port=callback_port,
-        callback_path=callback_path,
-    )
+def _run_gemini_oauth_login(credential_path: str, model: str | None, **kwargs) -> None:
+    run_gemini_oauth_login(credential_path=credential_path, model=model, **kwargs)
     _print_oauth_login_success("Gemini", credential_path)
 
 
-def _run_anthropic_setup_token_oauth(
-    *,
-    timeout: float = 300.0,
-    callback_host: str = "127.0.0.1",
-    callback_port: int = 0,
-    callback_path: str = "/callback",
-    open_browser: bool = True,
-) -> str:
-    llm = AnthropicOAuthLLM(
-        credential_path=None,
-        authorize_url="https://claude.com/cai/oauth/authorize",
-        login_scope=DEFAULT_SETUP_TOKEN_SCOPE,
-    )
-    return llm.login(
-        open_browser=open_browser,
-        timeout_seconds=timeout,
-        callback_host=callback_host,
-        callback_port=callback_port,
-        callback_path=callback_path,
-        expires_in=SETUP_TOKEN_EXPIRES_IN_SECONDS,
-    )
-
-
-def _run_anthropic_oauth_login(
-    credential_path: str,
-    timeout: float = 300.0,
-    callback_host: str = "127.0.0.1",
-    callback_port: int = 0,
-    callback_path: str = "/callback",
-    open_browser: bool = True,
-) -> None:
+def _run_anthropic_oauth_login(credential_path: str, **kwargs) -> None:
     """Run the full Anthropic OAuth flow inline and save the token."""
     console.print("[blue]Opening browser for Anthropic login...[/]")
-    token = _run_anthropic_setup_token_oauth(
-        timeout=timeout,
-        callback_host=callback_host,
-        callback_port=callback_port,
-        callback_path=callback_path,
-        open_browser=open_browser,
-    )
-    _save_anthropic_setup_token(credential_path, token)
+    token = run_anthropic_setup_token_oauth(**kwargs)
+    save_anthropic_setup_token(credential_path, token)
     _print_oauth_login_success("Anthropic", credential_path)
 
 
-def _save_anthropic_setup_token(credential_path: str, token: str) -> None:
-    cred_path = Path(credential_path).expanduser()
-    cred_path.parent.mkdir(parents=True, exist_ok=True)
-
-    existing: dict[str, object] = {}
-    if cred_path.exists():
-        try:
-            loaded = json.loads(cred_path.read_text(encoding="utf-8"))
-            if isinstance(loaded, dict):
-                existing = loaded
-        except Exception:
-            existing = {}
-
-    existing["claudeAiOauth"] = {
-        "accessToken": token,
-        "refreshToken": None,
-        "expiresAt": None,
-        "scopes": [],
-    }
-    cred_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
-    os.chmod(cred_path, 0o600)
+def _prompt_anthropic_setup_token(token: str | None) -> str:
+    if token:
+        return token
+    return click.prompt("Paste your Anthropic setup token", hide_input=True)
 
 
 try:
@@ -903,7 +812,7 @@ def setup_token(
     console.print(
         "This will guide you through long-lived (1-year) auth token setup for your Claude account."
     )
-    token = _run_anthropic_setup_token_oauth(
+    token = run_anthropic_setup_token_oauth(
         timeout=timeout,
         callback_host=callback_host,
         callback_port=callback_port,
@@ -1042,7 +951,7 @@ def anthropic():
 def anthropic_login(credential_path: str, token: str | None):
     """Save an Anthropic setup-token. This is the only supported Anthropic auth flow."""
     token_value = _prompt_anthropic_setup_token(token)
-    _save_anthropic_setup_token(credential_path, token_value)
+    save_anthropic_setup_token(credential_path, token_value)
     _print_oauth_login_success("Anthropic setup-token", credential_path)
 
 
@@ -1060,7 +969,7 @@ def anthropic_login(credential_path: str, token: str | None):
 )
 def anthropic_setup_token(credential_path: str, token: str | None):
     """Paste and save an Anthropic setup-token."""
-    _save_anthropic_setup_token(credential_path, _prompt_anthropic_setup_token(token))
+    save_anthropic_setup_token(credential_path, _prompt_anthropic_setup_token(token))
     _print_oauth_login_success("Anthropic setup-token", credential_path)
 
 

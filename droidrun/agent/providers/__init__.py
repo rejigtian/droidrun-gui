@@ -1,4 +1,5 @@
 from droidrun.agent.providers.registry import (
+    VARIANT_ENV_KEY_SLOT,
     get_provider_family,
     list_auth_modes,
     list_models_for_variant,
@@ -6,13 +7,12 @@ from droidrun.agent.providers.registry import (
     resolve_provider_variant,
 )
 from droidrun.agent.providers.types import (
-    ModelSpec,
     ProviderFamilySpec,
     ProviderVariantSpec,
 )
 
 __all__ = [
-    "ModelSpec",
+    "VARIANT_ENV_KEY_SLOT",
     "ProviderFamilySpec",
     "ProviderVariantSpec",
     "get_provider_family",

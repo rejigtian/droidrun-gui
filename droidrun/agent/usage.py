@@ -56,13 +56,7 @@ def get_usage_from_response(provider: str, chat_rsp: ChatResponse) -> UsageResul
     if not rsp:
         raise ValueError("No raw response in chat response")
 
-    if (
-        provider == "Gemini"
-        or provider == "GoogleGenAI"
-        or provider == "GenAI"
-        or provider == "GeminiOAuthCodeAssistLLM"
-        or provider == "gemini_oauth_code_assist"
-    ):
+    if provider in {"Gemini", "GoogleGenAI", "GenAI", "GeminiOAuthCodeAssistLLM", "gemini_oauth_code_assist"}:
         usage = (
             rsp.get("response", {}).get("usageMetadata", {})
             if provider in ("GeminiOAuthCodeAssistLLM", "gemini_oauth_code_assist")
@@ -96,11 +90,7 @@ def get_usage_from_response(provider: str, chat_rsp: ChatResponse) -> UsageResul
             total_tokens=getattr(usage, "total_tokens", 0) or 0,
             requests=1,
         )
-    elif (
-        provider == "Anthropic"
-        or provider == "Anthropic_LLM"
-        or provider == "AnthropicOAuthLLM"
-    ):
+    elif provider in {"Anthropic", "Anthropic_LLM", "AnthropicOAuthLLM"}:
         usage = rsp["usage"]
         input_tokens = _usage_field(usage, "input_tokens")
         output_tokens = _usage_field(usage, "output_tokens")

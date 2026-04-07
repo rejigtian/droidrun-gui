@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from droidrun.agent.providers.types import (
-    ModelSpec,
     ProviderFamilySpec,
     ProviderVariantSpec,
 )
@@ -12,11 +11,16 @@ from droidrun.config_manager.credential_paths import (
 )
 
 
-OPENAI_OAUTH_MODELS = (
-    ModelSpec("gpt-5.4"),
-    ModelSpec("gpt-5.4-mini"),
-    ModelSpec("gpt-5.3-codex"),
-)
+# Canonical mapping from variant ID to env-key slot name.
+# Imported by setup_service, configure_wizard, config_manager, and TUI.
+VARIANT_ENV_KEY_SLOT: dict[str, str] = {
+    "GoogleGenAI": "google",
+    "OpenAIResponses": "openai",
+    "Anthropic": "anthropic",
+    "ZAI": "zai",
+    "ZAI_Coding": "zai",
+    "MiniMax": "minimax",
+}
 
 
 PROVIDER_FAMILIES: tuple[ProviderFamilySpec, ...] = (
@@ -30,9 +34,9 @@ PROVIDER_FAMILIES: tuple[ProviderFamilySpec, ...] = (
                 auth_mode="api_key",
                 default_model="gemini-3.1-pro-preview",
                 models=(
-                    ModelSpec("gemini-3-flash-preview"),
-                    ModelSpec("gemini-3.1-pro-preview"),
-                    ModelSpec("gemini-3.1-flash-lite-preview"),
+                    "gemini-3-flash-preview",
+                    "gemini-3.1-pro-preview",
+                    "gemini-3.1-flash-lite-preview",
                 ),
                 requires_api_key=True,
             ),
@@ -42,9 +46,9 @@ PROVIDER_FAMILIES: tuple[ProviderFamilySpec, ...] = (
                 auth_mode="oauth",
                 default_model="gemini-3.1-pro-preview",
                 models=(
-                    ModelSpec("gemini-3-flash-preview"),
-                    ModelSpec("gemini-3.1-pro-preview"),
-                    ModelSpec("gemini-3.1-flash-lite-preview"),
+                    "gemini-3-flash-preview",
+                    "gemini-3.1-pro-preview",
+                    "gemini-3.1-flash-lite-preview",
                 ),
                 credential_path=str(GEMINI_OAUTH_CREDENTIAL_PATH),
             ),
@@ -60,9 +64,9 @@ PROVIDER_FAMILIES: tuple[ProviderFamilySpec, ...] = (
                 auth_mode="api_key",
                 default_model="gpt-5.4",
                 models=(
-                    ModelSpec("gpt-5.4"),
-                    ModelSpec("gpt-5.4-mini"),
-                    ModelSpec("gpt-5.4-nano"),
+                    "gpt-5.4",
+                    "gpt-5.4-mini",
+                    "gpt-5.4-nano",
                 ),
                 requires_api_key=True,
             ),
@@ -71,7 +75,11 @@ PROVIDER_FAMILIES: tuple[ProviderFamilySpec, ...] = (
                 runtime_provider_name="openai_oauth",
                 auth_mode="oauth",
                 default_model="gpt-5.4",
-                models=OPENAI_OAUTH_MODELS,
+                models=(
+                    "gpt-5.4",
+                    "gpt-5.4-mini",
+                    "gpt-5.3-codex",
+                ),
                 credential_path=str(OPENAI_OAUTH_CREDENTIAL_PATH),
             ),
         ),
@@ -87,9 +95,9 @@ PROVIDER_FAMILIES: tuple[ProviderFamilySpec, ...] = (
                 auth_mode="api_key",
                 default_model="claude-sonnet-4-6",
                 models=(
-                    ModelSpec("claude-sonnet-4-6"),
-                    ModelSpec("claude-opus-4-6"),
-                    ModelSpec("claude-haiku-4-5"),
+                    "claude-sonnet-4-6",
+                    "claude-opus-4-6",
+                    "claude-haiku-4-5",
                 ),
                 requires_api_key=True,
             ),
@@ -99,9 +107,9 @@ PROVIDER_FAMILIES: tuple[ProviderFamilySpec, ...] = (
                 auth_mode="oauth",
                 default_model="claude-sonnet-4-6",
                 models=(
-                    ModelSpec("claude-sonnet-4-6"),
-                    ModelSpec("claude-opus-4-6"),
-                    ModelSpec("claude-haiku-4-5"),
+                    "claude-sonnet-4-6",
+                    "claude-opus-4-6",
+                    "claude-haiku-4-5",
                 ),
                 credential_path=str(ANTHROPIC_OAUTH_CREDENTIAL_PATH),
             ),
@@ -147,13 +155,16 @@ PROVIDER_FAMILIES: tuple[ProviderFamilySpec, ...] = (
             ProviderVariantSpec(
                 id="MiniMax",
                 runtime_provider_name="MiniMax",
+                runtime_transport_provider_name="OpenAILike",
                 auth_mode="api_key",
                 default_model="MiniMax-M2.7",
                 models=(
-                    ModelSpec("MiniMax-M2.7"),
-                    ModelSpec("MiniMax-M2.5-highspeed"),
+                    "MiniMax-M2.7",
+                    "MiniMax-M2.5-highspeed",
                 ),
                 requires_api_key=True,
+                requires_base_url=True,
+                base_url="https://api.minimax.chat/v1",
             ),
         ),
     ),
@@ -168,9 +179,9 @@ PROVIDER_FAMILIES: tuple[ProviderFamilySpec, ...] = (
                 auth_mode="api_key",
                 default_model="glm-5",
                 models=(
-                    ModelSpec("glm-5"),
-                    ModelSpec("glm-5v-turbo"),
-                    ModelSpec("glm-4.7"),
+                    "glm-5",
+                    "glm-5v-turbo",
+                    "glm-4.7",
                 ),
                 requires_api_key=True,
                 requires_base_url=True,
@@ -183,7 +194,7 @@ PROVIDER_FAMILIES: tuple[ProviderFamilySpec, ...] = (
                 auth_mode="coding_api",
                 default_model="glm-4.7",
                 models=(
-                    ModelSpec("glm-4.7"),
+                    "glm-4.7",
                 ),
                 requires_api_key=True,
                 requires_base_url=True,
@@ -232,7 +243,7 @@ def resolve_provider_variant(
 
 def list_models_for_variant(
     family_id: str, auth_mode: str | None = None
-) -> tuple[ModelSpec, ...]:
+) -> tuple[str, ...]:
     return resolve_provider_variant(family_id, auth_mode).models
 
 
@@ -241,7 +252,7 @@ def normalize_model_id_for_variant(
 ) -> str:
     """Normalize accepted model aliases to the canonical model id for a variant."""
     variant = resolve_provider_variant(family_id, auth_mode)
-    allowed_model_ids = {model.id for model in variant.models}
+    allowed_model_ids = set(variant.models)
     if model_id in allowed_model_ids:
         return model_id
 
@@ -253,15 +264,8 @@ def normalize_model_id_for_variant(
 
     for prefix in alias_prefixes:
         if model_id.startswith(prefix):
-            normalized = model_id[len(prefix) :]
+            normalized = model_id[len(prefix):]
             if normalized in allowed_model_ids:
                 return normalized
-
-    if family_id == "openai" and auth_mode == "api_key" and "/" not in model_id:
-        if model_id in allowed_model_ids:
-            return model_id
-    if family_id == "openai" and auth_mode == "oauth" and "/" not in model_id:
-        if model_id in allowed_model_ids:
-            return model_id
 
     return model_id

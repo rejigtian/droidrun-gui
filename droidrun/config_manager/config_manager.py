@@ -5,16 +5,10 @@ from typing import Any, Dict, List, Literal, Optional
 
 import yaml
 
+from droidrun.agent.providers.registry import VARIANT_ENV_KEY_SLOT
 from droidrun.config_manager.env_keys import API_KEY_ENV_VARS, load_env_key_sources
 from droidrun.config_manager.path_resolver import PathResolver
 from droidrun.mcp.config import MCPConfig, MCPServerConfig
-
-PROVIDER_ENV_KEY_SLOT: Dict[str, str] = {
-    "GoogleGenAI": "google",
-    "OpenAIResponses": "openai",
-    "Anthropic": "anthropic",
-    "MiniMax": "minimax",
-}
 
 
 # ---------- Config Schema ----------
@@ -48,9 +42,12 @@ class LLMProfile:
             result["credential_path"] = self.credential_path
         # Merge additional kwargs
         result.update(self.kwargs)
-        env_slot = PROVIDER_ENV_KEY_SLOT.get(self.provider)
-        if env_slot is None and self.provider_family == "zai":
-            env_slot = "zai"
+        # Look up by provider name first (works for GoogleGenAI, Anthropic, etc.).
+        # Fall back to provider_family for transport-wrapped providers like
+        # MiniMax/ZAI that route through OpenAILike.
+        env_slot = VARIANT_ENV_KEY_SLOT.get(self.provider)
+        if env_slot is None and self.provider_family in API_KEY_ENV_VARS:
+            env_slot = self.provider_family
         if env_slot and "api_key" not in result:
             sources = load_env_key_sources().get(env_slot)
             if sources is not None:
@@ -59,7 +56,7 @@ class LLMProfile:
                 elif self.api_key_source == "file":
                     api_key = sources.saved
                 else:
-                    api_key = sources.shell or sources.saved
+                    api_key = sources.saved or sources.shell
 
                 if api_key:
                     result["api_key"] = api_key

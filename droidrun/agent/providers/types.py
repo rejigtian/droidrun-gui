@@ -4,14 +4,6 @@ from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
-class ModelSpec:
-    """Selectable model metadata for a provider variant."""
-
-    id: str
-    label: str | None = None
-
-
-@dataclass(frozen=True)
 class ProviderVariantSpec:
     """Internal provider runtime variant for a user-facing provider family."""
 
@@ -19,7 +11,7 @@ class ProviderVariantSpec:
     runtime_provider_name: str
     auth_mode: str
     default_model: str | None
-    models: tuple[ModelSpec, ...]
+    models: tuple[str, ...]
     requires_api_key: bool = False
     requires_base_url: bool = False
     credential_path: str | None = None

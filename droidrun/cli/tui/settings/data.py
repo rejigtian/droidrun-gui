@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from droidrun.config_manager.config_manager import DroidConfig
 
+from droidrun.agent.providers.registry import VARIANT_ENV_KEY_SLOT
 from droidrun.config_manager.env_keys import load_env_key_sources, save_env_keys
 
 PROVIDERS = [
@@ -19,15 +20,6 @@ PROVIDERS = [
 ]
 
 AGENT_ROLES = ["manager", "executor", "fast_agent"]
-
-# Maps provider name to the env key slot used by save_env_keys/load_env_keys.
-# Providers not listed here store their api_key in kwargs instead.
-PROVIDER_ENV_KEY_SLOT: dict[str, str] = {
-    "GoogleGenAI": "google",
-    "OpenAIResponses": "openai",
-    "Anthropic": "anthropic",
-    "MiniMax": "minimax",
-}
 
 # Maps TUI provider name to the provider_family used by the backend.
 PROVIDER_FAMILY: dict[str, str] = {
@@ -80,7 +72,6 @@ class SettingsData:
     executor_vision: bool = False
     fast_agent_vision: bool = False
     reasoning: bool = False
-    manager_stateless: bool = False
     max_steps: int = 15
 
     # Advanced
@@ -113,7 +104,7 @@ class SettingsData:
             if lp:
                 # Determine API key source
                 provider = lp.provider
-                env_slot = PROVIDER_ENV_KEY_SLOT.get(provider)
+                env_slot = VARIANT_ENV_KEY_SLOT.get(provider)
                 if env_slot:
                     sources = env_key_sources.get(env_slot)
                     selected_source = getattr(lp, "api_key_source", "auto") or "auto"
@@ -160,7 +151,6 @@ class SettingsData:
             executor_vision=config.agent.executor.vision,
             fast_agent_vision=config.agent.fast_agent.vision,
             reasoning=config.agent.reasoning,
-            manager_stateless=config.agent.manager.stateless,
             max_steps=config.agent.max_steps,
             use_tcp=config.device.use_tcp,
             debug=config.logging.debug,
@@ -183,7 +173,7 @@ class SettingsData:
         # Save env-based API keys for all cloud providers that have a key set
         env_keys: dict[str, str] = {}
         for role, profile in self.profiles.items():
-            env_slot = PROVIDER_ENV_KEY_SLOT.get(profile.provider)
+            env_slot = VARIANT_ENV_KEY_SLOT.get(profile.provider)
             if env_slot and profile.api_key and profile.api_key_source != "env":
                 env_keys[env_slot] = profile.api_key
         if env_keys:
@@ -271,7 +261,6 @@ class SettingsData:
         # Agent
         config.agent.max_steps = self.max_steps
         config.agent.reasoning = self.reasoning
-        config.agent.manager.stateless = self.manager_stateless
         config.agent.manager.vision = self.manager_vision
         config.agent.executor.vision = self.executor_vision
         config.agent.fast_agent.vision = self.fast_agent_vision
