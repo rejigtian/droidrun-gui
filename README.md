@@ -59,7 +59,24 @@ pip install droidrun
 ```
 
 ## 🚀 Quickstart
-Read on how to get droidrun up and running within seconds in [our docs](https://docs.droidrun.ai/v3/quickstart)!   
+
+### 1. Install the portal on your device
+```bash
+droidrun setup
+```
+
+### 2. Configure your LLM provider
+```bash
+droidrun configure
+```
+This walks you through choosing a provider (Gemini, OpenAI, Anthropic, etc.), auth method (API key or OAuth), and model.
+
+### 3. Run a command
+```bash
+droidrun run "open settings and turn on dark mode"
+```
+
+Read the full guide in [our docs](https://docs.droidrun.ai/v3/quickstart)!
 
 [![Quickstart Video](https://img.youtube.com/vi/4WT7FXJah2I/0.jpg)](https://www.youtube.com/watch?v=4WT7FXJah2I)
 

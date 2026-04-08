@@ -83,9 +83,13 @@ Portal is installed and accessible. You're good to go!
 
 ### Configure Your LLM
 
-Droidrun uses a configuration-driven approach. On first run, Droidrun creates a `config.yaml` file with default settings. You'll need to set your API key for your chosen LLM provider.
+Run the configure wizard to choose your provider, auth method (API key or OAuth), and model:
 
-**Set your API key:**
+```bash
+droidrun configure
+```
+
+Alternatively, you can set an API key as an environment variable:
 
 ```bash
 # For Google Gemini (default)
@@ -96,9 +100,6 @@ export OPENAI_API_KEY=your-api-key-here
 
 # For Anthropic Claude
 export ANTHROPIC_API_KEY=your-api-key-here
-
-# For DeepSeek
-export DEEPSEEK_API_KEY=your-api-key-here
 ```
 
 ### Run Your First Command via CLI

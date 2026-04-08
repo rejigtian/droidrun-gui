@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 import yaml
 
+from droidrun.agent.providers.registry import VARIANT_ENV_KEY_SLOT
+from droidrun.config_manager.env_keys import API_KEY_ENV_VARS, load_env_key_sources
 from droidrun.config_manager.path_resolver import PathResolver
 from droidrun.mcp.config import MCPConfig, MCPServerConfig
 
@@ -17,8 +19,12 @@ class LLMProfile:
     provider: str = "GoogleGenAI"
     model: str = "gemini-3.1-flash-lite-preview"
     temperature: float = 0.2
+    api_key_source: Literal["auto", "env", "file"] = "auto"
     base_url: Optional[str] = None
     api_base: Optional[str] = None
+    provider_family: Optional[str] = None
+    auth_mode: Optional[str] = None
+    credential_path: Optional[str] = None
     kwargs: Dict[str, Any] = field(default_factory=dict)
 
     def to_load_llm_kwargs(self) -> Dict[str, Any]:
@@ -32,8 +38,38 @@ class LLMProfile:
             result["base_url"] = self.base_url
         if self.api_base:
             result["api_base"] = self.api_base
+        if self.credential_path:
+            result["credential_path"] = self.credential_path
         # Merge additional kwargs
         result.update(self.kwargs)
+        # OAuth providers handle auth via credential files, not API keys.
+        if self.auth_mode == "oauth":
+            return result
+        # Look up by provider name first (works for GoogleGenAI, Anthropic, etc.).
+        # Fall back to provider_family for transport-wrapped providers like
+        # MiniMax/ZAI that route through OpenAILike.
+        env_slot = VARIANT_ENV_KEY_SLOT.get(self.provider)
+        if env_slot is None and self.provider_family in API_KEY_ENV_VARS:
+            env_slot = self.provider_family
+        if env_slot and "api_key" not in result:
+            sources = load_env_key_sources().get(env_slot)
+            if sources is not None:
+                if self.api_key_source == "env":
+                    api_key = sources.shell
+                elif self.api_key_source == "file":
+                    api_key = sources.saved
+                else:
+                    api_key = sources.saved or sources.shell
+
+                if api_key:
+                    result["api_key"] = api_key
+                else:
+                    env_var = API_KEY_ENV_VARS.get(env_slot, env_slot.upper())
+                    raise ValueError(
+                        f"No API key found for provider '{self.provider}'. "
+                        f"Set {env_var}, save a key in the env file, or switch "
+                        f"api_key_source to 'env'/'file'."
+                    )
         return result
 
 

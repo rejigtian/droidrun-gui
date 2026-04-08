@@ -13,9 +13,14 @@ SUPPORTED_PROVIDERS = [
     "Gemini",
     "GoogleGenAI",
     "GenAI",
-    "OpenAI",
-    "openai_llm",
+    "GeminiOAuthCodeAssistLLM",
+    "gemini_oauth_code_assist",
+    "OpenAIResponses",
+    "OpenAILike",
+    "OpenAIOAuth",
     "Anthropic",
+    "Anthropic_LLM",
+    "AnthropicOAuthLLM",
     "Ollama",
     "DeepSeek",
 ]
@@ -28,19 +33,44 @@ class UsageResult(BaseModel):
     requests: int
 
 
+def _usage_field(usage: Any, *names: str) -> int:
+    for name in names:
+        if isinstance(usage, dict) and name in usage:
+            value = usage[name]
+        else:
+            value = getattr(usage, name, None)
+
+        if value is None:
+            continue
+
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            continue
+
+    return 0
+
+
 def get_usage_from_response(provider: str, chat_rsp: ChatResponse) -> UsageResult:
     rsp = chat_rsp.raw
     if not rsp:
         raise ValueError("No raw response in chat response")
 
-    if provider == "Gemini" or provider == "GoogleGenAI" or provider == "GenAI":
+    if provider in {"Gemini", "GoogleGenAI", "GenAI", "GeminiOAuthCodeAssistLLM", "gemini_oauth_code_assist"}:
+        usage = (
+            rsp.get("response", {}).get("usageMetadata", {})
+            if provider in ("GeminiOAuthCodeAssistLLM", "gemini_oauth_code_assist")
+            else rsp["usage_metadata"]
+        )
         return UsageResult(
-            request_tokens=rsp["usage_metadata"]["prompt_token_count"],
-            response_tokens=rsp["usage_metadata"]["candidates_token_count"],
-            total_tokens=rsp["usage_metadata"]["total_token_count"],
+            request_tokens=_usage_field(usage, "promptTokenCount", "prompt_token_count"),
+            response_tokens=_usage_field(
+                usage, "candidatesTokenCount", "candidates_token_count"
+            ),
+            total_tokens=_usage_field(usage, "totalTokenCount", "total_token_count"),
             requests=1,
         )
-    elif provider == "OpenAI" or provider == "OpenAILike" or provider == "openai_llm":
+    elif provider == "OpenAILike":
         from openai.types import CompletionUsage as OpenAIUsage
 
         usage: OpenAIUsage = rsp.usage
@@ -50,14 +80,24 @@ def get_usage_from_response(provider: str, chat_rsp: ChatResponse) -> UsageResul
             total_tokens=usage.total_tokens,
             requests=1,
         )
-    elif provider == "Anthropic_LLM":
-        from anthropic.types import Usage as AnthropicUsage
-
-        usage: AnthropicUsage = rsp["usage"]
+    elif provider in ("OpenAIResponses", "OpenAIOAuth"):
+        usage = getattr(rsp, "usage", None)
+        if usage is None:
+            return UsageResult(request_tokens=0, response_tokens=0, total_tokens=0, requests=1)
         return UsageResult(
-            request_tokens=usage.input_tokens,
-            response_tokens=usage.output_tokens,
-            total_tokens=usage.input_tokens + usage.output_tokens,
+            request_tokens=getattr(usage, "input_tokens", 0) or 0,
+            response_tokens=getattr(usage, "output_tokens", 0) or 0,
+            total_tokens=getattr(usage, "total_tokens", 0) or 0,
+            requests=1,
+        )
+    elif provider in {"Anthropic", "Anthropic_LLM", "AnthropicOAuthLLM"}:
+        usage = rsp["usage"]
+        input_tokens = _usage_field(usage, "input_tokens")
+        output_tokens = _usage_field(usage, "output_tokens")
+        return UsageResult(
+            request_tokens=input_tokens,
+            response_tokens=output_tokens,
+            total_tokens=input_tokens + output_tokens,
             requests=1,
         )
     elif provider == "Ollama":

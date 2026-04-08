@@ -6,13 +6,26 @@ from llama_index.core.base.llms.types import (
     ChatMessage,
     ChatResponse,
     CompletionResponse,
+    ImageBlock,
 )
 from llama_index.core.prompts import PromptTemplate
 from pydantic import BaseModel
 
+from droidrun.agent.utils.minimax_vision import aminimax_vision_chat
+
 logger = logging.getLogger("droidrun")
 
 T = TypeVar("T", bound=BaseModel)
+
+
+def _should_use_minimax_vision_path(llm, messages: list) -> bool:
+    if getattr(llm, "class_name", lambda: "")() != "MiniMax":
+        return False
+    return any(
+        isinstance(block, ImageBlock)
+        for message in messages
+        for block in getattr(message, "blocks", [])
+    )
 
 
 async def acall_with_retries(
@@ -41,7 +54,9 @@ async def acall_with_retries(
 
     for attempt in range(1, retries + 1):
         try:
-            if stream:
+            if _should_use_minimax_vision_path(llm, messages):
+                response = await aminimax_vision_chat(llm, messages, timeout=timeout)
+            elif stream:
                 response = await _stream_response(llm, messages, timeout)
             else:
                 response = await asyncio.wait_for(
