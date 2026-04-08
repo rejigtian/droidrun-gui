@@ -50,6 +50,7 @@ def load_llm(provider_name: str, model: str | None = None, **kwargs: Any) -> LLM
     if provider_name == "MiniMax":
         provider_name = "OpenAILike"
         kwargs.setdefault("is_chat_model", True)
+        kwargs.setdefault("api_base", "https://api.minimaxi.chat/v1")
         if "base_url" in kwargs and "api_base" not in kwargs:
             kwargs["api_base"] = kwargs.pop("base_url")
 
