@@ -76,6 +76,8 @@ class TaskRunner:
             # 读取提供商和模型配置
             default_provider = config_manager.get('default_provider', 'GoogleGenAI')
             gemini_model = config_manager.get('gemini_model', 'gemini-1.5-flash')
+            openai_model = config_manager.get('openai_model', 'gpt-4o')
+            anthropic_model = config_manager.get('anthropic_model', 'claude-sonnet-4-6')
             zhipu_model = config_manager.get('zhipu_model', 'glm-4-plus')
             max_steps = config_manager.get('max_steps', 15)
 
@@ -86,8 +88,8 @@ class TaskRunner:
             # 将 UI 提供商名映射到 droidrun 模型名
             provider_model_map = {
                 'GoogleGenAI': gemini_model,
-                'OpenAI': 'gpt-4o',
-                'Anthropic': 'claude-sonnet-4-6',
+                'OpenAI': openai_model,
+                'Anthropic': anthropic_model,
                 'DeepSeek': 'deepseek-chat',
                 'ZhipuAI': zhipu_model,
                 'Ollama': 'llama3.2',
