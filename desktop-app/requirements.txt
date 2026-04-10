@@ -1,0 +1,20 @@
+# DroidRun Desktop 依赖
+
+# UI 框架
+customtkinter>=5.2.0
+pillow>=10.0.0
+
+# 配置文件支持
+pyyaml>=6.0
+
+# 打包工具
+pyinstaller>=6.0.0
+
+# === 以下为开发/测试依赖 ===
+# 注意：打包时不会包含这些依赖，用户需通过应用内安装引导安装
+# DroidRun 核心
+droidrun>=0.5.8
+
+# 智谱AI支持
+llama-index-llms-zhipuai>=0.4.0
+
