@@ -230,10 +230,11 @@ def build():
         # 显示输出位置
         if system == 'Darwin':
             print(f"\n📦 应用位置: dist/SmartDroid.app/")
-            print(f"\n⚠️  重要：移除签名限制")
-            print("   由于使用 Homebrew Python，需要移除签名验证:")
-            print("   sudo xattr -cr dist/SmartDroid.app")
-            print("   codesign --remove-signature dist/SmartDroid.app")
+            # Homebrew Python 打出来的包带有冲突签名，自动清理
+            print("\n🔧 移除签名限制...")
+            subprocess.run(['xattr', '-cr', 'dist/SmartDroid.app'], check=False)
+            subprocess.run(['codesign', '--remove-signature', 'dist/SmartDroid.app'], check=False)
+            print("✅ 签名已清理，可直接双击运行")
             print("\n🚀 运行应用:")
             print("   open dist/SmartDroid.app")
             print("\n💡 创建 DMG 安装包:")
