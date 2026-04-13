@@ -42,7 +42,17 @@ class DeviceManagerPanel(ctk.CTkScrollableFrame):
         
         # 初始加载设备
         self.refresh_devices()
-    
+        self._bind_trackpad()
+
+    def _bind_trackpad(self):
+        canvas = self._parent_canvas
+
+        def _scroll(event):
+            canvas.yview_scroll(int(-1 * event.delta), "units")
+
+        self.bind("<Enter>", lambda e: canvas.bind_all("<MouseWheel>", _scroll))
+        self.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
+
     def refresh_devices(self):
         """刷新设备列表"""
         # 显示加载动画

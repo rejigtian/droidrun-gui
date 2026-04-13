@@ -17,13 +17,8 @@ class SettingsPanel(ctk.CTkScrollableFrame):
         # 创建可滚动Frame，增加滚动条宽度，优化触摸板用户体验
         super().__init__(
             parent,
-            scrollbar_button_color="#4CAF50",  # 绿色滚动条，更醒目
-            scrollbar_button_hover_color="#45a049",
             fg_color="transparent"
         )
-        
-        # Tkinter 在 macOS 上不支持触摸板滚动手势（底层限制）
-        # 建议：使用右侧滚动条或外接鼠标
         
         self.config = ConfigManager()
         self.grid_columnconfigure(0, weight=1)
@@ -297,9 +292,7 @@ class SettingsPanel(ctk.CTkScrollableFrame):
         
         # 加载当前设置
         self.load_settings()
-        
-        # 添加上下滚动箭头（用于触摸板用户）
-        self.after(100, self._add_scroll_arrows)
+        self._bind_trackpad()
     
     def load_settings(self):
         """加载当前设置"""
@@ -381,96 +374,17 @@ class SettingsPanel(ctk.CTkScrollableFrame):
                 # 自动验证路径
                 self.after(100, lambda t=tool_name: self._verify_path(t))
     
-    def _add_scroll_arrows(self):
-        """
-        添加上下滚动箭头按钮
-        鼠标悬停时自动滚动，离开时停止
-        """
-        # 滚动状态
-        self._scrolling_up = False
-        self._scrolling_down = False
-        self._scroll_job = None
-        
-        # 创建箭头容器（固定在右侧中间位置）
-        # 顶部箭头
-        top_arrow_frame = ctk.CTkFrame(self.winfo_toplevel(), fg_color="transparent", height=50)
-        top_arrow_frame.place(relx=0.96, rely=0.15, anchor="center")
-        
-        up_arrow = ctk.CTkButton(
-            top_arrow_frame,
-            text="▲",
-            width=40,
-            height=40,
-            font=ctk.CTkFont(size=20, weight="bold"),
-            fg_color="#4CAF50",
-            hover_color="#45a049",
-            corner_radius=20,
-            text_color="white"
-        )
-        up_arrow.pack()
-        
-        # 底部箭头
-        bottom_arrow_frame = ctk.CTkFrame(self.winfo_toplevel(), fg_color="transparent", height=50)
-        bottom_arrow_frame.place(relx=0.96, rely=0.85, anchor="center")
-        
-        down_arrow = ctk.CTkButton(
-            bottom_arrow_frame,
-            text="▼",
-            width=40,
-            height=40,
-            font=ctk.CTkFont(size=20, weight="bold"),
-            fg_color="#4CAF50",
-            hover_color="#45a049",
-            corner_radius=20,
-            text_color="white"
-        )
-        down_arrow.pack()
-        
-        # 悬停滚动逻辑
-        def start_scroll_up(event=None):
-            self._scrolling_up = True
-            self._auto_scroll_up()
-        
-        def stop_scroll_up(event=None):
-            self._scrolling_up = False
-            if self._scroll_job:
-                self.after_cancel(self._scroll_job)
-                self._scroll_job = None
-        
-        def start_scroll_down(event=None):
-            self._scrolling_down = True
-            self._auto_scroll_down()
-        
-        def stop_scroll_down(event=None):
-            self._scrolling_down = False
-            if self._scroll_job:
-                self.after_cancel(self._scroll_job)
-                self._scroll_job = None
-        
-        # 绑定悬停事件
-        up_arrow.bind("<Enter>", start_scroll_up)
-        up_arrow.bind("<Leave>", stop_scroll_up)
-        down_arrow.bind("<Enter>", start_scroll_down)
-        down_arrow.bind("<Leave>", stop_scroll_down)
-        
-        # 保存引用，防止被垃圾回收
-        self._up_arrow = up_arrow
-        self._down_arrow = down_arrow
-        self._top_arrow_frame = top_arrow_frame
-        self._bottom_arrow_frame = bottom_arrow_frame
-    
-    def _auto_scroll_up(self):
-        """自动向上滚动"""
-        if self._scrolling_up:
-            self._parent_canvas.yview_scroll(-3, "units")
-            self._scroll_job = self.after(50, self._auto_scroll_up)  # 每50ms滚动一次
-    
-    def _auto_scroll_down(self):
-        """自动向下滚动"""
-        if self._scrolling_down:
-            self._parent_canvas.yview_scroll(3, "units")
-            self._scroll_job = self.after(50, self._auto_scroll_down)  # 每50ms滚动一次
-    
+    def _bind_trackpad(self):
+        """绑定触摸板/鼠标滚轮事件，鼠标进入区域时激活，离开时释放。"""
+        canvas = self._parent_canvas
+
+        def _scroll(event):
+            canvas.yview_scroll(int(-1 * event.delta), "units")
+
+        self.bind("<Enter>", lambda e: canvas.bind_all("<MouseWheel>", _scroll))
+        self.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
+
+
     def save_settings(self):
         """保存设置"""
         # 保存 API Keys 到配置文件（而不是环境变量）

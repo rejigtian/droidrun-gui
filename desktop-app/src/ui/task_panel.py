@@ -350,7 +350,11 @@ class TaskPanel(ctk.CTkFrame):
         # 列表框架
         list_frame = ctk.CTkScrollableFrame(history_window)
         list_frame.pack(fill="both", expand=True, padx=20, pady=10)
-        
+        _hc = list_frame._parent_canvas
+        def _scroll_h(e): _hc.yview_scroll(int(-1 * e.delta), "units")
+        list_frame.bind("<Enter>", lambda e: _hc.bind_all("<MouseWheel>", _scroll_h))
+        list_frame.bind("<Leave>", lambda e: _hc.unbind_all("<MouseWheel>"))
+
         def update_list(keyword=""):
             # 清空列表
             for widget in list_frame.winfo_children():
@@ -489,7 +493,11 @@ class TaskPanel(ctk.CTkFrame):
         # 列表框架
         list_frame = ctk.CTkScrollableFrame(template_window)
         list_frame.pack(fill="both", expand=True, padx=20, pady=10)
-        
+        _tc = list_frame._parent_canvas
+        def _scroll_t(e): _tc.yview_scroll(int(-1 * e.delta), "units")
+        list_frame.bind("<Enter>", lambda e: _tc.bind_all("<MouseWheel>", _scroll_t))
+        list_frame.bind("<Leave>", lambda e: _tc.unbind_all("<MouseWheel>"))
+
         def update_list(keyword="", category="全部"):
             # 清空列表
             for widget in list_frame.winfo_children():
