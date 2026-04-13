@@ -152,8 +152,16 @@ class DeviceChecker:
             success = await setup_portal(device, debug=False)
             if success:
                 return True, "Portal 安装并启用成功"
+
+            # setup_portal 返回 False 有两种情况：
+            # 1. APK 已安装，但无障碍服务无法自动开启（Android 安全限制）
+            # 2. APK 安装本身失败
+            # 检查 APK 是否实际已安装
+            packages = await device.list_packages()
+            if 'com.droidrun.portal' in packages:
+                return True, "Portal APK 已安装\n\n请在手机「设置 → 辅助功能（无障碍）」中找到 DroidRun Portal 并开启"
             else:
-                return False, "Portal 安装失败，请在设备上手动启用无障碍功能"
+                return False, "Portal APK 安装失败，请检查设备连接后重试"
 
         try:
             return asyncio.run(_install())
