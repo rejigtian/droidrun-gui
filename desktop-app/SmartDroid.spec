@@ -1,77 +1,12 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-import site
-import os
-
-_site_packages = site.getsitepackages()[0]
-_droidrun_config = os.path.join(_site_packages, 'droidrun', 'config')
-_tiktoken_ext = os.path.join(_site_packages, 'tiktoken_ext')
-
-_datas = [('resources', 'resources')]
-if os.path.exists(_droidrun_config):
-    _datas.append((_droidrun_config, 'droidrun/config'))
-if os.path.exists(_tiktoken_ext):
-    _datas.append((_tiktoken_ext, 'tiktoken_ext'))
-
 
 a = Analysis(
     ['src/main.py'],
     pathex=[],
     binaries=[],
-    datas=_datas,
-    hiddenimports=[
-        # UI 相关
-        'customtkinter',
-        'tkinter',
-        'PIL',
-        'PIL._tkinter_finder',
-        'yaml',
-        'json',
-        # DroidRun 核心 0.5.8+
-        'droidrun',
-        'droidrun.config_manager',
-        'droidrun.tools.android.portal_client',
-        'droidrun.portal',
-        # ADB
-        'async_adbutils',
-        # LlamaIndex（0.5.8 通过 llama_index 调用各 LLM 提供商）
-        'llama_index',
-        'llama_index.core',
-        'llama_index.llms.google_genai',
-        'llama_index.llms.openai',
-        'llama_index.llms.anthropic',
-        'llama_index.llms.deepseek',
-        'llama_index.llms.ollama',
-        'llama_index.llms.zhipuai',
-        # HTTP 客户端
-        'httpx',
-        'httpx._transports.default',
-        'httpx._transports.asgi',
-        # 标准库
-        'uuid',
-        'subprocess',
-        'asyncio',
-        'threading',
-        'multiprocessing',
-        'socket',
-        'ssl',
-        'http',
-        'urllib',
-        'logging',
-        'pathlib',
-        'tempfile',
-        'shutil',
-        'zipfile',
-        'base64',
-        'hashlib',
-        'hmac',
-        'secrets',
-        'queue',
-        'collections',
-        'datetime',
-        'time',
-        're',
-    ],
+    datas=[('/Users/rejig/myproject/droidrun/desktop-app/venv/lib/python3.13/site-packages/droidrun/config', 'droidrun/config'), ('/Users/rejig/myproject/droidrun/desktop-app/venv/lib/python3.13/site-packages/tiktoken_ext', 'tiktoken_ext'), ('resources', 'resources')],
+    hiddenimports=['customtkinter', 'tkinter', 'PIL', 'PIL._tkinter_finder', 'yaml', 'json', 'droidrun', 'droidrun.config_manager', 'droidrun.tools.android.portal_client', 'droidrun.portal', 'async_adbutils', 'llama_index', 'llama_index.core', 'llama_index.llms.google_genai', 'llama_index.llms.openai', 'llama_index.llms.anthropic', 'llama_index.llms.deepseek', 'llama_index.llms.ollama', 'llama_index.llms.zhipuai', 'httpx', 'httpx._transports.default', 'httpx._transports.asgi', 'uuid', 'subprocess', 'asyncio', 'threading', 'multiprocessing', 'socket', 'ssl', 'http', 'urllib', 'logging', 'pathlib', 'tempfile', 'shutil', 'zipfile', 'base64', 'hashlib', 'hmac', 'secrets', 'queue', 'collections', 'datetime', 'time', 're'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
