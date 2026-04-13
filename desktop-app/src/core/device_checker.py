@@ -3,9 +3,9 @@
 """
 
 import asyncio
+import os
 import subprocess
 import sys
-import os
 import traceback
 from utils.config import ConfigManager
 from utils.sdk_manager import get_sdk_manager
@@ -14,10 +14,25 @@ from utils.sdk_manager import get_sdk_manager
 try:
     from async_adbutils import adb as async_adb
     from droidrun.tools.android.portal_client import PortalClient
-    from droidrun.portal import setup_portal
+    from droidrun.portal import setup_portal, enable_portal_accessibility
     HAS_DROIDRUN = True
 except ImportError:
     HAS_DROIDRUN = False
+
+PORTAL_PACKAGE = "com.droidrun.portal"
+
+
+def _get_bundled_apk_path():
+    """返回内置 Portal APK 路径（dev 模式和 PyInstaller 打包模式均适用）。"""
+    # PyInstaller 打包后资源在 sys._MEIPASS
+    base = getattr(sys, '_MEIPASS', None) or os.path.join(os.path.dirname(__file__), '..', '..')
+    portal_dir = os.path.join(base, 'resources', 'portal')
+    if not os.path.isdir(portal_dir):
+        return None
+    for name in sorted(os.listdir(portal_dir), reverse=True):  # 最新版排前
+        if name.endswith('.apk'):
+            return os.path.join(portal_dir, name)
+    return None
 
 
 class DeviceChecker:
@@ -136,10 +151,7 @@ class DeviceChecker:
 
     def install_portal(self, serial):
         """
-        安装 Portal 到指定设备
-
-        Args:
-            serial: 设备序列号
+        安装 Portal 到指定设备，直接调用 droidrun.portal.setup_portal()。
 
         Returns:
             (success, message): 成功标志和消息
@@ -149,19 +161,31 @@ class DeviceChecker:
 
         async def _install():
             device = await async_adb.device(serial=serial)
-            success = await setup_portal(device, debug=False)
-            if success:
-                return True, "Portal 安装并启用成功"
 
-            # setup_portal 返回 False 有两种情况：
-            # 1. APK 已安装，但无障碍服务无法自动开启（Android 安全限制）
-            # 2. APK 安装本身失败
-            # 检查 APK 是否实际已安装
-            packages = await device.list_packages()
-            if 'com.droidrun.portal' in packages:
-                return True, "Portal APK 已安装\n\n请在手机「设置 → 辅助功能（无障碍）」中找到 DroidRun Portal 并开启"
+            bundled = _get_bundled_apk_path()
+            if bundled:
+                print(f"📦 使用内置 APK: {os.path.basename(bundled)}", file=sys.stderr)
+                await device.install(bundled, uninstall=True, flags=["-g"], silent=True)
             else:
-                return False, "Portal APK 安装失败，请检查设备连接后重试"
+                print("📡 未找到内置 APK，从网络下载...", file=sys.stderr)
+                success = await setup_portal(device, debug=False)
+                if success:
+                    return True, "Portal 安装并启用成功"
+                pkg_check = await device.shell(f"pm list packages {PORTAL_PACKAGE}")
+                if PORTAL_PACKAGE not in pkg_check:
+                    return False, "Portal 安装失败，请查看日志"
+                return True, "Portal APK 已安装\n\n请在手机「设置 → 辅助功能（无障碍）」中找到 DroidRun Portal 并开启"
+
+            # 内置 APK 安装后尝试开启无障碍
+            try:
+                await enable_portal_accessibility(device)
+                return True, "Portal 安装并启用成功"
+            except Exception:
+                pass
+            pkg_check = await device.shell(f"pm list packages {PORTAL_PACKAGE}")
+            if PORTAL_PACKAGE in pkg_check:
+                return True, "Portal APK 已安装\n\n请在手机「设置 → 辅助功能（无障碍）」中找到 DroidRun Portal 并开启"
+            return False, "Portal 安装失败，请查看日志"
 
         try:
             return asyncio.run(_install())

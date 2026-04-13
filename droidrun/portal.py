@@ -14,6 +14,8 @@ import os
 import tempfile
 
 import requests
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 from async_adbutils import AdbDevice, adb
 from rich.console import Console
 
@@ -36,7 +38,7 @@ A11Y_SERVICE_NAME = (
 
 def get_version_mapping(debug: bool = False) -> dict | None:
     try:
-        response = requests.get(VERSION_MAP_GIST_URL, timeout=10)
+        response = requests.get(VERSION_MAP_GIST_URL, timeout=10, verify=False)
         response.raise_for_status()
         return response.json()
     except Exception as e:
@@ -88,7 +90,14 @@ def download_versioned_portal_apk(
 ):
     """Download a specific Portal APK version."""
     console = Console()
-    asset_url = f"{download_base}/{version}/{ASSET_NAME}-{version}.apk"
+    # Try both old naming (droidrun-portal-vX.Y.Z.apk) and new (com.droidrun.portal-X.Y.Z-debug.apk)
+    ver_no_v = version.lstrip("v")
+    candidate_urls = [
+        f"{download_base}/{version}/{ASSET_NAME}-{version}.apk",
+        f"{download_base}/{version}/{PORTAL_PACKAGE_NAME}-{ver_no_v}-debug.apk",
+        f"{download_base}/{version}/{PORTAL_PACKAGE_NAME}-{ver_no_v}.apk",
+    ]
+    asset_url = candidate_urls[0]
 
     console.print(f"Downloading Portal APK [bold]{version}[/bold]")
     if debug:
@@ -96,9 +105,16 @@ def download_versioned_portal_apk(
 
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".apk")
     try:
-        r = requests.get(asset_url, stream=True)
-        r.raise_for_status()
-        for chunk in r.iter_content(chunk_size=8192):
+        downloaded = False
+        for url in candidate_urls:
+            r = requests.get(url, stream=True, verify=False)
+            if r.status_code == 200:
+                asset_url = url
+                downloaded = True
+                break
+        if not downloaded:
+            r.raise_for_status()
+        for chunk in r.iter_content(chunk_size=65536):
             if chunk:
                 tmp.write(chunk)
         tmp.close()
@@ -123,7 +139,7 @@ def get_latest_release_assets(debug: bool = False):
     """
     for host in GITHUB_API_HOSTS:
         url = f"{host}/repos/{REPO}/releases/latest"
-        response = requests.get(url)
+        response = requests.get(url, timeout=15, verify=False)
         if response.status_code == 200:
             if debug:
                 print(f"Using GitHub release on {host}")
@@ -164,30 +180,27 @@ def download_portal_apk(debug: bool = False):
     asset_version = None
     asset_url = None
     for asset in assets:
+        name = asset.get("name", "")
+        if not name.endswith(".apk"):
+            continue
         if (
             "browser_download_url" in asset
-            and "name" in asset
-            and asset["name"].startswith(ASSET_NAME)
+            and (name.startswith(ASSET_NAME) or name.startswith(PORTAL_PACKAGE_NAME))
         ):
             asset_url = asset["browser_download_url"]
-            asset_version = asset["name"].split("-")[-1]
-            asset_version = asset_version.removesuffix(".apk")
+            asset_version = name.removesuffix(".apk").split("-")[-1]
             break
-        elif "downloadUrl" in asset and os.path.basename(
-            asset["downloadUrl"]
-        ).startswith(ASSET_NAME):
-            asset_url = asset["downloadUrl"]
-            asset_version: str = asset.get("name", os.path.basename(asset_url)).split(
-                "-"
-            )[-1]
-            asset_version = asset_version.removesuffix(".apk")
-            break
-        else:
-            if debug:
-                print(asset)
+        elif "downloadUrl" in asset:
+            dl_name = os.path.basename(asset["downloadUrl"])
+            if dl_name.startswith(ASSET_NAME) or dl_name.startswith(PORTAL_PACKAGE_NAME):
+                asset_url = asset["downloadUrl"]
+                asset_version = asset.get("name", dl_name).removesuffix(".apk").split("-")[-1]
+                break
+        if debug:
+            print(asset)
 
     if not asset_url:
-        raise Exception(f"Asset named '{ASSET_NAME}' not found in the latest release.")
+        raise Exception(f"No Portal APK asset found in the latest release.")
 
     console.print(f"Found Portal APK [bold]{asset_version}[/bold]")
     if debug:
@@ -195,9 +208,9 @@ def download_portal_apk(debug: bool = False):
 
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".apk")
     try:
-        r = requests.get(asset_url, stream=True)
+        r = requests.get(asset_url, stream=True, verify=False)
         r.raise_for_status()
-        for chunk in r.iter_content(chunk_size=8192):
+        for chunk in r.iter_content(chunk_size=65536):
             if chunk:
                 tmp.write(chunk)
         tmp.close()

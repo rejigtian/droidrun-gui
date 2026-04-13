@@ -1,0 +1,5 @@
+请将 Android 机器人图标保存为：
+/Users/rejig/myproject/droidrun/desktop-app/resources/icons/app_icon.png
+
+推荐尺寸：1024x1024 像素
+格式：PNG，带透明背景

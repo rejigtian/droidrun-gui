@@ -106,6 +106,10 @@ def build():
         'llama_index.llms.ollama',
         'llama_index.llms.zhipuai',
         # HTTP 客户端
+        'requests',
+        'urllib3',
+        'urllib3.exceptions',
+        'certifi',
         'httpx',
         'httpx._transports.default',
         'httpx._transports.asgi',

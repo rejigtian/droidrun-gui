@@ -1,5 +1,22 @@
 dist/
 build/
+
+# Desktop app build artifacts
+desktop-app/dist/
+desktop-app/build/
+
+# Bundled APK (too large for git, downloaded at runtime)
+desktop-app/resources/portal/*.apk
+
+# Claude Code skill file (developer tooling)
+SKILL.md
+
+# Local Chinese helper docs (personal notes)
+使用指南.md
+快速参考.md
+
+# macOS metadata
+*.DS_Store
 # Python bytecode files
 __pycache__/
 *.py[cod]
