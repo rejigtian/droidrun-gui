@@ -96,10 +96,15 @@ def build():
         'droidrun.portal',
         # ADB（0.5.8 迁移到 async_adbutils，不再使用 adbutils）
         'async_adbutils',
-        # LiteLLM（0.5.8 使用 litellm 统一 LLM 接口）
-        'litellm',
-        'litellm.utils',
-        'litellm.main',
+        # LlamaIndex（0.5.8 通过 llama_index 调用各 LLM 提供商）
+        'llama_index',
+        'llama_index.core',
+        'llama_index.llms.google_genai',
+        'llama_index.llms.openai',
+        'llama_index.llms.anthropic',
+        'llama_index.llms.deepseek',
+        'llama_index.llms.ollama',
+        'llama_index.llms.zhipuai',
         # HTTP 客户端
         'httpx',
         'httpx._transports.default',

@@ -14,7 +14,7 @@ from utils.sdk_manager import get_sdk_manager
 try:
     from async_adbutils import adb as async_adb
     from droidrun.tools.android.portal_client import PortalClient
-    from droidrun.portal import download_portal_apk, enable_portal_accessibility
+    from droidrun.portal import setup_portal
     HAS_DROIDRUN = True
 except ImportError:
     HAS_DROIDRUN = False
@@ -149,21 +149,11 @@ class DeviceChecker:
 
         async def _install():
             device = await async_adb.device(serial=serial)
-
-            with download_portal_apk(debug=False) as apk_path:
-                if not apk_path or not os.path.exists(apk_path):
-                    return False, "APK 文件下载失败"
-
-                try:
-                    await device.install(apk_path, uninstall=True, flags=["-g"], silent=True)
-                except Exception as e:
-                    return False, f"APK 安装失败: {str(e)}"
-
-                try:
-                    await enable_portal_accessibility(device)
-                    return True, "Portal 安装并启用成功"
-                except Exception:
-                    return True, "Portal 安装成功，请在设备上手动启用辅助功能"
+            success = await setup_portal(device, debug=False)
+            if success:
+                return True, "Portal 安装并启用成功"
+            else:
+                return False, "Portal 安装失败，请在设备上手动启用无障碍功能"
 
         try:
             return asyncio.run(_install())

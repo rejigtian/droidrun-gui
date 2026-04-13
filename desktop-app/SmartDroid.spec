@@ -1,13 +1,12 @@
 # -*- mode: python ; coding: utf-8 -*-
+
 import site
 import os
 
-# 动态解析 site-packages 路径（跨开发者环境通用）
 _site_packages = site.getsitepackages()[0]
 _droidrun_config = os.path.join(_site_packages, 'droidrun', 'config')
 _tiktoken_ext = os.path.join(_site_packages, 'tiktoken_ext')
 
-# 按需添加 datas（路径不存在时跳过，避免构建报错）
 _datas = [('resources', 'resources')]
 if os.path.exists(_droidrun_config):
     _datas.append((_droidrun_config, 'droidrun/config'))
@@ -21,21 +20,57 @@ a = Analysis(
     binaries=[],
     datas=_datas,
     hiddenimports=[
-        'customtkinter', 'tkinter', 'PIL', 'PIL._tkinter_finder', 'yaml', 'json',
-        # DroidRun 0.5.8+
-        'droidrun', 'droidrun.config_manager',
-        'droidrun.tools.android.portal_client', 'droidrun.portal',
-        # ADB (0.5.8 迁移到 async_adbutils)
+        # UI 相关
+        'customtkinter',
+        'tkinter',
+        'PIL',
+        'PIL._tkinter_finder',
+        'yaml',
+        'json',
+        # DroidRun 核心 0.5.8+
+        'droidrun',
+        'droidrun.config_manager',
+        'droidrun.tools.android.portal_client',
+        'droidrun.portal',
+        # ADB
         'async_adbutils',
-        # LiteLLM
-        'litellm', 'litellm.utils', 'litellm.main',
-        # HTTP
-        'httpx', 'httpx._transports.default', 'httpx._transports.asgi',
+        # LlamaIndex（0.5.8 通过 llama_index 调用各 LLM 提供商）
+        'llama_index',
+        'llama_index.core',
+        'llama_index.llms.google_genai',
+        'llama_index.llms.openai',
+        'llama_index.llms.anthropic',
+        'llama_index.llms.deepseek',
+        'llama_index.llms.ollama',
+        'llama_index.llms.zhipuai',
+        # HTTP 客户端
+        'httpx',
+        'httpx._transports.default',
+        'httpx._transports.asgi',
         # 标准库
-        'uuid', 'subprocess', 'asyncio', 'threading', 'multiprocessing',
-        'socket', 'ssl', 'http', 'urllib', 'logging', 'pathlib',
-        'tempfile', 'shutil', 'zipfile', 'base64', 'hashlib', 'hmac',
-        'secrets', 'queue', 'collections', 'datetime', 'time', 're',
+        'uuid',
+        'subprocess',
+        'asyncio',
+        'threading',
+        'multiprocessing',
+        'socket',
+        'ssl',
+        'http',
+        'urllib',
+        'logging',
+        'pathlib',
+        'tempfile',
+        'shutil',
+        'zipfile',
+        'base64',
+        'hashlib',
+        'hmac',
+        'secrets',
+        'queue',
+        'collections',
+        'datetime',
+        'time',
+        're',
     ],
     hookspath=[],
     hooksconfig={},
