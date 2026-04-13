@@ -99,6 +99,13 @@ class TaskRunner:
             if callback:
                 callback(f"🤖 模型: {model_name}")
 
+            # ZhipuAI 映射到 OpenAILike（SDK 不再原生支持 ZhipuAI）
+            actual_provider = default_provider
+            base_url = None
+            if default_provider == 'ZhipuAI':
+                actual_provider = 'OpenAILike'
+                base_url = 'https://open.bigmodel.cn/api/paas/v4'
+
             # 构建 LLMProfile（直接传 api_key 到 kwargs，避免依赖 droidrun 内置 env 解析）
             profile_kwargs = {}
             if default_provider == 'GoogleGenAI' and google_key:
@@ -114,9 +121,10 @@ class TaskRunner:
             # Ollama 无需 API Key
 
             profile = LLMProfile(
-                provider=default_provider,
+                provider=actual_provider,
                 model=model_name,
                 temperature=0.2,
+                base_url=base_url,
                 kwargs=profile_kwargs,
             )
 
