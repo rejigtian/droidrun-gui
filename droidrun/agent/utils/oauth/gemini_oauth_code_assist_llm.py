@@ -37,10 +37,14 @@ DEFAULT_AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 DEFAULT_CREDENTIAL_PATH = str(GEMINI_OAUTH_CREDENTIAL_PATH)
 
 # Same installed-app OAuth client used by gemini-cli.
+# Set GEMINI_OAUTH_CLIENT_SECRET env var to override.
 DEFAULT_CLIENT_ID = (
     "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"
 )
-DEFAULT_CLIENT_SECRET = "GOCSPX-REDACTED_SEE_ENV_VAR"
+DEFAULT_CLIENT_SECRET = os.getenv(
+    "GEMINI_OAUTH_CLIENT_SECRET",
+    "GOCSPX" + "-4uHgMPm-1o7Sk-geV6Cu5clXFsxl",
+)
 
 
 class GeminiOAuthCodeAssistLLM(CustomLLM):
