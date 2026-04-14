@@ -50,6 +50,31 @@ Mobilerun is a cloud solution powered by Droidrun a powerful framework for contr
 - 📸 Screenshot analysis for visual understanding of the device
 - 🫆 Execution tracing with Arize Phoenix
 
+## 🌐 Self-Hosted Web UI
+
+A browser-based interface for DroidRun — deploy it locally or on a server and control devices from any browser, no desktop app required.
+
+**Start:**
+```bash
+cd web && ./start.sh
+# Backend API: http://localhost:8000
+# Frontend:    http://localhost:5173 (dev) or http://localhost:8000 (production build)
+```
+
+**Connect a device:**
+
+1. Open the Web UI → **Devices** → **Add Device** → copy the generated token
+2. In the **droidrun-portal** app on your phone, set:
+   - Server URL: `ws://<your-server-ip>:8000/v1/providers/join`
+   - Token: paste the token from step 1
+3. Tap **Connect** — the device appears as **online** in the Web UI
+
+> Portal connects outward to the server, so the phone doesn't need a fixed IP or ADB.
+
+**Requirements:** Python 3.11+, Node.js 18+
+
+---
+
 ## 📦 Installation
 
 > **Note:** Python 3.14 is not currently supported. Please use Python 3.11 – 3.13.
@@ -79,31 +104,6 @@ droidrun run "open settings and turn on dark mode"
 Read the full guide in [our docs](https://docs.droidrun.ai/v3/quickstart)!
 
 [![Quickstart Video](https://img.youtube.com/vi/4WT7FXJah2I/0.jpg)](https://www.youtube.com/watch?v=4WT7FXJah2I)
-
-## 🌐 Self-Hosted Web UI
-
-A browser-based interface for DroidRun — deploy it locally or on a server and control devices from any browser, no desktop app required.
-
-**Start:**
-```bash
-cd web && ./start.sh
-# Backend API: http://localhost:8000
-# Frontend:    http://localhost:5173 (dev) or http://localhost:8000 (production build)
-```
-
-**Connect a device:**
-
-1. Open the Web UI → **Devices** → **Add Device** → copy the generated token
-2. In the **droidrun-portal** app on your phone, set:
-   - Server URL: `ws://<your-server-ip>:8000/v1/providers/join`
-   - Token: paste the token from step 1
-3. Tap **Connect** — the device appears as **online** in the Web UI
-
-> Portal connects outward to the server, so the phone doesn't need a fixed IP or ADB.
-
-**Requirements:** Python 3.11+, Node.js 18+
-
----
 
 ## 🎬 Demo Videos
 
