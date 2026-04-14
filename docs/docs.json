@@ -1,79 +1,119 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "DroidRun",
+  "theme": "almond",
+  "name": "Droidrun",
   "colors": {
     "primary": "#0D9373",
     "light": "#07C983",
     "dark": "#0D9373"
   },
-  "favicon": "/favicon.png",
+  "favicon": {
+    "light": "/favicon.png",
+    "dark": "/favicon-dark.png"
+  },
+  "icons": {
+    "library": "lucide"
+  },
+  "styles": [
+    "/custom.css"
+  ],
+  "integrations": {
+    "posthog": {
+      "apiKey": "phc_3BmiVdnS2Wvlm007eHGZLBPwRFCVVWzIZXbB0u3ZH1d",
+      "apiHost": "https://pineapple.droidrun.ai"
+    }
+  },
   "navigation": {
-    "versions": [
+    "tabs": [
       {
-        "version": "0.2.0",
+        "tab": "Docs",
+        "icon": "book",
         "groups": [
           {
-            "group": "Getting Started",
+            "group": "Introduction",
             "pages": [
-              "v2/overview",
-              "v2/quickstart"
+              "/overview",
+              "/quickstart"
             ]
           },
           {
-            "group": "Core Concepts",
+            "group": "Features",
             "pages": [
-              "v2/concepts/agent",
-              "v2/concepts/planning",
-              "v2/concepts/android-control",
-              "v2/concepts/portal-app",
-              "v2/concepts/tracing"
+              "/features/structured-output",
+              "/features/credentials",
+              "/features/app-cards",
+              "/features/custom-tools",
+              "/features/custom-variables",
+              "/features/tracing",
+              "/features/telemetry"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "/guides/overview",
+              "/guides/device-setup",
+              "/guides/cli",
+              "/guides/docker"
+            ]
+          },
+          {
+            "group": "Concepts",
+            "pages": [
+              "/concepts/architecture",
+              "/concepts/shared-state",
+              "/concepts/events-and-workflows",
+              "/concepts/prompts"
+            ]
+          },
+          {
+            "group": "SDK Reference",
+            "pages": [
+              "/sdk/reference",
+              "/sdk/droid-agent",
+              "/sdk/adb-tools",
+              "/sdk/ios-tools",
+              "/sdk/base-tools",
+              "/sdk/configuration"
             ]
           }
         ]
       },
       {
-        "version": "0.1.0",
-        "groups": [
-          {
-            "group": "Getting Started",
-            "pages": [
-              "v1/overview",
-              "v1/quickstart"
-            ]
-          },
-          {
-            "group": "Core Concepts",
-            "pages": [
-              "v1/concepts/agent",
-              "v1/concepts/android-control",
-              "v1/concepts/portal-app"
-            ]
-          }
-        ]
+        "tab": "Cloud",
+        "icon": "cloud",
+        "href": "https://docs.mobilerun.ai"
+      },
+      {
+        "tab": "GitHub",
+        "icon": "github",
+        "href": "https://github.com/droidrun/droidrun"
       }
     ]
   },
   "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
+    "light": "/logo/light.png",
+    "dark": "/logo/dark.png",
+    "href": "https://droidrun.ai"
   },
   "navbar": {
-    "links": [
-      {
-        "label": "GitHub",
-        "href": "https://github.com/droidrun/droidrun"
-      }
-    ],
     "primary": {
       "type": "button",
-      "label": "Get Started",
-      "href": "https://github.com/droidrun/droidrun"
+      "label": "Join Discord",
+      "href": "https://discord.gg/gdekvkJFvn"
     }
   },
   "footer": {
     "socials": {
-      "github": "https://github.com/droidrun/droidrun"
+      "github": "https://github.com/droidrun/droidrun",
+      "x": "https://x.com/droid_run",
+      "discord": "https://discord.gg/gdekvkJFvn",
+      "website": "https://droidrun.ai"
+    }
+  },
+  "errors": {
+    "404": {
+      "redirect": false
     }
   }
 }

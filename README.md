@@ -1,351 +1,136 @@
-# DroidRun GUI 使用说明
-
-DroidRun GUI 是对 droidrun 命令行工具的可视化封装，支持一键操作 Android 设备，无需命令行基础。
-
-## 主要功能
-- 多设备管理与选择
-- 任务输入与模板快捷填充
-- 历史任务一键复用
-- AI模型与API Key管理
-- Portal APK/ADBKeyboard自动安装与环境检测
-- 任务执行进度与结果实时输出
-
-## 启动方式
-1. 安装依赖并激活虚拟环境：
-   ```bash
-   pip install -r requirements.txt
-   source ../venv/bin/activate
-   ```
-2. 一键运行 GUI：
-   ```bash
-   ./run_local_gui.sh
-   ```
-   或手动：
-   ```bash
-   PYTHONPATH=. python3 droidrun_gui/gui_main.py
-   ```
-
-## 亮点体验
-- 支持中文/英文任务输入，自动适配输入法
-- Portal APK/ADBKeyboard 一键安装与切换
-- 任务执行全程可视化，历史可追溯
-
----
-
-<picture>
+<picture align="center">
   <source media="(prefers-color-scheme: dark)" srcset="./static/droidrun-dark.png">
   <source media="(prefers-color-scheme: light)" srcset="./static/droidrun.png">
   <img src="./static/droidrun.png"  width="full">
 </picture>
 
+
+<div align="center">
+
+[![Docs](https://img.shields.io/badge/Docs-📕-0D9373?style=for-the-badge)](https://docs.droidrun.ai)
+[![Cloud](https://img.shields.io/badge/Cloud-☁️-0D9373?style=for-the-badge)](https://cloud.droidrun.ai/sign-in?waitlist=true)
+
+
 [![GitHub stars](https://img.shields.io/github/stars/droidrun/droidrun?style=social)](https://github.com/droidrun/droidrun/stargazers)
-[![Discord](https://img.shields.io/discord/1360219330318696488?color=7289DA&label=Discord&logo=discord&logoColor=white)](https://discord.gg/ZZbKEZZkwK)
-[![Documentation](https://img.shields.io/badge/Documentation-📕-blue)](https://docs.droidrun.ai)
+[![droidrun.ai](https://img.shields.io/badge/droidrun.ai-white)](https://droidrun.ai)
 [![Twitter Follow](https://img.shields.io/twitter/follow/droid_run?style=social)](https://x.com/droid_run)
+[![Discord](https://img.shields.io/discord/1360219330318696488?color=white&label=Discord&logo=discord&logoColor=white)](https://discord.gg/ZZbKEZZkwK)
+[![Benchmark](https://img.shields.io/badge/Benchmark-91.4﹪-white)](https://droidrun.ai/benchmark)
 
 
-DroidRun is a powerful framework for controlling Android devices through LLM agents. It allows you to automate Android device interactions using natural language commands.
 
-## ✨ Features
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://api.producthunt.com/widgets/embed-image/v1/top-post-badge.svg?post_id=983810&theme=dark&period=daily&t=1753948032207">
+  <source media="(prefers-color-scheme: light)" srcset="https://api.producthunt.com/widgets/embed-image/v1/top-post-badge.svg?post_id=983810&theme=neutral&period=daily&t=1753948125523">
+  <a href="https://www.producthunt.com/products/droidrun-framework-for-mobile-agent?embed=true&utm_source=badge-top-post-badge&utm_medium=badge&utm_source=badge-droidrun" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/top-post-badge.svg?post_id=983810&theme=neutral&period=daily&t=1753948125523" alt="Droidrun - Give&#0032;AI&#0032;native&#0032;control&#0032;of&#0032;physical&#0032;&#0038;&#0032;virtual&#0032;phones&#0046; | Product Hunt" style="width: 200px; height: 54px;" width="200" height="54" /></a>
+</picture>
 
-- Control Android devices with natural language commands
-- Supports multiple LLM providers (OpenAI, Anthropic, Gemini, Ollama, DeepSeek)
-- Planning capabilities for complex multi-step tasks
-- LlamaIndex integration for flexible LLM interactions
-- Easy to use CLI with enhanced debugging features
-- Extendable Python API for custom automations
-- Screenshot analysis for visual understanding of the device
-- Execution tracing with Arize Phoenix
+
+[Deutsch](https://zdoc.app/de/droidrun/droidrun) | 
+[Español](https://zdoc.app/es/droidrun/droidrun) | 
+[français](https://zdoc.app/fr/droidrun/droidrun) | 
+[日本語](https://zdoc.app/ja/droidrun/droidrun) | 
+[한국어](https://zdoc.app/ko/droidrun/droidrun) | 
+[Português](https://zdoc.app/pt/droidrun/droidrun) | 
+[Русский](https://zdoc.app/ru/droidrun/droidrun) | 
+[中文](https://zdoc.app/zh/droidrun/droidrun)
+
+</div>
+
+
+
+Mobilerun is a cloud solution powered by Droidrun a powerful framework for controlling Android and iOS devices through LLM agents. It allows you to automate device interactions using natural language commands. [Checkout our benchmark results](https://droidrun.ai/benchmark)
+
+
+- 🤖 Control Android and iOS devices with natural language commands
+- 🔀 Supports multiple LLM providers (OpenAI, Anthropic, Gemini, Ollama, DeepSeek)
+- 🧠 Planning capabilities for complex multi-step tasks
+- 💻 Easy to use CLI with enhanced debugging features
+- 🐍 Extendable Python API for custom automations
+- 📸 Screenshot analysis for visual understanding of the device
+- 🫆 Execution tracing with Arize Phoenix
+
+## 🌐 Self-Hosted Web UI
+
+A browser-based interface for DroidRun — deploy it locally or on a server and control devices from any browser, no desktop app required.
+
+**Start:**
+```bash
+cd web && ./start.sh
+# Backend API: http://localhost:8000
+# Frontend:    http://localhost:5173 (dev) or http://localhost:8000 (production build)
+```
+
+**Connect a device:**
+
+1. Open the Web UI → **Devices** → **Add Device** → copy the generated token
+2. In the **droidrun-portal** app on your phone, set:
+   - Server URL: `ws://<your-server-ip>:8000/v1/providers/join`
+   - Token: paste the token from step 1
+3. Tap **Connect** — the device appears as **online** in the Web UI
+
+> Portal connects outward to the server, so the phone doesn't need a fixed IP or ADB.
+
+**Requirements:** Python 3.11+, Node.js 18+
+
+---
 
 ## 📦 Installation
 
-### 🚀 Option 1: Install from PyPI (Recommended)
+> **Note:** Python 3.14 is not currently supported. Please use Python 3.11 – 3.13.
 
 ```bash
 pip install droidrun
 ```
 
-### 🔧 Option 2: Install from Source
+## 🚀 Quickstart
 
+### 1. Install the portal on your device
 ```bash
-git clone https://github.com/droidrun/droidrun.git
-cd droidrun
-pip install -e .
+droidrun setup
 ```
 
-## 📋 Prerequisites
-
-1. An Android device connected via USB or ADB over TCP/IP
-2. ADB (Android Debug Bridge) installed and configured
-3. DroidRun Portal app installed on your Android device
-4. API key for at least one of the supported LLM providers:
-   - OpenAI
-   - Anthropic
-   - Google Gemini
-
-### 🔧 Setting up ADB
-
-ADB (Android Debug Bridge) is required for DroidRun to communicate with your Android device:
-
-1. **Install ADB**:
-   - **Windows**: Download [Android SDK Platform Tools](https://developer.android.com/studio/releases/platform-tools) and extract the ZIP file
-   - **macOS**: `brew install android-platform-tools`
-   - **Linux**: `sudo apt install adb` (Ubuntu/Debian) or `sudo pacman -S android-tools` (Arch)
-
-2. **Add ADB to your PATH**:
-   - **Windows**: Add the path to the extracted platform-tools folder to your system's PATH environment variable
-   - **macOS/Linux**: Add the following to your ~/.bashrc or ~/.zshrc:
-     ```bash
-     export PATH=$PATH:/path/to/platform-tools
-     ```
-
-3. **Verify ADB installation**:
-   ```bash
-   adb version
-   ```
-
-4. **Enable USB debugging on your Android device**:
-   - Go to **Settings → About phone**
-   - Tap **Build number** 7 times to enable Developer options
-   - Go to **Settings → System → Developer options** (location may vary by device)
-   - Enable **USB debugging**
-
-## 🛠️ Setup
-
-### 📱 1. Install DroidRun Portal App
-
-DroidRun requires the DroidRun Portal app to be installed on your Android device:
-
-1. Download the DroidRun Portal APK from the [DroidRun Portal repository](https://github.com/droidrun/droidrun-portal)
-2. Use DroidRun to install the portal app:
-   ```bash
-   droidrun setup --path=/path/to/droidrun-portal.apk
-   ```
-
-Alternatively, you can use ADB to install it manually:
+### 2. Configure your LLM provider
 ```bash
-adb install -r /path/to/droidrun-portal.apk
+droidrun configure
 ```
+This walks you through choosing a provider (Gemini, OpenAI, Anthropic, etc.), auth method (API key or OAuth), and model.
 
-### 🔑 2. Set up API keys
-
-Create a `.env` file in your working directory or set environment variables:
-
+### 3. Run a command
 ```bash
-# Choose at least one of these based on your preferred provider
-export OPENAI_API_KEY="your_openai_api_key_here"
-export ANTHROPIC_API_KEY="your_anthropic_api_key_here"
-export GEMINI_API_KEY="your_gemini_api_key_here"
-export DEEPSEEK_API_KEY="your_deepseek_api_key_here"
-# For Ollama, no API key is needed
+droidrun run "open settings and turn on dark mode"
 ```
 
-To load the environment variables from the `.env` file:
+Read the full guide in [our docs](https://docs.droidrun.ai/v3/quickstart)!
 
-```bash
-source .env
-```
+[![Quickstart Video](https://img.youtube.com/vi/4WT7FXJah2I/0.jpg)](https://www.youtube.com/watch?v=4WT7FXJah2I)
 
-### 📱 3. Connect to an Android device
+## 🎬 Demo Videos
 
-Connect your device via USB or set up wireless ADB:
+1. **Accommodation booking**: Let Droidrun search for an apartment for you
 
-```bash
-# List connected devices
-droidrun devices
+   [![Droidrun Accommodation Booking Demo](https://img.youtube.com/vi/VUpCyq1PSXw/0.jpg)](https://youtu.be/VUpCyq1PSXw)
 
-# Connect to a device over Wi-Fi
-droidrun connect 192.168.1.100
-```
+<br>
 
-## 💻 Using the CLI
+2. **Trend Hunter**: Let Droidrun hunt down trending posts
 
-DroidRun's CLI is designed to be simple and intuitive. You can use it in two ways:
+   [![Droidrun Trend Hunter Demo](https://img.youtube.com/vi/7V8S2f8PnkQ/0.jpg)](https://youtu.be/7V8S2f8PnkQ)
 
-### 🚀 Basic Usage
+<br>
 
-```bash
-# Format: droidrun "task description" [options]
-droidrun "Open the settings app"
-```
+3. **Streak Saver**: Let Droidrun save your streak on your favorite language learning app
 
-### 🔌 With Provider Options
+   [![Droidrun Streak Saver Demo](https://img.youtube.com/vi/B5q2B467HKw/0.jpg)](https://youtu.be/B5q2B467HKw)
 
-```bash
-# Using OpenAI
-droidrun "Open the calculator app" --provider OpenAI --model gpt-4o-mini
-
-# Using Anthropic
-droidrun "Check the battery level" --provider Anthropic --model claude-3-sonnet-20240229
-
-# Using Gemini
-droidrun "Install and open Instagram" --provider Gemini --model models/gemini-2.5-pro-preview-05-06
-
-# Using Ollama (local)
-droidrun "Check battery level" --provider Ollama --model llama2
-```
-
-### ⚙️ Additional Options
-
-```bash
-# Specify a particular device
-droidrun "Open Chrome and search for weather" --device abc123
-
-# Enable vision capabilities
-droidrun "Analyze what's on the screen" --vision
-
-# Enable planning for complex tasks
-droidrun "Find and download a specific app" --reasoning
-
-# Enable execution tracing (requires Phoenix server running)
-droidrun "Debug this complex workflow" --tracing
-
-# Set maximum number of steps
-droidrun "Open settings and enable dark mode" --steps 20
-```
-
-## 📝 Creating a Minimal Test Script
-
-If you want to use DroidRun in your Python code rather than via the CLI, you can create a minimal test script:
-
-```python
-#!/usr/bin/env python3
-import asyncio
-from droidrun.agent.droid import DroidAgent
-from droidrun.agent.utils.llm_picker import load_llm
-from droidrun.tools import load_tools
-
-async def main():
-    # Load tools
-    tool_list, tools_instance = await load_tools()
-    
-    # Load LLM
-    llm = load_llm(
-        provider_name="Gemini",  # Case sensitive: OpenAI, Ollama, Anthropic, Gemini, DeepSeek
-        model="models/gemini-2.5-pro-preview-05-06",
-        temperature=0.2
-    )
-    
-    # Create and run the agent
-    agent = DroidAgent(
-        goal="Open the Settings app and check the Android version",
-        llm=llm,
-        tools_instance=tools_instance,
-        tool_list=tool_list,
-        vision=True,      # Enable vision for screen analysis
-        reasoning=True    # Enable planning for complex tasks
-    )
-    
-    # Run the agent
-    result = await agent.run()
-    print(f"Success: {result['success']}")
-    if result.get('reason'):
-        print(f"Reason: {result['reason']}")
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-
-You can also use LlamaIndex directly:
-
-```python
-import asyncio
-from llama_index.llms.gemini import Gemini
-from droidrun.agent.droid import DroidAgent
-from droidrun.tools import load_tools
-
-async def main():
-    # Load tools
-    tool_list, tools_instance = await load_tools()
-    
-    # Create LlamaIndex LLM directly
-    llm = Gemini(
-        model="models/gemini-2.5-pro-preview-05-06",
-        temperature=0.2
-    )
-    
-    # Create and run the agent
-    agent = DroidAgent(
-        goal="Open the Settings app and check the Android version",
-        llm=llm,
-        tools_instance=tools_instance,
-        tool_list=tool_list
-    )
-    
-    # Run the agent
-    result = await agent.run()
-    print(f"Success: {result['success']}")
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-
-## ❓ Troubleshooting
-
-### 🔑 API Key Issues
-
-If you encounter errors about missing API keys, ensure:
-1. You've set the correct environment variable for your chosen provider
-2. The API key is valid and has appropriate permissions
-3. You've correctly sourced your `.env` file or exported the variables manually
-
-### 📱 Device Connection Issues
-
-If you have trouble connecting to your device:
-1. Ensure USB debugging is enabled on your Android device
-2. Check that your device is recognized by ADB: `adb devices`
-3. For wireless connections, make sure your device and computer are on the same network
-
-### 🤖 LLM Provider Selection
-
-If DroidRun is using the wrong LLM provider:
-1. Explicitly specify the provider with `--provider` (in CLI) or `llm_provider=` (in code)
-2. When using Gemini, ensure you have set `GEMINI_API_KEY` and specified `--provider gemini`
-
-### 📊 Tracing Issues
-
-If you're using the tracing feature:
-1. Make sure to install Arize Phoenix: `pip install "arize-phoenix[llama-index]"`
-2. Start the Phoenix server before running your command: `phoenix serve`
-3. Access the tracing UI at http://localhost:6006 after execution
-
-### 🎬 Demo Videos
-
-1. **Shopping Assistant**: Watch how DroidRun searches Amazon for headphones and sends the top 3 products to a colleague on WhatsApp.
-   
-   Prompt: "Go to Amazon, search for headphones and write the top 3 products to my colleague on WhatsApp."
-   
-   [![Shopping Assistant Demo](https://img.youtube.com/vi/VQK3JcifgwU/0.jpg)](https://www.youtube.com/watch?v=VQK3JcifgwU)
-
-2. **Social Media Automation**: See DroidRun open X (Twitter) and post "Hello World".
-   
-   Prompt: "Open up X and post Hello World."
-   
-   [![Social Media Automation Demo](https://img.youtube.com/vi/i4-sDQhzt_M/0.jpg)](https://www.youtube.com/watch?v=i4-sDQhzt_M)
 
 ## 💡 Example Use Cases
 
-- Automated UI testing of Android applications
+- Automated UI testing of mobile applications
 - Creating guided workflows for non-technical users
-- Automating repetitive tasks on Android devices
+- Automating repetitive tasks on mobile devices
 - Remote assistance for less technical users
-- Exploring Android UI with natural language commands
-
-## 🗺️ Roadmap
-
-### 🤖 Agent:
-- **Improve memory**: Enhance context retention for complex multi-step tasks
-- **Expand planning capabilities**: Add support for more complex reasoning strategies
-- **Add Integrations**: Support more LLM providers and agent frameworks (LangChain, Agno etc.)
-
-### ⚙️ Automations:
-- **Create Automation Scripts**: Generate reusable scripts from agent actions that can be scheduled or shared
-
-### ☁️ Cloud:
-- **Hosted version**: Remote device control via web interface without local setup
-- **Add-Ons**: Marketplace for extensions serving specific use cases
-- **Proxy Hours**: Cloud compute time with tiered pricing for running automations
-- **Droidrun AppStore**: Simple installation of Apps on your hosted devices
+- Exploring mobile UI with natural language commands
 
 ## 👥 Contributing
 
@@ -354,3 +139,21 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## 📄 License
 
 This project is licensed under the MIT License - see the LICENSE file for details. 
+
+## Security Checks
+
+To ensure the security of the codebase, we have integrated security checks using `bandit` and `safety`. These tools help identify potential security issues in the code and dependencies.
+
+### Running Security Checks
+
+Before submitting any code, please run the following security checks:
+
+1. **Bandit**: A tool to find common security issues in Python code.
+   ```bash
+   bandit -r droidrun
+   ```
+
+2. **Safety**: A tool to check your installed dependencies for known security vulnerabilities.
+   ```bash
+   safety scan
+   ```

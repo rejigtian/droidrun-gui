@@ -1,495 +1,920 @@
 """
 DroidAgent - A wrapper class that coordinates the planning and execution of tasks
-to achieve a user's goal on an Android device.
+to achieve a user's goal on a mobile device.
+
+Architecture:
+- When reasoning=False: Uses FastAgent directly
+- When reasoning=True: Uses Manager (planning) + Executor (action) workflows
 """
 
-import asyncio
 import logging
-import time
-from typing import Dict, Any, List, Tuple
+import os
+import traceback
+from typing import TYPE_CHECKING, Awaitable, Type, Union
 
-from llama_index.core.base.llms.types import ChatMessage
+from async_adbutils import adb
 from llama_index.core.llms.llm import LLM
-from llama_index.core.memory import ChatMemoryBuffer
-from droidrun.agent.codeact import CodeActAgent
-from droidrun.agent.planner import PlannerAgent, TaskManager
-from droidrun.agent.utils.executer import SimpleCodeExecutor
-from droidrun.tools import load_tools
+from llama_index.core.workflow import Context, StartEvent, StopEvent, Workflow, step
+from opentelemetry import trace
+from pydantic import BaseModel
+from workflows.events import Event
+from workflows.handler import WorkflowHandler
+
+from droidrun.agent.action_context import ActionContext
+from droidrun.agent.fast_agent import FastAgent
+from droidrun.agent.fast_agent.events import FastAgentOutputEvent
+from droidrun.agent.common.events import RecordUIStateEvent, ScreenshotEvent
+from droidrun.agent.droid.events import (
+    ExecutorInputEvent,
+    ExecutorResultEvent,
+    ExternalUserMessageDroppedEvent,
+    FastAgentExecuteEvent,
+    FastAgentResultEvent,
+    FinalizeEvent,
+    ManagerInputEvent,
+    ManagerPlanEvent,
+    ResultEvent,
+)
+from droidrun.agent.droid.state import DroidAgentState, QueuedUserMessage
+from droidrun.agent.executor import ExecutorAgent
+from droidrun.agent.external import load_agent
+from droidrun.agent.manager import ManagerAgent, StatelessManagerAgent
+from droidrun.agent.oneflows.structured_output_agent import StructuredOutputAgent
+from droidrun.agent.trajectory import TrajectoryWriter
+from droidrun.agent.utils.llm_loader import (
+    load_agent_llms,
+    merge_llms_with_config,
+)
+from droidrun.agent.utils.prompt_resolver import PromptResolver
+from droidrun.agent.utils.signatures import build_tool_registry
+from droidrun.agent.utils.tracing_setup import (
+    apply_session_context,
+    record_langfuse_screenshot,
+    setup_tracing,
+)
+from droidrun.agent.utils.trajectory import Trajectory
+from droidrun.config_manager.config_manager import (
+    AgentConfig,
+    CredentialsConfig,
+    DeviceConfig,
+    DroidConfig,
+    LoggingConfig,
+    TelemetryConfig,
+    ToolsConfig,
+    TracingConfig,
+)
+from droidrun.credential_manager import CredentialManager, FileCredentialManager
+from droidrun.log_handlers import CLILogHandler, configure_logging
+from droidrun.mcp.adapter import mcp_to_droidrun_tools
+from droidrun.mcp.client import MCPClientManager
+from droidrun.mcp.config import MCPConfig
+from droidrun.portal import ensure_portal_ready
+from droidrun.telemetry import (
+    DroidAgentFinalizeEvent,
+    DroidAgentInitEvent,
+    capture,
+    flush,
+)
+from droidrun.tools.driver.android import AndroidDriver
+from droidrun.tools.driver.base import DeviceDisconnectedError
+from droidrun.tools.driver.ios import IOSDriver, discover_ios_portal
+from droidrun.tools.driver.recording import RecordingDriver
+from droidrun.tools.driver.stealth import StealthDriver
+from droidrun.tools.filters import ConciseFilter, DetailedFilter
+from droidrun.tools.formatters import IndexedFormatter
+from droidrun.tools.ui.ios_provider import IOSStateProvider
+from droidrun.tools.ui.provider import AndroidStateProvider
+
+if TYPE_CHECKING:
+    from droidrun.tools.driver.base import DeviceDriver
+    from droidrun.tools.ui.provider import StateProvider
 
 logger = logging.getLogger("droidrun")
 
-class DroidAgent:
+
+class DroidAgent(Workflow):
     """
-    A wrapper class that coordinates between PlannerAgent (creates plans) and 
-    CodeActAgent (executes tasks) to achieve a user's goal.
+    A wrapper class that coordinates between agents to achieve a user's goal.
+
+    Reasoning modes:
+    - reasoning=False: Uses FastAgent directly for immediate execution
+    - reasoning=True: Uses ManagerAgent (planning) + ExecutorAgent (actions)
     """
-    
+
+    @staticmethod
+    def _configure_default_logging(debug: bool = False):
+        """
+        Configure default logging for DroidAgent if no real handler is present.
+        """
+        has_real_handler = any(
+            not isinstance(h, logging.NullHandler) for h in logger.handlers
+        )
+        if not has_real_handler:
+            handler = CLILogHandler()
+            handler.setFormatter(
+                logging.Formatter("%(asctime)s %(levelname)s: %(message)s", "%H:%M:%S")
+                if debug
+                else logging.Formatter("%(message)s")
+            )
+            configure_logging(debug=debug, handler=handler)
+
     def __init__(
-        self, 
+        self,
         goal: str,
-        llm: LLM,
-        max_steps: int = 15,
+        config: DroidConfig | None = None,
+        llms: dict[str, LLM] | LLM | None = None,
+        custom_tools: dict = None,
+        credentials: Union[dict, "CredentialManager", None] = None,
+        variables: dict | None = None,
+        output_model: Type[BaseModel] | None = None,
+        prompts: dict[str, str] | None = None,
+        driver: "DeviceDriver | None" = None,
+        state_provider: "StateProvider | None" = None,
         timeout: int = 1000,
-        max_retries: int = 3,
-        reasoning: bool = True,
-        enable_tracing: bool = False,
-        debug: bool = False,
-        device_serial: str = None,
-        **kwargs
+        *args,
+        **kwargs,
     ):
-        """
-        Initialize the DroidAgent wrapper.
-        
-        Args:
-            goal: The user's goal or command to execute
-            llm: The language model to use for both agents
-            tools_instance: An instance of the Tools class
-            tool_list: Dictionary of available tools
-            max_steps: Maximum number of steps for both agents
-            timeout: Timeout for agent execution in seconds
-            max_retries: Maximum number of retries for failed tasks
-            reasoning: Whether to use the PlannerAgent for complex reasoning (True) 
-                      or send tasks directly to CodeActAgent (False)
-            enable_tracing: Whether to enable Arize Phoenix tracing
-            debug: Whether to enable verbose debug logging
-            device_serial: Target Android device serial number
-            **kwargs: Additional keyword arguments to pass to the agents
-        """
-        # Setup global tracing first if enabled
-        if enable_tracing:
-            try:
-                from llama_index.core import set_global_handler
-                set_global_handler("arize_phoenix")
-                logger.info("🔍 Arize Phoenix tracing enabled globally")
-            except ImportError:
-                logger.warning("⚠️ Arize Phoenix package not found, tracing disabled")
-                enable_tracing = False
-        
-        self.goal = goal
-        self.llm = llm
-        self.max_steps = max_steps
+        self.user_id = kwargs.pop("user_id", None)
+        self.runtype = kwargs.pop("runtype", "developer")
+        self.shared_state = DroidAgentState(
+            instruction=goal,
+            err_to_manager_thresh=2,
+            user_id=self.user_id,
+            runtype=self.runtype,
+        )
+        self.output_model = output_model
+
+        # Initialize prompt resolver for custom prompts
+        self.prompt_resolver = PromptResolver(custom_prompts=prompts)
+
+        # Store custom variables in shared state
+        if variables:
+            self.shared_state.custom_variables = variables
+
+        # Load credential manager (supports both config and direct dict)
+        credentials_source = (
+            credentials
+            if credentials is not None
+            else (config.credentials if config else None)
+        )
+
+        if isinstance(credentials_source, CredentialManager):
+            self.credential_manager = credentials_source
+        elif credentials_source is not None:
+            cm = FileCredentialManager(credentials_source)
+            self.credential_manager = cm if cm.secrets else None
+        else:
+            self.credential_manager = None
+
+        self.resolved_device_config = config.device if config else DeviceConfig()
+
+        self.config = DroidConfig(
+            agent=config.agent if config else AgentConfig(),
+            device=self.resolved_device_config,
+            tools=config.tools if config else ToolsConfig(),
+            logging=config.logging if config else LoggingConfig(),
+            tracing=config.tracing if config else TracingConfig(),
+            telemetry=config.telemetry if config else TelemetryConfig(),
+            llm_profiles=config.llm_profiles if config else {},
+            credentials=config.credentials if config else CredentialsConfig(),
+            external_agents=config.external_agents if config else {},
+            mcp=config.mcp if config else MCPConfig(),
+        )
+
+        # These are populated in start_handler (unless injected via __init__)
+        self._injected_driver = driver
+        self._injected_state_provider = state_provider
+        self.driver = None
+        self.registry = None
+        self.action_ctx = None
+        self.state_provider = None
+
+        super().__init__(*args, timeout=timeout, **kwargs)
+
+        self._configure_default_logging(debug=self.config.logging.debug)
+
+        setup_tracing(self.config.tracing, agent=self)
+
+        # Check if using external agent - skip LLM loading
+        self._using_external_agent = self.config.agent.name != "droidrun"
+
+        self._stream_screenshots = os.environ.get(
+            "DROIDRUN_STREAM_SCREENSHOTS", ""
+        ).lower() in ("1", "true")
+
         self.timeout = timeout
-        self.max_retries = max_retries
-        self.task_manager = TaskManager()
-        self.reasoning = reasoning
-        self.debug = debug
-        self.device_serial = device_serial
-        
-        # Store trajectory steps and callback
-        self.trajectory_steps = []
-        self.trajectory_callback = self._handle_trajectory_step
-        
-        logger.info("🤖 Initializing DroidAgent wrapper...")
 
-        tool_list, tools_instance = load_tools(serial=device_serial)
-        
-        self.tools_instance = tools_instance
-        self.tool_list = tool_list
-        
-        # Ensure remember tool is in the tool_list if available
-        if hasattr(tools_instance, 'remember') and 'remember' not in tool_list:
-            logger.debug("📝 Adding 'remember' tool to the available tools")
-            tool_list['remember'] = tools_instance.remember
-        
-        # Create code executor
-        logger.debug("🔧 Initializing Code Executor...")
-        loop = asyncio.get_event_loop()
-        self.executor = SimpleCodeExecutor(
-            loop=loop,
-            locals={},
-            tools=tool_list,
-            globals={"__builtins__": __builtins__}
-        )
-        
-        # Create memory buffer for the planning agent if reasoning is enabled
-        if self.reasoning:
-            self.planning_memory = ChatMemoryBuffer.from_defaults(llm=llm)
-        
-        # Create CodeActAgent
-        logger.info("🧠 Initializing CodeAct Agent...")
-        self.codeact_agent = CodeActAgent(
-            llm=llm,
-            code_execute_fn=self.executor.execute,
-            available_tools=tool_list.values(),
-            tools=tools_instance,
-            max_steps=999999, 
-            debug=debug,
-            timeout=timeout,
-            trajectory_callback=self.trajectory_callback
-        )
-        
-        if self.reasoning:
-            logger.info("📝 Initializing Planner Agent...")
-            self.planner_agent = PlannerAgent(
-                goal=goal,
-                llm=llm,
-                agent=self.codeact_agent, 
-                tools_instance=tools_instance,
-                timeout=timeout,
-                max_retries=max_retries,
-                debug=debug,
-                trajectory_callback=self.trajectory_callback
-            )
-            
-            # Give task manager to the planner
-            self.planner_agent.task_manager = self.task_manager
-        else:
-            logger.debug("🚫 Planning disabled - will execute tasks directly with CodeActAgent")
-            self.planner_agent = None
-        
-        logger.info("✅ DroidAgent initialized successfully.")
-    
-    async def _handle_trajectory_step(self, step):
-        """
-        Callback to handle trajectory steps from both agents.
-        This adds the step to our trajectory_steps list and yields it if needed.
-        
-        Args:
-            step: A trajectory step dictionary with metadata
-        """
-        # Add metadata about current time
-        step["timestamp"] = time.time()
-        
-        # Add to trajectory
-        self.trajectory_steps.append(step)
-        
-        # Log for debugging if needed
-        logger.debug(f"📝 Trajectory step: {step['type']} (step {step['step']})")
-            
-    def get_trajectory(self):
-        """
-        Get the current trajectory.
-        
-        Returns:
-            List of trajectory steps
-        """
-        return self.trajectory_steps.copy()
-    
-    async def _get_plan_from_planner(self) -> List[Dict]:
-        """
-        Get a plan (list of tasks) from the PlannerAgent.
-        
-        Returns:
-            List of task dictionaries
-        """
-        logger.info("📋 Planning steps to accomplish the goal...")
-        
-        # Create system and user messages
-        system_msg = ChatMessage(role="system", content=self.planner_agent.system_prompt)
-        user_msg = ChatMessage(role="user", content=self.planner_agent.user_prompt)
-        
-        # Check if we have task history to add to the prompt
-        task_history = ""
-        # Use the persistent task history methods to get ALL completed and failed tasks
-        completed_tasks = self.task_manager.get_all_completed_tasks()
-        failed_tasks = self.task_manager.get_all_failed_tasks()
-        
-        # Show any remembered information in task history
-        remembered_info = ""
-        if hasattr(self.tools_instance, 'memory') and self.tools_instance.memory:
-            remembered_info = "\n### Remembered Information:\n"
-            for idx, item in enumerate(self.tools_instance.memory, 1):
-                remembered_info += f"{idx}. {item}\n"
-        
-        if completed_tasks or failed_tasks or remembered_info:
-            task_history = "### Task Execution History:\n"
-            
-            if completed_tasks:
-                task_history += "✅ Completed Tasks:\n"
-                for task in completed_tasks:
-                    task_history += f"- {task['description']}\n"
+        # Store user custom tools
+        self.user_custom_tools = custom_tools or {}
 
-            if failed_tasks:
-                task_history += "\n❌ Failed Tasks:\n"
-                for task in failed_tasks:
-                    failure_reason = task.get('failure_reason', 'Unknown reason')
-                    task_history += f"- {task['description']} (Failed: {failure_reason})\n"
-            
-            if remembered_info:
-                task_history += remembered_info
-                
-            # Add a reminder to use this information
-            task_history += "\n⚠️ Please use the above information in your planning. For example, if specific dates or locations were found, include them explicitly in your next tasks instead of just referring to 'the dates' or 'the location'.\n"
-            
-            # Append task history to user prompt
-            user_msg = ChatMessage(
-                role="user", 
-                content=f"{self.planner_agent.user_prompt}\n\n{task_history}\n\nPlease consider the above task history and discovered information when creating your next plan. Incorporate specific data (dates, locations, etc.) directly into tasks rather than referring to them generally. Remember that previously completed or failed tasks will not be repeated."
-            )
-        
-        # Create message list
-        messages = [system_msg, user_msg]
-        logger.debug(f"Sending {len(messages)} messages to planner: {[msg.role for msg in messages]}")
-        
-        # Get response from LLM
-        llm_response = await self.planner_agent._get_llm_response(messages)
-        code, thoughts = self.planner_agent._extract_code_and_thought(llm_response.message.content)
+        # Initialize MCP manager (connections made lazily in start_handler)
+        self.mcp_manager = None
 
-        # Add trajectory step for plan generation
-        if self.trajectory_callback:
-            trajectory_step = {
-                "type": "planner_plan_generation",
-                "step": self.planner_agent.steps_counter,
-                "thoughts": thoughts,
-                "code": code,
-                "timestamp": time.time()
-            }
-            await self._handle_trajectory_step(trajectory_step)
-        
-        # Execute the planning code (which should call set_tasks)
-        if code:
-            try:
-                planning_tools = {
-                    "set_tasks": self.task_manager.set_tasks,
-                    "add_task": self.task_manager.add_task,
-                    "get_all_tasks": self.task_manager.get_all_tasks,
-                    "clear_tasks": self.task_manager.clear_tasks,
-                    "complete_goal": self.task_manager.complete_goal
-                }
-                planning_executor = SimpleCodeExecutor(
-                    loop=asyncio.get_event_loop(),
-                    globals={},
-                    locals={},
-                    tools=planning_tools
+        # Only load LLMs for native Droidrun agents
+        if not self._using_external_agent:
+            if llms is None:
+                if config is None:
+                    raise ValueError(
+                        "Either 'llms' or 'config' must be provided. "
+                        "If llms is not provided, config is required to load LLMs from profiles."
+                    )
+
+                logger.debug("🔄 Loading LLMs from config (llms not provided)...")
+
+                llms = load_agent_llms(
+                    config=self.config, output_model=output_model, **kwargs
                 )
-                result = await planning_executor.execute(code)
-
-                # Add trajectory step for plan execution
-                if self.trajectory_callback:
-                    trajectory_step = {
-                        "type": "planner_plan_execution",
-                        "step": self.planner_agent.steps_counter,
-                        "result": result,
-                        "timestamp": time.time()
-                    }
-                    await self._handle_trajectory_step(trajectory_step)
-
-            except Exception as e:
-                logger.error(f"Error executing planning code: {e}")
-                # If there's an error, create a simple default task
-                self.task_manager.set_tasks([f"Achieve the goal: {self.goal}"])
-        
-        # Get and display the tasks
-        tasks = self.task_manager.get_all_tasks()
-        if tasks:
-            logger.info("📝 Plan created:")
-            for i, task in enumerate(tasks, 1):
-                if task["status"] == self.task_manager.STATUS_PENDING:
-                    logger.info(f"  {i}. {task['description']}")
-
-            # Add trajectory step for final plan
-            if self.trajectory_callback:
-                trajectory_step = {
-                    "type": "planner_final_plan",
-                    "step": self.planner_agent.steps_counter,
-                    "tasks": [task["description"] for task in tasks if task["status"] == self.task_manager.STATUS_PENDING],
-                    "timestamp": time.time()
-                }
-                await self._handle_trajectory_step(trajectory_step)
-        else:
-            logger.warning("No tasks were generated in the plan")
-            
-        return tasks
-
-    async def _execute_task_with_codeact(self, task: Dict) -> Tuple[bool, str]:
-        """
-        Execute a single task using the CodeActAgent.
-        
-        Args:
-            task: Task dictionary with description and status
-            
-        Returns:
-            Tuple of (success, reason)
-        """
-        task_description = task["description"]
-        logger.info(f"🔧 Executing task: {task_description}")
-        
-        # Update task status
-        task["status"] = self.task_manager.STATUS_ATTEMPTING
-        
-        # Run the CodeActAgent
-        try:
-            # Reset the tools finished flag before execution
-            self.tools_instance.finished = False
-            self.tools_instance.success = None
-            self.tools_instance.reason = None
-            
-            # Execute the CodeActAgent with the task description as input
-            # Pass input as a keyword argument, not as a dictionary
-            result = await self.codeact_agent.run(input=task_description)
-            
-            # Check if the tools instance was marked as finished by the 'complete' function
-            if self.tools_instance.finished:
-                if self.tools_instance.success:
-                    task["status"] = self.task_manager.STATUS_COMPLETED
-                    logger.debug(f"Task completed successfully: {self.tools_instance.reason}")
-                    return True, self.tools_instance.reason or "Task completed successfully"
-                else:
-                    task["status"] = self.task_manager.STATUS_FAILED
-                    task["failure_reason"] = self.tools_instance.reason or "Task failed without specific reason"
-                    logger.warning(f"Task failed: {task['failure_reason']}")
-                    return False, self.tools_instance.reason or "Task failed without specific reason"
-            
-            # If tools instance wasn't marked as finished, check the result directly
-            if result and isinstance(result, dict) and "success" in result and result["success"]:
-                task["status"] = self.task_manager.STATUS_COMPLETED
-                logger.debug(f"Task completed with result: {result}")
-                return True, result.get("reason", "Task completed successfully")
+            if isinstance(llms, dict):
+                llms = merge_llms_with_config(
+                    self.config, llms, output_model=output_model, **kwargs
+                )
+            elif isinstance(llms, LLM):
+                pass
             else:
-                failure_reason = result.get("reason", "Unknown failure") if isinstance(result, dict) else "Task execution failed"
-                task["status"] = self.task_manager.STATUS_FAILED
-                task["failure_reason"] = failure_reason
-                logger.warning(f"Task failed: {failure_reason}")
-                return False, failure_reason
-                
+                raise ValueError(f"Invalid LLM type: {type(llms)}")
+
+            if isinstance(llms, dict):
+                self.manager_llm = llms.get("manager")
+                self.executor_llm = llms.get("executor")
+                self.fast_agent_llm = llms.get("fast_agent")
+                self.app_opener_llm = llms.get("app_opener")
+                self.structured_output_llm = llms.get(
+                    "structured_output", self.fast_agent_llm
+                )
+            else:
+                self.manager_llm = llms
+                self.executor_llm = llms
+                self.fast_agent_llm = llms
+                self.app_opener_llm = llms
+                self.structured_output_llm = llms
+        else:
+            logger.debug(f"🔄 Using external agent: {self.config.agent.name}")
+            self.manager_llm = None
+            self.executor_llm = None
+            self.fast_agent_llm = None
+            self.app_opener_llm = None
+            self.structured_output_llm = None
+
+        if (
+            not self._using_external_agent
+            and self.config.logging.save_trajectory != "none"
+        ):
+            self.trajectory = Trajectory(
+                goal=self.shared_state.instruction,
+                base_path=self.config.logging.trajectory_path,
+            )
+            self.trajectory_writer = TrajectoryWriter(queue_size=300)
+        else:
+            self.trajectory = None
+            self.trajectory_writer = None
+
+        # Sub-agents are created in __init__ but wired up in start_handler
+        if self._using_external_agent:
+            self.manager_agent = None
+            self.executor_agent = None
+        elif self.config.agent.reasoning:
+            if self.config.agent.manager.stateless:
+                ManagerClass = StatelessManagerAgent
+            else:
+                ManagerClass = ManagerAgent
+
+            # Pass None for tools-related params — wired up in start_handler
+            self.manager_agent = ManagerClass(
+                llm=self.manager_llm,
+                action_ctx=None,
+                state_provider=None,
+                save_trajectory=self.config.logging.save_trajectory,
+                shared_state=self.shared_state,
+                agent_config=self.config.agent,
+                registry=None,
+                output_model=self.output_model,
+                prompt_resolver=self.prompt_resolver,
+                tracing_config=self.config.tracing,
+                timeout=self.timeout,
+            )
+            self.executor_agent = ExecutorAgent(
+                llm=self.executor_llm,
+                registry=None,
+                action_ctx=None,
+                shared_state=self.shared_state,
+                agent_config=self.config.agent,
+                prompt_resolver=self.prompt_resolver,
+                timeout=self.timeout,
+            )
+        else:
+            self.manager_agent = None
+            self.executor_agent = None
+
+        # Telemetry init event is fired in start_handler after registry is built.
+        self._init_prompts = prompts  # stash for telemetry
+        self._init_timeout = timeout
+
+        logger.debug("✅ DroidAgent initialized successfully.")
+
+    def run(self, *args, **kwargs) -> Awaitable[ResultEvent] | WorkflowHandler:
+        apply_session_context()
+        handler = super().run(*args, **kwargs)  # type: ignore[assignment]
+        return handler
+
+    # ========================================================================
+    # start_handler — creates driver, registry, action_ctx
+    # ========================================================================
+
+    @step
+    async def start_handler(
+        self, ctx: Context, ev: StartEvent
+    ) -> FastAgentExecuteEvent | ManagerInputEvent:
+        logger.info(
+            f"🚀 Running DroidAgent to achieve goal: {self.shared_state.instruction}"
+        )
+        ctx.write_event_to_stream(ev)
+
+        if self.trajectory_writer:
+            await self.trajectory_writer.start()
+
+        # ── 0. External agent — early exit ────────────────────────────
+        if self._using_external_agent:
+            agent_name = self.config.agent.name
+
+            # Load the agent module
+            agent_module = load_agent(agent_name)
+            if not agent_module:
+                from droidrun.agent.external import list_agents
+
+                available = list_agents()
+                if available:
+                    agents_str = ", ".join(available)
+                    raise ValueError(
+                        f"Failed to load external agent '{agent_name}'.\n"
+                        f"Available agents: {agents_str}"
+                    )
+                raise ValueError(
+                    f"External agent '{agent_name}' not found.\n"
+                    "No external agents are currently installed.\n"
+                    "Run: droidrun run --help  to see available agents."
+                )
+
+            # Resolve config — missing section is fine, agent may use DEFAULT_CONFIG or env vars
+            agent_config = self.config.external_agents.get(agent_name) or {}
+            final_config = {**agent_module["config"], **agent_config}
+
+            # Resolve device serial and get raw AdbDevice
+            device_serial = self.resolved_device_config.serial
+            if device_serial is None:
+                devices = await adb.list()
+                if not devices:
+                    raise ValueError("No connected Android devices found.")
+                device_serial = devices[0].serial
+
+            adb_device = await adb.device(serial=device_serial)
+
+            logger.info(f"🤖 Using external agent: {agent_name}")
+
+            result = await agent_module["run"](
+                device=adb_device,
+                instruction=self.shared_state.instruction,
+                config=final_config,
+                max_steps=self.config.agent.max_steps,
+            )
+
+            return FinalizeEvent(success=result["success"], reason=result["reason"])
+
+        # ── 1. Create driver ──────────────────────────────────────────
+        if self.config.agent.reasoning:
+            vision_enabled = self.config.agent.manager.vision
+        else:
+            vision_enabled = self.config.agent.fast_agent.vision
+
+        is_ios = self.resolved_device_config.platform.lower() == "ios"
+
+        if self._injected_driver is not None:
+            driver = self._injected_driver
+        elif is_ios:
+            ios_url = self.resolved_device_config.serial
+            if not ios_url:
+                ios_url = await discover_ios_portal()
+            driver = IOSDriver(url=ios_url)
+            await driver.connect()
+        else:
+            device_serial = self.resolved_device_config.serial
+            if device_serial is None:
+                devices = await adb.list()
+                if not devices:
+                    raise ValueError("No connected Android devices found.")
+                device_serial = devices[0].serial
+
+            # Auto-setup portal if enabled
+            if self.config.device.auto_setup:
+                device_obj = await adb.device(serial=device_serial)
+                await ensure_portal_ready(device_obj, debug=self.config.logging.debug)
+
+            driver = AndroidDriver(
+                serial=device_serial,
+                use_tcp=self.resolved_device_config.use_tcp,
+            )
+            await driver.connect()
+
+        # Wrap with StealthDriver if stealth mode enabled
+        stealth_enabled = self.config.tools and self.config.tools.stealth
+        if stealth_enabled and not is_ios:
+            driver = StealthDriver(driver)
+
+        # Wrap with RecordingDriver if trajectory saving enabled
+        if self.config.logging.save_trajectory != "none":
+            if not isinstance(driver, RecordingDriver):
+                driver = RecordingDriver(driver)
+
+        self.driver = driver
+        self.shared_state.platform = driver.platform
+
+        # ── 2. Create state provider ──────────────────────────────────
+        if self._injected_state_provider is not None:
+            self.state_provider = self._injected_state_provider
+        elif is_ios:
+            self.state_provider = IOSStateProvider(
+                driver,
+                use_normalized=self.config.agent.use_normalized_coordinates,
+            )
+        else:
+            tree_filter = ConciseFilter() if vision_enabled else DetailedFilter()
+            tree_formatter = IndexedFormatter()
+            self.state_provider = AndroidStateProvider(
+                driver,
+                tree_filter=tree_filter,
+                tree_formatter=tree_formatter,
+                use_normalized=self.config.agent.use_normalized_coordinates,
+                stealth=stealth_enabled,
+            )
+
+        # ── 3. Build tool registry ────────────────────────────────────
+        registry, standard_tool_names = await build_tool_registry(
+            supported_buttons=driver.supported_buttons,
+            credential_manager=self.credential_manager,
+            platform="ios" if is_ios else "android",
+        )
+
+        # User custom tools
+        if self.user_custom_tools:
+            registry.register_from_dict(self.user_custom_tools)
+
+        # MCP tools
+        if self.config.mcp and self.config.mcp.enabled:
+            self.mcp_manager = MCPClientManager(self.config.mcp)
+            await self.mcp_manager.discover_tools()
+            mcp_tools = mcp_to_droidrun_tools(self.mcp_manager)
+            if mcp_tools:
+                registry.register_from_dict(mcp_tools)
+
+        # Capability-based filtering (deps vs driver+provider supported)
+        capabilities = driver.supported | self.state_provider.supported
+        registry.disable_unsupported(capabilities)
+
+        # Config-level filtering
+        disabled_tools = (
+            self.config.tools.disabled_tools
+            if self.config.tools and self.config.tools.disabled_tools
+            else []
+        )
+        if disabled_tools:
+            registry.disable(disabled_tools)
+
+        self.registry = registry
+        self.standard_tool_names = standard_tool_names
+
+        # ── 4. Create ActionContext ────────────────────────────────────
+        self.action_ctx = ActionContext(
+            driver=driver,
+            ui=None,  # populated each step by state_provider
+            shared_state=self.shared_state,
+            state_provider=self.state_provider,
+            app_opener_llm=self.app_opener_llm,
+            credential_manager=self.credential_manager,
+            streaming=self.config.agent.streaming,
+        )
+
+        # ── 5. Wire up sub-agents ─────────────────────────────────────
+        if self.config.agent.reasoning and self.executor_agent:
+            self.manager_agent.action_ctx = self.action_ctx
+            self.manager_agent.state_provider = self.state_provider
+            self.manager_agent.registry = self.registry
+            self.manager_agent.save_trajectory = self.config.logging.save_trajectory
+            self.manager_agent.standard_tool_names = self.standard_tool_names
+            self.executor_agent.registry = self.registry
+            self.executor_agent.action_ctx = self.action_ctx
+
+        # ── 6. Fetch device date once ─────────────────────────────────
+        self.shared_state.device_date = await driver.get_date()
+
+        # ── 7. Telemetry init event ───────────────────────────────────
+        capture(
+            DroidAgentInitEvent(
+                goal=self.shared_state.instruction,
+                llms={
+                    "manager": (
+                        self.manager_llm.class_name() if self.manager_llm else "None"
+                    ),
+                    "executor": (
+                        self.executor_llm.class_name() if self.executor_llm else "None"
+                    ),
+                    "fast_agent": (
+                        self.fast_agent_llm.class_name()
+                        if self.fast_agent_llm
+                        else "None"
+                    ),
+                    "app_opener": (
+                        self.app_opener_llm.class_name()
+                        if self.app_opener_llm
+                        else "None"
+                    ),
+                },
+                tools=",".join(sorted(standard_tool_names)),
+                max_steps=self.config.agent.max_steps,
+                timeout=self._init_timeout,
+                vision={
+                    "manager": self.config.agent.manager.vision,
+                    "executor": self.config.agent.executor.vision,
+                    "fast_agent": self.config.agent.fast_agent.vision,
+                },
+                reasoning=self.config.agent.reasoning,
+                enable_tracing=self.config.tracing.enabled,
+                debug=self.config.logging.debug,
+                save_trajectories=self.config.logging.save_trajectory,
+                runtype=self.runtype,
+                custom_prompts=self._init_prompts,
+            ),
+            self.user_id,
+        )
+
+        if self.config.logging.save_trajectory != "none":
+            self.trajectory_writer.write(self.trajectory, stage="init")
+
+        if not self.config.agent.reasoning:
+            logger.debug(
+                f"🔄 Direct execution mode - executing goal: {self.shared_state.instruction}"
+            )
+            event = FastAgentExecuteEvent(instruction=self.shared_state.instruction)
+            ctx.write_event_to_stream(event)
+            return event
+
+        logger.debug("🧠 Reasoning mode - initializing Manager/Executor workflow")
+        event = ManagerInputEvent()
+        ctx.write_event_to_stream(event)
+        return event
+
+    # ========================================================================
+    # External user message injection
+    # ========================================================================
+
+    def send_user_message(self, message: str) -> QueuedUserMessage:
+        queued = self.shared_state.queue_user_message(message)
+        logger.info(
+            f"📩 External user message queued [id={queued.id}] "
+            f"(queue length: {len(self.shared_state.pending_user_messages)})",
+            extra={"color": "cyan"},
+        )
+        return queued
+
+    # ========================================================================
+    # execute_task — FastAgent
+    # ========================================================================
+
+    @step
+    async def execute_task(
+        self, ctx: Context, ev: FastAgentExecuteEvent
+    ) -> FastAgentResultEvent:
+        """Execute a single task using FastAgent."""
+
+        logger.debug(f"🔧 Executing task: {ev.instruction}")
+
+        try:
+            agent = FastAgent(
+                llm=self.fast_agent_llm,
+                agent_config=self.config.agent,
+                registry=self.registry,
+                action_ctx=self.action_ctx,
+                state_provider=self.state_provider,
+                save_trajectory=self.config.logging.save_trajectory,
+                debug=self.config.logging.debug,
+                shared_state=self.shared_state,
+                output_model=self.output_model,
+                prompt_resolver=self.prompt_resolver,
+                timeout=self.timeout,
+                tracing_config=self.config.tracing,
+            )
+
+            handler = agent.run(
+                input=ev.instruction,
+                remembered_info=self.shared_state.fast_memory,
+            )
+
+            async for nested_ev in handler.stream_events():
+                self.handle_stream_event(nested_ev, ctx)
+
+                if isinstance(nested_ev, FastAgentOutputEvent):
+                    if self.config.logging.save_trajectory != "none":
+                        self.trajectory_writer.write(
+                            self.trajectory,
+                            stage=f"fast_agent_step_{self.shared_state.step_number}",
+                        )
+
+            result = await handler
+
+            return FastAgentResultEvent(
+                success=result.get("success", False),
+                reason=result["reason"],
+                instruction=ev.instruction,
+            )
+
+        except DeviceDisconnectedError as e:
+            logger.error(f"Device disconnected: {e}")
+            return FastAgentResultEvent(
+                success=False,
+                reason=f"Device disconnected: {e}",
+                instruction=ev.instruction,
+            )
+
         except Exception as e:
             logger.error(f"Error during task execution: {e}")
-            if self.debug:
-                import traceback
+            if self.config.logging.debug:
                 logger.error(traceback.format_exc())
-            task["status"] = self.task_manager.STATUS_FAILED
-            task["failure_reason"] = f"Error: {str(e)}"
-            return False, f"Error: {str(e)}"
+            return FastAgentResultEvent(
+                success=False, reason=f"Error: {str(e)}", instruction=ev.instruction
+            )
 
-    async def run(self) -> Dict[str, Any]:
-        """
-        Main execution loop that coordinates between planning and execution.
-        Yields trajectory steps during execution.
-        
-        Returns:
-            Dict containing the execution result and complete trajectory
-        """
-        logger.info(f"🚀 Running DroidAgent to achieve goal: {self.goal}")
-        
-        step_counter = 0
-        retry_counter = 0
-        overall_success = False
-        final_message = ""
-        
-        # Clear trajectory from any previous runs
-        self.trajectory_steps = []
-        
+    @step
+    async def handle_fast_agent_result(
+        self, ctx: Context, ev: FastAgentResultEvent
+    ) -> FinalizeEvent:
         try:
-            # If reasoning is disabled, directly execute the goal as a single task in CodeActAgent
-            if not self.reasoning:
-                logger.info(f"🔄 Direct execution mode - executing goal: {self.goal}")
-                # Create a simple task for the goal
-                task = {
-                    "description": self.goal,
-                    "status": self.task_manager.STATUS_PENDING
-                }
-                
-                # Execute the task directly with CodeActAgent
-                success, reason = await self._execute_task_with_codeact(task)
-                
-                return {
-                    "success": success,
-                    "reason": reason,
-                    "steps": 1,
-                    "task_history": [task],  # Single task history
-                    "trajectory": self.trajectory_steps
-                }
-            
-            # Standard reasoning mode with planning
-            while step_counter < self.max_steps:
-                step_counter += 1
-                logger.debug(f"Planning step {step_counter}/{self.max_steps}")
-                
-                # 1. Get a plan from the planner
-                tasks = await self._get_plan_from_planner()
-                
-                if self.task_manager.task_completed:
-                    # Task is marked as complete by the planner
-                    logger.info(f"✅ Goal completed: {self.task_manager.message}")
-                    overall_success = True
-                    final_message = self.task_manager.message
-                    break
-                
-                if not tasks:
-                    logger.warning("No tasks generated by planner")
-                    final_message = "Planner did not generate any tasks"
-                    break
-                
-                # 2. Execute each task in the plan sequentially
-                for task in tasks:
-                    if task["status"] == self.task_manager.STATUS_PENDING:
-                        # Reset the CodeActAgent's step counter for this task
-                        self.codeact_agent.steps_counter = 0
-                        
-                        # Execute the task
-                        success, reason = await self._execute_task_with_codeact(task)
-                        
-                        # Update task info with detailed result for the planner
-                        task_idx = tasks.index(task)
-                        result_info = {
-                            "execution_details": reason,
-                            "step_executed": step_counter,
-                            "codeact_steps": self.codeact_agent.steps_counter
-                        }
-                        
-                        # Only update if not already updated in _execute_task_with_codeact
-                        if success:
-                            self.task_manager.update_status(
-                                task_idx, 
-                                self.task_manager.STATUS_COMPLETED, 
-                                result_info
-                            )
-                            logger.info(f"✅ Task completed: {task['description']}")
-                        
-                        if not success:
-                            # Store detailed failure information if not already set
-                            if "failure_reason" not in task:
-                                self.task_manager.update_status(
-                                    task_idx,
-                                    self.task_manager.STATUS_FAILED,
-                                    {"failure_reason": reason, **result_info}
-                                )
-                            
-                            # Handle retries
-                            if retry_counter < self.max_retries:
-                                retry_counter += 1
-                                logger.info(f"Retrying... ({retry_counter}/{self.max_retries})")
-                                # Next iteration will generate a new plan based on current state
-                                break
-                            else:
-                                logger.error(f"Max retries exceeded for task")
-                                final_message = f"Failed after {self.max_retries} retries. Reason: {reason}"
-                                return {
-                                    "success": False, 
-                                    "reason": final_message,
-                                    "trajectory": self.trajectory_steps
-                                }
-                
-                # Reset retry counter for new task sequence
-                retry_counter = 0
-                
-                # Check if all tasks are completed
-                all_completed = all(task["status"] == self.task_manager.STATUS_COMPLETED for task in tasks)
-                if all_completed:
-                    # Get a new plan (the planner might decide we're done)
-                    continue
-            
-            # Check if we exited due to max steps
-            if step_counter >= self.max_steps and not overall_success:
-                final_message = f"Reached maximum number of steps ({self.max_steps})"
-                overall_success = False
-                
-            return {
-                "success": overall_success,
-                "reason": final_message,
-                "steps": step_counter,
-                "task_history": self.task_manager.get_task_history(),
-                "trajectory": self.trajectory_steps
-            }
-                
+            return FinalizeEvent(success=ev.success, reason=ev.reason)
+
         except Exception as e:
             logger.error(f"❌ Error during DroidAgent execution: {e}")
-            if self.debug:
-                import traceback
+            if self.config.logging.debug:
                 logger.error(traceback.format_exc())
-            return {
-                "success": False, 
-                "reason": str(e),
-                "task_history": self.task_manager.get_task_history(),
-                "trajectory": self.trajectory_steps
-            } 
+            return FinalizeEvent(
+                success=False,
+                reason=str(e),
+            )
+
+    # ========================================================================
+    # Manager/Executor Workflow Steps
+    # ========================================================================
+
+    @step
+    async def run_manager(
+        self, ctx: Context, ev: ManagerInputEvent
+    ) -> ManagerPlanEvent | FinalizeEvent:
+        """Run Manager planning phase."""
+        if self.shared_state.step_number >= self.config.agent.max_steps:
+            logger.warning(f"⚠️ Reached maximum steps ({self.config.agent.max_steps})")
+            pending = self.shared_state.drain_user_messages()
+            if pending:
+                logger.warning(
+                    f"⚠️ Dropping {len(pending)} external user message(s) at max steps"
+                )
+                ctx.write_event_to_stream(
+                    ExternalUserMessageDroppedEvent(
+                        message_ids=[m.id for m in pending],
+                        reason="max_steps_reached",
+                        step_number=self.shared_state.step_number,
+                    )
+                )
+            return FinalizeEvent(
+                success=False,
+                reason=f"Reached maximum steps ({self.config.agent.max_steps})",
+            )
+
+        self.shared_state.step_number += 1
+        logger.info(
+            f"🔄 Step {self.shared_state.step_number}/{self.config.agent.max_steps}"
+        )
+
+        try:
+            handler = self.manager_agent.run()
+
+            async for nested_ev in handler.stream_events():
+                self.handle_stream_event(nested_ev, ctx)
+
+            result = await handler
+        except DeviceDisconnectedError as e:
+            logger.error(f"Device disconnected: {e}")
+            return FinalizeEvent(success=False, reason=f"Device disconnected: {e}")
+
+        event = ManagerPlanEvent(
+            plan=result["plan"],
+            current_subgoal=result["current_subgoal"],
+            thought=result["thought"],
+            answer=result.get("answer", ""),
+            success=result.get("success"),
+        )
+        ctx.write_event_to_stream(event)
+        return event
+
+    @step
+    async def handle_manager_plan(
+        self, ctx: Context, ev: ManagerPlanEvent
+    ) -> ExecutorInputEvent | FinalizeEvent | ManagerInputEvent:
+        """Process Manager output and decide next step."""
+        # Check for answer-type termination
+        if ev.answer.strip():
+            if self.shared_state.pending_user_messages:
+                logger.info(
+                    "⏸️ Manager tried to finish but external messages pending, "
+                    "looping back to Manager",
+                    extra={"color": "cyan"},
+                )
+                return ManagerInputEvent()
+            success = ev.success if ev.success is not None else True
+            self.shared_state.progress_summary = f"Answer: {ev.answer}"
+            return FinalizeEvent(success=success, reason=ev.answer)
+
+        logger.debug(f"▶️  Proceeding to Executor with subgoal: {ev.current_subgoal}")
+        return ExecutorInputEvent(current_subgoal=ev.current_subgoal)
+
+    @step
+    async def run_executor(
+        self, ctx: Context, ev: ExecutorInputEvent
+    ) -> ExecutorResultEvent:
+        """Run Executor action phase."""
+        logger.debug("⚡ Running Executor for action...")
+
+        handler = self.executor_agent.run(subgoal=ev.current_subgoal)
+
+        async for nested_ev in handler.stream_events():
+            self.handle_stream_event(nested_ev, ctx)
+
+        result = await handler
+
+        # Update coordination state after execution
+        self.shared_state.action_history.append(result["action"])
+        self.shared_state.summary_history.append(result["summary"])
+        self.shared_state.action_outcomes.append(result["outcome"])
+        self.shared_state.error_descriptions.append(result["error"])
+        self.shared_state.last_action = result["action"]
+        self.shared_state.last_summary = result["summary"]
+
+        return ExecutorResultEvent(
+            action=result["action"],
+            outcome=result["outcome"],
+            error=result["error"],
+            summary=result["summary"],
+        )
+
+    @step
+    async def handle_executor_result(
+        self, ctx: Context, ev: ExecutorResultEvent
+    ) -> ManagerInputEvent:
+        """Process Executor result and continue."""
+        err_thresh = self.shared_state.err_to_manager_thresh
+
+        if len(self.shared_state.action_outcomes) >= err_thresh:
+            latest = self.shared_state.action_outcomes[-err_thresh:]
+            error_count = sum(1 for o in latest if not o)
+            if error_count == err_thresh:
+                logger.warning(f"⚠️ Error escalation: {err_thresh} consecutive errors")
+                self.shared_state.error_flag_plan = True
+            else:
+                if self.shared_state.error_flag_plan:
+                    logger.debug("✅ Error resolved - resetting error flag")
+                self.shared_state.error_flag_plan = False
+
+        if self.config.logging.save_trajectory != "none":
+            self.trajectory_writer.write(
+                self.trajectory, stage=f"step_{self.shared_state.step_number}"
+            )
+
+        return ManagerInputEvent()
+
+    # ========================================================================
+    # Finalize
+    # ========================================================================
+
+    @step
+    async def finalize(self, ctx: Context, ev: FinalizeEvent) -> ResultEvent:
+        self.shared_state.workflow_completed = True
+        ctx.write_event_to_stream(ev)
+        capture(
+            DroidAgentFinalizeEvent(
+                success=ev.success,
+                reason=ev.reason,
+                steps=self.shared_state.step_number,
+                unique_packages_count=len(self.shared_state.visited_packages),
+                unique_activities_count=len(self.shared_state.visited_activities),
+            ),
+            self.user_id,
+        )
+        await flush()
+
+        # Base result with answer
+        result = ResultEvent(
+            success=ev.success,
+            reason=ev.reason,
+            steps=self.shared_state.step_number,
+            structured_output=None,
+        )
+
+        # Extract structured output if model was provided
+        if self.output_model is not None and ev.reason:
+            logger.debug("🔄 Running structured output extraction...")
+
+            try:
+                structured_agent = StructuredOutputAgent(
+                    llm=self.structured_output_llm,
+                    pydantic_model=self.output_model,
+                    answer_text=ev.reason,
+                    timeout=self.timeout,
+                )
+
+                handler = structured_agent.run()
+
+                async for nested_ev in handler.stream_events():
+                    self.handle_stream_event(nested_ev, ctx)
+
+                extraction_result = await handler
+
+                if extraction_result["success"]:
+                    result.structured_output = extraction_result["structured_output"]
+                    logger.debug("✅ Structured output added to final result")
+                else:
+                    logger.warning(
+                        f"⚠️  Structured extraction failed: {extraction_result['error_message']}"
+                    )
+
+            except Exception as e:
+                logger.error(f"❌ Error during structured extraction: {e}")
+                if self.config.logging.debug:
+                    logger.error(traceback.format_exc())
+
+        # Capture final screenshot and UI state (independent of trajectory persistence)
+        vision_any = (
+            self.config.agent.manager.vision
+            or self.config.agent.executor.vision
+            or self.config.agent.fast_agent.vision
+        )
+        if (
+            vision_any
+            or self._stream_screenshots
+            or self.config.logging.save_trajectory != "none"
+        ):
+            try:
+                screenshot = await self.action_ctx.driver.screenshot()
+                if screenshot:
+                    ctx.write_event_to_stream(ScreenshotEvent(screenshot=screenshot))
+                    parent_span = trace.get_current_span()
+                    record_langfuse_screenshot(
+                        screenshot,
+                        parent_span=parent_span,
+                        screenshots_enabled=self.config.tracing.langfuse_screenshots,
+                        vision_enabled=vision_any,
+                    )
+                    logger.debug("📸 Final screenshot captured")
+            except Exception as e:
+                logger.warning(f"Failed to capture final screenshot: {e}")
+
+            try:
+                ui_state = await self.state_provider.get_state()
+                ctx.write_event_to_stream(
+                    RecordUIStateEvent(ui_state=ui_state.elements)
+                )
+                logger.debug("📋 Final UI state captured")
+            except Exception as e:
+                logger.warning(f"Failed to capture final UI state: {e}")
+
+        # Save trajectory to disk
+        if self.config.logging.save_trajectory != "none":
+            # Populate macro data from RecordingDriver log
+            if isinstance(self.driver, RecordingDriver):
+                self.trajectory.macro = list(self.driver.log)
+
+            self.trajectory_writer.write_final(
+                self.trajectory, self.config.logging.trajectory_gifs
+            )
+            await self.trajectory_writer.stop()
+            logger.info(f"📁 Trajectory saved: {self.trajectory.trajectory_folder}")
+
+        # Cleanup MCP connections
+        if self.mcp_manager:
+            try:
+                await self.mcp_manager.disconnect_all()
+            except Exception as e:
+                logger.warning(f"MCP cleanup error: {e}")
+
+        return result
+
+    # ========================================================================
+    # Event streaming
+    # ========================================================================
+
+    def handle_stream_event(self, ev: Event, ctx: Context):
+        if not isinstance(ev, StopEvent):
+            ctx.write_event_to_stream(ev)
+
+            if self.trajectory:
+                if isinstance(ev, ScreenshotEvent):
+                    self.trajectory.screenshot_queue.append(ev.screenshot)
+                    self.trajectory.screenshot_count += 1
+                elif isinstance(ev, RecordUIStateEvent):
+                    self.trajectory.ui_states.append(ev.ui_state)
+                else:
+                    self.trajectory.events.append(ev)

@@ -1,4 +1,15 @@
 dist/
+build/
+
+# Claude Code skill file (developer tooling)
+SKILL.md
+
+# Local Chinese helper docs (personal notes)
+使用指南.md
+快速参考.md
+
+# macOS metadata
+*.DS_Store
 # Python bytecode files
 __pycache__/
 *.py[cod]
@@ -19,6 +30,30 @@ messages_log.json
 .idea/*
 .vscode/*
 patch_apis.py
-.*
+.git
+.arize-phoenix
 
-.env
+todo.txt
+
+config.yaml
+
+credentials.yaml
+**/credentials.yaml
+!**/credentials_example.yaml
+
+.*/
+!.gitignore
+!.github/
+
+/backend/
+/frontend/
+
+# WebGUI
+web/frontend/node_modules/
+web/frontend/dist/
+web/backend/.venv/
+web/backend/data/
+
+reddit_python_posts.json
+
+test/
