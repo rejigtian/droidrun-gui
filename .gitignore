@@ -1,13 +1,6 @@
 dist/
 build/
 
-# Desktop app build artifacts
-desktop-app/dist/
-desktop-app/build/
-
-# Bundled APK (too large for git, downloaded at runtime)
-desktop-app/resources/portal/*.apk
-
 # Claude Code skill file (developer tooling)
 SKILL.md
 
@@ -54,6 +47,12 @@ credentials.yaml
 
 backend/
 frontend/
+
+# WebGUI
+web/frontend/node_modules/
+web/frontend/dist/
+web/backend/.venv/
+web/backend/data/
 
 reddit_python_posts.json
 

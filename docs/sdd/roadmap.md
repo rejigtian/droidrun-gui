@@ -1,6 +1,6 @@
 # DroidRun 扩展开发路线图 SDD
 
-> 版本：v1.0 | 日期：2026-04-10 | 分支：feature/android-native-agent
+> 版本：v1.1 | 日期：2026-04-14 | 分支：feature/android-native-agent
 
 ---
 
@@ -11,7 +11,7 @@ DroidRun 上游已升级至 v0.5.8，核心架构发生重大重构（Driver 层
 在此基础上，我们计划推进两个方向：
 
 1. **Android 原生 Agent（自治模式）** — 手机上安装 APK，直接调用云端 LLM，无需电脑
-2. **Desktop GUI 适配升级** — 现有桌面应用适配 droidrun 0.5.8 新接口
+2. **Web UI（自托管 WebGUI）** — FastAPI + React 自托管 Web 界面，取代 macOS 专属桌面应用
 
 ---
 
@@ -101,51 +101,62 @@ POST localhost:8080/start_app   → { package }
 
 ---
 
-## 项目二：Desktop GUI 适配升级
+## 项目二：Web UI（自托管 WebGUI）
 
 ### 背景
 
-现有 `desktop-app/` 是 Python + customtkinter GUI，通过 subprocess 调用 droidrun CLI。
-上游升级后，CLI 接口、配置格式、Provider 体系均有变化，需要适配。
+原有 `desktop-app/`（Python + customtkinter）仅支持 macOS，且维护成本高。
+已用 FastAPI + React 自托管 WebGUI 完整替代，可部署到云服务器或本地，任意浏览器访问。
 
-### 变更点梳理
+### 架构
 
-| 变更项 | 旧版（0.4.x） | 新版（0.5.x） | 影响 |
-|--------|-------------|-------------|------|
-| LLM 配置 | 各 provider 独立参数 | Provider Registry（ZAI/Gemini/OpenAI 等）| 配置页面需重写 |
-| 工具层 | `AdbTools` 单类 | `Driver` + `StateProvider` 分离 | task_runner 调用方式变化 |
-| Agent 模式 | codeact / droid | fast_agent / droid（reasoning）| 模式选择 UI 需更新 |
-| 设备检测 | adbutils 同步 | async_adbutils 异步 | device_checker 需改写 |
-| 配置文件格式 | config.yaml v1 | config.yaml v2（含 migrations）| 配置读写逻辑更新 |
-| CLI 命令 | `droidrun run` 等 | 新增 `droidrun doctor`、TUI 模式 | GUI 可集成 doctor 检测 |
+```
+浏览器（任意平台）
+      ↕ HTTP/WebSocket
+FastAPI 后端（cloud / local）
+      ↕ Reverse WebSocket（穿透 NAT）
+droidrun-portal Android APK（手机端）
+```
 
-### 开发计划
+- Portal 主动反连后端（`/v1/providers/join`），解决手机不固定 IP 问题
+- 后端通过 `WebSocketDevice(DeviceDriver)` 将 droidrun 工具调用转发为 JSON-RPC
 
-#### Phase A：依赖 & 配置适配（1周）
-- [ ] A-1 更新 `requirements.txt`：`droidrun>=0.5.8`，移除旧 provider 包
-- [ ] A-2 适配新 config.yaml 格式，更新 `src/core/` 配置读写逻辑
-- [ ] A-3 设备检测改用 `async_adbutils`
+### 关键文件
 
-#### Phase B：Provider 配置页重写（1周）
-- [ ] B-1 参考上游 Provider Registry，重写配置 UI：支持 Gemini / OpenAI / Anthropic / ZAI / Ollama
-- [ ] B-2 支持 OAuth 认证流程（新增 Anthropic/Gemini OAuth）
-- [ ] B-3 移除旧版独立 API Key 输入，统一到 Provider 选择器
+| 文件 | 说明 |
+|------|------|
+| `web/backend/main.py` | FastAPI 入口，CORS，静态文件，健康检查 |
+| `web/backend/ws/portal_ws.py` | Portal WebSocket 端点；维护 `connected_devices` |
+| `web/backend/agent/ws_device.py` | `WebSocketDevice`：工具调用 → JSON-RPC → Portal |
+| `web/backend/core/task_runner.py` | 异步任务执行，注入 `WebSocketDevice` 到 `DroidAgent` |
+| `web/backend/db/` | SQLite（SQLAlchemy async）：Device / Task / TaskLog |
+| `web/frontend/src/` | React + TypeScript + Vite + Tailwind + React Query |
 
-#### Phase C：任务执行适配（3天）
-- [ ] C-1 `task_runner.py` 适配新 CLI 参数（fast_agent 模式、driver 选项）
-- [ ] C-2 集成 `droidrun doctor` 结果展示到安装引导界面
-- [ ] C-3 验证端到端任务执行流程
+### 启动方式
+
+```bash
+cd web && ./start.sh
+# 后端：uvicorn main:app --reload  （port 8000）
+# 前端：npm run dev                 （port 5173，开发模式）
+```
+
+### 开发进展
+
+- **✅ MVP 完成**（2026-04-13）：后端架构、WebSocket 桥接、数据库层、前端基础页面全部实现
+- **待办**：真机端对端测试（Portal 连接 → 任务下发 → 结果展示）
 
 ---
 
 ## 优先级 & 时序
 
 ```
-Week 1-2  : [Android] P1 脚手架 & 工具层
-Week 3-4  : [Android] P2 LLM + Agent Loop
-Week 5    : [Android] P3 触发层配置  ||  [GUI] Phase A 依赖适配
-Week 6    : [Android] P4 测试打磨   ||  [GUI] Phase B Provider 重写
-Week 7    : [GUI] Phase C 任务执行适配 & 整体验收
+Week 1-2  : [Android] P1 脚手架 & 工具层          ✅ 完成（直接扩展 portal）
+Week 3-4  : [Android] P2 LLM + Agent Loop         ✅ 完成
+Week 5    : [Android] P3 触发层配置                ✅ 完成
+Week 6    : [Android] P4 测试打磨                  ✅ 完成（文档已写，真机待验证）
+            [Web] MVP 后端 + 前端                  ✅ 完成（2026-04-13）
+Week 7+   : [Web] 端对端测试 & 真机验证            🔲 进行中
+            合并 feature/android-native-agent → main
 ```
 
 ---
@@ -154,12 +165,13 @@ Week 7    : [GUI] Phase C 任务执行适配 & 整体验收
 
 ```
 rejigtian/droidrun
-├── main                        ← 持续同步上游
-└── feature/android-native-agent ← 当前开发分支
-    └── android-agent/           ← 新增 Android 项目目录
-        ├── app/
-        ├── build.gradle.kts
-        └── ...
+├── main                          ← 持续同步上游
+└── feature/android-native-agent  ← 当前开发分支
+    ├── web/                      ← 自托管 WebGUI（FastAPI + React）
+    │   ├── backend/
+    │   ├── frontend/
+    │   └── start.sh
+    └── （Android 原生 Agent 扩展已合入 portal，无独立子目录）
 ```
 
-desktop-app 升级在同一分支推进，完成后单独 PR 合入 main。
+`desktop-app/` 目录已废弃，不再维护。Web UI 替代其功能。
