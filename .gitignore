@@ -45,8 +45,8 @@ credentials.yaml
 !.gitignore
 !.github/
 
-backend/
-frontend/
+/backend/
+/frontend/
 
 # WebGUI
 web/frontend/node_modules/
